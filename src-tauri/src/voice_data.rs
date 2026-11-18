@@ -888,6 +888,61 @@ const FIRST_NAMES: &[&str] = &[
     "yannick",
     "yvonne",
     "zoe",
+    // Nicknames and names Apple's recogniser and dictionary let through.
+    "basti",
+    "benni",
+    "bjarne",
+    "chrissi",
+    "conny",
+    "dani",
+    "fabi",
+    "fiona",
+    "flo",
+    "franzi",
+    "frieda",
+    "greta",
+    "ida",
+    "jojo",
+    "jonny",
+    "johnny",
+    "jule",
+    "juli",
+    "kalle",
+    "kathi",
+    "lasse",
+    "lisi",
+    "lotta",
+    "lotte",
+    "lou",
+    "luisa",
+    "malte",
+    "manu",
+    "marlon",
+    "mats",
+    "matze",
+    "maxi",
+    "merle",
+    "micha",
+    "mira",
+    "nele",
+    "nick",
+    "nici",
+    "nik",
+    "norman",
+    "ole",
+    "olli",
+    "ralle",
+    "sammy",
+    "sandy",
+    "sepp",
+    "steffi",
+    "susi",
+    "till",
+    "tilman",
+    "tobi",
+    "toni",
+    "uli",
+    "vroni",
 ];
 
 /// Spoken numbers (German and English). A recording that says one stays on
@@ -999,6 +1054,15 @@ fn withheld_reason(
         if names.contains(base) || FIRST_NAMES.contains(&base) {
             return Some("name");
         }
+        // Abbreviations in capitals are mostly company, product or customer
+        // names ("EWTO", "MCP").
+        if w.chars().filter(|c| c.is_alphabetic()).count() >= 2
+            && w.chars()
+                .filter(|c| c.is_alphabetic())
+                .all(char::is_uppercase)
+        {
+            return Some("name");
+        }
         // English writes only names (and "I") with a capital inside a
         // sentence; German capitalises every noun, so this check is English only.
         if language == "en"
@@ -1009,6 +1073,90 @@ fn withheld_reason(
             return Some("name");
         }
     }
+    apple_name_check(text, language)
+}
+
+/// macOS's own language tools: Apple's name recogniser (people, places,
+/// organisations) and the spell checker, for capitalised words its
+/// dictionary doesn't know (company and product names, rarer names).
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // NSLinguisticTagger: works, and needs no extra crate.
+fn apple_name_check(text: &str, language: &str) -> Option<&'static str> {
+    use objc2::AnyThread;
+    use objc2_app_kit::NSSpellChecker;
+    use objc2_foundation::{
+        NSArray, NSLinguisticTagOrganizationName, NSLinguisticTagPersonalName,
+        NSLinguisticTagPlaceName, NSLinguisticTagSchemeNameType, NSLinguisticTagger,
+        NSLinguisticTaggerUnit, NSNotFound, NSRange, NSString,
+    };
+    objc2::rc::autoreleasepool(|_| {
+        let s = NSString::from_str(text);
+        let len = s.length();
+        let scheme = unsafe { NSLinguisticTagSchemeNameType };
+        let schemes = NSArray::from_slice(&[scheme]);
+        let tagger = unsafe {
+            NSLinguisticTagger::initWithTagSchemes_options(NSLinguisticTagger::alloc(), &schemes, 0)
+        };
+        tagger.setString(Some(&s));
+        let named = unsafe {
+            [
+                NSLinguisticTagPersonalName,
+                NSLinguisticTagPlaceName,
+                NSLinguisticTagOrganizationName,
+            ]
+        };
+        let mut i = 0;
+        while i < len {
+            let mut r = NSRange::new(0, 0);
+            let tag = unsafe {
+                tagger.tagAtIndex_unit_scheme_tokenRange(
+                    i,
+                    NSLinguisticTaggerUnit::Word,
+                    scheme,
+                    &mut r,
+                )
+            };
+            if tag.is_some_and(|t| named.iter().any(|n| &*t == *n)) {
+                return Some("name");
+            }
+            i = if r.length > 0 {
+                r.location + r.length
+            } else {
+                i + 1
+            };
+        }
+        let checker = NSSpellChecker::sharedSpellChecker();
+        let lang = match language {
+            "de" | "en" => Some(NSString::from_str(language)),
+            _ => None,
+        };
+        let mut start: isize = 0;
+        while (start as usize) < len {
+            let r = unsafe {
+                checker.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount(
+                    &s,
+                    start,
+                    lang.as_deref(),
+                    false,
+                    0,
+                    std::ptr::null_mut(),
+                )
+            };
+            if r.location == NSNotFound as usize || r.length == 0 {
+                break;
+            }
+            let word = s.substringWithRange(r).to_string();
+            if word.chars().next().is_some_and(char::is_uppercase) {
+                return Some("name");
+            }
+            start = (r.location + r.length) as isize;
+        }
+        None
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apple_name_check(_text: &str, _language: &str) -> Option<&'static str> {
     None
 }
 
@@ -1615,6 +1763,13 @@ mod tests {
         assert_eq!(r("Das Meeting war gut.", "de"), None);
         assert_eq!(r("Sounds good. I think so.", "en"), None);
         assert_eq!(r("Then we ask Kowalski about it.", "en"), Some("name"));
+        // What got through the first version, from real meetings.
+        assert_eq!(r("Frag mal Fiona und Maxi.", "de"), Some("name"));
+        assert_eq!(r("Das läuft über EWTO.", "de"), Some("name"));
+        assert_eq!(r("Kalasar baut die Seite.", "de"), Some("name"));
+        assert_eq!(r("Die Kunden von Lumicare warten.", "de"), Some("name"));
+        assert_eq!(r("Dann hat Norman gesagt, es passt.", "de"), Some("name"));
+        assert_eq!(r("Ich glaube, die Idee ist gut.", "de"), None);
     }
 
     #[test]

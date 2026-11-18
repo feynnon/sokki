@@ -468,7 +468,7 @@ fn sync_in_background(app: AppHandle, force: bool) {
             }
         }
         if config.improve && now - config.last_usage >= USAGE_EVERY_S {
-            let body = usage_report(&app, &d, &config, now);
+            let body = usage_report(&app, &d, &config);
             match post("usage", body) {
                 Ok(()) => update_config(&d, |c| {
                     c.last_usage = now;
@@ -675,7 +675,7 @@ fn meetings_since(app: &AppHandle, since: i64) -> serde_json::Value {
     let Some(store) = app.try_state::<std::sync::Arc<MeetingStore>>() else {
         return serde_json::json!([]);
     };
-    store
+    let mut meetings: Vec<_> = store
         .list()
         .into_iter()
         .filter(|m| {
@@ -696,22 +696,29 @@ fn meetings_since(app: &AppHandle, since: i64) -> serde_json::Value {
                     MeetingStatus::Failed { .. } => "failed",
                 },
                 "warnings": m.warnings.len(),
+                "started": m.started_at.get(..10),
             })
         })
-        .collect()
+        .collect();
+    // The first report covers all past meetings; the newest are enough to
+    // keep it small (the counter takes up to 32 KB). The list is newest first.
+    meetings.truncate(MAX_REPORTED_MEETINGS);
+    serde_json::Value::Array(meetings)
 }
+
+/// At most this many meetings per daily report (newest kept).
+#[cfg(target_os = "macos")]
+const MAX_REPORTED_MEETINGS: usize = 150;
 
 #[cfg(not(target_os = "macos"))]
 fn meetings_since(_app: &AppHandle, _since: i64) -> serde_json::Value {
     serde_json::json!([])
 }
 
-fn usage_report(app: &AppHandle, dir: &Path, config: &Config, now: i64) -> serde_json::Value {
-    let since = if config.last_usage > 0 {
-        config.last_usage
-    } else {
-        now - USAGE_EVERY_S
-    };
+fn usage_report(app: &AppHandle, dir: &Path, config: &Config) -> serde_json::Value {
+    // The first report after turning "Help improve" on covers everything
+    // that happened before; later ones only the time since the last.
+    let since = config.last_usage.max(0);
     let settings = crate::settings::get_settings(app);
     let s = stats_in(dir);
     serde_json::json!({

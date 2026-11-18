@@ -56,9 +56,14 @@ replaces the other in /Applications. Icons are drawn as SVG in
    Approach from [Lark](https://github.com/bkoleo/lark) (MIT).
 4. **Processing** after the meeting (measured: a 21-minute call is ready
    ~3 minutes after stopping):
-   1. decode, align the two tracks;
+   1. decode, align the two tracks; remove the remote voices from the mic
+      track with WebRTC echo cancellation (AEC3, pure-Rust `sonora`,
+      `meeting-core/src/aec.rs`, ~6 s per 20 min) so they are not found as
+      an extra speaker on the mic;
    2. speakers per track: Sortformer on the GPU in a child process
       (`meeting/diarize_worker.rs`, ~20 s per 20 min of audio; CPU fallback);
+      voices on one track with voice embeddings ≥ 0.75 alike are merged
+      (one voice split in two scored 0.93, different people ≤ 0.40);
    3. drop mic turns that are acoustic echo of the system track;
    4. transcribe each speaker turn (Parakeet, Handy's engine, ~20 s);
    5. text dedup, merge ghost speakers, names: on an online call the mic

@@ -12,5 +12,8 @@ serde_json = "1"
 # Small blocking HTTP client for the LLM summariser (Ollama / OpenAI-compatible).
 # rustls so https endpoints work without OpenSSL; no gzip.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
+# WebRTC AEC3 (pure-Rust port, BSD-3-Clause): removes the remote voices
+# from the microphone track before speaker detection.
+sonora = "0.3"
 
 [dev-dependencies]

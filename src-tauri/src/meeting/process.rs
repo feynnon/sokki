@@ -102,6 +102,15 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
             log::warn!("Meeting {id}: {w}");
         }
     }
+    // Remove the remote voices the mic picked up from the speakers, so they
+    // are not found as an extra speaker on the mic.
+    let t0 = std::time::Instant::now();
+    if meeting_core::aec::cancel_echo_in_tracks(&mut tracks) {
+        log::info!(
+            "Meeting {id}: echo cancelled on the mic track in {:.1}s",
+            t0.elapsed().as_secs_f64()
+        );
+    }
     let duration_s = tracks.iter().map(|t| t.duration_s()).fold(0.0, f64::max);
 
     // Load the language model while speakers are detected (saves ~6 s later).

@@ -125,6 +125,11 @@ impl Diarizer for SortformerDiarizer {
                 embeddings = e.cluster_embeddings(samples, &segs);
             }
         }
+        if let Some(min) = self.config.merge_similarity {
+            if postprocess::merge_similar(&mut segs, &mut embeddings, min) > 0 {
+                segs = postprocess::clean(&segs, &self.config.postprocess);
+            }
+        }
         if let Some(max) = self.max_speakers() {
             postprocess::merge_clusters_to(&mut segs, &mut embeddings, max.max(1));
             segs = postprocess::clean(&segs, &self.config.postprocess);

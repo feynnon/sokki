@@ -149,56 +149,106 @@ pub fn merge_clusters_to(
     embeddings: &mut std::collections::HashMap<i32, Vec<f32>>,
     max: usize,
 ) {
-    use crate::vector::{cosine, l2_normalize};
     loop {
         let clusters = cluster_order(segs);
         if clusters.len() <= max.max(1) {
             return;
         }
-        let talk = |c: i32| -> f64 {
-            segs.iter()
-                .filter(|s| s.cluster == c)
-                .map(RawSegment::duration)
-                .sum()
-        };
         let lone = clusters
             .iter()
             .filter(|c| !embeddings.contains_key(c))
-            .min_by(|a, b| talk(**a).total_cmp(&talk(**b)));
+            .min_by(|a, b| talk(segs, **a).total_cmp(&talk(segs, **b)));
         let (from, into) = if let Some(&lone) = lone {
             let biggest = *clusters
                 .iter()
                 .filter(|c| **c != lone)
-                .max_by(|a, b| talk(**a).total_cmp(&talk(**b)))
+                .max_by(|a, b| talk(segs, **a).total_cmp(&talk(segs, **b)))
                 .unwrap();
             (lone, biggest)
         } else {
-            let mut best = (f32::MIN, clusters[0], clusters[1]);
-            for (i, a) in clusters.iter().enumerate() {
-                for b in &clusters[i + 1..] {
-                    let sim = cosine(&embeddings[a], &embeddings[b]);
-                    if sim > best.0 {
-                        best = (sim, *a, *b);
-                    }
-                }
-            }
-            let (_, a, b) = best;
-            if talk(a) < talk(b) {
-                (a, b)
-            } else {
-                (b, a)
-            }
+            let (_, a, b) = most_similar(&clusters, embeddings).expect("two or more clusters");
+            smaller_first(segs, a, b)
         };
-        if let (Some(ef), Some(ei)) = (embeddings.get(&from), embeddings.get(&into)) {
-            let (wf, wi) = (talk(from) as f32, talk(into) as f32);
-            let mixed: Vec<f32> = ef.iter().zip(ei).map(|(f, i)| wf * f + wi * i).collect();
-            embeddings.insert(into, l2_normalize(&mixed));
-        }
-        embeddings.remove(&from);
-        for s in segs.iter_mut() {
-            if s.cluster == from {
-                s.cluster = into;
+        merge_pair(segs, embeddings, from, into);
+    }
+}
+
+/// Merges clusters whose embeddings have cosine similarity of at least
+/// `min_similarity`, most similar pair first (one voice split in two by the
+/// diarizer, e.g. after a change in loudness or distance to the mic).
+/// Clusters without an embedding are left alone. Segments may need [`clean`]
+/// again afterwards. Returns the number of merges.
+pub fn merge_similar(
+    segs: &mut [RawSegment],
+    embeddings: &mut std::collections::HashMap<i32, Vec<f32>>,
+    min_similarity: f32,
+) -> usize {
+    let mut merges = 0;
+    loop {
+        let clusters: Vec<i32> = cluster_order(segs)
+            .into_iter()
+            .filter(|c| embeddings.contains_key(c))
+            .collect();
+        match most_similar(&clusters, embeddings) {
+            Some((sim, a, b)) if sim >= min_similarity => {
+                let (from, into) = smaller_first(segs, a, b);
+                merge_pair(segs, embeddings, from, into);
+                merges += 1;
             }
+            _ => return merges,
+        }
+    }
+}
+
+fn talk(segs: &[RawSegment], c: i32) -> f64 {
+    segs.iter()
+        .filter(|s| s.cluster == c)
+        .map(RawSegment::duration)
+        .sum()
+}
+
+/// The pair of `clusters` (all with embeddings) with the highest cosine.
+fn most_similar(
+    clusters: &[i32],
+    embeddings: &std::collections::HashMap<i32, Vec<f32>>,
+) -> Option<(f32, i32, i32)> {
+    let mut best: Option<(f32, i32, i32)> = None;
+    for (i, a) in clusters.iter().enumerate() {
+        for b in &clusters[i + 1..] {
+            let sim = crate::vector::cosine(&embeddings[a], &embeddings[b]);
+            if best.is_none_or(|(s, _, _)| sim > s) {
+                best = Some((sim, *a, *b));
+            }
+        }
+    }
+    best
+}
+
+/// (the cluster with less talk time, the other).
+fn smaller_first(segs: &[RawSegment], a: i32, b: i32) -> (i32, i32) {
+    if talk(segs, a) < talk(segs, b) {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
+/// Relabels `from` into `into`; the embedding becomes the talk-time weighted mean.
+fn merge_pair(
+    segs: &mut [RawSegment],
+    embeddings: &mut std::collections::HashMap<i32, Vec<f32>>,
+    from: i32,
+    into: i32,
+) {
+    if let (Some(ef), Some(ei)) = (embeddings.get(&from), embeddings.get(&into)) {
+        let (wf, wi) = (talk(segs, from) as f32, talk(segs, into) as f32);
+        let mixed: Vec<f32> = ef.iter().zip(ei).map(|(f, i)| wf * f + wi * i).collect();
+        embeddings.insert(into, crate::vector::l2_normalize(&mixed));
+    }
+    embeddings.remove(&from);
+    for s in segs.iter_mut() {
+        if s.cluster == from {
+            s.cluster = into;
         }
     }
 }
@@ -315,6 +365,27 @@ mod tests {
         let mut segs = vec![seg(0.0, 5.0, 1), seg(6.0, 7.0, 2)];
         merge_clusters_to(&mut segs, &mut std::collections::HashMap::new(), 1);
         assert_eq!(cluster_order(&segs), vec![1]);
+    }
+
+    #[test]
+    fn merges_only_similar_clusters() {
+        // 1 and 2: one voice split in two (cosine 0.8); 3: someone else.
+        let mut segs = vec![seg(0.0, 2.0, 2), seg(3.0, 9.0, 1), seg(10.0, 14.0, 3)];
+        let mut emb = std::collections::HashMap::new();
+        emb.insert(1, vec![1.0, 0.0, 0.0]);
+        emb.insert(2, vec![0.8, 0.6, 0.0]);
+        emb.insert(3, vec![0.0, 0.0, 1.0]);
+        assert_eq!(merge_similar(&mut segs, &mut emb, 0.75), 1);
+        // 2 talks less, so it becomes 1.
+        assert_eq!(cluster_order(&segs), vec![1, 3]);
+        assert_eq!(merge_similar(&mut segs, &mut emb, 0.75), 0);
+        // Below the threshold nothing merges.
+        let mut segs = vec![seg(0.0, 2.0, 1), seg(3.0, 9.0, 2)];
+        let mut emb = std::collections::HashMap::new();
+        emb.insert(1, vec![1.0, 0.0]);
+        emb.insert(2, vec![0.7, 0.714]);
+        assert_eq!(merge_similar(&mut segs, &mut emb, 0.75), 0);
+        assert_eq!(cluster_order(&segs), vec![1, 2]);
     }
 
     #[test]

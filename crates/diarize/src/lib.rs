@@ -106,6 +106,13 @@ pub struct DiarizeConfig {
     pub embedding_model: EmbeddingModel,
     /// Compute a per-speaker embedding and attach it to turns.
     pub speaker_embeddings: bool,
+    /// Sortformer: speakers on the same track whose embeddings have at least
+    /// this cosine similarity are one voice and get merged (the diarizer
+    /// sometimes splits a voice in two). Needs embeddings; `None` turns it
+    /// off. 0.75 with ERes2Net: a voice split in two on a real call scored
+    /// 0.93; different people at most 0.40 (three calls, an in-person
+    /// meeting, the synthetic fixtures).
+    pub merge_similarity: Option<f32>,
     /// CPU threads for the ONNX models.
     pub num_threads: usize,
     /// Turn clean-up.
@@ -124,6 +131,7 @@ impl DiarizeConfig {
             clustering_model: EmbeddingModel::WespeakerResnet34Lm,
             embedding_model: EmbeddingModel::ERes2NetVoxceleb,
             speaker_embeddings: true,
+            merge_similarity: Some(0.75),
             num_threads: 4,
             postprocess: PostprocessConfig::default(),
         }

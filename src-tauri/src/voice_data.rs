@@ -37,7 +37,14 @@ struct Config {
     /// Random, created on first opt-in; identifies the install to the
     /// counter only (no name, no machine data).
     install_id: String,
+    /// Unix seconds of the last report that reached the counter.
+    #[serde(default)]
+    last_report: i64,
 }
+
+/// New clips are reported at most this often; opting in or out, and
+/// deleting, are reported right away.
+const REPORT_EVERY_S: i64 = 3600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Clip {
@@ -122,7 +129,7 @@ pub fn set_opt_in(app: &AppHandle, on: bool) -> Result<()> {
     }
     write_config(&d, &c)?;
     drop(_g);
-    report_in_background(app.clone());
+    report_in_background(app.clone(), true);
     Ok(())
 }
 
@@ -191,7 +198,7 @@ pub fn add_dictation(app: &AppHandle, wav: &Path, text: &str, language: Option<&
         )
     })();
     match result {
-        Ok(()) => report_in_background(app.clone()),
+        Ok(()) => report_in_background(app.clone(), false),
         Err(e) => log::warn!("Voice data: dictation not kept: {e:#}"),
     }
 }
@@ -247,7 +254,7 @@ pub fn add_meeting(app: &AppHandle, mic: &[f32], segments: &[OwnSegment]) {
     match result {
         Ok(n) => {
             log::info!("Voice data: kept {n} own segments of a meeting");
-            report_in_background(app.clone());
+            report_in_background(app.clone(), false);
         }
         Err(e) => log::warn!("Voice data: meeting segments not kept: {e:#}"),
     }
@@ -284,7 +291,10 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
     s
 }
 
+/// The page's numbers. Opening the page also sends clips kept since the
+/// last report, once the hour has passed.
 pub fn stats(app: &AppHandle) -> Result<VoiceDataStats> {
+    report_in_background(app.clone(), false);
     Ok(stats_in(&dir(app)?))
 }
 
@@ -295,7 +305,7 @@ pub fn delete_all(app: &AppHandle) -> Result<()> {
     let _ = std::fs::remove_dir_all(d.join("clips"));
     let _ = std::fs::remove_file(d.join(MANIFEST));
     drop(_g);
-    report_in_background(app.clone());
+    report_in_background(app.clone(), true);
     Ok(())
 }
 
@@ -308,12 +318,17 @@ fn agent() -> ureq::Agent {
 
 /// Sends this install's numbers (or its removal) to the counter, if one is
 /// configured. Only a random id and seconds per language leave the Mac.
-fn report_in_background(app: AppHandle) {
+/// `force`: send now; otherwise at most once per [`REPORT_EVERY_S`].
+fn report_in_background(app: AppHandle, force: bool) {
     let Some(url) = counter_url() else { return };
     std::thread::spawn(move || {
         let Ok(d) = dir(&app) else { return };
         let config = read_config(&d);
         if config.install_id.is_empty() {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        if !force && (!config.opt_in || now - config.last_report < REPORT_EVERY_S) {
             return;
         }
         let base = url.trim_end_matches('/');
@@ -331,8 +346,14 @@ fn report_in_background(app: AppHandle) {
                 .post(&format!("{base}/forget"))
                 .send_json(serde_json::json!({ "id": config.install_id }))
         };
-        if let Err(e) = res {
-            log::warn!("Voice data: counter not reached: {e}");
+        match res {
+            Ok(_) => {
+                let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+                let mut c = read_config(&d);
+                c.last_report = now;
+                let _ = write_config(&d, &c);
+            }
+            Err(e) => log::warn!("Voice data: counter not reached: {e}"),
         }
     });
 }

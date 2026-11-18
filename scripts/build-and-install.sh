@@ -40,6 +40,10 @@ case "$BRAND" in
   *) echo "unknown BRAND: $BRAND" >&2; exit 2 ;;
 esac
 export HANDY_BRAND="$BRAND" VITE_HANDY_BRAND="$BRAND"
+# The voice-data counter (counter/), once deployed; empty: count locally only.
+if [[ -z "${VERBATIM_COUNTER_URL:-}" && -f "$REPO/counter/url.txt" ]]; then
+  export VERBATIM_COUNTER_URL="$(tr -d '[:space:]' < "$REPO/counter/url.txt")"
+fi
 IDENTITY="Handy Meetings Dev"
 INDEX="$HOME/Library/Application Support/dev.handymeetings.app/meetings/index.json"
 BUNDLE="$REPO/src-tauri/target/release/bundle/macos/$APP_NAME.app"

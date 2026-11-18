@@ -5,5 +5,5 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "verbatim-counter"
-# Paste the id printed by `wrangler d1 create verbatim-counter`.
-database_id = "REPLACE_WITH_DATABASE_ID"
+# From `wrangler d1 create verbatim-counter` (forks: create your own and replace it).
+database_id = "3773fb37-4532-4cca-a953-e27c7bd70570"

@@ -3,7 +3,7 @@
 A tiny Cloudflare Worker that counts how much of their own voice opted-in
 Verbatim installs keep, per language. It stores a random id per install and
 seconds per language, nothing else, and serves the total at `GET /total`.
-It runs on Cloudflare's free plan.
+It runs on Cloudflare's free plan: installs report at most once an hour, and the total is recomputed at most every 10 minutes, so it stays far below the free limits (which return errors when exceeded, never a bill).
 
 ## Deploy
 
@@ -15,10 +15,12 @@ wrangler d1 execute verbatim-counter --remote --file schema.sql
 wrangler deploy                               # prints https://verbatim-counter.<you>.workers.dev
 ```
 
-Then build Verbatim with the URL, so installs can report and show the total:
+Then put the URL into `counter/url.txt`; `scripts/build-and-install.sh` builds it in,
+so installs report and show the total (or set `VERBATIM_COUNTER_URL` yourself):
 
 ```bash
-VERBATIM_COUNTER_URL=https://verbatim-counter.<you>.workers.dev scripts/build-and-install.sh
+echo https://verbatim-counter.<you>.workers.dev > counter/url.txt
+scripts/build-and-install.sh
 ```
 
 Without `VERBATIM_COUNTER_URL` the app keeps counting locally and shows no total.

@@ -5,3 +5,10 @@ CREATE TABLE IF NOT EXISTS installs (
   seconds TEXT NOT NULL,   -- JSON: {"de": 3600.5, "en": 120}
   updated INTEGER NOT NULL -- unix seconds
 );
+
+-- The total, computed at most every 10 minutes (so /total reads one row).
+CREATE TABLE IF NOT EXISTS cache (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated INTEGER NOT NULL
+);

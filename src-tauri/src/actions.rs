@@ -870,7 +870,7 @@ impl ShortcutAction for TranscribeAction {
                                     processed.post_process_prompt.clone(),
                                     language,
                                 ) {
-                                    // Opt-in "Your voice" dataset (own voice only).
+                                    // "Your data": the user's own voice, kept on this Mac.
                                     Ok(entry) => crate::voice_data::add_dictation(
                                         &ah,
                                         &hm.recordings_dir().join(&entry.file_name),

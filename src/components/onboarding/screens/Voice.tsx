@@ -5,9 +5,9 @@ import { Button } from "../../ui/Button";
 import { OnboardingShell, ScreenHeader, ScreenMain } from "../OnboardingShell";
 import { useOnboardingStore } from "../onboardingStore";
 import {
-  VoiceChoices,
-  type VoiceChoice,
-} from "../../settings/sokki/VoiceChoices";
+  DataChoices,
+  type DataChoiceValues,
+} from "../../settings/sokki/DataChoices";
 
 interface VoiceProps {
   progress?: { index: number; count: number };
@@ -15,7 +15,8 @@ interface VoiceProps {
   onContinue: () => void;
 }
 
-/** Sokki: one question about "Your voice" (keep, be counted, be asked). */
+/** Sokki: "Your data". Both boxes start unticked; nothing is sent before
+ * Continue. */
 export const Voice: React.FC<VoiceProps> = ({
   progress,
   onBack,
@@ -23,9 +24,14 @@ export const Voice: React.FC<VoiceProps> = ({
 }) => {
   const { t } = useTranslation();
   const { preview } = useOnboardingStore();
-  const [choice, setChoice] = useState<VoiceChoice | null>(null);
-  const answer = async (c: VoiceChoice) => {
-    if (!preview) await commands.voiceDataSetChoice(c);
+  const [choices, setChoices] = useState<DataChoiceValues>({
+    improve: false,
+    support: false,
+  });
+  const next = async () => {
+    if (!preview) {
+      await commands.voiceDataSetChoices(choices.improve, choices.support);
+    }
     onContinue();
   };
   return (
@@ -33,22 +39,8 @@ export const Voice: React.FC<VoiceProps> = ({
       progress={progress}
       onBack={onBack}
       hint={t("sokki.voice.onboardingHint")}
-      left={
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={() => void answer("off")}
-        >
-          {t("sokki.voice.notNow")}
-        </Button>
-      }
       primary={
-        <Button
-          variant="primary"
-          size="lg"
-          disabled={!choice}
-          onClick={() => choice && void answer(choice)}
-        >
+        <Button variant="primary" size="lg" onClick={() => void next()}>
           {t("onboarding.shell.continue")}
         </Button>
       }
@@ -56,17 +48,17 @@ export const Voice: React.FC<VoiceProps> = ({
       <ScreenMain
         header={
           <ScreenHeader
-            title={t("sokki.voice.onboardingTitle")}
-            sub={t("sokki.voice.onboardingSub")}
+            title={t("sokki.voice.title")}
+            sub={t("sokki.voice.intro")}
           />
         }
       >
-        <div className="flex w-full flex-col gap-[12px] text-start">
-          <VoiceChoices value={choice} onChange={setChoice} withOff={false} />
-          <ul className="flex flex-col gap-[4px] text-small text-ink-3 list-disc ps-[18px]">
-            <li>{t("sokki.voice.point1")}</li>
-            <li>{t("sokki.voice.point3")}</li>
-          </ul>
+        <div className="flex w-full flex-col text-start">
+          <DataChoices
+            value={choices}
+            onChange={setChoices}
+            variant="checkbox"
+          />
         </div>
       </ScreenMain>
     </OnboardingShell>

@@ -261,7 +261,7 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
     }
     let title = meeting_core::note::note_title(&note);
 
-    // Opt-in "Your voice" dataset: only the user's own microphone segments
+    // "Your data": only the user's own microphone segments
     // (named after the user, which happens on calls only).
     if let Some(mic) = tracks.iter().find(|t| t.kind == TrackKind::Mic) {
         let own: Vec<crate::voice_data::OwnSegment> = transcript

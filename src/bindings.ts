@@ -859,7 +859,7 @@ async listMeetings() : Promise<Result<MeetingRecord[], string>> {
  * vault, otherwise with the default app for Markdown.
  */
 /**
- * How much of the user's own voice is kept, per language and source.
+ * How much of the user's own data is kept, and the two choices.
  */
 async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
     try {
@@ -870,18 +870,40 @@ async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
 }
 },
 /**
- * "off", "sell" or "donate" (see `VoiceDataStats::choice`).
+ * Sets "Help improve" and "Support Sokki & Open Source".
  */
-async voiceDataSetChoice(choice: string) : Promise<Result<null, string>> {
+async voiceDataSetChoices(improve: boolean, support: boolean) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choice", { choice }) };
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Deletes every kept clip.
+ * Deletes everything the counter holds of this install.
+ */
+async voiceDataForget() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_forget") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Answers the current buyer message: "interested" or "no".
+ */
+async voiceDataAnswerBuyer(answer: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_answer_buyer", { answer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Deletes every kept recording on this Mac.
  */
 async voiceDataDelete() : Promise<Result<null, string>> {
     try {
@@ -903,7 +925,7 @@ async voiceDataCommunity() : Promise<Result<CommunityTotal | null, string>> {
 }
 },
 /**
- * Opens the folder with the kept clips in Finder.
+ * Opens the folder with the kept recordings in Finder.
  */
 async voiceDataOpenFolder() : Promise<Result<null, string>> {
     try {
@@ -1656,24 +1678,60 @@ detail: string }
  */
 export type MeetingNoteParts = { summary: string; transcript: string }
 /**
- * What the "Your voice" page shows.
+ * What the "Your data" page shows.
  */
-export type VoiceDataStats = { opt_in: boolean; 
+export type VoiceDataStats = { 
 /**
- * "off", "sell" (asked before each sale, share of the proceeds) or
- * "donate" (used freely, anonymised, to keep Sokki free).
+ * "Help improve Sokki" is on.
  */
-choice: string; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string }
+improve: boolean; 
 /**
- * The total over all opted-in installs, from the counter service.
+ * "Support Sokki & Open Source" is on.
+ */
+support: boolean; 
+/**
+ * The counter holds something of this install ("Delete what was shared").
+ */
+shared: boolean; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string; 
+/**
+ * The latest buyer message that matched (not for supporters).
+ */
+buyer: BuyerRequest | null }
+/**
+ * Someone wants data in a language; this Mac has `hours` of it.
+ */
+export type BuyerRequest = { 
+/**
+ * The counter message's id.
+ */
+id: number; 
+/**
+ * "de", "en", …
+ */
+language: string; 
+/**
+ * Whole hours of the user's own data in that language.
+ */
+hours: number; 
+/**
+ * Optional words from Sokki about the buyer.
+ */
+text: string | null; 
+/**
+ * `None` until answered; then "interested" or "no".
+ */
+answer: string | null }
+/**
+ * The total over all counted installs, from the counter service.
  */
 export type CommunityTotal = { installs: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; 
 /**
- * How many of the installs donate their data.
+ * How many of the installs support Sokki & Open Source.
  */
 donors: number; 
 /**
- * A message from Sokki to everyone who opted in (e.g. a buyer).
+ * A message from Sokki. Plain text, or JSON for a buyer:
+ * `{"language": "de", "text": "…"}`.
  */
 notice: string | null; 
 /**

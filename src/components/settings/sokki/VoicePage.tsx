@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { FolderOpen, Trash2, Users } from "lucide-react";
 import {
   commands,
@@ -9,7 +9,7 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { Page, PageHeader } from "./parts";
-import { VoiceChoices, type VoiceChoice } from "./VoiceChoices";
+import { DataChoices } from "./DataChoices";
 
 /** "3 h 12 min", "12 min", "45 s". */
 function duration(seconds: number): string {
@@ -18,6 +18,11 @@ function duration(seconds: number): string {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   return `${h} h ${String(m % 60).padStart(2, "0")} min`;
+}
+
+function size(bytes: number): string {
+  if (bytes < 1e9) return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+  return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
 function languageName(code: string, locale: string, other: string): string {
@@ -31,7 +36,7 @@ function languageName(code: string, locale: string, other: string): string {
   }
 }
 
-/** Bars per language, longest first. */
+/** Bars per key, longest first. */
 const Breakdown: React.FC<{
   values: Partial<Record<string, number>>;
   label: (key: string) => string;
@@ -63,12 +68,16 @@ const Breakdown: React.FC<{
   );
 };
 
-/** "Your voice": how much of your own voice is kept, and the opt-in. */
+type Asking = "recordings" | "shared" | null;
+
+/** "Your data": the user's own recordings on this Mac, the two choices,
+ * buyer messages and the delete buttons. */
 export const SokkiVoicePage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<VoiceDataStats | null>(null);
   const [community, setCommunity] = useState<CommunityTotal | null>(null);
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useState<Asking>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await commands.voiceDataStats();
@@ -79,7 +88,7 @@ export const SokkiVoicePage: React.FC = () => {
 
   useEffect(() => {
     void load();
-    // A processed meeting may have added clips.
+    // A processed meeting may have added recordings.
     const unlisten = events.meetingChanged.listen(() => void load());
     return () => {
       unlisten.then((fn) => fn());
@@ -93,33 +102,88 @@ export const SokkiVoicePage: React.FC = () => {
     k === "meeting"
       ? t("sokki.voice.fromMeetings")
       : t("sokki.voice.fromDictation");
+  const buyer = stats.buyer;
+  // A plain-text message from Sokki (a buyer message is JSON and shows as
+  // the buyer card instead).
+  const plainNotice =
+    community?.notice && !community.notice.trim().startsWith("{")
+      ? community.notice
+      : null;
+
+  const answerBuyer = async (answer: "interested" | "no") => {
+    const r = await commands.voiceDataAnswerBuyer(answer);
+    setStatus(r.status === "ok" ? null : t("sokki.voice.failed"));
+    void load();
+  };
+
+  const forget = async () => {
+    const r = await commands.voiceDataForget();
+    setAsking(null);
+    setStatus(
+      r.status === "ok"
+        ? t("sokki.voice.deleteSharedDone")
+        : t("sokki.voice.failed"),
+    );
+    void load();
+  };
 
   return (
     <Page>
       <PageHeader
         title={t("sokki.voice.title")}
-        description={t("sokki.voice.description")}
+        description={t("sokki.voice.intro")}
       />
 
-      <section className="vb-card p-5 flex flex-col gap-5">
-        <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
-          <div>
-            <div className="text-[34px] font-semibold tracking-[-0.02em] tabular-nums leading-none">
-              {duration(stats.total_seconds)}
-            </div>
-            <div className="text-[12.5px] text-ink-3 mt-1.5">
-              {t("sokki.voice.kept", { count: stats.clips })}
-            </div>
-          </div>
-          {stats.bytes > 0 && (
-            <div className="text-[12.5px] text-ink-3">
-              {t("sokki.voice.onDisk", {
-                size: `${(stats.bytes / 1e9).toFixed(stats.bytes > 1e9 ? 1 : 2)} GB`,
-              })}
+      {buyer && (
+        <section className="vb-card p-4 flex flex-col gap-2 border-logo-primary">
+          <h2 className="text-[14px] font-semibold">
+            {t("sokki.voice.buyer.title", {
+              language: languageName(buyer.language, i18n.language, ""),
+            })}
+          </h2>
+          <p className="text-[13.5px]">
+            {t("sokki.voice.buyer.text", { count: buyer.hours })}
+          </p>
+          {buyer.text && (
+            <p className="text-[13px] text-ink-2 select-text whitespace-pre-line">
+              {buyer.text}
+            </p>
+          )}
+          {buyer.answer === "interested" ? (
+            <p className="text-[13px] text-ink-2">
+              {t("sokki.voice.buyer.thanks")}
+            </p>
+          ) : buyer.answer === "no" ? null : (
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void answerBuyer("interested")}
+              >
+                {t("sokki.voice.buyer.interested")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void answerBuyer("no")}
+              >
+                {t("sokki.voice.buyer.no")}
+              </Button>
             </div>
           )}
-        </div>
-        {stats.total_seconds > 0 ? (
+        </section>
+      )}
+
+      <section className="vb-card p-5 flex flex-col gap-5">
+        <p className="text-[14px]">
+          {stats.clips > 0
+            ? t("sokki.voice.onThisMac", {
+                duration: duration(stats.total_seconds),
+                size: size(stats.bytes),
+              })
+            : t("sokki.voice.empty")}
+        </p>
+        {stats.total_seconds > 0 && (
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <h2 className="text-[12px] font-semibold uppercase tracking-wide text-ink-3">
@@ -134,47 +198,28 @@ export const SokkiVoicePage: React.FC = () => {
               <Breakdown values={stats.seconds_by_source} label={source} />
             </div>
           </div>
-        ) : (
-          <p className="text-[13px] text-ink-3">
-            {t(
-              stats.opt_in
-                ? "sokki.voice.emptyOn"
-                : "sokki.voice.emptyOff",
-            )}
-          </p>
         )}
       </section>
 
-      <section className="vb-card p-4 flex flex-col gap-4">
-        <h2 className="text-[13px] font-semibold text-ink-2">
-          {t("sokki.voice.choiceLabel")}
-        </h2>
-        <VoiceChoices
-          value={stats.choice as VoiceChoice}
-          onChange={(c) =>
-            void commands.voiceDataSetChoice(c).then(() => load())
+      <section className="vb-card p-4">
+        <DataChoices
+          value={{ improve: stats.improve, support: stats.support }}
+          onChange={(v) =>
+            void commands
+              .voiceDataSetChoices(v.improve, v.support)
+              .then(() => load())
           }
+          variant="switch"
         />
-        <ul className="flex flex-col gap-1.5 text-[12.5px] leading-[18px] text-ink-2 list-disc ps-5">
-          <li>{t("sokki.voice.point1")}</li>
-          <li>
-            <Trans
-              i18nKey="sokki.voice.point2"
-              components={{ b: <strong className="font-semibold" /> }}
-            />
-          </li>
-          <li>{t("sokki.voice.point3")}</li>
-          <li>{t("sokki.voice.point4")}</li>
-        </ul>
       </section>
 
-      {stats.opt_in && community?.notice && (
+      {plainNotice && (
         <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
           <h2 className="text-[12px] font-semibold uppercase tracking-wide text-logo-primary">
             {t("sokki.voice.notice")}
           </h2>
           <p className="text-[13.5px] select-text whitespace-pre-line">
-            {community.notice}
+            {plainNotice}
           </p>
         </section>
       )}
@@ -191,65 +236,90 @@ export const SokkiVoicePage: React.FC = () => {
               community.donors > 0
                 ? "sokki.voice.communityDonors"
                 : "sokki.voice.community",
-              {
-                donors: community.donors,
-                hours: Math.round(
-                  community.total_seconds / 3600,
-                ).toLocaleString(i18n.language),
-                count: community.installs,
-              },
+              { count: community.installs, donors: community.donors },
             )}
           </p>
         </section>
       )}
 
       <div className="flex flex-wrap items-center gap-2 px-1">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="inline-flex items-center gap-1.5"
-          onClick={() => void commands.voiceDataOpenFolder()}
-        >
-          <FolderOpen width={14} height={14} />
-          {t("sokki.voice.showFolder")}
-        </Button>
-        {stats.clips > 0 &&
-          (asking ? (
-            <>
-              <span className="text-[12.5px] text-ink-2">
-                {t("sokki.voice.deleteAsk", { count: stats.clips })}
-              </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setAsking(false)}
-              >
-                {t("sokki.voice.cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={() =>
-                  void commands.voiceDataDelete().then(() => {
-                    setAsking(false);
-                    void load();
+        {asking ? (
+          <>
+            <span className="text-[12.5px] text-ink-2">
+              {asking === "recordings"
+                ? t("sokki.voice.deleteRecordingsAsk", {
+                    duration: duration(stats.total_seconds),
                   })
-                }
-              >
-                {t("sokki.voice.delete")}
-              </Button>
-            </>
-          ) : (
+                : t("sokki.voice.deleteSharedAsk")}
+            </span>
             <Button
-              variant="danger-ghost"
+              size="sm"
+              variant="secondary"
+              onClick={() => setAsking(null)}
+            >
+              {t("sokki.voice.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() =>
+                asking === "recordings"
+                  ? void commands.voiceDataDelete().then(() => {
+                      setAsking(null);
+                      void load();
+                    })
+                  : void forget()
+              }
+            >
+              {t("sokki.voice.delete")}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="secondary"
               size="sm"
               className="inline-flex items-center gap-1.5"
-              onClick={() => setAsking(true)}
+              onClick={() => void commands.voiceDataOpenFolder()}
             >
-              <Trash2 width={14} height={14} />
-              {t("sokki.voice.deleteAll")}
+              <FolderOpen width={14} height={14} />
+              {t("sokki.voice.showFolder")}
             </Button>
-          ))}
+            {stats.clips > 0 && (
+              <Button
+                variant="danger-ghost"
+                size="sm"
+                className="inline-flex items-center gap-1.5"
+                onClick={() => {
+                  setStatus(null);
+                  setAsking("recordings");
+                }}
+              >
+                <Trash2 width={14} height={14} />
+                {t("sokki.voice.deleteRecordings")}
+              </Button>
+            )}
+            {stats.shared && (
+              <Button
+                variant="danger-ghost"
+                size="sm"
+                className="inline-flex items-center gap-1.5"
+                onClick={() => {
+                  setStatus(null);
+                  setAsking("shared");
+                }}
+              >
+                <Trash2 width={14} height={14} />
+                {t("sokki.voice.deleteShared")}
+              </Button>
+            )}
+          </>
+        )}
+        {status && (
+          <span className="text-[12.5px] text-ink-2" role="status">
+            {status}
+          </span>
+        )}
       </div>
     </Page>
   );

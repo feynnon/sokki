@@ -1103,7 +1103,7 @@
       "vocabulary": "Vocabulary",
       "settings": "Settings",
       "sound": "Sound",
-      "voice": "Your voice"
+      "voice": "Your data"
     },
     "keep": {
       "title": "Keep recordings for",
@@ -1148,48 +1148,64 @@
       "note": "Used for meetings. Dictation leaves your words as spoken: swapping words there directly turned „Lied“ into „Lead“ in a test."
     },
     "voice": {
-      "title": "Your voice",
-      "description": "Your own voice with its transcript, kept on this Mac. One day you may be able to sell it, anonymised, as part of a larger dataset for training speech models.",
-      "kept": "{{count}} clips with transcript",
-      "onDisk": "{{size}} on this Mac",
+      "title": "Your data",
+      "intro": "Your recordings stay on this Mac until you delete them. If someone wants to buy data like yours, we'll let you know.",
+      "onboardingHint": "You can change this any time under Your data.",
+      "improve": {
+        "title": "Help improve Sokki",
+        "text": "Share the mistakes Sokki makes and how you use it. Under a random ID, never your name.",
+        "short": "Share mistakes and usage under a random ID.",
+        "link": "What's shared"
+      },
+      "support": {
+        "title": "Support Sokki & Open Source",
+        "text": "Thank you for supporting Sokki and open-source speech models.",
+        "link": "What this means"
+      },
+      "sharedSheet": {
+        "title": "What's shared",
+        "mistakes": "Mistakes: a clip of your own voice, what Sokki heard, and your correction",
+        "usage": "How you use Sokki: active days, dictations, meeting minutes, features and models",
+        "problems": "Problems: errors, crashes and slow processing",
+        "data": "Your data: hours per language, dictations and meetings, their length, number of speakers",
+        "conditions": "Recording conditions: microphone, background noise, call app",
+        "mac": "Your Mac: model, chip, memory, disk, macOS version, language and region",
+        "footer": "Never other people's voices or words, voice prints, your name or your Mac's name. Sent once a day under a random ID. Turn it off any time in Settings."
+      },
+      "supportSheet": {
+        "text": "Before anything leaves this Mac, names are removed and numbers are scrambled. Sokki may then use your data freely: to improve Sokki, to help open-source speech models, and to share or sell it. You won't be asked again and don't get a share of any sale.",
+        "footer": "Only your own voice. You can stop any time; data already used can't be called back."
+      },
+      "ok": "OK",
+      "onThisMac": "On this Mac: {{duration}} of your recordings · {{size}}",
+      "empty": "Nothing on this Mac yet. Your next dictations and calls will show up here.",
       "byLanguage": "By language",
       "bySource": "From",
       "fromDictation": "Dictation",
       "fromMeetings": "Meetings (your microphone)",
       "otherLanguage": "Other",
-      "emptyOn": "Nothing kept yet. Your next dictations and calls will show up here.",
-      "emptyOff": "Switch on below to start keeping your voice.",
-      "point1": "Only your own voice: your dictations, and in calls only what you said into your microphone. Other people's voices are never kept.",
-      "point2": "Kept <b>locally</b> on this Mac. Nothing is uploaded now. Before anything ever leaves your Mac, names and numbers are removed.",
-      "point3": "Sokki counts how many hours you have per language in a public total, under a random number instead of your name.",
-      "point4": "When a buyer turns up, Sokki tells you with a notification. You can change your choice or delete everything at any time.",
-      "community": "{{count}} Sokki users keep {{hours}} hours of their voice for the dataset.",
-      "showFolder": "Show in Finder",
-      "deleteAll": "Delete all clips",
-      "deleteAsk": "Delete {{count}} clips for good?",
+      "buyer": {
+        "title": "Someone wants {{language}} data",
+        "text_one": "{{count}} hour of your anonymised data fits. You'd get a share of the profit.",
+        "text_other": "{{count}} hours of your anonymised data fit. You'd get a share of the profit.",
+        "interested": "I'm interested",
+        "no": "Not interested",
+        "thanks": "Thanks. Before anything is sold, you'll see exactly what and for how much, and decide then."
+      },
+      "notice": "Message from Sokki",
+      "community_one": "{{count}} Sokki user helps improve Sokki.",
+      "community_other": "{{count}} Sokki users help improve Sokki.",
+      "communityDonors_one": "{{count}} Sokki user helps improve Sokki; {{donors}} support Sokki & Open Source.",
+      "communityDonors_other": "{{count}} Sokki users help improve Sokki; {{donors}} of them support Sokki & Open Source.",
+      "showFolder": "Show folder",
+      "deleteRecordings": "Delete my recordings",
+      "deleteRecordingsAsk": "Delete {{duration}} of your recordings for good?",
+      "deleteShared": "Delete what was shared",
+      "deleteSharedAsk": "Delete everything Sokki received from this Mac?",
+      "deleteSharedDone": "Deleted everything Sokki received from this Mac.",
       "delete": "Delete",
       "cancel": "Cancel",
-      "onboardingTitle": "Your voice is worth something",
-      "onboardingSub": "Speech models are weakest at real conversations. Your voice, kept locally on your Mac, could help train better ones.",
-      "onboardingHint": "You can change this any time under Your voice.",
-      "notNow": "Not now",
-      "notice": "Message from Sokki",
-      "choiceLabel": "What happens with your voice",
-      "choice": {
-        "sell": {
-          "title": "Keep it <b>locally</b>, offer it for sale",
-          "text": "Your voice stays on this Mac. If a buyer turns up, you're asked first and get a share of the proceeds."
-        },
-        "donate": {
-          "title": "Keep it <b>locally</b>, donate it to keep Sokki free",
-          "text": "Your voice stays on this Mac until it's needed. Sokki may then use it freely, anonymised: sell it or publish it, so Sokki stays free for everyone. No share, no further question."
-        },
-        "off": {
-          "title": "Off",
-          "text": "Nothing is kept."
-        }
-      },
-      "communityDonors": "{{count}} Sokki users keep {{hours}} hours of their voice for the dataset; {{donors}} of them donate it to keep Sokki free."
+      "failed": "Couldn't reach Sokki. Try again later."
     }
   }
 }

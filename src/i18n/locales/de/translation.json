@@ -1103,7 +1103,7 @@
       "vocabulary": "Wörterbuch",
       "settings": "Einstellungen",
       "sound": "Ton",
-      "voice": "Deine Stimme"
+      "voice": "Deine Daten"
     },
     "keep": {
       "title": "Aufnahmen behalten",
@@ -1148,48 +1148,64 @@
       "note": "Gilt für Meetings. Beim Diktieren bleiben deine Wörter wie gesprochen: direktes Ersetzen machte im Test aus „Lied“ „Lead“."
     },
     "voice": {
-      "title": "Deine Stimme",
-      "description": "Deine eigene Stimme mit Transkript, auf diesem Mac gesammelt. Vielleicht kannst du sie eines Tages anonymisiert verkaufen, als Teil eines größeren Datensatzes zum Trainieren von Sprachmodellen.",
-      "kept": "{{count}} Ausschnitte mit Transkript",
-      "onDisk": "{{size}} auf diesem Mac",
+      "title": "Deine Daten",
+      "intro": "Deine Aufnahmen bleiben auf diesem Mac, bis du sie löschst. Wenn jemand Daten wie deine kaufen möchte, sagen wir dir Bescheid.",
+      "onboardingHint": "Du kannst das jederzeit unter „Deine Daten“ ändern.",
+      "improve": {
+        "title": "Hilf, Sokki zu verbessern",
+        "text": "Teile die Fehler, die Sokki macht, und wie du es nutzt. Unter einer zufälligen ID, nie mit deinem Namen.",
+        "short": "Fehler und Nutzung teilen, unter einer zufälligen ID.",
+        "link": "Was geteilt wird"
+      },
+      "support": {
+        "title": "Unterstütze Sokki & Open Source",
+        "text": "Danke, dass du Sokki und offene Spracherkennungsmodelle unterstützt.",
+        "link": "Was das bedeutet"
+      },
+      "sharedSheet": {
+        "title": "Was geteilt wird",
+        "mistakes": "Fehler: ein Ausschnitt deiner eigenen Stimme, was Sokki verstanden hat, und deine Korrektur",
+        "usage": "Wie du Sokki nutzt: aktive Tage, Diktate, Meeting-Minuten, Funktionen und Modelle",
+        "problems": "Probleme: Fehler, Abstürze und langsame Verarbeitung",
+        "data": "Deine Daten: Stunden pro Sprache, Diktate und Meetings, ihre Länge, Anzahl der Sprecher",
+        "conditions": "Aufnahmebedingungen: Mikrofon, Hintergrundgeräusche, Call-App",
+        "mac": "Dein Mac: Modell, Chip, Arbeitsspeicher, Speicherplatz, macOS-Version, Sprache und Region",
+        "footer": "Nie die Stimmen oder Worte anderer, keine Stimmprofile, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit in den Einstellungen abschaltbar."
+      },
+      "supportSheet": {
+        "text": "Bevor etwas diesen Mac verlässt, werden Namen entfernt und Zahlen verfremdet. Danach darf Sokki deine Daten frei nutzen: um Sokki zu verbessern, für offene Spracherkennungsmodelle, und um sie weiterzugeben oder zu verkaufen. Du wirst nicht noch einmal gefragt und bekommst keinen Anteil an einem Verkauf.",
+        "footer": "Nur deine eigene Stimme. Du kannst jederzeit aufhören; bereits genutzte Daten lassen sich nicht zurückholen."
+      },
+      "ok": "OK",
+      "onThisMac": "Auf diesem Mac: {{duration}} deiner Aufnahmen · {{size}}",
+      "empty": "Noch nichts auf diesem Mac. Deine nächsten Diktate und Calls erscheinen hier.",
       "byLanguage": "Nach Sprache",
       "bySource": "Herkunft",
       "fromDictation": "Diktat",
       "fromMeetings": "Meetings (dein Mikrofon)",
       "otherLanguage": "Andere",
-      "emptyOn": "Noch nichts gesammelt. Deine nächsten Diktate und Calls erscheinen hier.",
-      "emptyOff": "Unten einschalten, um deine Stimme zu sammeln.",
-      "point1": "Nur deine eigene Stimme: deine Diktate und in Calls nur das, was du ins Mikrofon gesagt hast. Fremde Stimmen werden nie gesammelt.",
-      "point2": "<b>Lokal</b> auf diesem Mac gespeichert. Jetzt wird nichts hochgeladen. Bevor je etwas deinen Mac verlässt, werden Namen und Zahlen entfernt.",
-      "point3": "Sokki zählt in einer öffentlichen Summe, wie viele Stunden du pro Sprache hast, unter einer Zufallsnummer statt deines Namens.",
-      "point4": "Findet sich ein Käufer, sagt Sokki dir per Mitteilung Bescheid. Du kannst deine Wahl jederzeit ändern oder alles löschen.",
-      "community": "{{count}} Sokki-Nutzer sammeln {{hours}} Stunden ihrer Stimme für den Datensatz.",
-      "showFolder": "Im Finder zeigen",
-      "deleteAll": "Alle Ausschnitte löschen",
-      "deleteAsk": "{{count}} Ausschnitte endgültig löschen?",
+      "buyer": {
+        "title": "Jemand möchte Daten auf {{language}}",
+        "text_one": "{{count}} Stunde deiner anonymisierten Daten passt. Du bekämst einen Anteil am Gewinn.",
+        "text_other": "{{count}} Stunden deiner anonymisierten Daten passen. Du bekämst einen Anteil am Gewinn.",
+        "interested": "Ich bin interessiert",
+        "no": "Kein Interesse",
+        "thanks": "Danke. Bevor etwas verkauft wird, siehst du genau was und für wie viel, und entscheidest dann."
+      },
+      "notice": "Nachricht von Sokki",
+      "community_one": "{{count}} Person hilft, Sokki zu verbessern.",
+      "community_other": "{{count}} Personen helfen, Sokki zu verbessern.",
+      "communityDonors_one": "{{count}} Person hilft, Sokki zu verbessern; {{donors}} unterstützen Sokki & Open Source.",
+      "communityDonors_other": "{{count}} Personen helfen, Sokki zu verbessern; {{donors}} davon unterstützen Sokki & Open Source.",
+      "showFolder": "Ordner zeigen",
+      "deleteRecordings": "Meine Aufnahmen löschen",
+      "deleteRecordingsAsk": "{{duration}} deiner Aufnahmen endgültig löschen?",
+      "deleteShared": "Geteiltes löschen",
+      "deleteSharedAsk": "Alles löschen, was Sokki von diesem Mac bekommen hat?",
+      "deleteSharedDone": "Alles gelöscht, was Sokki von diesem Mac bekommen hat.",
       "delete": "Löschen",
       "cancel": "Abbrechen",
-      "onboardingTitle": "Deine Stimme ist etwas wert",
-      "onboardingSub": "Sprachmodelle sind bei echten Gesprächen am schwächsten. Deine Stimme, lokal auf deinem Mac gesammelt, kann helfen, bessere zu trainieren.",
-      "onboardingHint": "Du kannst das jederzeit unter „Deine Stimme“ ändern.",
-      "notNow": "Nicht jetzt",
-      "notice": "Nachricht von Sokki",
-      "choiceLabel": "Was mit deiner Stimme passiert",
-      "choice": {
-        "sell": {
-          "title": "<b>Lokal</b> sammeln, zum Verkauf anbieten",
-          "text": "Deine Stimme bleibt auf diesem Mac. Findet sich ein Käufer, wirst du vorher gefragt und bekommst einen Anteil am Erlös."
-        },
-        "donate": {
-          "title": "<b>Lokal</b> sammeln, spenden, damit Sokki kostenlos bleibt",
-          "text": "Deine Stimme bleibt auf diesem Mac, bis sie gebraucht wird. Dann darf Sokki sie anonymisiert frei verwenden: verkaufen oder veröffentlichen, damit Sokki für alle kostenlos bleibt. Kein Anteil, keine weitere Frage."
-        },
-        "off": {
-          "title": "Aus",
-          "text": "Nichts wird gesammelt."
-        }
-      },
-      "communityDonors": "{{count}} Sokki-Nutzer sammeln {{hours}} Stunden ihrer Stimme für den Datensatz; {{donors}} davon spenden sie, damit Sokki kostenlos bleibt."
+      "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal."
     }
   }
 }

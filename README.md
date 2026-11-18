@@ -97,24 +97,25 @@ flowchart LR
 
 Each model is downloaded once and then runs offline. The measurements behind these choices, including what was tried and rejected, are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
-## Your voice (optional)
+## Your data
 
-Speech models are weakest exactly where meetings happen: spontaneous talk, mixed languages, jargon. On first start Sokki asks whether to keep **your own voice** with its transcript: your dictations, and in calls only what you said into your microphone. Never other people's voices. It all stays **locally** on your Mac, and the page shows how many hours you have per language.
+Sokki keeps **your own voice** with its transcript on your Mac until you delete it: your dictations, and in calls only what you said into your microphone. Never other people's voices. The **Your data** page shows how many hours you have per language, and deletes them with one click. Nothing of it is uploaded.
 
-You pick one of three answers, and can change it any time:
+On first start Sokki offers two things, both off until you tick them, and both can be switched off any time:
 
-- **Keep it locally, offer it for sale.** Bundled with other users' data and anonymised (names and numbers removed), it could one day be sold to teams that train speech models. If a buyer turns up, you're asked first and get a share of the proceeds.
-- **Keep it locally, donate it to keep Sokki free.** Sokki may use it anonymised, freely, to keep the app free for everyone. No share, no further question.
-- **Off.** Nothing is kept.
+- **Help improve Sokki.** Once a day, under a random ID, Sokki sends how it is used (dictations, meeting minutes, models), problems it ran into, how much data you have per language, and your Mac's model and macOS version. Never other people's voices or words, voice prints, your name or your Mac's name.
+- **Support Sokki & Open Source.** Your anonymised data may be used freely: to improve Sokki, for open-source speech models, and shared or sold. You aren't asked again and get no share.
 
-There's no buyer yet, and nothing leaves your Mac now. When there's news, Sokki shows it on the page and sends a notification. The counter of how much voice data Sokki users hold together, and that message, live on a tiny service in [`counter/`](counter/).
+If someone wants to buy data like yours (say, German conversations), Sokki tells you with a notification, but only if enough of your data fits. It finds that out on your Mac: it downloads the message and compares it with what you have, and nothing is sent unless you answer "I'm interested". Before anything would be sold, you'd see what and for how much, and decide then. There's no buyer yet.
+
+The counter and the messages live on a tiny service in [`counter/`](counter/).
 
 ## Privacy
 
-- Audio, transcripts and notes stay on your Mac. Recordings are deleted after the period you choose.
-- The only network requests are model downloads, the transcript sent to a cloud provider only if you pick a cloud model for the summary, and the small voice-data counter below.
-- No account, no telemetry, no update checks.
-- If you say yes to **Your voice**, Sokki keeps your own voice with its transcript on your Mac and shares only how many hours you have per language and which of the two answers you picked, under a random number. It also checks the counter a few times a day for news.
+- Audio, transcripts and notes stay on your Mac. Meeting recordings are deleted after the period you choose; your own voice with its transcript stays until you delete it on the **Your data** page.
+- The only network requests are model downloads, the transcript sent to a cloud provider only if you pick a cloud model for the summary, and the small counter: a few times a day Sokki downloads its current message.
+- No account, no update checks. No usage reports unless you turn on **Help improve Sokki**.
+- **Delete what was shared** on the Your data page removes everything the counter holds of your Mac.
 - Recording people needs their consent: tell everyone on the call.
 
 ## Build from source

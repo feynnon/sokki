@@ -765,7 +765,8 @@
           "model": "Модель",
           "demo": "Демо",
           "try": "Спробувати",
-          "done": "Усе готово"
+          "done": "Усе готово",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

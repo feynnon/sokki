@@ -765,7 +765,8 @@
           "model": "モデル",
           "demo": "デモ",
           "try": "お試し",
-          "done": "準備完了"
+          "done": "準備完了",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

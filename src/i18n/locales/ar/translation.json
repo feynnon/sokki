@@ -765,7 +765,8 @@
           "model": "النموذج",
           "demo": "عرض توضيحي",
           "try": "جرّبه",
-          "done": "اكتمل الإعداد"
+          "done": "اكتمل الإعداد",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

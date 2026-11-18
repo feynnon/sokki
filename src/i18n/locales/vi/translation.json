@@ -765,7 +765,8 @@
           "model": "Mô hình",
           "demo": "Demo",
           "try": "Thử xem",
-          "done": "Hoàn tất"
+          "done": "Hoàn tất",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

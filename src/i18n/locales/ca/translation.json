@@ -765,7 +765,8 @@
           "model": "Model",
           "demo": "Demostració",
           "try": "Prova-ho",
-          "done": "Tot a punt"
+          "done": "Tot a punt",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

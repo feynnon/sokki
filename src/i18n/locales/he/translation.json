@@ -765,7 +765,8 @@
           "model": "מודל",
           "demo": "הדגמה",
           "try": "נסה",
-          "done": "הכול מוכן"
+          "done": "הכול מוכן",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

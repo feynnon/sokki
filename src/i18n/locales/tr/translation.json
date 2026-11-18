@@ -765,7 +765,8 @@
           "model": "Model",
           "demo": "Demo",
           "try": "Deneyin",
-          "done": "Hazır"
+          "done": "Hazır",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

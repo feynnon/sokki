@@ -765,7 +765,8 @@
           "model": "모델",
           "demo": "데모",
           "try": "체험",
-          "done": "준비 완료"
+          "done": "준비 완료",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

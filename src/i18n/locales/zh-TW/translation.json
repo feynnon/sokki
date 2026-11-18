@@ -765,7 +765,8 @@
           "model": "模型",
           "demo": "示範",
           "try": "試用",
-          "done": "設定完成"
+          "done": "設定完成",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

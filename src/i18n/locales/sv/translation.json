@@ -765,7 +765,8 @@
           "model": "Modell",
           "demo": "Demo",
           "try": "Testa",
-          "done": "Klart"
+          "done": "Klart",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

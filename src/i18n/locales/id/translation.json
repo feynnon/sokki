@@ -765,7 +765,8 @@
           "model": "Model",
           "demo": "Demo",
           "try": "Coba",
-          "done": "Selesai"
+          "done": "Selesai",
+          "voice": "Your data"
         }
       },
       "onboardingRun": {

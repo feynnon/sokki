@@ -870,11 +870,11 @@ async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
 }
 },
 /**
- * Starts or stops keeping the user's own voice.
+ * "off", "sell" or "donate" (see `VoiceDataStats::choice`).
  */
-async voiceDataSetOptIn(on: boolean) : Promise<Result<null, string>> {
+async voiceDataSetChoice(choice: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_opt_in", { on }) };
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choice", { choice }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1658,15 +1658,28 @@ export type MeetingNoteParts = { summary: string; transcript: string }
 /**
  * What the "Your voice" page shows.
  */
-export type VoiceDataStats = { opt_in: boolean; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string }
+export type VoiceDataStats = { opt_in: boolean; 
+/**
+ * "off", "sell" (asked before each sale, share of the proceeds) or
+ * "donate" (used freely, anonymised, to keep Verbatim free).
+ */
+choice: string; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string }
 /**
  * The total over all opted-in installs, from the counter service.
  */
 export type CommunityTotal = { installs: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; 
 /**
+ * How many of the installs donate their data.
+ */
+donors: number; 
+/**
  * A message from Verbatim to everyone who opted in (e.g. a buyer).
  */
-notice: string | null }
+notice: string | null; 
+/**
+ * Changes whenever the message is set; new ids notify once.
+ */
+notice_id: number }
 export type MeetingStatus = { kind: "recording" } | 
 /**
  * `stage`: "diarizing", "transcribing", "summarizing" or "writing".

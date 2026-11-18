@@ -257,6 +257,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     config_watch::start(app_handle);
     meeting::memguard::start(app_handle);
+    voice_data::start_notice_watch(app_handle.clone());
 
     #[cfg(target_os = "macos")]
     {
@@ -845,7 +846,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::meeting_llm_status,
             commands::meeting::get_meeting_note,
             commands::voice::voice_data_stats,
-            commands::voice::voice_data_set_opt_in,
+            commands::voice::voice_data_set_choice,
             commands::voice::voice_data_delete,
             commands::voice::voice_data_community,
             commands::voice::voice_data_open_folder,

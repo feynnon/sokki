@@ -1159,12 +1159,10 @@
       "otherLanguage": "Other",
       "emptyOn": "Nothing kept yet. Your next dictations and calls will show up here.",
       "emptyOff": "Switch on below to start keeping your voice.",
-      "optIn": "Keep my voice and count me in",
-      "optInDescription": "One consent for everything below. You can withdraw it and delete everything at any time.",
       "point1": "Only your own voice: your dictations, and in calls only what you said into your microphone. Other people's voices are never kept.",
-      "point2": "Your clips stay on this Mac. Nothing is uploaded.",
+      "point2": "Kept <b>locally</b> on this Mac. Nothing is uploaded now. Before anything ever leaves your Mac, names and numbers are removed.",
       "point3": "Verbatim counts how many hours you have per language in a public total, under a random number instead of your name.",
-      "point4": "If a buyer for voice data turns up, Verbatim tells you here in the app. Then you decide whether to sell: anonymised (names and numbers removed), with a share of the proceeds for you.",
+      "point4": "When a buyer turns up, Verbatim tells you with a notification. You can change your choice or delete everything at any time.",
       "community": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset.",
       "showFolder": "Show in Finder",
       "deleteAll": "Delete all clips",
@@ -1172,11 +1170,26 @@
       "delete": "Delete",
       "cancel": "Cancel",
       "onboardingTitle": "Your voice is worth something",
-      "onboardingSub": "Speech models are weakest at real conversations. Your voice could help train better ones, and one day pay you a share.",
+      "onboardingSub": "Speech models are weakest at real conversations. Your voice, kept locally on your Mac, could help train better ones.",
       "onboardingHint": "You can change this any time under Your voice.",
-      "yes": "Yes, I'm in",
       "notNow": "Not now",
-      "notice": "Message from Verbatim"
+      "notice": "Message from Verbatim",
+      "choiceLabel": "What happens with your voice",
+      "choice": {
+        "sell": {
+          "title": "Keep it <b>locally</b>, offer it for sale",
+          "text": "Your voice stays on this Mac. If a buyer turns up, you're asked first and get a share of the proceeds."
+        },
+        "donate": {
+          "title": "Keep it <b>locally</b>, donate it to keep Verbatim free",
+          "text": "Your voice stays on this Mac until it's needed. Verbatim may then use it freely, anonymised: sell it or publish it, so Verbatim stays free for everyone. No share, no further question."
+        },
+        "off": {
+          "title": "Off",
+          "text": "Nothing is kept."
+        }
+      },
+      "communityDonors": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset; {{donors}} of them donate it to keep Verbatim free."
     }
   }
 }

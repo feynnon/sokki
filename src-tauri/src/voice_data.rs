@@ -40,7 +40,17 @@ struct Config {
     /// Unix seconds of the last report that reached the counter.
     #[serde(default)]
     last_report: i64,
+    /// With `opt_in`: the user gives the data away to keep Verbatim free
+    /// (anonymised, used freely, no share) instead of being asked per sale.
+    #[serde(default)]
+    donate: bool,
+    /// Id of the last counter message already shown as a notification.
+    #[serde(default)]
+    last_notice: i64,
 }
+
+/// Opted-in installs look for a new message from Verbatim this often.
+const NOTICE_EVERY_S: u64 = 6 * 3600;
 
 /// New clips are reported at most this often; opting in or out, and
 /// deleting, are reported right away.
@@ -62,6 +72,9 @@ struct Clip {
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 pub struct VoiceDataStats {
     pub opt_in: bool,
+    /// "off", "sell" (asked before each sale, share of the proceeds) or
+    /// "donate" (used freely, anonymised, to keep Verbatim free).
+    pub choice: String,
     pub clips: u32,
     pub total_seconds: f64,
     /// Language code ("de", "en", "other") → seconds.
@@ -78,9 +91,15 @@ pub struct CommunityTotal {
     pub installs: u32,
     pub total_seconds: f64,
     pub seconds_by_language: BTreeMap<String, f64>,
+    /// How many of the installs donate their data.
+    #[serde(default)]
+    pub donors: u32,
     /// A message from Verbatim to everyone who opted in (e.g. a buyer).
     #[serde(default)]
     pub notice: Option<String>,
+    /// Changes whenever the message is set; new ids notify once.
+    #[serde(default)]
+    pub notice_id: i64,
 }
 
 fn dir(app: &AppHandle) -> Result<PathBuf> {
@@ -120,13 +139,14 @@ fn new_install_id() -> String {
     format!("{a:016x}{:016x}", h2.finish())
 }
 
-/// Turns collecting on or off. Off keeps the clips (delete them with
-/// [`delete_all`]) and removes this install from the counter.
-pub fn set_opt_in(app: &AppHandle, on: bool) -> Result<()> {
+/// Sets the choice: "off", "sell" or "donate". Off keeps the clips (delete
+/// them with [`delete_all`]) and removes this install from the counter.
+pub fn set_choice(app: &AppHandle, choice: &str) -> Result<()> {
     let d = dir(app)?;
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut c = read_config(&d);
-    c.opt_in = on;
+    c.opt_in = choice == "sell" || choice == "donate";
+    c.donate = choice == "donate";
     if c.install_id.is_empty() {
         c.install_id = new_install_id();
     }
@@ -275,8 +295,15 @@ fn read_clips(dir: &Path) -> Vec<Clip> {
 
 fn stats_in(dir: &Path) -> VoiceDataStats {
     let clips = read_clips(dir);
+    let config = read_config(dir);
     let mut s = VoiceDataStats {
-        opt_in: read_config(dir).opt_in,
+        opt_in: config.opt_in,
+        choice: match (config.opt_in, config.donate) {
+            (false, _) => "off",
+            (true, false) => "sell",
+            (true, true) => "donate",
+        }
+        .into(),
         clips: clips.len() as u32,
         folder: dir.to_string_lossy().into_owned(),
         ..Default::default()
@@ -343,6 +370,7 @@ fn report_in_background(app: AppHandle, force: bool) {
                     "id": config.install_id,
                     "clips": s.clips,
                     "seconds": s.seconds_by_language,
+                    "donate": config.donate,
                 }))
         } else {
             agent()
@@ -413,4 +441,44 @@ mod tests {
         assert_eq!(a.len(), 32);
         assert_ne!(a, new_install_id());
     }
+}
+
+/// For opted-in installs: looks for a new message from Verbatim (set on the
+/// counter, e.g. "a buyer is interested") a minute after start and then
+/// every few hours, and shows each new one once as a macOS notification.
+pub fn start_notice_watch(app: AppHandle) {
+    if counter_url().is_none() {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        loop {
+            check_notice(&app);
+            std::thread::sleep(std::time::Duration::from_secs(NOTICE_EVERY_S));
+        }
+    });
+}
+
+fn check_notice(app: &AppHandle) {
+    let Ok(d) = dir(app) else { return };
+    if !read_config(&d).opt_in {
+        return;
+    }
+    let Some(total) = community_total() else {
+        return;
+    };
+    let Some(text) = total.notice.filter(|t| !t.trim().is_empty()) else {
+        return;
+    };
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut c = read_config(&d);
+    if total.notice_id <= c.last_notice {
+        return;
+    }
+    c.last_notice = total.notice_id;
+    let _ = write_config(&d, &c);
+    drop(_g);
+    log::info!("Voice data: new message from Verbatim");
+    #[cfg(target_os = "macos")]
+    crate::meeting::detect::notify("Verbatim · Your voice", &text);
 }

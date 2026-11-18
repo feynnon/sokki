@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { FolderOpen, Trash2, Users } from "lucide-react";
 import {
   commands,
@@ -7,9 +7,9 @@ import {
   type CommunityTotal,
   type VoiceDataStats,
 } from "@/bindings";
-import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { Button } from "@/components/ui/Button";
 import { Page, PageHeader } from "./parts";
+import { VoiceChoices, type VoiceChoice } from "./VoiceChoices";
 
 /** "3 h 12 min", "12 min", "45 s". */
 function duration(seconds: number): string {
@@ -145,19 +145,24 @@ export const VerbatimVoicePage: React.FC = () => {
         )}
       </section>
 
-      <section className="vb-card overflow-hidden">
-        <ToggleSwitch
-          checked={stats.opt_in}
-          onChange={(on) =>
-            void commands.voiceDataSetOptIn(on).then(() => load())
+      <section className="vb-card p-4 flex flex-col gap-4">
+        <h2 className="text-[13px] font-semibold text-ink-2">
+          {t("verbatim.voice.choiceLabel")}
+        </h2>
+        <VoiceChoices
+          value={stats.choice as VoiceChoice}
+          onChange={(c) =>
+            void commands.voiceDataSetChoice(c).then(() => load())
           }
-          label={t("verbatim.voice.optIn")}
-          description={t("verbatim.voice.optInDescription")}
-          grouped
         />
-        <ul className="border-t border-line px-4 py-3 flex flex-col gap-1.5 text-[12.5px] leading-[18px] text-ink-2 list-disc ps-8">
+        <ul className="flex flex-col gap-1.5 text-[12.5px] leading-[18px] text-ink-2 list-disc ps-5">
           <li>{t("verbatim.voice.point1")}</li>
-          <li>{t("verbatim.voice.point2")}</li>
+          <li>
+            <Trans
+              i18nKey="verbatim.voice.point2"
+              components={{ b: <strong className="font-semibold" /> }}
+            />
+          </li>
           <li>{t("verbatim.voice.point3")}</li>
           <li>{t("verbatim.voice.point4")}</li>
         </ul>
@@ -182,12 +187,18 @@ export const VerbatimVoicePage: React.FC = () => {
             className="text-logo-primary shrink-0"
           />
           <p className="text-[13.5px]">
-            {t("verbatim.voice.community", {
-              hours: Math.round(community.total_seconds / 3600).toLocaleString(
-                i18n.language,
-              ),
-              count: community.installs,
-            })}
+            {t(
+              community.donors > 0
+                ? "verbatim.voice.communityDonors"
+                : "verbatim.voice.community",
+              {
+                donors: community.donors,
+                hours: Math.round(
+                  community.total_seconds / 3600,
+                ).toLocaleString(i18n.language),
+                count: community.installs,
+              },
+            )}
           </p>
         </section>
       )}

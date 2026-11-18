@@ -2,7 +2,7 @@
 // how many seconds of their own voice they keep per language; anyone can
 // read the total. No names, no audio, no text ever reach this service.
 //
-//   POST /report  {"id": "<32 hex>", "clips": 12, "seconds": {"de": 3600}}
+//   POST /report  {"id": "<32 hex>", "clips": 12, "seconds": {"de": 3600}, "donate": false}
 //   POST /forget  {"id": "<32 hex>"}
 //   GET  /total   -> {"installs": 3, "total_seconds": 5400, "seconds_by_language": {...}}
 //                    (refreshed at most every 10 minutes)
@@ -42,11 +42,12 @@ async function report(req, env) {
   const seconds = cleanSeconds(body.seconds);
   const clips = Number.isInteger(body.clips) && body.clips >= 0 ? body.clips : null;
   if (!seconds || clips === null) return json({ error: "bad numbers" }, 400);
+  const donate = body.donate === true ? 1 : 0;
   await env.DB.prepare(
-    `INSERT INTO installs (id, clips, seconds, updated) VALUES (?1, ?2, ?3, ?4)
-     ON CONFLICT(id) DO UPDATE SET clips = ?2, seconds = ?3, updated = ?4`,
+    `INSERT INTO installs (id, clips, seconds, updated, donate) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT(id) DO UPDATE SET clips = ?2, seconds = ?3, updated = ?4, donate = ?5`,
   )
-    .bind(body.id, clips, JSON.stringify(seconds), Math.floor(Date.now() / 1000))
+    .bind(body.id, clips, JSON.stringify(seconds), Math.floor(Date.now() / 1000), donate)
     .run();
   return json({ ok: true });
 }
@@ -70,9 +71,14 @@ async function total(env) {
   // An optional message to everyone who opted in (e.g. "A buyer is
   // interested"), set by hand: see README.
   const notice = await env.DB.prepare(
-    "SELECT value FROM cache WHERE key = 'notice'",
+    "SELECT value, updated FROM cache WHERE key = 'notice'",
   ).first();
-  const withNotice = (t) => ({ ...t, notice: notice ? notice.value : null });
+  // notice_id changes whenever the message is set, so each one notifies once.
+  const withNotice = (t) => ({
+    ...t,
+    notice: notice ? notice.value : null,
+    notice_id: notice ? notice.updated : 0,
+  });
   if (cached && now - cached.updated < TOTAL_TTL_S) {
     return json(withNotice(JSON.parse(cached.value)));
   }
@@ -87,10 +93,14 @@ async function total(env) {
 }
 
 async function computeTotal(env) {
-  const { results } = await env.DB.prepare("SELECT seconds FROM installs").all();
+  const { results } = await env.DB.prepare(
+    "SELECT seconds, donate FROM installs",
+  ).all();
   const byLang = {};
   let sum = 0;
+  let donors = 0;
   for (const row of results) {
+    if (row.donate) donors += 1;
     for (const [lang, secs] of Object.entries(JSON.parse(row.seconds))) {
       byLang[lang] = (byLang[lang] || 0) + secs;
       sum += secs;
@@ -98,6 +108,7 @@ async function computeTotal(env) {
   }
   return {
     installs: results.length,
+    donors,
     total_seconds: Math.round(sum),
     seconds_by_language: byLang,
   };

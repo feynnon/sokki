@@ -28,11 +28,13 @@ Without `VERBATIM_COUNTER_URL` the app keeps counting locally and shows no total
 ## Message everyone who opted in
 
 The "Your voice" page in Verbatim shows a notice from the counter, for
-example when a buyer is interested. Set or clear it:
+example when a buyer is interested. Opted-in installs also show each new
+notice once as a macOS notification (they look every 6 hours and a minute
+after start). Set or clear it:
 
 ```bash
 wrangler d1 execute verbatim-counter --remote --command \
-  "INSERT INTO cache (key, value, updated) VALUES ('notice', 'A team that trains German speech models wants to buy 500 hours. Details: https://…', 0) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  "INSERT INTO cache (key, value, updated) VALUES ('notice', 'A team that trains German speech models wants to buy 500 hours. Details: https://…', unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated"
 wrangler d1 execute verbatim-counter --remote --command "DELETE FROM cache WHERE key = 'notice'"
 ```
 

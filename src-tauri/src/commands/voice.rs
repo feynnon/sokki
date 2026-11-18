@@ -11,11 +11,14 @@ pub fn voice_data_stats(app: AppHandle) -> Result<VoiceDataStats, String> {
     voice_data::stats(&app).map_err(|e| format!("{e:#}"))
 }
 
-/// Starts or stops keeping the user's own voice.
+/// "off", "sell" or "donate" (see `VoiceDataStats::choice`).
 #[tauri::command]
 #[specta::specta]
-pub fn voice_data_set_opt_in(app: AppHandle, on: bool) -> Result<(), String> {
-    voice_data::set_opt_in(&app, on).map_err(|e| format!("{e:#}"))
+pub fn voice_data_set_choice(app: AppHandle, choice: String) -> Result<(), String> {
+    if !["off", "sell", "donate"].contains(&choice.as_str()) {
+        return Err(format!("Unknown choice: {choice}"));
+    }
+    voice_data::set_choice(&app, &choice).map_err(|e| format!("{e:#}"))
 }
 
 /// Deletes every kept clip.

@@ -97,16 +97,22 @@ Each model is downloaded once and then runs offline. The measurements behind the
 
 ## Your voice (optional)
 
-Speech models are weakest exactly where meetings happen: spontaneous talk, mixed languages, jargon. If you opt in, Verbatim keeps **your own voice** with its transcript: your dictations, and in calls only what you said into your microphone. Never other people's voices. It all stays on your Mac, and the page shows how many hours you have per language.
+Speech models are weakest exactly where meetings happen: spontaneous talk, mixed languages, jargon. On first start Verbatim asks whether to keep **your own voice** with its transcript: your dictations, and in calls only what you said into your microphone. Never other people's voices. It all stays **locally** on your Mac, and the page shows how many hours you have per language.
 
-The idea: bundled with other users' data and anonymised (names and numbers removed), it could one day be sold to teams that train speech models, with a share going to you. There's no buyer yet. Nothing leaves your Mac unless you agree to a sale. The counter of how much voice data Verbatim users hold together runs on a tiny service in [`counter/`](counter/).
+You pick one of three answers, and can change it any time:
+
+- **Keep it locally, offer it for sale.** Bundled with other users' data and anonymised (names and numbers removed), it could one day be sold to teams that train speech models. If a buyer turns up, you're asked first and get a share of the proceeds.
+- **Keep it locally, donate it to keep Verbatim free.** Verbatim may use it anonymised, freely, to keep the app free for everyone. No share, no further question.
+- **Off.** Nothing is kept.
+
+There's no buyer yet, and nothing leaves your Mac now. When there's news, Verbatim shows it on the page and sends a notification. The counter of how much voice data Verbatim users hold together, and that message, live on a tiny service in [`counter/`](counter/).
 
 ## Privacy
 
 - Audio, transcripts and notes stay on your Mac. Recordings are deleted after the period you choose.
-- The only network requests are model downloads, and, only if you pick a cloud model, the transcript sent to that provider for the summary.
+- The only network requests are model downloads, the transcript sent to a cloud provider only if you pick a cloud model for the summary, and the small voice-data counter below.
 - No account, no telemetry, no update checks.
-- If you switch on **Your voice** (off by default), Verbatim keeps your own voice with its transcript on your Mac and shares only how many hours you have per language, under a random number.
+- If you say yes to **Your voice**, Verbatim keeps your own voice with its transcript on your Mac and shares only how many hours you have per language and which of the two answers you picked, under a random number. It also checks the counter a few times a day for news.
 - Recording people needs their consent: tell everyone on the call.
 
 ## Build from source

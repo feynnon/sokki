@@ -1662,7 +1662,11 @@ export type VoiceDataStats = { opt_in: boolean; clips: number; total_seconds: nu
 /**
  * The total over all opted-in installs, from the counter service.
  */
-export type CommunityTotal = { installs: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }> }
+export type CommunityTotal = { installs: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; 
+/**
+ * A message from Verbatim to everyone who opted in (e.g. a buyer).
+ */
+notice: string | null }
 export type MeetingStatus = { kind: "recording" } | 
 /**
  * `stage`: "diarizing", "transcribing", "summarizing" or "writing".

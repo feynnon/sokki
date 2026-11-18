@@ -67,8 +67,14 @@ async function total(env) {
   const cached = await env.DB.prepare(
     "SELECT value, updated FROM cache WHERE key = 'total'",
   ).first();
+  // An optional message to everyone who opted in (e.g. "A buyer is
+  // interested"), set by hand: see README.
+  const notice = await env.DB.prepare(
+    "SELECT value FROM cache WHERE key = 'notice'",
+  ).first();
+  const withNotice = (t) => ({ ...t, notice: notice ? notice.value : null });
   if (cached && now - cached.updated < TOTAL_TTL_S) {
-    return json(JSON.parse(cached.value));
+    return json(withNotice(JSON.parse(cached.value)));
   }
   const fresh = await computeTotal(env);
   await env.DB.prepare(
@@ -77,7 +83,7 @@ async function total(env) {
   )
     .bind(JSON.stringify(fresh), now)
     .run();
-  return json(fresh);
+  return json(withNotice(fresh));
 }
 
 async function computeTotal(env) {

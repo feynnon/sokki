@@ -1159,18 +1159,24 @@
       "otherLanguage": "Other",
       "emptyOn": "Nothing kept yet. Your next dictations and calls will show up here.",
       "emptyOff": "Switch on below to start keeping your voice.",
-      "optIn": "Keep my voice for a dataset",
-      "optInDescription": "Off by default. You can switch it off and delete everything at any time.",
+      "optIn": "Keep my voice and count me in",
+      "optInDescription": "One consent for everything below. You can withdraw it and delete everything at any time.",
       "point1": "Only your own voice: your dictations, and in calls only what you said into your microphone. Other people's voices are never kept.",
-      "point2": "Everything stays on this Mac. Nothing is uploaded.",
-      "point3": "Verbatim only shares how many hours you have per language, with a random number instead of your name, so everyone can see how large the dataset could be.",
-      "point4": "There is no buyer yet. If one comes, we ask you first; names and numbers are removed before anything leaves your Mac, and you get a share of the money.",
+      "point2": "Your clips stay on this Mac. Nothing is uploaded.",
+      "point3": "Verbatim counts how many hours you have per language in a public total, under a random number instead of your name.",
+      "point4": "If a buyer for voice data turns up, Verbatim tells you here in the app. Then you decide whether to sell: anonymised (names and numbers removed), with a share of the proceeds for you.",
       "community": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset.",
       "showFolder": "Show in Finder",
       "deleteAll": "Delete all clips",
       "deleteAsk": "Delete {{count}} clips for good?",
       "delete": "Delete",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "onboardingTitle": "Your voice is worth something",
+      "onboardingSub": "Speech models are weakest at real conversations. Your voice could help train better ones, and one day pay you a share.",
+      "onboardingHint": "You can change this any time under Your voice.",
+      "yes": "Yes, I'm in",
+      "notNow": "Not now",
+      "notice": "Message from Verbatim"
     }
   }
 }

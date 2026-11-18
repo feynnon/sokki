@@ -78,6 +78,9 @@ pub struct CommunityTotal {
     pub installs: u32,
     pub total_seconds: f64,
     pub seconds_by_language: BTreeMap<String, f64>,
+    /// A message from Verbatim to everyone who opted in (e.g. a buyer).
+    #[serde(default)]
+    pub notice: Option<String>,
 }
 
 fn dir(app: &AppHandle) -> Result<PathBuf> {

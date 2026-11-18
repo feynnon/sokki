@@ -163,6 +163,17 @@ export const VerbatimVoicePage: React.FC = () => {
         </ul>
       </section>
 
+      {stats.opt_in && community?.notice && (
+        <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
+          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-logo-primary">
+            {t("verbatim.voice.notice")}
+          </h2>
+          <p className="text-[13.5px] select-text whitespace-pre-line">
+            {community.notice}
+          </p>
+        </section>
+      )}
+
       {community && community.installs > 0 && (
         <section className="vb-card p-4 flex items-center gap-3">
           <Users

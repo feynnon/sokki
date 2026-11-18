@@ -12,6 +12,7 @@ import { usePermissions } from "./usePermissions";
 import type { ChineseScriptChoice } from "@/lib/utils/languageSuggestions";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { Welcome } from "./screens/Welcome";
+import { Voice } from "./screens/Voice";
 import { IS_VERBATIM } from "@/lib/brand";
 import { Permissions } from "./screens/Permissions";
 import { Model } from "./screens/Model";
@@ -131,7 +132,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const steps = STEP_ORDER.filter(
     (s) =>
       (s !== "permissions" || permissions.needed || store.welcomeBack) &&
-      (!IS_VERBATIM || s === "permissions" || s === "model"),
+      (IS_VERBATIM
+        ? s === "permissions" || s === "model" || s === "voice"
+        : s !== "voice"),
   );
   const step = steps.includes(store.step) ? store.step : steps[0];
   const progress = { index: steps.indexOf(step), count: steps.length };
@@ -220,6 +223,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           onChoose={chooseModel}
         />
       );
+    case "voice":
+      return <Voice progress={progress} onBack={back} onContinue={next} />;
     case "demo":
       return (
         <Demo

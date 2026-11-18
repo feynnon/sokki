@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Sokki</title>
+<meta name="description" content="Get Sokki for your Mac or phone. Free, local, open source.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<meta property="og:title" content="Get Sokki">
+<meta property="og:description" content="Dictation and meeting notes. Local. Free forever. Open source.">
+<meta property="og:image" content="https://sokki.org/og.png">
+<style>
+.get { padding-top: 96px; }
+.choice { margin-top: 48px; padding: 28px; text-align: left; display: grid; gap: 16px; }
+.choice h2 { margin: 0; }
+.choice p { margin: 0; color: var(--ink-2); }
+.others { margin-top: 56px; display: grid; gap: 0; text-align: left; }
+.others .row a { color: var(--accent); }
+.send { margin-top: 56px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="wrap nav">
+<a href="/" class="brand" aria-label="Sokki home">
+<svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><rect x="5" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="13" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="21" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="29.5" y="29" width="5" height="26" rx="2.5" fill="#8ab4ff"/><rect x="38" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="46" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="54" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/></svg>
+Sokki</a>
+<nav class="links" aria-label="Main"><a href="/privacy/" class="hide-sm">Privacy</a><a href="https://github.com/feynnon/sokki">GitHub</a></nav>
+</header>
+
+<main class="wrap narrow center get">
+<h1 class="display">Get Sokki.</h1>
+<p class="lead">Free, local, open source. No account.</p>
+
+<!-- One of these is shown, picked from the device. Without script, all stay visible below. -->
+<section class="card choice" data-for="mac" hidden>
+<h2 class="headline">Sokki for Mac</h2>
+<p>Paste this into Terminal. It installs Sokki and opens it.</p>
+<div class="card cmd" style="margin: 0">
+<code id="install">curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash</code>
+<button type="button" class="btn small" data-copy-text="install">Copy</button>
+</div>
+<p class="caption" style="margin: 0">Or <a href="https://github.com/feynnon/sokki/releases/latest">download the zip</a>. macOS 14.2 or later, Apple silicon.</p>
+</section>
+
+<section class="card choice" data-for="android" hidden>
+<h2 class="headline">Sokki for Android</h2>
+<p data-android-ready hidden><a class="btn primary" data-android-link href="#">Download for Android</a></p>
+<p data-android-soon>Almost ready. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a> to hear when it's out.</p>
+</section>
+
+<section class="card choice" data-for="iphone" hidden>
+<h2 class="headline">Not on iPhone yet</h2>
+<p>Sokki runs on Mac now, Android is next. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a> to hear about iPhone.</p>
+</section>
+
+<section class="card choice" data-for="other" hidden>
+<h2 class="headline">Mac only for now</h2>
+<p>Sokki runs on Mac, Android is next. Windows and Linux may follow. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a>.</p>
+</section>
+
+<section class="send">
+<p class="eyebrow">For another device</p>
+<div class="buttons" style="justify-content: center">
+<button type="button" class="btn" data-share hidden>Share link</button>
+<button type="button" class="btn" data-copy-link>Copy link</button>
+<a class="btn" data-mail href="mailto:?subject=Sokki&amp;body=Get%20Sokki%3A%20https%3A%2F%2Fsokki.org%2Fget">Email it to me</a>
+</div>
+</section>
+
+<div class="others rows">
+<div class="row"><span>Mac</span><span><a href="https://github.com/feynnon/sokki/releases/latest">Download</a></span></div>
+<div class="row"><span>Android</span><span data-android-row>Almost ready</span></div>
+<div class="row"><span>iPhone, Windows, Linux</span><span>Not yet</span></div>
+</div>
+</main>
+
+<footer class="footer">
+<div class="wrap">
+<span>Sokki (速記): Japanese for shorthand. Built on <a href="https://github.com/cjpais/Handy">Handy</a>.</span>
+<nav aria-label="Footer"><a href="/privacy/">Privacy</a><a href="/changelog/">Changelog</a><a href="/impressum/">Impressum</a></nav>
+</div>
+</footer>
+
+<script>
+// Picks the section for this device. No tracking, no requests.
+// When an Android build is released, put its download link here.
+const ANDROID_URL = null;
+const LINK = "https://sokki.org/get";
+
+const ua = navigator.userAgent;
+const device =
+  /Android/i.test(ua) ? "android" :
+  /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iphone" :
+  /Macintosh|Mac OS X/.test(ua) ? "mac" : "other";
+document.querySelector(`[data-for="${device}"]`).hidden = false;
+
+if (ANDROID_URL) {
+  document.querySelector("[data-android-ready]").hidden = false;
+  document.querySelector("[data-android-soon]").hidden = true;
+  document.querySelector("[data-android-link]").href = ANDROID_URL;
+  document.querySelector("[data-android-row]").innerHTML = `<a href="${ANDROID_URL}">Download</a>`;
+}
+
+async function copy(text, btn) {
+  const label = btn.textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+  catch { btn.textContent = "Select and copy"; }
+  setTimeout(() => (btn.textContent = label), 1800);
+}
+document.querySelectorAll("[data-copy-text]").forEach((b) =>
+  b.addEventListener("click", () => copy(document.getElementById(b.dataset.copyText).textContent.trim(), b)));
+document.querySelector("[data-copy-link]").addEventListener("click", (e) => copy(LINK, e.currentTarget));
+const share = document.querySelector("[data-share]");
+if (navigator.share) {
+  share.hidden = false;
+  share.addEventListener("click", () => navigator.share({ title: "Sokki", url: LINK }).catch(() => {}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pair with your Mac · Sokki</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<style>
+.pair { padding-top: 96px; }
+.steps { margin-top: 48px; display: grid; gap: 16px; text-align: left; }
+.step { padding: 24px; display: grid; gap: 12px; }
+.step p { margin: 0; color: var(--ink-2); }
+.step .n { font: 600 13px var(--mono); color: var(--accent); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="wrap nav">
+<a href="/" class="brand" aria-label="Sokki home">
+<svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><rect x="5" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="13" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="21" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="29.5" y="29" width="5" height="26" rx="2.5" fill="#8ab4ff"/><rect x="38" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="46" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="54" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/></svg>
+Sokki</a>
+</header>
+
+<main class="wrap narrow center pair">
+<!-- The pairing code sits after # in this page's address. Browsers never send
+     that part to a server, so it stays between your Mac and your phone. -->
+<section data-view="phone">
+<h1 class="display">Pair with your Mac.</h1>
+<p class="lead">Your Mac's notes, on your phone. Directly, end-to-end encrypted.</p>
+<div class="steps">
+<div class="card step">
+<span class="n">1</span>
+<p>Get Sokki on this phone.</p>
+<div class="buttons"><a class="btn primary" href="/get?s=pair">Get Sokki</a></div>
+</div>
+<div class="card step">
+<span class="n">2</span>
+<p>Open Sokki, go to <strong>Connect to your Mac</strong> and paste this code. Or scan the QR code on the Mac again, from inside Sokki.</p>
+<div class="buttons"><button type="button" class="btn" data-copy-code>Copy pairing code</button></div>
+</div>
+</div>
+</section>
+
+<section data-view="desktop" hidden>
+<h1 class="display">Scan this with your phone.</h1>
+<p class="lead">This link pairs a phone with your Mac. Open it on the phone, with its camera.</p>
+<div class="buttons" style="margin-top: 48px; justify-content: center"><a class="btn primary" href="/get?s=pair-desktop">Get Sokki</a></div>
+</section>
+
+<section data-view="empty" hidden>
+<h1 class="display">No pairing code here.</h1>
+<p class="lead">On your Mac: Sokki → Meetings → settings → Phone. Scan the code shown there with your phone.</p>
+<div class="buttons" style="margin-top: 48px; justify-content: center"><a class="btn primary" href="/get?s=pair-empty">Get Sokki</a></div>
+</section>
+</main>
+
+<script>
+// Reads the pairing code from the part after #. Nothing is sent anywhere.
+const code = decodeURIComponent(location.hash.slice(1));
+const ua = navigator.userAgent;
+const phone = /Android|iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+const view = !code.startsWith("sokki1:") ? "empty" : phone ? "phone" : "desktop";
+document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== view));
+const btn = document.querySelector("[data-copy-code]");
+btn.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(code); btn.textContent = "Copied"; }
+  catch { btn.textContent = code; }
+});
+</script>
+</body>
+</html>

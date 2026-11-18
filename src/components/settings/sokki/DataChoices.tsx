@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/Switch";
 export interface DataChoiceValues {
   improve: boolean;
   support: boolean;
+  tasks: boolean;
 }
 
 type Sheet = "shared" | "support" | null;
@@ -68,7 +69,7 @@ const Sheets: React.FC<{ sheet: Sheet; onClose: () => void }> = ({
   );
 };
 
-/** The two things a user can agree to share. First start shows them as
+/** The two things a user can agree to share, and interest in paid tasks. First start shows them as
  * checkboxes with the full text, Settings as switches with a short one. */
 export const DataChoices: React.FC<{
   value: DataChoiceValues;
@@ -77,7 +78,13 @@ export const DataChoices: React.FC<{
 }> = ({ value, onChange, variant }) => {
   const { t } = useTranslation();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const rows = [
+  const rows: {
+    key: keyof DataChoiceValues;
+    title: string;
+    text: string;
+    link?: string;
+    sheet?: "shared" | "support";
+  }[] = [
     {
       key: "improve" as const,
       title: t("sokki.voice.improve.title"),
@@ -96,6 +103,11 @@ export const DataChoices: React.FC<{
       link: t("sokki.voice.support.link"),
       sheet: "support" as const,
     },
+    {
+      key: "tasks" as const,
+      title: t("sokki.voice.tasks.title"),
+      text: t("sokki.voice.tasks.text"),
+    },
   ];
   const set = (key: keyof DataChoiceValues, on: boolean) =>
     onChange({ ...value, [key]: on });
@@ -106,12 +118,12 @@ export const DataChoices: React.FC<{
         {rows.map((r) => {
           const on = value[r.key];
           const labelId = `data-choice-${r.key}`;
-          const linkButton = (
+          const linkButton = r.link && r.sheet && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setSheet(r.sheet);
+                setSheet(r.sheet ?? null);
               }}
               // Enter and Space open the sheet, not tick the box around it.
               onKeyDown={(e) => e.stopPropagation()}

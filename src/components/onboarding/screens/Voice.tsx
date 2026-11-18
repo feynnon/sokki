@@ -27,10 +27,15 @@ export const Voice: React.FC<VoiceProps> = ({
   const [choices, setChoices] = useState<DataChoiceValues>({
     improve: false,
     support: false,
+    tasks: false,
   });
   const next = async () => {
     if (!preview) {
-      await commands.voiceDataSetChoices(choices.improve, choices.support);
+      await commands.voiceDataSetChoices(
+        choices.improve,
+        choices.support,
+        choices.tasks,
+      );
     }
     onContinue();
   };

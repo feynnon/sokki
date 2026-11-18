@@ -870,11 +870,12 @@ async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
 }
 },
 /**
- * Sets "Help improve" and "Support Sokki & Open Source".
+ * Sets "Help improve", "Support Sokki & Open Source" and "Tell me about
+ * paid recording tasks".
  */
-async voiceDataSetChoices(improve: boolean, support: boolean) : Promise<Result<null, string>> {
+async voiceDataSetChoices(improve: boolean, support: boolean, tasks: boolean) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support }) };
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support, tasks }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1689,6 +1690,10 @@ improve: boolean;
  * "Support Sokki & Open Source" is on.
  */
 support: boolean; 
+/**
+ * "Tell me about paid recording tasks" is on.
+ */
+tasks: boolean; 
 /**
  * The counter holds something of this install ("Delete what was shared").
  */

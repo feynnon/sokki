@@ -203,10 +203,14 @@ export const SokkiVoicePage: React.FC = () => {
 
       <section className="vb-card p-4">
         <DataChoices
-          value={{ improve: stats.improve, support: stats.support }}
+          value={{
+            improve: stats.improve,
+            support: stats.support,
+            tasks: stats.tasks,
+          }}
           onChange={(v) =>
             void commands
-              .voiceDataSetChoices(v.improve, v.support)
+              .voiceDataSetChoices(v.improve, v.support, v.tasks)
               .then(() => load())
           }
           variant="switch"

@@ -1209,7 +1209,11 @@
       "failed": "Couldn't reach Sokki. Try again later.",
       "donated": "Shared so far: {{duration}}.",
       "withheld_one": "{{count}} recording stays on this Mac because it has a name, a number or contact details in it.",
-      "withheld_other": "{{count}} recordings stay on this Mac because they have a name, a number or contact details in them."
+      "withheld_other": "{{count}} recordings stay on this Mac because they have a name, a number or contact details in them.",
+      "tasks": {
+        "title": "Tell me about paid recording tasks",
+        "text": "Sokki may later offer small paid tasks, like reading a short text aloud. You'll hear about them first."
+      }
     }
   }
 }

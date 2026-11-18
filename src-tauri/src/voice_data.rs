@@ -52,6 +52,13 @@ struct Config {
     /// "Support Sokki & Open Source" (was `donate`).
     #[serde(default, alias = "donate")]
     support: bool,
+    /// "Tell me about paid recording tasks": interest only; nothing is
+    /// recorded for it.
+    #[serde(default)]
+    tasks: bool,
+    /// The counter has this install's "tasks" tick.
+    #[serde(default)]
+    tasks_reported: bool,
     /// Before this version: sell or donate was chosen and the counter knew
     /// this install. Read once, so that install leaves the count.
     #[serde(default, skip_serializing)]
@@ -133,6 +140,8 @@ pub struct VoiceDataStats {
     pub improve: bool,
     /// "Support Sokki & Open Source" is on.
     pub support: bool,
+    /// "Tell me about paid recording tasks" is on.
+    pub tasks: bool,
     /// The counter holds something of this install ("Delete what was shared").
     pub shared: bool,
     pub clips: u32,
@@ -211,15 +220,16 @@ fn new_install_id() -> String {
     format!("{a:016x}{:016x}", h2.finish())
 }
 
-/// Sets both choices. Turning both off takes this install out of the count;
+/// Sets the three choices. Turning the first two off takes this install out of the count;
 /// what was shared stays until [`forget`].
-pub fn set_choices(app: &AppHandle, improve: bool, support: bool) -> Result<()> {
+pub fn set_choices(app: &AppHandle, improve: bool, support: bool, tasks: bool) -> Result<()> {
     let d = dir(app)?;
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut c = read_config(&d);
     let improve_turned_on = improve && !c.improve;
     c.improve = improve;
     c.support = support;
+    c.tasks = tasks;
     if c.install_id.is_empty() {
         c.install_id = new_install_id();
     }
@@ -380,6 +390,7 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
     let mut s = VoiceDataStats {
         improve: config.improve,
         support: config.support,
+        tasks: config.tasks,
         shared: config.shared,
         buyer: if config.support { None } else { config.buyer },
         clips: clips.len() as u32,
@@ -505,10 +516,46 @@ fn sync_in_background(app: AppHandle, force: bool) {
                 Err(e) => log::warn!("Your data: daily report not sent: {e:#}"),
             }
         }
+        if config.tasks != config.tasks_reported {
+            // Only the tick, the random id and the languages of the user's
+            // own data (so tasks can be offered in them); turning it off
+            // removes the tick.
+            let body = serde_json::json!({
+                "id": config.install_id,
+                "on": config.tasks,
+                "languages": task_languages(&app, &d),
+            });
+            match post(&d, "tasks", body) {
+                Ok(()) => update_config(&d, |c| {
+                    c.tasks_reported = config.tasks;
+                    if config.tasks {
+                        c.shared = true;
+                    }
+                }),
+                Err(e) => log::warn!("Your data: paid tasks tick not sent: {e:#}"),
+            }
+        }
         if config.support {
             donate_pending(&app, &d);
         }
     });
+}
+
+/// The languages a paid task could be in: those of the user's own
+/// recordings (most first, at most three), else the app's language.
+fn task_languages(app: &AppHandle, dir: &Path) -> Vec<String> {
+    let mut by: Vec<(String, f64)> = stats_in(dir)
+        .seconds_by_language
+        .into_iter()
+        .filter(|(l, s)| l != "other" && *s >= 60.0)
+        .collect();
+    by.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let mut langs: Vec<String> = by.into_iter().take(3).map(|(l, _)| l).collect();
+    if langs.is_empty() {
+        let ui = crate::settings::get_settings(app).app_language;
+        langs.push(normalize_language(Some(&ui)));
+    }
+    langs
 }
 
 /// "Delete what was shared": removes everything the counter holds under this
@@ -524,6 +571,7 @@ pub fn forget(app: &AppHandle) -> Result<()> {
         c.shared = false;
         c.last_report = 0;
         c.last_usage = 0;
+        c.tasks_reported = false;
     });
     // The counter deleted the uploads too; a supporter's new id sends them
     // again.

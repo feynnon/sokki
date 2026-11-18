@@ -1209,7 +1209,11 @@
       "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal.",
       "donated": "Bisher geteilt: {{duration}}.",
       "withheld_one": "{{count}} Aufnahme bleibt auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthält.",
-      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten."
+      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten.",
+      "tasks": {
+        "title": "Sag mir Bescheid bei bezahlten Aufnahme-Aufgaben",
+        "text": "Sokki bietet vielleicht später kleine bezahlte Aufgaben an, etwa einen kurzen Text vorzulesen. Du erfährst zuerst davon."
+      }
     }
   }
 }

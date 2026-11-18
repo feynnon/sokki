@@ -13,6 +13,7 @@
 //   POST /usage     {"id", "pow", ...daily report...}
 //   POST /donate    {"id", "pow", "clip", "language", "source", "seconds", "text", "audio": "<base64 FLAC>"}
 //   POST /interest  {"id", "pow", "notice": 1700000000, "language": "de", "hours": 12}
+//   POST /tasks     {"id", "pow", "on": true, "languages": ["de"]}  "tell me about paid tasks"
 //   POST /leave     {"id", "pow"}   out of the count (both choices off)
 //   POST /forget    {"id", "pow"}   everything stored under the id, audio included
 //   GET  /total     -> {"installs", "donors", "total_seconds", "seconds_by_language",
@@ -150,7 +151,7 @@ async function forget(req, env) {
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   await env.DB.batch(
-    ["installs", "usage", "interest", "donations"].map((t) =>
+    ["installs", "usage", "interest", "donations", "tasks"].map((t) =>
       env.DB.prepare(`DELETE FROM ${t} WHERE id = ?1`).bind(body.id),
     ),
   );
@@ -193,6 +194,28 @@ async function interest(req, env) {
      ON CONFLICT(id, notice) DO UPDATE SET hours = ?4, received = ?5`,
   )
     .bind(body.id, notice, body.language, hours, now())
+    .run();
+  return json({ ok: true });
+}
+
+// "Tell me about paid recording tasks": a tick and the languages a task could
+// be in; unticking removes the row.
+async function tasks(req, env) {
+  const { body, error } = await authorised(req, env);
+  if (error) return error;
+  if (body.on !== true) {
+    await env.DB.prepare("DELETE FROM tasks WHERE id = ?1").bind(body.id).run();
+    return json({ ok: true });
+  }
+  const languages = Array.isArray(body.languages) ? body.languages.slice(0, 5) : [];
+  if (!languages.every((l) => typeof l === "string" && LANG.test(l))) {
+    return json({ error: "bad languages" }, 400);
+  }
+  await env.DB.prepare(
+    `INSERT INTO tasks (id, languages, updated) VALUES (?1, ?2, ?3)
+     ON CONFLICT(id) DO UPDATE SET languages = ?2, updated = ?3`,
+  )
+    .bind(body.id, JSON.stringify(languages), now())
     .run();
   return json({ ok: true });
 }
@@ -313,6 +336,7 @@ const ROUTES = {
   "/usage": usage,
   "/donate": donate,
   "/interest": interest,
+  "/tasks": tasks,
   "/leave": leave,
   "/forget": forget,
 };

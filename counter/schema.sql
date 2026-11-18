@@ -46,3 +46,11 @@ CREATE TABLE IF NOT EXISTS donations (
   received INTEGER NOT NULL,
   PRIMARY KEY (id, clip)
 );
+
+-- "Tell me about paid recording tasks": who ticked it, and the languages
+-- of their own recordings (a task could be offered in those).
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  languages TEXT NOT NULL, -- JSON: ["de", "en"]
+  updated INTEGER NOT NULL
+);

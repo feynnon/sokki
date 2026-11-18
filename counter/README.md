@@ -17,6 +17,9 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   (`donations`). The app only sends recordings whose text has no name, number
   or contact details. The store stops taking uploads at 900 MB (KV's free
   1 GB; beyond it Cloudflare returns errors, never a bill).
+- **Tell me about paid recording tasks** sends the id and the languages of the
+  user's own recordings (`POST /tasks`); unticking removes it. See who ticked it:
+  `wrangler d1 execute verbatim-counter --remote --command "SELECT languages, count(*) FROM tasks GROUP BY languages"`.
 - **Delete what was shared** removes every row of the id and its audio
   (`POST /forget`).
 

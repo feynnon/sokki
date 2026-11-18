@@ -31,6 +31,10 @@ say "Downloading $(basename "$url")…"
 curl -fL --progress-bar "$url" -o "$tmp/Verbatim.zip"
 
 if pgrep -f "$APP/Contents/MacOS" >/dev/null; then
+  INDEX="$HOME/Library/Application Support/dev.handymeetings.app/meetings/index.json"
+  if [[ -f "$INDEX" ]] && grep -Eq '"kind" *: *"(recording|processing)"' "$INDEX"; then
+    fail "A meeting is being recorded or processed. Run this again when it's done."
+  fi
   say "Closing the running Verbatim…"
   osascript -e 'quit app "Verbatim"' >/dev/null 2>&1 || true
   for _ in $(seq 1 20); do pgrep -f "$APP/Contents/MacOS" >/dev/null || break; sleep 0.5; done

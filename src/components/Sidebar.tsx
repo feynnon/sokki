@@ -13,6 +13,7 @@ import {
   BookOpen,
   Volume2,
   Settings as SettingsIcon,
+  AudioLines,
 } from "lucide-react";
 import { platform } from "@tauri-apps/plugin-os";
 import HandyTextLogo from "./icons/HandyTextLogo";
@@ -31,13 +32,14 @@ import {
   VerbatimSettingsPage,
   VerbatimSoundPage,
   VerbatimVocabularyPage,
+  VerbatimVoicePage,
 } from "./settings";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
 /** Verbatim's sidebar: what you use, then how the app behaves (debug last). */
 const VERBATIM_ORDER: SidebarSection[][] = [
-  ["history", "meetings", "vocabulary"],
+  ["history", "meetings", "vocabulary", "voice"],
   ["settings", "sound", "models"],
   ["debug"],
 ];
@@ -94,6 +96,12 @@ export const SECTIONS_CONFIG = {
     labelKey: "verbatim.nav.vocabulary",
     icon: BookOpen,
     component: VerbatimVocabularyPage,
+    enabled: () => IS_VERBATIM,
+  },
+  voice: {
+    labelKey: "verbatim.nav.voice",
+    icon: AudioLines,
+    component: VerbatimVoicePage,
     enabled: () => IS_VERBATIM,
   },
   settings: {

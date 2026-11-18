@@ -862,7 +862,7 @@ impl ShortcutAction for TranscribeAction {
 
                             // Save to history if WAV was saved
                             if wav_saved {
-                                if let Err(err) = hm.save_entry(
+                                match hm.save_entry(
                                     file_name,
                                     transcription,
                                     post_process,
@@ -870,7 +870,14 @@ impl ShortcutAction for TranscribeAction {
                                     processed.post_process_prompt.clone(),
                                     language,
                                 ) {
-                                    error!("Failed to save history entry: {}", err);
+                                    // Opt-in "Your voice" dataset (own voice only).
+                                    Ok(entry) => crate::voice_data::add_dictation(
+                                        &ah,
+                                        &hm.recordings_dir().join(&entry.file_name),
+                                        &entry.transcription_text,
+                                        entry.language.as_deref(),
+                                    ),
+                                    Err(err) => error!("Failed to save history entry: {}", err),
                                 }
                             }
 

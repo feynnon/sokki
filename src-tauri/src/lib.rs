@@ -6,6 +6,7 @@ pub mod audio_toolkit;
 mod autostart;
 #[cfg(target_os = "macos")]
 pub mod brand;
+pub mod voice_data;
 mod catalog;
 mod chinese_script;
 pub mod cli;
@@ -843,6 +844,11 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
             commands::meeting::get_meeting_note,
+            commands::voice::voice_data_stats,
+            commands::voice::voice_data_set_opt_in,
+            commands::voice::voice_data_delete,
+            commands::voice::voice_data_community,
+            commands::voice::voice_data_open_folder,
             commands::meeting::start_ollama,
             commands::meeting::pull_meeting_llm,
             commands::meeting::rename_meeting_speaker,

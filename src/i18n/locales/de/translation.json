@@ -1102,7 +1102,8 @@
       "home": "Start",
       "vocabulary": "Wörterbuch",
       "settings": "Einstellungen",
-      "sound": "Ton"
+      "sound": "Ton",
+      "voice": "Deine Stimme"
     },
     "keep": {
       "title": "Aufnahmen behalten",
@@ -1145,6 +1146,31 @@
       "empty": "Noch keine Wörter. Füge die Namen hinzu, die das Transkript falsch schreibt.",
       "remove": "{{word}} entfernen",
       "note": "Gilt für Meetings. Beim Diktieren bleiben deine Wörter wie gesprochen: direktes Ersetzen machte im Test aus „Lied“ „Lead“."
+    },
+    "voice": {
+      "title": "Deine Stimme",
+      "description": "Deine eigene Stimme mit Transkript, auf diesem Mac gesammelt. Vielleicht kannst du sie eines Tages anonymisiert verkaufen, als Teil eines größeren Datensatzes zum Trainieren von Sprachmodellen.",
+      "kept": "{{count}} Ausschnitte mit Transkript",
+      "onDisk": "{{size}} auf diesem Mac",
+      "byLanguage": "Nach Sprache",
+      "bySource": "Herkunft",
+      "fromDictation": "Diktat",
+      "fromMeetings": "Meetings (dein Mikrofon)",
+      "otherLanguage": "Andere",
+      "emptyOn": "Noch nichts gesammelt. Deine nächsten Diktate und Calls erscheinen hier.",
+      "emptyOff": "Unten einschalten, um deine Stimme zu sammeln.",
+      "optIn": "Meine Stimme für einen Datensatz sammeln",
+      "optInDescription": "Standardmäßig aus. Du kannst es jederzeit ausschalten und alles löschen.",
+      "point1": "Nur deine eigene Stimme: deine Diktate und in Calls nur das, was du ins Mikrofon gesagt hast. Fremde Stimmen werden nie gesammelt.",
+      "point2": "Alles bleibt auf diesem Mac. Nichts wird hochgeladen.",
+      "point3": "Verbatim teilt nur, wie viele Stunden du pro Sprache hast, mit einer Zufallsnummer statt deines Namens, damit alle sehen, wie groß der Datensatz werden könnte.",
+      "point4": "Es gibt noch keinen Käufer. Kommt einer, fragen wir dich vorher; Namen und Zahlen werden entfernt, bevor etwas deinen Mac verlässt, und du bekommst einen Anteil am Erlös.",
+      "community": "{{count}} Verbatim-Nutzer sammeln {{hours}} Stunden ihrer Stimme für den Datensatz.",
+      "showFolder": "Im Finder zeigen",
+      "deleteAll": "Alle Ausschnitte löschen",
+      "deleteAsk": "{{count}} Ausschnitte endgültig löschen?",
+      "delete": "Löschen",
+      "cancel": "Abbrechen"
     }
   }
 }

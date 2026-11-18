@@ -95,11 +95,18 @@ flowchart LR
 
 Each model is downloaded once and then runs offline. The measurements behind these choices, including what was tried and rejected, are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
+## Your voice (optional)
+
+Speech models are weakest exactly where meetings happen: spontaneous talk, mixed languages, jargon. If you opt in, Verbatim keeps **your own voice** with its transcript: your dictations, and in calls only what you said into your microphone. Never other people's voices. It all stays on your Mac, and the page shows how many hours you have per language.
+
+The idea: bundled with other users' data and anonymised (names and numbers removed), it could one day be sold to teams that train speech models, with a share going to you. There's no buyer yet. Nothing leaves your Mac unless you agree to a sale. The counter of how much voice data Verbatim users hold together runs on a tiny service in [`counter/`](counter/).
+
 ## Privacy
 
 - Audio, transcripts and notes stay on your Mac. Recordings are deleted after the period you choose.
 - The only network requests are model downloads, and, only if you pick a cloud model, the transcript sent to that provider for the summary.
 - No account, no telemetry, no update checks.
+- If you switch on **Your voice** (off by default), Verbatim keeps your own voice with its transcript on your Mac and shares only how many hours you have per language, under a random number.
 - Recording people needs their consent: tell everyone on the call.
 
 ## Build from source

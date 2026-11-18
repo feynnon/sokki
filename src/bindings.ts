@@ -858,6 +858,61 @@ async listMeetings() : Promise<Result<MeetingRecord[], string>> {
  * Opens the meeting's note: in Obsidian when the notes folder is inside a
  * vault, otherwise with the default app for Markdown.
  */
+/**
+ * How much of the user's own voice is kept, per language and source.
+ */
+async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts or stops keeping the user's own voice.
+ */
+async voiceDataSetOptIn(on: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_opt_in", { on }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Deletes every kept clip.
+ */
+async voiceDataDelete() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_delete") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The total over all opted-in installs; `None` without a counter or offline.
+ */
+async voiceDataCommunity() : Promise<Result<CommunityTotal | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_community") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Opens the folder with the kept clips in Finder.
+ */
+async voiceDataOpenFolder() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_open_folder") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getMeetingNote(id: string) : Promise<Result<MeetingNoteParts, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_meeting_note", { id }) };
@@ -1600,6 +1655,14 @@ detail: string }
  * (plain "[00:03] Speaker 2: Hi." lines, ready to copy).
  */
 export type MeetingNoteParts = { summary: string; transcript: string }
+/**
+ * What the "Your voice" page shows.
+ */
+export type VoiceDataStats = { opt_in: boolean; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string }
+/**
+ * The total over all opted-in installs, from the counter service.
+ */
+export type CommunityTotal = { installs: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }> }
 export type MeetingStatus = { kind: "recording" } | 
 /**
  * `stage`: "diarizing", "transcribing", "summarizing" or "writing".

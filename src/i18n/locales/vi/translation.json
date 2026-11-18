@@ -1102,7 +1102,8 @@
       "home": "Home",
       "vocabulary": "Vocabulary",
       "settings": "Settings",
-      "sound": "Sound"
+      "sound": "Sound",
+      "voice": "Your voice"
     },
     "keep": {
       "title": "Keep recordings for",
@@ -1145,6 +1146,31 @@
       "empty": "No words yet. Add the names that the transcript gets wrong.",
       "remove": "Remove {{word}}",
       "note": "Used for meetings. Dictation leaves your words as spoken: swapping words there directly turned „Lied“ into „Lead“ in a test."
+    },
+    "voice": {
+      "title": "Your voice",
+      "description": "Your own voice with its transcript, kept on this Mac. One day you may be able to sell it, anonymised, as part of a larger dataset for training speech models.",
+      "kept": "{{count}} clips with transcript",
+      "onDisk": "{{size}} on this Mac",
+      "byLanguage": "By language",
+      "bySource": "From",
+      "fromDictation": "Dictation",
+      "fromMeetings": "Meetings (your microphone)",
+      "otherLanguage": "Other",
+      "emptyOn": "Nothing kept yet. Your next dictations and calls will show up here.",
+      "emptyOff": "Switch on below to start keeping your voice.",
+      "optIn": "Keep my voice for a dataset",
+      "optInDescription": "Off by default. You can switch it off and delete everything at any time.",
+      "point1": "Only your own voice: your dictations, and in calls only what you said into your microphone. Other people's voices are never kept.",
+      "point2": "Everything stays on this Mac. Nothing is uploaded.",
+      "point3": "Verbatim only shares how many hours you have per language, with a random number instead of your name, so everyone can see how large the dataset could be.",
+      "point4": "There is no buyer yet. If one comes, we ask you first; names and numbers are removed before anything leaves your Mac, and you get a share of the money.",
+      "community": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset.",
+      "showFolder": "Show in Finder",
+      "deleteAll": "Delete all clips",
+      "deleteAsk": "Delete {{count}} clips for good?",
+      "delete": "Delete",
+      "cancel": "Cancel"
     }
   }
 }

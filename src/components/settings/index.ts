@@ -10,6 +10,7 @@ export { ModelsSettings } from "./models/ModelsSettings";
 export { VerbatimSettingsPage } from "./verbatim/SettingsPage";
 export { VerbatimSoundPage } from "./verbatim/SoundPage";
 export { VerbatimVocabularyPage } from "./verbatim/VocabularyPage";
+export { VerbatimVoicePage } from "./verbatim/VoicePage";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

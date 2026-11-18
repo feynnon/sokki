@@ -252,6 +252,22 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
     }
     let title = meeting_core::note::note_title(&note);
 
+    // Opt-in "Your voice" dataset: only the user's own microphone segments
+    // (named after the user, which happens on calls only).
+    if let Some(mic) = tracks.iter().find(|t| t.kind == TrackKind::Mic) {
+        let own: Vec<crate::voice_data::OwnSegment> = transcript
+            .segments
+            .iter()
+            .filter(|s| s.track == TrackKind::Mic && s.speaker == settings.user_name)
+            .map(|s| crate::voice_data::OwnSegment {
+                start_s: s.start_s,
+                end_s: s.end_s,
+                text: &s.text,
+            })
+            .collect();
+        crate::voice_data::add_meeting(app, &mic.samples, &own);
+    }
+
     // 7. Audio retention.
     let delete_audio = settings.keep_audio_days == 0;
     if delete_audio {

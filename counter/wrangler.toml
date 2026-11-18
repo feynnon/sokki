@@ -1,0 +1,9 @@
+name = "verbatim-counter"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "verbatim-counter"
+# Paste the id printed by `wrangler d1 create verbatim-counter`.
+database_id = "REPLACE_WITH_DATABASE_ID"

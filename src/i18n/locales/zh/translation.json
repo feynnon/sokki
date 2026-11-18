@@ -1160,7 +1160,7 @@
       },
       "support": {
         "title": "Support Sokki & Open Source",
-        "text": "Thank you for supporting Sokki and open-source speech models.",
+        "text": "Share your anonymised audio and transcripts to help improve AI models and support Sokki.",
         "link": "What this means"
       },
       "sharedSheet": {
@@ -1175,7 +1175,7 @@
       },
       "supportSheet": {
         "text": "Before anything leaves this Mac, names are removed and numbers are scrambled. Sokki may then use your data freely: to improve Sokki, to help open-source speech models, and to share or sell it. You won't be asked again and don't get a share of any sale.",
-        "footer": "Only your own voice. You can stop any time; data already used can't be called back."
+        "footer": "Only your own recordings. You can stop any time; data already used can't be called back."
       },
       "ok": "OK",
       "onThisMac": "On this Mac: {{duration}} of your recordings · {{size}}",

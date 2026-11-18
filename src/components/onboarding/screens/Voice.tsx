@@ -7,7 +7,7 @@ import { useOnboardingStore } from "../onboardingStore";
 import {
   VoiceChoices,
   type VoiceChoice,
-} from "../../settings/verbatim/VoiceChoices";
+} from "../../settings/sokki/VoiceChoices";
 
 interface VoiceProps {
   progress?: { index: number; count: number };
@@ -15,7 +15,7 @@ interface VoiceProps {
   onContinue: () => void;
 }
 
-/** Verbatim: one question about "Your voice" (keep, be counted, be asked). */
+/** Sokki: one question about "Your voice" (keep, be counted, be asked). */
 export const Voice: React.FC<VoiceProps> = ({
   progress,
   onBack,
@@ -32,14 +32,14 @@ export const Voice: React.FC<VoiceProps> = ({
     <OnboardingShell
       progress={progress}
       onBack={onBack}
-      hint={t("verbatim.voice.onboardingHint")}
+      hint={t("sokki.voice.onboardingHint")}
       left={
         <Button
           variant="secondary"
           size="lg"
           onClick={() => void answer("off")}
         >
-          {t("verbatim.voice.notNow")}
+          {t("sokki.voice.notNow")}
         </Button>
       }
       primary={
@@ -56,16 +56,16 @@ export const Voice: React.FC<VoiceProps> = ({
       <ScreenMain
         header={
           <ScreenHeader
-            title={t("verbatim.voice.onboardingTitle")}
-            sub={t("verbatim.voice.onboardingSub")}
+            title={t("sokki.voice.onboardingTitle")}
+            sub={t("sokki.voice.onboardingSub")}
           />
         }
       >
         <div className="flex w-full flex-col gap-[12px] text-start">
           <VoiceChoices value={choice} onChange={setChoice} withOff={false} />
           <ul className="flex flex-col gap-[4px] text-small text-ink-3 list-disc ps-[18px]">
-            <li>{t("verbatim.voice.point1")}</li>
-            <li>{t("verbatim.voice.point3")}</li>
+            <li>{t("sokki.voice.point1")}</li>
+            <li>{t("sokki.voice.point3")}</li>
           </ul>
         </div>
       </ScreenMain>

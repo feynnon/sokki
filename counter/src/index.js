@@ -1,4 +1,4 @@
-// Verbatim's voice-data counter. Opted-in installs report a random id and
+// Sokki's voice-data counter. Opted-in installs report a random id and
 // how many seconds of their own voice they keep per language; anyone can
 // read the total. No names, no audio, no text ever reach this service.
 //

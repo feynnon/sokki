@@ -31,18 +31,18 @@ const RecordingWindow: React.FC = () => {
   const style = (getSetting("overlay_style") ?? "live") as OverlayStyle;
   return (
     <SettingContainer
-      title={t("verbatim.settings.window")}
-      description={t("verbatim.settings.windowDescription")}
+      title={t("sokki.settings.window")}
+      description={t("sokki.settings.windowDescription")}
       grouped
     >
       <Segmented<OverlayStyle>
-        label={t("verbatim.settings.window")}
+        label={t("sokki.settings.window")}
         value={style}
         onChange={(v) => void updateSetting("overlay_style", v)}
         options={[
-          { value: "live", label: t("verbatim.settings.windowLive") },
-          { value: "minimal", label: t("verbatim.settings.windowMini") },
-          { value: "none", label: t("verbatim.settings.windowNone") },
+          { value: "live", label: t("sokki.settings.windowLive") },
+          { value: "minimal", label: t("sokki.settings.windowMini") },
+          { value: "none", label: t("sokki.settings.windowNone") },
         ]}
       />
     </SettingContainer>
@@ -78,8 +78,8 @@ const OverlayPosition: React.FC = () => {
   );
 };
 
-/** Verbatim's settings: look, shortcuts, app; the rest behind Advanced. */
-export const VerbatimSettingsPage: React.FC = () => {
+/** Sokki's settings: look, shortcuts, app; the rest behind Advanced. */
+export const SokkiSettingsPage: React.FC = () => {
   const { t } = useTranslation();
   const [advanced, setAdvanced] = useState(false);
   const [version, setVersion] = useState("");
@@ -98,25 +98,25 @@ export const VerbatimSettingsPage: React.FC = () => {
           className="self-start inline-flex items-center gap-1.5 text-[13px] text-ink-2 hover:text-text px-1 cursor-pointer"
         >
           <ArrowLeft width={14} height={14} />
-          {t("verbatim.settings.title")}
+          {t("sokki.settings.title")}
         </button>
         <PageHeader
-          title={t("verbatim.settings.advanced")}
-          description={t("verbatim.settings.advancedDescription")}
+          title={t("sokki.settings.advanced")}
+          description={t("sokki.settings.advancedDescription")}
         />
-        <SettingsGroup title={t("verbatim.settings.textInput")}>
+        <SettingsGroup title={t("sokki.settings.textInput")}>
           <PasteMethodSetting descriptionMode="inline" grouped />
           <ClipboardHandlingSetting descriptionMode="inline" grouped />
           <AutoSubmit descriptionMode="inline" grouped />
           <AppendTrailingSpace descriptionMode="inline" grouped />
         </SettingsGroup>
-        <SettingsGroup title={t("verbatim.settings.transcription")}>
+        <SettingsGroup title={t("sokki.settings.transcription")}>
           <FillerWordRemoval descriptionMode="inline" grouped />
           <VoiceActivityDetection descriptionMode="inline" grouped />
           <TranslateToEnglish descriptionMode="inline" grouped />
           <ModelUnloadTimeoutSetting descriptionMode="inline" grouped />
         </SettingsGroup>
-        <SettingsGroup title={t("verbatim.settings.application")}>
+        <SettingsGroup title={t("sokki.settings.application")}>
           <OverlayPosition />
           <AppDataDirectory descriptionMode="inline" grouped />
           <LogDirectory grouped />
@@ -127,13 +127,13 @@ export const VerbatimSettingsPage: React.FC = () => {
 
   return (
     <Page>
-      <PageHeader title={t("verbatim.settings.title")} />
-      <SettingsGroup title={t("verbatim.settings.appearance")}>
+      <PageHeader title={t("sokki.settings.title")} />
+      <SettingsGroup title={t("sokki.settings.appearance")}>
         <ThemeSelector descriptionMode="inline" grouped />
         <RecordingWindow />
         <AppLanguageSelector descriptionMode="inline" grouped />
       </SettingsGroup>
-      <SettingsGroup title={t("verbatim.settings.shortcuts")}>
+      <SettingsGroup title={t("sokki.settings.shortcuts")}>
         <ShortcutInput
           shortcutId="transcribe"
           grouped
@@ -143,7 +143,7 @@ export const VerbatimSettingsPage: React.FC = () => {
         <ShortcutInput shortcutId="meeting" grouped descriptionMode="inline" />
         <ShortcutInput shortcutId="cancel" grouped descriptionMode="inline" />
       </SettingsGroup>
-      <SettingsGroup title={t("verbatim.settings.application")}>
+      <SettingsGroup title={t("sokki.settings.application")}>
         <AutostartToggle descriptionMode="inline" grouped />
         <KeepRecordings />
       </SettingsGroup>
@@ -152,12 +152,12 @@ export const VerbatimSettingsPage: React.FC = () => {
         onClick={() => setAdvanced(true)}
         className="vb-card flex items-center justify-between px-4 min-h-[52px] text-[14px] font-medium cursor-pointer hover:bg-wash text-start focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
       >
-        {t("verbatim.settings.advanced")}
+        {t("sokki.settings.advanced")}
         <ChevronRight width={16} height={16} className="text-ink-3" />
       </button>
       <p className="px-1 text-xs text-ink-3">
-        {t("verbatim.settings.version", { version })} ·{" "}
-        {t("verbatim.settings.basedOn")}
+        {t("sokki.settings.version", { version })} ·{" "}
+        {t("sokki.settings.basedOn")}
       </p>
     </Page>
   );

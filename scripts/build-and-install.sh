@@ -10,8 +10,8 @@
 # Safety: never replaces the running app while a meeting is recording or
 # being processed.
 #
-# Brand: BRAND=verbatim (default here) builds "Verbatim" with its own name,
-# icon, logo and colours (src-tauri/brands/verbatim, src-tauri/src/brand.rs);
+# Brand: BRAND=sokki (default here) builds "Sokki" with its own name,
+# icon, logo and colours (src-tauri/brands/sokki, src-tauri/src/brand.rs);
 # BRAND=handy builds the plain "Handy Meetings". Both share settings and data
 # (same bundle identifier); installing one removes the other from /Applications.
 #
@@ -33,16 +33,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BRAND="${BRAND:-verbatim}"
+BRAND="${BRAND:-sokki}"
 case "$BRAND" in
-  verbatim) APP_NAME="Verbatim"; OTHER_APP="Handy Meetings"; BRAND_CONFIG=(--config "src-tauri/brands/verbatim/tauri.conf.json") ;;
-  handy) APP_NAME="Handy Meetings"; OTHER_APP="Verbatim"; BRAND_CONFIG=() ;;
+  sokki) APP_NAME="Sokki"; OTHER_APP="Handy Meetings"; BRAND_CONFIG=(--config "src-tauri/brands/sokki/tauri.conf.json") ;;
+  handy) APP_NAME="Handy Meetings"; OTHER_APP="Sokki"; BRAND_CONFIG=() ;;
   *) echo "unknown BRAND: $BRAND" >&2; exit 2 ;;
 esac
 export HANDY_BRAND="$BRAND" VITE_HANDY_BRAND="$BRAND"
 # The voice-data counter (counter/), once deployed; empty: count locally only.
-if [[ -z "${VERBATIM_COUNTER_URL:-}" && -f "$REPO/counter/url.txt" ]]; then
-  export VERBATIM_COUNTER_URL="$(tr -d '[:space:]' < "$REPO/counter/url.txt")"
+if [[ -z "${SOKKI_COUNTER_URL:-}" && -f "$REPO/counter/url.txt" ]]; then
+  export SOKKI_COUNTER_URL="$(tr -d '[:space:]' < "$REPO/counter/url.txt")"
 fi
 IDENTITY="Handy Meetings Dev"
 INDEX="$HOME/Library/Application Support/dev.handymeetings.app/meetings/index.json"
@@ -66,7 +66,7 @@ fi
 busy() {
   # Only a running app can be recording or processing; a record left at
   # "processing" by a crash or kill is resumed at the next launch.
-  pgrep -f "/Applications/($APP_NAME|$OTHER_APP).app/Contents/MacOS" >/dev/null || return 1
+  pgrep -f "/Applications/($APP_NAME|$OTHER_APP|Verbatim).app/Contents/MacOS" >/dev/null || return 1
   [[ -f "$INDEX" ]] && jq -e '[.[] | select(.status.kind=="recording" or .status.kind=="processing")] | length > 0' "$INDEX" >/dev/null
 }
 if busy; then
@@ -74,16 +74,16 @@ if busy; then
   while busy; do sleep 10; done
 fi
 
-for name in "$APP_NAME" "$OTHER_APP"; do
+for name in "$APP_NAME" "$OTHER_APP" Verbatim; do
   osascript -e "quit app \"$name\"" 2>/dev/null || true
 done
-for _ in $(seq 1 20); do pgrep -f "/Applications/($APP_NAME|$OTHER_APP).app/Contents/MacOS" >/dev/null || break; sleep 0.5; done
+for _ in $(seq 1 20); do pgrep -f "/Applications/($APP_NAME|$OTHER_APP|Verbatim).app/Contents/MacOS" >/dev/null || break; sleep 0.5; done
 if [[ ${#REPROCESS[@]} -gt 0 ]]; then
   ids=$(printf '%s\n' "${REPROCESS[@]}" | jq -R . | jq -s .)
   jq --argjson ids "$ids" '(.[] | select(.id as $i | $ids | index($i))) |= (.status={"kind":"failed","error":"Interrupted: reprocess"} | .warnings=[])' "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
   echo "Queued for processing at launch: ${REPROCESS[*]}"
 fi
-rm -rf "/Applications/$APP_NAME.app" "/Applications/$OTHER_APP.app"
+rm -rf "/Applications/$APP_NAME.app" "/Applications/$OTHER_APP.app" /Applications/Verbatim.app
 cp -R "$BUNDLE" /Applications/
 codesign -dv "/Applications/$APP_NAME.app" 2>&1 | grep -E "Authority|Signature=" || true
 open "/Applications/$APP_NAME.app"

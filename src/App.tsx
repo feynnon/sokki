@@ -15,7 +15,7 @@ import {
 import "./App.css";
 import SecureInputWarning from "./components/SecureInputWarning";
 import Footer from "./components/footer";
-import { IS_VERBATIM } from "./lib/brand";
+import { IS_SOKKI } from "./lib/brand";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import ModelMigration from "./components/onboarding/ModelMigration";
 import {
@@ -57,7 +57,7 @@ const renderSettingsContent = (
     return (
       <ModelsSettings
         onChangeLanguages={
-          IS_VERBATIM ? undefined : () => onSectionChange("general")
+          IS_SOKKI ? undefined : () => onSectionChange("general")
         }
       />
     );
@@ -88,7 +88,7 @@ function App() {
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
   const [currentSection, setCurrentSection] = useState<SidebarSection>(
-    IS_VERBATIM ? "history" : "general",
+    IS_SOKKI ? "history" : "general",
   );
   const showHistory = useCallback(() => setCurrentSection("history"), []);
   // Other pages can ask for a section (e.g. Meetings → Models).
@@ -348,7 +348,7 @@ function App() {
             <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
               {/* Models fills the window: its table scrolls, not the page. */}
               <div
-                className={`flex flex-col items-center ${IS_VERBATIM ? "px-8 py-6" : "p-4"} gap-4 ${currentSection === "models" ? "h-full" : ""}`}
+                className={`flex flex-col items-center ${IS_SOKKI ? "px-8 py-6" : "p-4"} gap-4 ${currentSection === "models" ? "h-full" : ""}`}
               >
                 <SecureInputWarning />
                 {renderSettingsContent(
@@ -362,8 +362,8 @@ function App() {
             </div>
           </div>
         </div>
-        {/* Fixed footer at bottom (Verbatim: none, like Superwhisper) */}
-        {!IS_VERBATIM && <Footer onShowHistory={showHistory} />}
+        {/* Fixed footer at bottom (Sokki: none, like Superwhisper) */}
+        {!IS_SOKKI && <Footer onShowHistory={showHistory} />}
         <FileDropOverlay onDropped={showHistory} />
       </div>
     );

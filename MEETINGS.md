@@ -1,6 +1,6 @@
-# Verbatim: developer guide
+# Sokki: developer guide
 
-Verbatim is a fork of [Handy](https://github.com/cjpais/Handy) (MIT) that adds
+Sokki is a fork of [Handy](https://github.com/cjpais/Handy) (MIT) that adds
 meeting notes to its dictation: record a meeting, and get a Markdown note
 with speakers, a summary, decisions and action items. Everything runs on
 the Mac, unless you choose a cloud language model (see 7). This file covers
@@ -19,26 +19,26 @@ Two looks from one code base, chosen at build time:
 
 - **Handy Meetings** (`BRAND=handy`): Handy's name, hand logo and pinks, so
   changes can go back upstream.
-- **Verbatim** (`BRAND=verbatim`, the default of `scripts/build-and-install.sh`):
+- **Sokki** (`BRAND=sokki`, the default of `scripts/build-and-install.sh`):
   own name, V-wave app and menu bar icons, a calm blue on dark grey. Files:
-  `src-tauri/brands/verbatim/` (config overlay, icon sources and set),
-  `src-tauri/resources/brands/verbatim/` (menu bar icons),
-  `src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/brand-verbatim.css`,
-  `src/components/icons/VerbatimLogo.tsx`.
+  `src-tauri/brands/sokki/` (config overlay, icon sources and set),
+  `src-tauri/resources/brands/sokki/` (menu bar icons),
+  `src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/brand-sokki.css`,
+  `src/components/icons/SokkiLogo.tsx`.
 
-Verbatim also has a simpler window, after Superwhisper: sidebar Home,
+Sokki also has a simpler window, after Superwhisper: sidebar Home,
 Meetings, Vocabulary | Settings, Sound, Models; descriptions under each
 option instead of info icons; no footer bar; no menu bar icon (the meeting
 pill shows recording); first start is permissions, then the model. Options
 not shown keep their defaults and stay in the config file
-(`src/components/settings/verbatim/`). The Vocabulary list feeds only the
+(`src/components/settings/sokki/`). The Vocabulary list feeds only the
 meeting correction: Handy's direct dictation word swap turned „Lied“ into
 „Lead“ and „Mach“ into „Noxi“ with these words.
 
 Both use the same bundle identifier, settings and meetings; installing one
 replaces the other in /Applications. Icons are drawn as SVG in
-`src-tauri/brands/verbatim/src/`; after a change: `rsvg-convert` to PNG, then
-`bun run tauri icon src-tauri/brands/verbatim/src/icon-1024.png -o src-tauri/brands/verbatim/icons`.
+`src-tauri/brands/sokki/src/`; after a change: `rsvg-convert` to PNG, then
+`bun run tauri icon src-tauri/brands/sokki/src/icon-1024.png -o src-tauri/brands/sokki/icons`.
 
 ## What it does
 

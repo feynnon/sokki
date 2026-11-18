@@ -87,16 +87,16 @@ export const getSupportedLanguage = (
 
 // Initialize i18n with English as default
 // Language will be synced from settings after init
-// Verbatim build: Handy's texts name the app; show Verbatim instead.
-if (import.meta.env.VITE_HANDY_BRAND === "verbatim") {
+// Sokki build: Handy's texts name the app; show Sokki instead.
+if (import.meta.env.VITE_HANDY_BRAND === "sokki") {
   i18n.use({
     type: "postProcessor",
     name: "brand",
     process: (value: string, key: string | string[]) => {
       const k = Array.isArray(key) ? key[0] : key;
-      return k === "verbatim.settings.basedOn"
+      return k === "sokki.settings.basedOn"
         ? value
-        : value.replace(/\bHandy\b/g, "Verbatim");
+        : value.replace(/\bHandy\b/g, "Sokki");
     },
   });
 }
@@ -104,7 +104,7 @@ if (import.meta.env.VITE_HANDY_BRAND === "verbatim") {
 i18n.use(initReactI18next).init({
   resources,
   postProcess:
-    import.meta.env.VITE_HANDY_BRAND === "verbatim" ? ["brand"] : undefined,
+    import.meta.env.VITE_HANDY_BRAND === "sokki" ? ["brand"] : undefined,
   lng: "en",
   fallbackLng: "en",
   interpolation: {

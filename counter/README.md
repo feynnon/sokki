@@ -1,7 +1,7 @@
 # Voice-data counter
 
 A tiny Cloudflare Worker that counts how much of their own voice opted-in
-Verbatim installs keep, per language. It stores a random id per install and
+Sokki installs keep, per language. It stores a random id per install and
 seconds per language, nothing else, and serves the total at `GET /total`.
 It runs on Cloudflare's free plan: installs report at most once an hour, and the total is recomputed at most every 10 minutes, so it stays far below the free limits (which return errors when exceeded, never a bill).
 
@@ -16,18 +16,18 @@ wrangler deploy                               # prints https://verbatim-counter.
 ```
 
 Then put the URL into `counter/url.txt`; `scripts/build-and-install.sh` builds it in,
-so installs report and show the total (or set `VERBATIM_COUNTER_URL` yourself):
+so installs report and show the total (or set `SOKKI_COUNTER_URL` yourself):
 
 ```bash
 echo https://verbatim-counter.<you>.workers.dev > counter/url.txt
 scripts/build-and-install.sh
 ```
 
-Without `VERBATIM_COUNTER_URL` the app keeps counting locally and shows no total.
+Without `SOKKI_COUNTER_URL` the app keeps counting locally and shows no total.
 
 ## Message everyone who opted in
 
-The "Your voice" page in Verbatim shows a notice from the counter, for
+The "Your voice" page in Sokki shows a notice from the counter, for
 example when a buyer is interested. Opted-in installs also show each new
 notice once as a macOS notification (they look every 6 hours and a minute
 after start). Set or clear it:

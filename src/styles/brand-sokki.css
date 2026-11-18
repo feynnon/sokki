@@ -1,6 +1,6 @@
-/* Verbatim brand: calm greys with one blue accent instead of Handy's pinks.
+/* Sokki brand: calm greys with one blue accent instead of Handy's pinks.
    Only the palette sources are overridden; theme.css derives the rest. */
-:root[data-brand="verbatim"] {
+:root[data-brand="sokki"] {
   --light-color-text: #111214;
   --light-color-background: #f7f7f8;
   --light-color-logo-primary: #3567cc;
@@ -14,17 +14,17 @@
 }
 
 /* Surfaces: the page, a slightly lighter card, a darker sidebar. */
-:root[data-brand="verbatim"] {
+:root[data-brand="sokki"] {
   --vb-card: color-mix(in srgb, var(--color-text) 4%, var(--color-background));
   --vb-sidebar: color-mix(in srgb, black 18%, var(--color-background));
 }
 @media (prefers-color-scheme: light) {
-  :root[data-brand="verbatim"]:not([data-theme="dark"]) {
+  :root[data-brand="sokki"]:not([data-theme="dark"]) {
     --vb-card: #ffffff;
     --vb-sidebar: #eceef1;
   }
 }
-:root[data-brand="verbatim"][data-theme="light"] {
+:root[data-brand="sokki"][data-theme="light"] {
   --vb-card: #ffffff;
   --vb-sidebar: #eceef1;
 }

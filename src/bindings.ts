@@ -1661,7 +1661,7 @@ export type MeetingNoteParts = { summary: string; transcript: string }
 export type VoiceDataStats = { opt_in: boolean; 
 /**
  * "off", "sell" (asked before each sale, share of the proceeds) or
- * "donate" (used freely, anonymised, to keep Verbatim free).
+ * "donate" (used freely, anonymised, to keep Sokki free).
  */
 choice: string; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string }
 /**
@@ -1673,7 +1673,7 @@ export type CommunityTotal = { installs: number; total_seconds: number; seconds_
  */
 donors: number; 
 /**
- * A message from Verbatim to everyone who opted in (e.g. a buyer).
+ * A message from Sokki to everyone who opted in (e.g. a buyer).
  */
 notice: string | null; 
 /**

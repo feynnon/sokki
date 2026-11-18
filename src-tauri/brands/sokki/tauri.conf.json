@@ -1,0 +1,13 @@
+{
+  "productName": "Sokki",
+  "version": "0.1.0",
+  "bundle": {
+    "icon": [
+      "brands/sokki/icons/32x32.png",
+      "brands/sokki/icons/128x128.png",
+      "brands/sokki/icons/128x128@2x.png",
+      "brands/sokki/icons/icon.icns",
+      "brands/sokki/icons/icon.ico"
+    ]
+  }
+}

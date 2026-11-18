@@ -10,7 +10,7 @@ import { Page, PageHeader } from "./parts";
  * swaps a word after the language model and a sound check agree. Dictation's
  * direct word swap is left out on purpose: tested with these words it turned
  * "Led" and "Lied" into "Lead" and "Mach" into "Noxi". */
-export const VerbatimVocabularyPage: React.FC = () => {
+export const SokkiVocabularyPage: React.FC = () => {
   const { t } = useTranslation();
   const { settings, refreshSettings } = useSettings();
   const [draft, setDraft] = useState("");
@@ -41,30 +41,30 @@ export const VerbatimVocabularyPage: React.FC = () => {
   return (
     <Page>
       <PageHeader
-        title={t("verbatim.vocabulary.title")}
-        description={t("verbatim.vocabulary.description")}
+        title={t("sokki.vocabulary.title")}
+        description={t("sokki.vocabulary.description")}
       />
       <div className="vb-card p-4 flex flex-col gap-4">
         <div className="flex gap-2">
           <Input
             value={draft}
-            placeholder={t("verbatim.vocabulary.placeholder")}
+            placeholder={t("sokki.vocabulary.placeholder")}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") add();
             }}
             className="flex-1"
-            aria-label={t("verbatim.vocabulary.add")}
+            aria-label={t("sokki.vocabulary.add")}
           />
         </div>
         {words.length === 0 ? (
           <p className="text-[13px] text-ink-3">
-            {t("verbatim.vocabulary.empty")}
+            {t("sokki.vocabulary.empty")}
           </p>
         ) : (
           <ul
             className="flex flex-wrap gap-2"
-            aria-label={t("verbatim.vocabulary.title")}
+            aria-label={t("sokki.vocabulary.title")}
           >
             {words.map((w) => (
               <li
@@ -74,7 +74,7 @@ export const VerbatimVocabularyPage: React.FC = () => {
                 {w}
                 <button
                   type="button"
-                  aria-label={t("verbatim.vocabulary.remove", { word: w })}
+                  aria-label={t("sokki.vocabulary.remove", { word: w })}
                   onClick={() => void save(words.filter((x) => x !== w))}
                   className="grid size-5 place-items-center rounded-full text-ink-3 hover:text-text hover:bg-line cursor-pointer"
                 >
@@ -85,7 +85,7 @@ export const VerbatimVocabularyPage: React.FC = () => {
           </ul>
         )}
       </div>
-      <p className="px-1 text-xs text-ink-3">{t("verbatim.vocabulary.note")}</p>
+      <p className="px-1 text-xs text-ink-3">{t("sokki.vocabulary.note")}</p>
     </Page>
   );
 };

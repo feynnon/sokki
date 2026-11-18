@@ -11,7 +11,7 @@ import { Page, PageHeader, Segmented } from "./parts";
 type Effect = "marimba" | "pop" | "off";
 
 /** Sound effects (Marimba / Pop / Off) and volume, the microphone, other audio. */
-export const VerbatimSoundPage: React.FC = () => {
+export const SokkiSoundPage: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting } = useSettings();
   const on = getSetting("audio_feedback") ?? false;
@@ -27,27 +27,27 @@ export const VerbatimSoundPage: React.FC = () => {
   };
   return (
     <Page>
-      <PageHeader title={t("verbatim.sound.title")} />
+      <PageHeader title={t("sokki.sound.title")} />
       <SettingsGroup>
         <SettingContainer
-          title={t("verbatim.sound.effects")}
-          description={t("verbatim.sound.effectsDescription")}
+          title={t("sokki.sound.effects")}
+          description={t("sokki.sound.effectsDescription")}
           grouped
         >
           <Segmented<Effect>
-            label={t("verbatim.sound.effects")}
+            label={t("sokki.sound.effects")}
             value={effect}
             onChange={(v) => void choose(v)}
             options={[
               { value: "marimba", label: "Marimba" },
               { value: "pop", label: "Pop" },
-              { value: "off", label: t("verbatim.sound.off") },
+              { value: "off", label: t("sokki.sound.off") },
             ]}
           />
         </SettingContainer>
         <VolumeSlider disabled={!on} />
       </SettingsGroup>
-      <SettingsGroup title={t("verbatim.sound.recording")}>
+      <SettingsGroup title={t("sokki.sound.recording")}>
         <MicrophoneSelector descriptionMode="inline" grouped />
         <MuteWhileRecording descriptionMode="inline" grouped />
       </SettingsGroup>

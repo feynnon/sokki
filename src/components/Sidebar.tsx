@@ -18,8 +18,8 @@ import {
 import { platform } from "@tauri-apps/plugin-os";
 import HandyTextLogo from "./icons/HandyTextLogo";
 import HandyHand from "./icons/HandyHand";
-import { VerbatimLogo } from "./icons/VerbatimLogo";
-import { IS_VERBATIM } from "../lib/brand";
+import { SokkiLogo } from "./icons/SokkiLogo";
+import { IS_SOKKI } from "../lib/brand";
 import { useSettings } from "../hooks/useSettings";
 import {
   GeneralSettings,
@@ -29,16 +29,16 @@ import {
   AboutSettings,
   PostProcessingSettings,
   ModelsSettings,
-  VerbatimSettingsPage,
-  VerbatimSoundPage,
-  VerbatimVocabularyPage,
-  VerbatimVoicePage,
+  SokkiSettingsPage,
+  SokkiSoundPage,
+  SokkiVocabularyPage,
+  SokkiVoicePage,
 } from "./settings";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
-/** Verbatim's sidebar: what you use, then how the app behaves (debug last). */
-const VERBATIM_ORDER: SidebarSection[][] = [
+/** Sokki's sidebar: what you use, then how the app behaves (debug last). */
+const SOKKI_ORDER: SidebarSection[][] = [
   ["history", "meetings", "vocabulary", "voice"],
   ["settings", "sound", "models"],
   ["debug"],
@@ -63,13 +63,13 @@ interface SectionConfig {
 export const SECTIONS_CONFIG = {
   general: {
     labelKey: "sidebar.general",
-    icon: IS_VERBATIM ? SlidersHorizontal : HandyHand,
+    icon: IS_SOKKI ? SlidersHorizontal : HandyHand,
     component: GeneralSettings,
-    enabled: () => !IS_VERBATIM,
+    enabled: () => !IS_SOKKI,
   },
   history: {
-    labelKey: IS_VERBATIM ? "verbatim.nav.home" : "sidebar.history",
-    icon: IS_VERBATIM ? House : History,
+    labelKey: IS_SOKKI ? "sokki.nav.home" : "sidebar.history",
+    icon: IS_SOKKI ? House : History,
     component: HistorySettings,
     enabled: () => true,
   },
@@ -90,38 +90,38 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.advanced",
     icon: Cog,
     component: AdvancedSettings,
-    enabled: () => !IS_VERBATIM,
+    enabled: () => !IS_SOKKI,
   },
   vocabulary: {
-    labelKey: "verbatim.nav.vocabulary",
+    labelKey: "sokki.nav.vocabulary",
     icon: BookOpen,
-    component: VerbatimVocabularyPage,
-    enabled: () => IS_VERBATIM,
+    component: SokkiVocabularyPage,
+    enabled: () => IS_SOKKI,
   },
   voice: {
-    labelKey: "verbatim.nav.voice",
+    labelKey: "sokki.nav.voice",
     icon: AudioLines,
-    component: VerbatimVoicePage,
-    enabled: () => IS_VERBATIM,
+    component: SokkiVoicePage,
+    enabled: () => IS_SOKKI,
   },
   settings: {
-    labelKey: "verbatim.nav.settings",
+    labelKey: "sokki.nav.settings",
     icon: SettingsIcon,
-    component: VerbatimSettingsPage,
-    enabled: () => IS_VERBATIM,
+    component: SokkiSettingsPage,
+    enabled: () => IS_SOKKI,
   },
   sound: {
-    labelKey: "verbatim.nav.sound",
+    labelKey: "sokki.nav.sound",
     icon: Volume2,
-    component: VerbatimSoundPage,
-    enabled: () => IS_VERBATIM,
+    component: SokkiSoundPage,
+    enabled: () => IS_SOKKI,
   },
   postprocessing: {
     labelKey: "sidebar.postProcessing",
     icon: Sparkles,
     component: PostProcessingSettings,
     enabled: (settings) =>
-      !IS_VERBATIM && (settings?.post_process_enabled ?? false),
+      !IS_SOKKI && (settings?.post_process_enabled ?? false),
   },
   debug: {
     labelKey: "sidebar.debug",
@@ -133,7 +133,7 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.about",
     icon: Info,
     component: AboutSettings,
-    enabled: () => !IS_VERBATIM,
+    enabled: () => !IS_SOKKI,
   },
 } as const satisfies Record<string, SectionConfig>;
 
@@ -153,9 +153,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .filter(([_, config]) => config.enabled(settings))
     .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
 
-  if (IS_VERBATIM) {
+  if (IS_SOKKI) {
     const byId = new Map(availableSections.map((s) => [s.id, s]));
-    const groups = VERBATIM_ORDER.map((ids) =>
+    const groups = SOKKI_ORDER.map((ids) =>
       ids.flatMap((id) => {
         const s = byId.get(id);
         return s ? [s] : [];
@@ -167,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className="flex flex-col w-48 shrink-0 h-full px-3 pb-3"
         style={{ background: "var(--vb-sidebar)" }}
       >
-        <VerbatimLogo className="px-2 pt-5 pb-6" />
+        <SokkiLogo className="px-2 pt-5 pb-6" />
         <div className="flex flex-col gap-5">
           {groups.map((group, i) => (
             <div key={i} className="flex flex-col gap-0.5">
@@ -200,8 +200,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className="flex flex-col w-40 h-full border-e border-line items-center px-2">
-      {IS_VERBATIM ? (
-        <VerbatimLogo className="my-5" />
+      {IS_SOKKI ? (
+        <SokkiLogo className="my-5" />
       ) : (
         <HandyTextLogo width={120} className="m-4" />
       )}
@@ -215,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={section.id}
               className={`flex gap-2 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
                 isActive
-                  ? IS_VERBATIM
+                  ? IS_SOKKI
                     ? "bg-line"
                     : "bg-logo-primary/80"
                   : "hover:bg-line hover:opacity-100 opacity-85"

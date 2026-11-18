@@ -64,7 +64,7 @@ const Breakdown: React.FC<{
 };
 
 /** "Your voice": how much of your own voice is kept, and the opt-in. */
-export const VerbatimVoicePage: React.FC = () => {
+export const SokkiVoicePage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<VoiceDataStats | null>(null);
   const [community, setCommunity] = useState<CommunityTotal | null>(null);
@@ -88,17 +88,17 @@ export const VerbatimVoicePage: React.FC = () => {
 
   if (!stats) return null;
   const lang = (k: string) =>
-    languageName(k, i18n.language, t("verbatim.voice.otherLanguage"));
+    languageName(k, i18n.language, t("sokki.voice.otherLanguage"));
   const source = (k: string) =>
     k === "meeting"
-      ? t("verbatim.voice.fromMeetings")
-      : t("verbatim.voice.fromDictation");
+      ? t("sokki.voice.fromMeetings")
+      : t("sokki.voice.fromDictation");
 
   return (
     <Page>
       <PageHeader
-        title={t("verbatim.voice.title")}
-        description={t("verbatim.voice.description")}
+        title={t("sokki.voice.title")}
+        description={t("sokki.voice.description")}
       />
 
       <section className="vb-card p-5 flex flex-col gap-5">
@@ -108,12 +108,12 @@ export const VerbatimVoicePage: React.FC = () => {
               {duration(stats.total_seconds)}
             </div>
             <div className="text-[12.5px] text-ink-3 mt-1.5">
-              {t("verbatim.voice.kept", { count: stats.clips })}
+              {t("sokki.voice.kept", { count: stats.clips })}
             </div>
           </div>
           {stats.bytes > 0 && (
             <div className="text-[12.5px] text-ink-3">
-              {t("verbatim.voice.onDisk", {
+              {t("sokki.voice.onDisk", {
                 size: `${(stats.bytes / 1e9).toFixed(stats.bytes > 1e9 ? 1 : 2)} GB`,
               })}
             </div>
@@ -123,13 +123,13 @@ export const VerbatimVoicePage: React.FC = () => {
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <h2 className="text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                {t("verbatim.voice.byLanguage")}
+                {t("sokki.voice.byLanguage")}
               </h2>
               <Breakdown values={stats.seconds_by_language} label={lang} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                {t("verbatim.voice.bySource")}
+                {t("sokki.voice.bySource")}
               </h2>
               <Breakdown values={stats.seconds_by_source} label={source} />
             </div>
@@ -138,8 +138,8 @@ export const VerbatimVoicePage: React.FC = () => {
           <p className="text-[13px] text-ink-3">
             {t(
               stats.opt_in
-                ? "verbatim.voice.emptyOn"
-                : "verbatim.voice.emptyOff",
+                ? "sokki.voice.emptyOn"
+                : "sokki.voice.emptyOff",
             )}
           </p>
         )}
@@ -147,7 +147,7 @@ export const VerbatimVoicePage: React.FC = () => {
 
       <section className="vb-card p-4 flex flex-col gap-4">
         <h2 className="text-[13px] font-semibold text-ink-2">
-          {t("verbatim.voice.choiceLabel")}
+          {t("sokki.voice.choiceLabel")}
         </h2>
         <VoiceChoices
           value={stats.choice as VoiceChoice}
@@ -156,22 +156,22 @@ export const VerbatimVoicePage: React.FC = () => {
           }
         />
         <ul className="flex flex-col gap-1.5 text-[12.5px] leading-[18px] text-ink-2 list-disc ps-5">
-          <li>{t("verbatim.voice.point1")}</li>
+          <li>{t("sokki.voice.point1")}</li>
           <li>
             <Trans
-              i18nKey="verbatim.voice.point2"
+              i18nKey="sokki.voice.point2"
               components={{ b: <strong className="font-semibold" /> }}
             />
           </li>
-          <li>{t("verbatim.voice.point3")}</li>
-          <li>{t("verbatim.voice.point4")}</li>
+          <li>{t("sokki.voice.point3")}</li>
+          <li>{t("sokki.voice.point4")}</li>
         </ul>
       </section>
 
       {stats.opt_in && community?.notice && (
         <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
           <h2 className="text-[12px] font-semibold uppercase tracking-wide text-logo-primary">
-            {t("verbatim.voice.notice")}
+            {t("sokki.voice.notice")}
           </h2>
           <p className="text-[13.5px] select-text whitespace-pre-line">
             {community.notice}
@@ -189,8 +189,8 @@ export const VerbatimVoicePage: React.FC = () => {
           <p className="text-[13.5px]">
             {t(
               community.donors > 0
-                ? "verbatim.voice.communityDonors"
-                : "verbatim.voice.community",
+                ? "sokki.voice.communityDonors"
+                : "sokki.voice.community",
               {
                 donors: community.donors,
                 hours: Math.round(
@@ -211,20 +211,20 @@ export const VerbatimVoicePage: React.FC = () => {
           onClick={() => void commands.voiceDataOpenFolder()}
         >
           <FolderOpen width={14} height={14} />
-          {t("verbatim.voice.showFolder")}
+          {t("sokki.voice.showFolder")}
         </Button>
         {stats.clips > 0 &&
           (asking ? (
             <>
               <span className="text-[12.5px] text-ink-2">
-                {t("verbatim.voice.deleteAsk", { count: stats.clips })}
+                {t("sokki.voice.deleteAsk", { count: stats.clips })}
               </span>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => setAsking(false)}
               >
-                {t("verbatim.voice.cancel")}
+                {t("sokki.voice.cancel")}
               </Button>
               <Button
                 size="sm"
@@ -236,7 +236,7 @@ export const VerbatimVoicePage: React.FC = () => {
                   })
                 }
               >
-                {t("verbatim.voice.delete")}
+                {t("sokki.voice.delete")}
               </Button>
             </>
           ) : (
@@ -247,7 +247,7 @@ export const VerbatimVoicePage: React.FC = () => {
               onClick={() => setAsking(true)}
             >
               <Trash2 width={14} height={14} />
-              {t("verbatim.voice.deleteAll")}
+              {t("sokki.voice.deleteAll")}
             </Button>
           ))}
       </div>

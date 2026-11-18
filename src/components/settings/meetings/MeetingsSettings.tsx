@@ -16,7 +16,7 @@ import {
   selectedLanguageModel,
 } from "../models/LanguageModels";
 import { useModelsTab } from "@/stores/modelsTabStore";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 import { MeetingDetails } from "./MeetingDetails";
 import {
   commands,
@@ -324,7 +324,7 @@ const MeetingSettingsView: React.FC<{
             onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
           />
         </SettingContainer>
-        {!IS_VERBATIM && (
+        {!IS_SOKKI && (
           <SettingContainer
             title={t("meetings.settings.dictionary")}
             description={t("meetings.settings.dictionaryDescription")}
@@ -353,7 +353,7 @@ const MeetingSettingsView: React.FC<{
           description={t("meetings.settings.detectionDescription")}
           grouped
         />
-        {!IS_VERBATIM && (
+        {!IS_SOKKI && (
           <SettingContainer
             title={t("meetings.settings.keepAudio")}
             description={t("meetings.settings.keepAudioDescription")}
@@ -454,9 +454,9 @@ export const MeetingsSettings: React.FC = () => {
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
       <div
-        className={`${IS_VERBATIM ? "px-1" : "px-4"} flex items-start justify-between gap-4`}
+        className={`${IS_SOKKI ? "px-1" : "px-4"} flex items-start justify-between gap-4`}
       >
-        {IS_VERBATIM ? (
+        {IS_SOKKI ? (
           <div className="min-w-0">
             <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
               {t("meetings.title")}

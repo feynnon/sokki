@@ -7,10 +7,10 @@ export { MeetingsSettings } from "./meetings/MeetingsSettings";
 export { AboutSettings } from "./about/AboutSettings";
 export { PostProcessingSettings } from "./post-processing/PostProcessingSettings";
 export { ModelsSettings } from "./models/ModelsSettings";
-export { VerbatimSettingsPage } from "./verbatim/SettingsPage";
-export { VerbatimSoundPage } from "./verbatim/SoundPage";
-export { VerbatimVocabularyPage } from "./verbatim/VocabularyPage";
-export { VerbatimVoicePage } from "./verbatim/VoicePage";
+export { SokkiSettingsPage } from "./sokki/SettingsPage";
+export { SokkiSoundPage } from "./sokki/SoundPage";
+export { SokkiVocabularyPage } from "./sokki/VocabularyPage";
+export { SokkiVoicePage } from "./sokki/VoicePage";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

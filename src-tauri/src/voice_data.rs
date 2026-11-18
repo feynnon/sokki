@@ -1,12 +1,12 @@
 //! "Your voice": an opt-in, local dataset of the user's own voice with its
-//! transcript, for a possible future sale through Verbatim.
+//! transcript, for a possible future sale through Sokki.
 //!
 //! Only the user's own voice is kept: dictations, and in meetings only the
 //! microphone segments labelled with the user's name (on calls, where the
 //! microphone is the user). Clips stay on this Mac in
 //! `<app data>/voice-data/` (`clips/*.wav` and `manifest.jsonl`), separate
 //! from the recordings' retention. Nothing is uploaded. When a counter
-//! service is configured at build time (`VERBATIM_COUNTER_URL`), an opted-in
+//! service is configured at build time (`SOKKI_COUNTER_URL`), an opted-in
 //! install reports only a random id and its hours per language.
 
 use anyhow::{Context, Result};
@@ -28,7 +28,7 @@ static LOCK: Mutex<()> = Mutex::new(());
 
 /// The counter service, set at build time; `None`: counting stays local.
 pub fn counter_url() -> Option<&'static str> {
-    option_env!("VERBATIM_COUNTER_URL").filter(|u| !u.is_empty())
+    option_env!("SOKKI_COUNTER_URL").filter(|u| !u.is_empty())
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -40,7 +40,7 @@ struct Config {
     /// Unix seconds of the last report that reached the counter.
     #[serde(default)]
     last_report: i64,
-    /// With `opt_in`: the user gives the data away to keep Verbatim free
+    /// With `opt_in`: the user gives the data away to keep Sokki free
     /// (anonymised, used freely, no share) instead of being asked per sale.
     #[serde(default)]
     donate: bool,
@@ -49,7 +49,7 @@ struct Config {
     last_notice: i64,
 }
 
-/// Opted-in installs look for a new message from Verbatim this often.
+/// Opted-in installs look for a new message from Sokki this often.
 const NOTICE_EVERY_S: u64 = 6 * 3600;
 
 /// New clips are reported at most this often; opting in or out, and
@@ -73,7 +73,7 @@ struct Clip {
 pub struct VoiceDataStats {
     pub opt_in: bool,
     /// "off", "sell" (asked before each sale, share of the proceeds) or
-    /// "donate" (used freely, anonymised, to keep Verbatim free).
+    /// "donate" (used freely, anonymised, to keep Sokki free).
     pub choice: String,
     pub clips: u32,
     pub total_seconds: f64,
@@ -94,7 +94,7 @@ pub struct CommunityTotal {
     /// How many of the installs donate their data.
     #[serde(default)]
     pub donors: u32,
-    /// A message from Verbatim to everyone who opted in (e.g. a buyer).
+    /// A message from Sokki to everyone who opted in (e.g. a buyer).
     #[serde(default)]
     pub notice: Option<String>,
     /// Changes whenever the message is set; new ids notify once.
@@ -443,7 +443,7 @@ mod tests {
     }
 }
 
-/// For opted-in installs: looks for a new message from Verbatim (set on the
+/// For opted-in installs: looks for a new message from Sokki (set on the
 /// counter, e.g. "a buyer is interested") a minute after start and then
 /// every few hours, and shows each new one once as a macOS notification.
 pub fn start_notice_watch(app: AppHandle) {
@@ -478,7 +478,7 @@ fn check_notice(app: &AppHandle) {
     c.last_notice = total.notice_id;
     let _ = write_config(&d, &c);
     drop(_g);
-    log::info!("Voice data: new message from Verbatim");
+    log::info!("Voice data: new message from Sokki");
     #[cfg(target_os = "macos")]
-    crate::meeting::detect::notify("Verbatim · Your voice", &text);
+    crate::meeting::detect::notify("Sokki · Your voice", &text);
 }

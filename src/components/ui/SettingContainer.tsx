@@ -1,6 +1,6 @@
 import React from "react";
 import { InfoTooltip } from "./InfoTooltip";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 
 interface SettingContainerProps {
   title: string;
@@ -26,7 +26,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   tooltipPosition = "top",
   grow = false,
 }) => {
-  if (IS_VERBATIM) {
+  if (IS_SOKKI) {
     // Title with its explanation underneath; the control on the right.
     const label = (
       <div className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>

@@ -1097,8 +1097,8 @@ pub fn run(cli_args: CliArgs) {
 
             // Create main window programmatically so we can set data_directory
             // for portable mode (redirects WebView2 cache to portable Data dir)
-            // Verbatim's sidebar is wider; give the pages the same room.
-            let main_w = if crate::brand::is_verbatim() {
+            // Sokki's sidebar is wider; give the pages the same room.
+            let main_w = if crate::brand::is_sokki() {
                 utils::MAIN_WINDOW_SIZE.0 + 100.0
             } else {
                 utils::MAIN_WINDOW_SIZE.0

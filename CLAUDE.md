@@ -1,6 +1,6 @@
 Read @AGENTS.md
 
-## This fork: Verbatim (internally "Handy Meetings")
+## This fork: Sokki (internally "Handy Meetings")
 
 - `MEETINGS.md`: what the fork adds, layout, tests, build.
 - `CONFIG.md`: every setting, and how to change it. The app's settings live in

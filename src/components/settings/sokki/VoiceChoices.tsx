@@ -18,7 +18,7 @@ export const VoiceChoices: React.FC<{
   return (
     <div
       role="radiogroup"
-      aria-label={t("verbatim.voice.choiceLabel")}
+      aria-label={t("sokki.voice.choiceLabel")}
       className="flex flex-col gap-2"
     >
       {options.map((c) => {
@@ -47,13 +47,13 @@ export const VoiceChoices: React.FC<{
             <span className="flex flex-col gap-0.5">
               <span className="text-[14px] font-medium">
                 <Trans
-                  i18nKey={`verbatim.voice.choice.${c}.title`}
+                  i18nKey={`sokki.voice.choice.${c}.title`}
                   components={{ b: <strong className="font-semibold" /> }}
                 />
               </span>
               <span className="text-[12.5px] leading-[18px] text-ink-3">
                 <Trans
-                  i18nKey={`verbatim.voice.choice.${c}.text`}
+                  i18nKey={`sokki.voice.choice.${c}.text`}
                   components={{
                     b: <strong className="font-semibold text-ink-2" />,
                   }}

@@ -1097,7 +1097,7 @@
       "noSummary": "This meeting has no summary."
     }
   },
-  "verbatim": {
+  "sokki": {
     "nav": {
       "home": "Home",
       "vocabulary": "Vocabulary",
@@ -1129,7 +1129,7 @@
       "textInput": "Text input",
       "transcription": "Transcription",
       "basedOn": "based on Handy",
-      "version": "Verbatim {{version}}"
+      "version": "Sokki {{version}}"
     },
     "sound": {
       "title": "Sound",
@@ -1161,9 +1161,9 @@
       "emptyOff": "Switch on below to start keeping your voice.",
       "point1": "Only your own voice: your dictations, and in calls only what you said into your microphone. Other people's voices are never kept.",
       "point2": "Kept <b>locally</b> on this Mac. Nothing is uploaded now. Before anything ever leaves your Mac, names and numbers are removed.",
-      "point3": "Verbatim counts how many hours you have per language in a public total, under a random number instead of your name.",
-      "point4": "When a buyer turns up, Verbatim tells you with a notification. You can change your choice or delete everything at any time.",
-      "community": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset.",
+      "point3": "Sokki counts how many hours you have per language in a public total, under a random number instead of your name.",
+      "point4": "When a buyer turns up, Sokki tells you with a notification. You can change your choice or delete everything at any time.",
+      "community": "{{count}} Sokki users keep {{hours}} hours of their voice for the dataset.",
       "showFolder": "Show in Finder",
       "deleteAll": "Delete all clips",
       "deleteAsk": "Delete {{count}} clips for good?",
@@ -1173,7 +1173,7 @@
       "onboardingSub": "Speech models are weakest at real conversations. Your voice, kept locally on your Mac, could help train better ones.",
       "onboardingHint": "You can change this any time under Your voice.",
       "notNow": "Not now",
-      "notice": "Message from Verbatim",
+      "notice": "Message from Sokki",
       "choiceLabel": "What happens with your voice",
       "choice": {
         "sell": {
@@ -1181,15 +1181,15 @@
           "text": "Your voice stays on this Mac. If a buyer turns up, you're asked first and get a share of the proceeds."
         },
         "donate": {
-          "title": "Keep it <b>locally</b>, donate it to keep Verbatim free",
-          "text": "Your voice stays on this Mac until it's needed. Verbatim may then use it freely, anonymised: sell it or publish it, so Verbatim stays free for everyone. No share, no further question."
+          "title": "Keep it <b>locally</b>, donate it to keep Sokki free",
+          "text": "Your voice stays on this Mac until it's needed. Sokki may then use it freely, anonymised: sell it or publish it, so Sokki stays free for everyone. No share, no further question."
         },
         "off": {
           "title": "Off",
           "text": "Nothing is kept."
         }
       },
-      "communityDonors": "{{count}} Verbatim users keep {{hours}} hours of their voice for the dataset; {{donors}} of them donate it to keep Verbatim free."
+      "communityDonors": "{{count}} Sokki users keep {{hours}} hours of their voice for the dataset; {{donors}} of them donate it to keep Sokki free."
     }
   }
 }

@@ -15,7 +15,7 @@ import { Legend } from "./Legend";
 import { useModelEntries } from "./modelEntries";
 import { LanguageModels } from "./LanguageModels";
 import { useModelsTab } from "@/stores/modelsTabStore";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 import { useSettings } from "@/hooks/useSettings";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { PreferredLanguages } from "../PreferredLanguages";
@@ -195,7 +195,7 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
         <LanguageModels />
       ) : (
         <>
-          {IS_VERBATIM && (
+          {IS_SOKKI && (
             <div className="mx-[12px] mb-[16px] flex-none vb-card divide-y divide-line">
               <PreferredLanguages descriptionMode="inline" grouped />
               {speaksChinese && (

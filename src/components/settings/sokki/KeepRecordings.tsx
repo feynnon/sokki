@@ -24,12 +24,12 @@ export const KeepRecordings: React.FC = () => {
   const current = getSetting("recording_retention_period") ?? "preserve_limit";
   const options = CHOICES.map((c) => ({
     value: c.value as string,
-    label: t(`verbatim.keep.${c.key}`),
+    label: t(`sokki.keep.${c.key}`),
   }));
   if (!CHOICES.some((c) => c.value === current)) {
     options.unshift({
       value: current,
-      label: t("verbatim.keep.latest", {
+      label: t("sokki.keep.latest", {
         count: getSetting("history_limit") ?? 5,
       }),
     });
@@ -53,8 +53,8 @@ export const KeepRecordings: React.FC = () => {
   };
   return (
     <SettingContainer
-      title={t("verbatim.keep.title")}
-      description={t("verbatim.keep.description")}
+      title={t("sokki.keep.title")}
+      description={t("sokki.keep.description")}
       grouped
     >
       <Dropdown

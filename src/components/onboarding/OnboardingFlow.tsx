@@ -13,7 +13,7 @@ import type { ChineseScriptChoice } from "@/lib/utils/languageSuggestions";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { Welcome } from "./screens/Welcome";
 import { Voice } from "./screens/Voice";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 import { Permissions } from "./screens/Permissions";
 import { Model } from "./screens/Model";
 import { Demo } from "./screens/Demo";
@@ -127,12 +127,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
   if (!permissions.checked) return null;
 
-  // Verbatim keeps first start short: permissions, then the model. The
+  // Sokki keeps first start short: permissions, then the model. The
   // spoken languages come from the system (changeable under Models).
   const steps = STEP_ORDER.filter(
     (s) =>
       (s !== "permissions" || permissions.needed || store.welcomeBack) &&
-      (IS_VERBATIM
+      (IS_SOKKI
         ? s === "permissions" || s === "model" || s === "voice"
         : s !== "voice"),
   );
@@ -157,7 +157,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   };
 
   const finish = async () => {
-    if (IS_VERBATIM) saveLanguages();
+    if (IS_SOKKI) saveLanguages();
     // Saved only now: each login item change posts a macOS notification.
     if (!preview) {
       await updateSetting("autostart_enabled", store.atLogin);

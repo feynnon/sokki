@@ -805,8 +805,8 @@ fn default_app_language() -> String {
 }
 
 fn default_show_tray_icon() -> bool {
-    // Verbatim has no menu bar icon: the recording pill shows what's going on.
-    !crate::brand::is_verbatim()
+    // Sokki has no menu bar icon: the recording pill shows what's going on.
+    !crate::brand::is_sokki()
 }
 
 fn default_post_process_provider_id() -> String {

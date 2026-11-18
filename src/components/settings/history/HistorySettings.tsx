@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
@@ -352,9 +352,9 @@ export const HistorySettings: React.FC = () => {
       <div className="space-y-2">
         <div className="px-4 flex items-center justify-between">
           <div>
-            {IS_VERBATIM ? (
+            {IS_SOKKI ? (
               <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
-                {t("verbatim.nav.home")}
+                {t("sokki.nav.home")}
               </h1>
             ) : (
               <h2 className="text-xs font-medium text-ink-3 uppercase tracking-wide">

@@ -1,5 +1,5 @@
 import React from "react";
-import { IS_VERBATIM } from "@/lib/brand";
+import { IS_SOKKI } from "@/lib/brand";
 
 interface SettingsGroupProps {
   title?: string;
@@ -12,7 +12,7 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   description,
   children,
 }) => {
-  if (IS_VERBATIM) {
+  if (IS_SOKKI) {
     // Superwhisper-like: a plain heading over a soft card.
     return (
       <section className="space-y-2">

@@ -1,12 +1,12 @@
 # Third-party notices
 
-Verbatim is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais,
+Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais,
 released under the MIT License. Handy's copyright notice is kept in
-[`LICENSE`](LICENSE), which covers Handy's code and Verbatim's additions.
+[`LICENSE`](LICENSE), which covers Handy's code and Sokki's additions.
 
 ## Code and ideas from other projects
 
-| Project | What Verbatim uses | License |
+| Project | What Sokki uses | License |
 |---|---|---|
 | [Handy](https://github.com/cjpais/Handy) by CJ Pais | The whole dictation app this fork is built on | MIT, © 2025 CJ Pais |
 | [Mandy](https://github.com/yuri-research-ai/Mandy) | Meeting recording: microphone plus system audio as two tracks (`src-tauri/src/meeting/`) | MIT, © 2025 CJ Pais (Handy fork) |
@@ -16,7 +16,7 @@ Both forks ship Handy's MIT License unchanged; its full text is in [`LICENSE`](L
 
 ## Models
 
-Models are not part of this repository. Verbatim downloads them on first use
+Models are not part of this repository. Sokki downloads them on first use
 from their publishers, and each keeps its own license, shown on its model
 card:
 
@@ -34,7 +34,7 @@ provider's terms.
   pure-Rust port of WebRTC's audio processing, for echo cancellation of the
   microphone track.
 
-The Rust crates and npm packages Verbatim depends on are listed in
+The Rust crates and npm packages Sokki depends on are listed in
 `Cargo.lock` and `bun.lock`, each under its own license.
 
 ## sonora license

@@ -587,21 +587,44 @@ fn leading_zero_bits(hash: &[u8]) -> u32 {
 }
 
 /// The first nonce (hex) for which sha256("sokki:<id>:<nonce>") starts with
-/// `bits` zero bits.
+/// `bits` zero bits. Hashes the fixed prefix once and only the nonce per try.
 fn proof_of_work(id: &str, bits: u32) -> String {
     use sha2::{Digest, Sha256};
+    let prefix = Sha256::new_with_prefix(format!("sokki:{id}:").as_bytes());
+    let mut buf = [0u8; 16];
     let mut nonce: u64 = 0;
     loop {
-        let text = format!("sokki:{id}:{nonce:x}");
-        if leading_zero_bits(&Sha256::digest(text.as_bytes())) >= bits {
-            return format!("{nonce:x}");
+        let hex = hex_into(nonce, &mut buf);
+        let mut h = prefix.clone();
+        h.update(hex);
+        if leading_zero_bits(&h.finalize()) >= bits {
+            return String::from_utf8_lossy(hex).into_owned();
         }
         nonce += 1;
     }
 }
 
+/// `n` in lower-case hex without leading zeros, as `format!("{n:x}")`.
+fn hex_into(mut n: u64, buf: &mut [u8; 16]) -> &[u8] {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = DIGITS[(n & 0xf) as usize];
+        n >>= 4;
+        if n == 0 {
+            return &buf[i..];
+        }
+    }
+}
+
+/// One proof of work at a time: syncs running side by side wait for it
+/// instead of each working it out.
+static POW_LOCK: Mutex<()> = Mutex::new(());
+
 /// The proof of work for `id`, worked out once and kept in the config.
 fn pow_for(dir: &Path, id: &str) -> String {
+    let _g = POW_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let c = read_config(dir);
     if c.pow_id == id && !c.pow.is_empty() {
         return c.pow;
@@ -1780,6 +1803,23 @@ mod tests {
         let hash = Sha256::digest(format!("sokki:{id}:{nonce}").as_bytes());
         assert!(leading_zero_bits(&hash) >= 12);
         assert_eq!(leading_zero_bits(&[0, 0b0001_0000]), 11);
+        let mut buf = [0u8; 16];
+        for n in [0u64, 9, 10, 255, 4096, u64::MAX] {
+            assert_eq!(hex_into(n, &mut buf), format!("{n:x}").as_bytes());
+        }
+    }
+
+    #[test]
+    #[ignore] // Timing only: cargo test --release -- --ignored pow_timing
+    fn pow_timing() {
+        let t = std::time::Instant::now();
+        for i in 0..5 {
+            proof_of_work(&format!("{i:032x}"), POW_BITS);
+        }
+        println!(
+            "POW_TIMING average {:.2} s",
+            t.elapsed().as_secs_f64() / 5.0
+        );
     }
 
     #[test]

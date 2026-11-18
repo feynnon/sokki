@@ -107,11 +107,15 @@ pub struct DiarizeConfig {
     /// Compute a per-speaker embedding and attach it to turns.
     pub speaker_embeddings: bool,
     /// Sortformer: speakers on the same track whose embeddings have at least
-    /// this cosine similarity are one voice and get merged (the diarizer
-    /// sometimes splits a voice in two). Needs embeddings; `None` turns it
-    /// off. 0.75 with ERes2Net: a voice split in two on a real call scored
-    /// 0.93; different people at most 0.40 (three calls, an in-person
-    /// meeting, the synthetic fixtures).
+    /// this cosine similarity are one voice and get merged. Needs
+    /// embeddings; `None` turns it off.
+    ///
+    /// NOT USED (default `None`): no real recording has needed it yet. A
+    /// split voice only appeared once, with a different echo canceller
+    /// (cosine 0.93); with the app's echo cancellation every recording came
+    /// out right without it. Turn it on (`Some(0.75)`) once a real case
+    /// shows up. Different people scored at most 0.40 (three calls, an
+    /// in-person meeting, the synthetic fixtures).
     pub merge_similarity: Option<f32>,
     /// CPU threads for the ONNX models.
     pub num_threads: usize,
@@ -131,7 +135,7 @@ impl DiarizeConfig {
             clustering_model: EmbeddingModel::WespeakerResnet34Lm,
             embedding_model: EmbeddingModel::ERes2NetVoxceleb,
             speaker_embeddings: true,
-            merge_similarity: Some(0.75),
+            merge_similarity: None,
             num_threads: 4,
             postprocess: PostprocessConfig::default(),
         }

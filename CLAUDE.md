@@ -9,3 +9,10 @@ Read @AGENTS.md
   Regenerate with `scripts/gen_config_docs.py` after changing `settings.rs`.
 - `KNOWN_ISSUES.md`: every known problem. Add new ones there; don't wave
   quality problems away.
+
+## As few rules as possible
+
+Add a rule, heuristic or threshold only when a real recording shows it is
+needed. Code for a rule that has not yet fixed a real case stays in but
+switched off, with a note saying so; turn it on once a real case shows up
+(example: `DiarizeConfig::merge_similarity`).

@@ -1,9 +1,10 @@
 //! Speaker detection on a real recording, as the app does it: align the
-//! tracks, cancel the echo on the mic, diarize (with merging of similar
-//! voices), and, unless `--diar-only`, transcribe and name the speakers.
+//! tracks, cancel the echo on the mic, diarize,
+//! and, unless `--diar-only`, transcribe and name the speakers.
 //!   cargo run --release --example speakers_check -- [--diar-only] mic.wav [system.wav mic_lead_ms]
 //! `mic_lead_ms`: how much later the mic started than the system audio.
-//! Env: NO_AEC=1 skips echo cancellation, NO_MERGE=1 skips merging.
+//! Env: NO_AEC=1 skips echo cancellation, MERGE=0.75 turns on merging of
+//! similar voices (off in the app).
 //! `--diar-only` prints per track each voice's speech time, its similarity
 //! to the saved voice profiles and to the other voices on the track.
 use meeting_core::pipeline::{self, Hooks, PipelineConfig};
@@ -45,8 +46,8 @@ fn main() -> anyhow::Result<()> {
     let home = std::env::var("HOME")?;
     let models = Path::new(&home).join("Library/Caches/handy-meetings/diarize-models");
     let mut cfg = diarize::DiarizeConfig::new(&models);
-    if std::env::var_os("NO_MERGE").is_some() {
-        cfg.merge_similarity = None;
+    if let Ok(m) = std::env::var("MERGE") {
+        cfg.merge_similarity = Some(m.parse()?);
     }
     let diarizer = diarize::SortformerDiarizer::new(cfg)?;
     let profiles = diarize::VoiceProfiles::open(

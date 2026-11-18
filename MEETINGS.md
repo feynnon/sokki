@@ -62,8 +62,8 @@ replaces the other in /Applications. Icons are drawn as SVG in
       an extra speaker on the mic;
    2. speakers per track: Sortformer on the GPU in a child process
       (`meeting/diarize_worker.rs`, ~20 s per 20 min of audio; CPU fallback);
-      voices on one track with voice embeddings ≥ 0.75 alike are merged
-      (one voice split in two scored 0.93, different people ≤ 0.40);
+      (merging voices that sound alike exists but is off, see
+      `DiarizeConfig::merge_similarity`);
    3. drop mic turns that are acoustic echo of the system track;
    4. transcribe each speaker turn (Parakeet, Handy's engine, ~20 s);
    5. text dedup, merge ghost speakers, names: on an online call the mic

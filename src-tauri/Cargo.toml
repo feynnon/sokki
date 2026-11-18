@@ -49,6 +49,19 @@ serde_json = "1"
 rdev = { git = "https://github.com/rustdesk-org/rdev" }
 anyhow = "1.0.95"
 hound = "3.5.1"
+# Lock-free ring buffer between the system-audio IO thread and its writer thread.
+# 0.4.0 is already in Cargo.lock through handy-recorder.
+rtrb = "0.4"
+# Pure-Rust FLAC encoder for meeting recordings (0.5.1, released 2025-12-18).
+flacenc = "0.5.1"
+# Meeting notes (this fork): pipeline, Markdown notes, summaries.
+meeting-core = { path = "../crates/meeting-core" }
+# Speaker separation (Sortformer via transcribe-cpp) and voice profiles (sherpa-onnx).
+diarize = { path = "../crates/diarize" }
+# Checking the summary model server from the settings page (same as meeting-core).
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+# Notices when a call app starts using the microphone (macOS; stub elsewhere).
+meeting-detect = { path = "../crates/meeting-detect" }
 log = "0.4.25"
 env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["process"] }

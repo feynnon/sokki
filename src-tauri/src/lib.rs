@@ -4,11 +4,14 @@ mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod autostart;
+#[cfg(target_os = "macos")]
+pub mod brand;
 mod catalog;
 mod chinese_script;
 pub mod cli;
 mod clipboard;
 mod commands;
+mod config_watch;
 pub mod engine_supervisor;
 mod helpers;
 mod input;
@@ -16,6 +19,7 @@ mod language_detection;
 mod languages;
 mod llm_client;
 mod managers;
+pub mod meeting;
 mod memory;
 mod notices;
 mod overlay;
@@ -225,8 +229,40 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    #[cfg(target_os = "macos")]
+    {
+        app_handle.manage(Arc::new(meeting::MeetingManager::default()));
+        let meetings_root = app_handle
+            .path()
+            .app_data_dir()
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join("meetings");
+        match meeting::store::MeetingStore::open(&meetings_root) {
+            Ok(store) => {
+                app_handle.manage(Arc::new(store));
+            }
+            Err(e) => {
+                log::error!("Meeting store unavailable ({e:#}); using a temporary one");
+                let tmp = std::env::temp_dir().join("handy-meetings");
+                app_handle.manage(Arc::new(
+                    meeting::store::MeetingStore::open(&tmp).expect("temporary meeting store"),
+                ));
+            }
+        }
+        app_handle.manage(Arc::new(meeting::detect::DetectState::default()));
+    }
     app_handle.manage(tray::TrayState::new());
     app_handle.manage(TranscriptionJobManager::new(app_handle));
+
+    config_watch::start(app_handle);
+    meeting::memguard::start(app_handle);
+
+    #[cfg(target_os = "macos")]
+    {
+        meeting::detect::sync_with_settings(app_handle);
+        meeting::process::apply_retention(app_handle);
+        meeting::resume_interrupted(app_handle);
+    }
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -313,6 +349,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "copy_last_transcript" => {
                 tray::copy_last_transcript(app);
+            }
+            #[cfg(target_os = "macos")]
+            "meeting_toggle" => {
+                meeting::toggle_meeting(app);
             }
             "unload_model" => {
                 let transcription_manager = app.state::<Arc<TranscriptionManager>>();
@@ -660,6 +700,11 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// The default settings as pretty JSON (`--print-default-settings`).
+pub fn default_settings_json() -> String {
+    serde_json::to_string_pretty(&settings::get_default_settings()).unwrap_or_default()
+}
+
 pub fn run(cli_args: CliArgs) {
     // Avoid ggml-metal residency-set teardown assertions when a native engine
     // outlives the Tauri shutdown sequence (#1902). This must happen before
@@ -788,6 +833,21 @@ pub fn run(cli_args: CliArgs) {
             commands::models::is_model_loading,
             commands::models::rescan_local_models,
             commands::audio::update_microphone_mode,
+            commands::meeting::start_meeting_recording,
+            commands::meeting::stop_meeting_recording,
+            commands::meeting::is_meeting_recording,
+            commands::meeting::list_meetings,
+            commands::meeting::open_meeting_note,
+            commands::meeting::reprocess_meeting,
+            commands::meeting::delete_meeting,
+            commands::meeting::set_meeting_settings,
+            commands::meeting::meeting_llm_status,
+            commands::meeting::get_meeting_note,
+            commands::meeting::start_ollama,
+            commands::meeting::pull_meeting_llm,
+            commands::meeting::rename_meeting_speaker,
+            commands::meeting::list_voice_profiles,
+            commands::meeting::delete_voice_profile,
             commands::audio::get_microphone_mode,
             commands::audio::get_windows_microphone_permission_status,
             commands::audio::open_microphone_privacy_settings,
@@ -831,6 +891,7 @@ pub fn run(cli_args: CliArgs) {
             transcription_coordinator::RecordingStateEvent,
             actions::TranscriptionCompleteEvent,
             notices::NoticesChanged,
+            commands::meeting::MeetingChanged,
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -918,6 +979,19 @@ pub fn run(cli_args: CliArgs) {
                 signal_handle::send_transcription_input(app, "transcribe_with_post_process", "CLI");
             } else if args.iter().any(|a| a == "--cancel") {
                 crate::utils::cancel_current_operation(app);
+            } else if args.iter().any(|a| a == "--toggle-meeting") {
+                #[cfg(target_os = "macos")]
+                meeting::toggle_meeting(app);
+            } else if args.iter().any(|a| a == "--start-meeting") {
+                #[cfg(target_os = "macos")]
+                if !app.state::<Arc<meeting::MeetingManager>>().is_recording() {
+                    let _ = meeting::start_meeting(app, None);
+                }
+            } else if args.iter().any(|a| a == "--stop-meeting") {
+                #[cfg(target_os = "macos")]
+                if app.state::<Arc<meeting::MeetingManager>>().is_recording() {
+                    let _ = meeting::stop_meeting(app);
+                }
             } else {
                 // A second process was launched without remote-control flags
                 // (e.g. the binary run from a shell). On macOS, relaunching the
@@ -1016,11 +1090,17 @@ pub fn run(cli_args: CliArgs) {
 
             // Create main window programmatically so we can set data_directory
             // for portable mode (redirects WebView2 cache to portable Data dir)
+            // Verbatim's sidebar is wider; give the pages the same room.
+            let main_w = if crate::brand::is_verbatim() {
+                utils::MAIN_WINDOW_SIZE.0 + 100.0
+            } else {
+                utils::MAIN_WINDOW_SIZE.0
+            };
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Handy")
-                    .inner_size(utils::MAIN_WINDOW_SIZE.0, utils::MAIN_WINDOW_SIZE.1)
-                    .min_inner_size(utils::MAIN_WINDOW_SIZE.0, utils::MAIN_WINDOW_SIZE.1)
+                    .title(crate::brand::app_name())
+                    .inner_size(main_w, utils::MAIN_WINDOW_SIZE.1)
+                    .min_inner_size(main_w, utils::MAIN_WINDOW_SIZE.1)
                     .resizable(true)
                     .maximizable(true)
                     .visible(false);
@@ -1042,8 +1122,8 @@ pub fn run(cli_args: CliArgs) {
             {
                 let bar = utils::measure_title_bar(&main_window);
                 if bar > 0.0 {
-                    let (width, height) = utils::MAIN_WINDOW_SIZE;
-                    let size = tauri::LogicalSize::new(width, height + bar);
+                    let height = utils::MAIN_WINDOW_SIZE.1;
+                    let size = tauri::LogicalSize::new(main_w, height + bar);
                     let _ = main_window.set_min_size(Some(size));
                     let _ = main_window.set_size(size);
                     let _ = main_window.center();
@@ -1210,6 +1290,12 @@ pub fn run(cli_args: CliArgs) {
                 tray::recreate_tray_icon(app);
             }
             show_main_window(app);
+        }
+        // A meeting still recording at quit is finalized, so its audio is
+        // kept; processing resumes at the next launch.
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Exit => {
+            meeting::finalize_on_exit(app);
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the
         // worker process, which exits by itself as soon as this process's end

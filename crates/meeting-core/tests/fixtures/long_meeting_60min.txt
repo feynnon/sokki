@@ -1,0 +1,335 @@
+# Synthetic ~60 min German quarterly planning meeting (gen_long_meeting.py).
+[00:00] Ich: Guten Morgen zusammen, schön dass alle da sind. Heute ist unser Quartalsplanung für das nächste Jahr, wir haben ungefähr eine Stunde. Auf der Agenda stehen das Budget für 2027, die CRM Umstellung, Recruiting, die Kundenzahlen und die Messe im Frühjahr.
+[00:17] Speaker 2: Ja, Kurze Frage vorab, nehmen wir das Meeting auf? Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis.
+[00:27] Speaker 4: Hm, Kurze Frage vorab, nehmen wir das Meeting auf? Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben.
+[00:37] Speaker 3: Klingt gut. Sollen wir mit dem Budget anfangen? Da hängt ja vieles dran.
+[00:43] Ich: Hm, Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben. Ich muss um kurz vor zwölf leider los, aber bis dahin bin ich voll dabei.
+[00:55] Speaker 5: Kurze Frage vorab, nehmen wir das Meeting auf? Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis. Ich muss um kurz vor zwölf leider los, aber bis dahin bin ich voll dabei.
+[01:11] Speaker 2: Kurze Frage vorab, nehmen wir das Meeting auf? Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis.
+[01:20] Speaker 5: Also, Ich habe die Unterlagen gestern Abend noch mal verschickt, falls jemand sie nicht gesehen hat.
+[01:28] Speaker 2: Okay, Ich habe die Unterlagen gestern Abend noch mal verschickt, falls jemand sie nicht gesehen hat.
+[01:35] Speaker 5: Okay, Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis. Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben.
+[01:46] Ich: Hm, Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben. Ich habe die Unterlagen gestern Abend noch mal verschickt, falls jemand sie nicht gesehen hat.
+[01:58] Speaker 3: Gute Frage. Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben. Kurze Frage vorab, nehmen wir das Meeting auf?
+[02:08] Speaker 5: Ich habe die Unterlagen gestern Abend noch mal verschickt, falls jemand sie nicht gesehen hat. Kurze Frage vorab, nehmen wir das Meeting auf? Ich muss um kurz vor zwölf leider los, aber bis dahin bin ich voll dabei.
+[02:25] Ich: Kurze Frage vorab, nehmen wir das Meeting auf? Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben.
+[02:33] Speaker 4: Gute Frage. Kurze Frage vorab, nehmen wir das Meeting auf? Ich muss um kurz vor zwölf leider los, aber bis dahin bin ich voll dabei. Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis.
+[02:50] Speaker 2: Ja, Kurze Frage vorab, nehmen wir das Meeting auf? Ja, ich nehme es auf, damit wir hinterher eine Zusammenfassung haben. Der Kaffee in der Küche ist übrigens wieder leer, nur so als Hinweis.
+[03:04] Ich: Also, zum Budget. Die Geschäftsführung hat das Marketing Budget für 2027 jetzt final freigegeben. Es sind vierhundertachtzigtausend Euro für das ganze Jahr.
+[03:14] Speaker 3: Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos.
+[03:25] Ich: Hm, Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben.
+[03:38] Speaker 2: Das ist mehr als dieses Jahr, oder? Wir hatten doch knapp vierhunderttausend.
+[03:44] Speaker 4: Gute Frage. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[04:01] Speaker 2: Also, Für Tools geben wir aktuell zu viel aus, da gibt es einige Abos, die keiner mehr nutzt. Bei LinkedIn bin ich skeptisch, die Leads waren teuer und nicht besser.
+[04:14] Speaker 3: Okay, Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[04:33] Speaker 5: Gute Frage. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Für Tools geben wir aktuell zu viel aus, da gibt es einige Abos, die keiner mehr nutzt. Wir sollten uns ein klares Ziel für die Kosten pro Lead setzen, sonst diskutieren wir jedes Quartal neu.
+[04:55] Ich: Genau, es sind ungefähr zwanzig Prozent mehr. Mein Vorschlag ist, dass sechzig Prozent davon in Performance Marketing gehen und der Rest in Content, Events und Tools.
+[05:07] Speaker 4: Genau, Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben.
+[05:14] Ich: Okay, Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[05:27] Speaker 4: Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[05:40] Speaker 3: Sechzig Prozent Performance finde ich richtig, da sehen wir die Ergebnisse am direktesten.
+[05:46] Speaker 5: Wir sollten uns ein klares Ziel für die Kosten pro Lead setzen, sonst diskutieren wir jedes Quartal neu. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Die Agenturkosten müssen wir da auch noch mit reinrechnen, die laufen bisher über ein anderes Budget.
+[06:07] Ich: Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten. Wir sollten uns ein klares Ziel für die Kosten pro Lead setzen, sonst diskutieren wir jedes Quartal neu. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[06:28] Ich: Dann halten wir das so fest: Von den vierhundertachtzigtausend Euro gehen sechzig Prozent in Performance Marketing.
+[06:36] Speaker 2: Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[06:47] Speaker 3: Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[07:00] Speaker 5: Ja, Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[07:06] Ich: Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können.
+[07:23] Speaker 2: Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos.
+[07:33] Speaker 5: Gute Frage. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[07:45] Speaker 3: Okay, Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[07:57] Speaker 5: Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[08:12] Speaker 4: Okay, Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos.
+[08:23] Speaker 5: Ja, Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts.
+[08:30] Speaker 2: Bei LinkedIn bin ich skeptisch, die Leads waren teuer und nicht besser.
+[08:36] Speaker 3: Genau, Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[08:55] Speaker 4: Gute Frage. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten. Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben.
+[09:08] Speaker 3: Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben.
+[09:21] Speaker 5: Gute Frage. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[09:33] Speaker 3: Ja, Die Agenturkosten müssen wir da auch noch mit reinrechnen, die laufen bisher über ein anderes Budget. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können.
+[09:47] Speaker 2: Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen.
+[09:53] Speaker 4: Ich hätte gern eine Übersicht, wie viel wir dieses Jahr pro Kanal tatsächlich ausgegeben haben. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[10:06] Speaker 5: Genau, Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Für Tools geben wir aktuell zu viel aus, da gibt es einige Abos, die keiner mehr nutzt. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[10:27] Speaker 4: Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Wir sollten aber genau schauen, welche Kanäle wirklich funktionieren und welche nur Geld kosten.
+[10:39] Speaker 3: Gute Frage. Bei LinkedIn bin ich skeptisch, die Leads waren teuer und nicht besser.
+[10:45] Ich: Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können. Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger.
+[10:59] Speaker 5: Hm, Bei LinkedIn bin ich skeptisch, die Leads waren teuer und nicht besser.
+[11:05] Ich: Also, Die Frage ist, wie wir das Budget über das Jahr verteilen, im Sommer läuft ja traditionell weniger. Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts.
+[11:19] Speaker 2: Ja, Meta hat zuletzt gut funktioniert, vor allem mit den kurzen Videos. Ich würde gern einen Teil für Experimente reservieren, zum Beispiel für TikTok oder Podcasts.
+[11:31] Speaker 4: Genau, Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten. Bei LinkedIn bin ich skeptisch, die Leads waren teuer und nicht besser. Wenn wir mehr in Content gehen, brauchen wir auch mehr Leute, die schreiben können.
+[11:48] Speaker 2: Gute Frage. Wir könnten das Budget quartalsweise freigeben und nach jedem Quartal neu bewerten.
+[11:55] Speaker 4: Ja, Bei Google Ads sind die Klickpreise im letzten Quartal noch mal deutlich gestiegen. Wir sollten uns ein klares Ziel für die Kosten pro Lead setzen, sonst diskutieren wir jedes Quartal neu.
+[12:09] Ich: Nächstes Thema ist die CRM Umstellung. Magst du kurz den Stand erzählen?
+[12:15] Speaker 5: Also, Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr.
+[12:22] Speaker 3: Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[12:35] Speaker 4: Klar. Wir haben den Vertrag mit dem neuen CRM Anbieter unterschrieben. Der Go-live ist für den fünfzehnten März geplant.
+[12:44] Speaker 2: Okay, Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen. Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt.
+[13:04] Speaker 4: Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen. Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr.
+[13:18] Speaker 5: Okay, Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Viele Kontakte im alten System sind doppelt angelegt, das müssen wir vor der Migration aufräumen.
+[13:32] Speaker 2: Fünfzehnter März ist sportlich, wenn man an die ganzen alten Daten denkt.
+[13:38] Speaker 4: Ja, Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[13:46] Speaker 5: Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert. Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht. Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen.
+[14:04] Ich: Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr.
+[14:11] Speaker 4: Deshalb übernehme ich die Datenmigration selbst. Ich habe schon angefangen, die alten Kontakte zu bereinigen, das sind ungefähr fünfundzwanzigtausend Datensätze.
+[14:20] Ich: Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt. Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert. Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht.
+[14:38] Speaker 3: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent.
+[14:44] Ich: Gut, dann ist das klar: Go-live am fünfzehnten März und du verantwortest die Datenmigration.
+[14:50] Speaker 3: Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[15:05] Speaker 2: Viele Kontakte im alten System sind doppelt angelegt, das müssen wir vor der Migration aufräumen. Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent.
+[15:17] Ich: Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht.
+[15:23] Speaker 2: Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt.
+[15:29] Speaker 3: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Die Schnittstelle zur Buchhaltung ist noch offen, da warten wir auf eine Antwort vom Anbieter. Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen.
+[15:47] Speaker 2: Hm, Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt. Viele Kontakte im alten System sind doppelt angelegt, das müssen wir vor der Migration aufräumen.
+[16:01] Speaker 5: Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[16:06] Ich: Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen. Viele Kontakte im alten System sind doppelt angelegt, das müssen wir vor der Migration aufräumen.
+[16:19] Speaker 3: Okay, Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos.
+[16:32] Speaker 2: Der Datenschutz muss sich das auch noch anschauen, vor allem die Löschfristen. Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos.
+[16:45] Ich: Ja, Der Datenschutz muss sich das auch noch anschauen, vor allem die Löschfristen.
+[16:51] Speaker 3: Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt.
+[16:58] Speaker 2: Okay, Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht. Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[17:09] Speaker 3: Okay, Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Die Schnittstelle zur Buchhaltung ist noch offen, da warten wir auf eine Antwort vom Anbieter.
+[17:28] Ich: Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert. Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr.
+[17:41] Speaker 5: Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit? Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen.
+[17:53] Ich: Gute Frage. Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert.
+[18:00] Speaker 3: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht.
+[18:11] Speaker 4: Ja, Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt.
+[18:24] Speaker 3: Ja, Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen. Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[18:36] Speaker 4: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert. Der Datenschutz muss sich das auch noch anschauen, vor allem die Löschfristen.
+[18:53] Speaker 5: Hm, Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[19:07] Speaker 3: Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen. Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[19:18] Speaker 5: Okay, Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen. Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[19:38] Speaker 4: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Der Datenschutz muss sich das auch noch anschauen, vor allem die Löschfristen.
+[19:48] Ich: Genau, Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen. Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert.
+[20:02] Speaker 3: Genau, Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen. Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht.
+[20:15] Speaker 5: Ja, Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Was passiert eigentlich mit den alten E-Mail Verläufen, nehmen wir die mit?
+[20:27] Speaker 4: Ja, Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt. Für das Reporting brauchen wir im neuen System andere Dashboards, die alten passen nicht mehr.
+[20:41] Speaker 5: Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Der Datenschutz muss sich das auch noch anschauen, vor allem die Löschfristen.
+[20:53] Ich: Wir sollten einen Plan B haben, falls der Termin im März doch nicht klappt. Die Schnittstelle zur Buchhaltung ist noch offen, da warten wir auf eine Antwort vom Anbieter.
+[21:06] Speaker 5: Hm, Die Lizenzen sind pro Nutzer, also überlegen wir genau, wer wirklich Zugang braucht. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[21:19] Speaker 3: Okay, Viele Kontakte im alten System sind doppelt angelegt, das müssen wir vor der Migration aufräumen. Die E-Mail Verläufe der letzten zwei Jahre nehmen wir mit, alles ältere wird archiviert.
+[21:33] Ich: Die Schnittstelle zur Buchhaltung ist noch offen, da warten wir auf eine Antwort vom Anbieter. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[21:46] Speaker 2: Gute Frage. Die Felder für die Lead Quelle sollten wir einheitlich definieren, das war bisher ein großes Chaos. Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent.
+[22:00] Ich: Ich habe mit dem Support des Anbieters telefoniert, die wirken ziemlich kompetent. Wir müssen die Vertriebsleute früh schulen, sonst arbeiten die weiter mit ihren Excel Listen. Ich würde vorschlagen, dass wir eine Testphase mit zwei oder drei Leuten aus dem Vertrieb machen.
+[22:18] Ich: Dann zum Recruiting. Wir haben zwei offene Stellen, eine Senior Entwicklerin oder ein Senior Entwickler und eine Werkstudentenstelle im Marketing.
+[22:27] Speaker 3: Okay, Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert. Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand.
+[22:45] Speaker 5: Hm, Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[22:51] Speaker 5: Für beide Stellen fehlen noch die Stellenanzeigen. Ich kann die schreiben, ich schicke euch die Entwürfe bis Donnerstag.
+[22:59] Ich: Ja, Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[23:17] Speaker 5: Also, Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand.
+[23:34] Speaker 4: Gute Frage. Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[23:46] Speaker 3: Okay, Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[23:51] Ich: Super, danke. Dann kommen die beiden Stellenanzeigen bis Donnerstag von dir.
+[23:57] Speaker 2: Also, Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[24:08] Speaker 5: Okay, Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro.
+[24:15] Ich: Hm, Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[24:35] Speaker 4: Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang.
+[24:41] Speaker 3: Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[24:47] Speaker 2: Okay, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[25:00] Speaker 3: Gute Frage. Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert.
+[25:15] Ich: Okay, Für die Entwicklerstelle sollten wir auch auf Englisch ausschreiben. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein? Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[25:29] Speaker 2: Genau, Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[25:41] Speaker 3: Ich wäre dafür, dass wir maximal zwei Interviewrunden machen. Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[25:55] Speaker 5: Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[26:05] Speaker 2: Also, Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[26:22] Speaker 5: Ich wäre dafür, dass wir maximal zwei Interviewrunden machen. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[26:32] Ich: Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein? Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[26:50] Speaker 3: Hm, Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Für die Entwicklerstelle sollten wir auch auf Englisch ausschreiben.
+[27:01] Speaker 4: Ja, Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein? Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand.
+[27:18] Ich: Genau, Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert.
+[27:33] Speaker 5: Okay, Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert.
+[27:41] Speaker 2: Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen. Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben.
+[27:51] Speaker 3: Ja, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen.
+[27:58] Speaker 5: Okay, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen.
+[28:05] Speaker 4: Okay, Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[28:16] Speaker 2: Also, Wer aus dem Team hat Zeit, bei den Interviews dabei zu sein?
+[28:22] Speaker 4: Genau, Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Für die Entwicklerstelle sollten wir auch auf Englisch ausschreiben.
+[28:32] Speaker 3: Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro.
+[28:43] Speaker 2: Also, Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter. Für die Entwicklerstelle sollten wir auch auf Englisch ausschreiben.
+[28:54] Speaker 3: Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[29:04] Speaker 5: Ja, Ich wäre dafür, dass wir maximal zwei Interviewrunden machen. Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro.
+[29:19] Ich: Okay, Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter. Letztes Mal hat der Prozess fast drei Monate gedauert, das war viel zu lang.
+[29:32] Speaker 4: Ja, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen.
+[29:39] Ich: Ich wäre dafür, dass wir maximal zwei Interviewrunden machen. Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben.
+[29:47] Speaker 3: Gute Frage. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[29:55] Speaker 4: Okay, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand.
+[30:07] Speaker 5: Also, Bei der Werkstudentenstelle sollten wir die Hochschulen direkt anschreiben. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[30:16] Speaker 2: Okay, Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[30:29] Speaker 3: Gute Frage. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert. Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen.
+[30:44] Speaker 4: Wir sollten in der Anzeige ehrlich sagen, dass wir hybrid arbeiten, zwei Tage im Büro. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen. Eine kleine Probeaufgabe finde ich sinnvoll, aber nicht mehr als zwei Stunden Aufwand.
+[31:00] Speaker 2: Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter.
+[31:06] Ich: Das Onboarding für neue Leute müssen wir auch verbessern, da ging zuletzt einiges unter. Ich wäre dafür, dass wir maximal zwei Interviewrunden machen.
+[31:17] Speaker 2: Genau, Die Gehaltsspanne würde ich direkt in die Anzeige schreiben, das bringt mehr passende Bewerbungen. Wir könnten auch über Empfehlungen aus dem Team gehen, das hat bei den letzten Stellen gut funktioniert.
+[31:31] Speaker 3: Ich habe mir die Kundenzahlen angeschaut. Leider ist die Churn Rate im letzten Quartal von drei Komma eins auf vier Komma zwei Prozent gestiegen.
+[31:42] Ich: Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld. Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[31:58] Speaker 2: Okay, Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[32:09] Ich: Das ist ein deutlicher Anstieg. Wissen wir, woran das liegt?
+[32:14] Speaker 3: Also, Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends. Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr.
+[32:24] Speaker 4: Also, Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[32:34] Speaker 2: Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr. Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld. Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben.
+[32:49] Speaker 3: Zum Teil ja. Die meisten Kündigungen kamen von kleinen Kunden, die das Produkt nach dem Onboarding kaum genutzt haben.
+[32:58] Speaker 5: Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[33:09] Speaker 2: Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools.
+[33:14] Speaker 4: Ja, Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt.
+[33:25] Speaker 3: Hm, Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt.
+[33:36] Ich: Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[33:41] Speaker 2: Das deckt sich mit dem, was wir im Support hören. Viele kommen mit der Einrichtung nicht klar.
+[33:49] Ich: Also, Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert. Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen.
+[34:05] Speaker 3: Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen.
+[34:15] Ich: Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen.
+[34:24] Speaker 4: Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[34:30] Speaker 3: Gute Frage. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert.
+[34:40] Ich: Gute Frage. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[34:52] Speaker 4: Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[35:03] Speaker 3: Genau, Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben. Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld.
+[35:14] Ich: Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools.
+[35:24] Speaker 2: Genau, Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt.
+[35:31] Speaker 4: Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[35:40] Speaker 5: Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools.
+[35:45] Speaker 3: Genau, Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[35:52] Speaker 2: Ja, Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[36:06] Speaker 4: Ja, Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[36:16] Speaker 5: Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen.
+[36:25] Speaker 3: Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen.
+[36:31] Speaker 4: Okay, Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools.
+[36:42] Speaker 2: Okay, Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt. Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben.
+[36:59] Speaker 5: Also, Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[37:08] Speaker 2: Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben.
+[37:23] Ich: Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt.
+[37:34] Speaker 3: Okay, Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten. Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert.
+[37:45] Speaker 4: Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[37:55] Speaker 2: Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten. Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen.
+[38:05] Speaker 3: Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben.
+[38:11] Ich: Hm, Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[38:22] Speaker 4: Genau, Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld. Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert.
+[38:32] Speaker 5: Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen.
+[38:42] Ich: Ich würde gern mit fünf oder sechs Kunden sprechen, die gekündigt haben. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld.
+[38:58] Speaker 4: Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[39:14] Speaker 5: Genau, Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt.
+[39:24] Speaker 2: Okay, Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends. Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen.
+[39:35] Speaker 4: Gute Frage. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[39:45] Speaker 2: Hm, Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können. Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt. Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr.
+[40:01] Speaker 5: Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld. Wir könnten nach zwei Wochen automatisch nachfragen, ob alles funktioniert.
+[40:11] Ich: Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[40:16] Speaker 2: Genau, Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten. Ein Health Score für Kunden wäre hilfreich, damit wir früher reagieren können.
+[40:32] Speaker 5: Der Preis wird als Grund eher selten genannt, das überrascht mich ehrlich gesagt. Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools.
+[40:42] Speaker 3: Hm, Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[40:49] Speaker 4: Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen. Vielleicht sollten wir die Kündigungsgründe systematischer abfragen, bisher ist das ein Freitextfeld.
+[41:00] Speaker 5: Hm, Einige Kunden wünschen sich eine bessere Integration mit ihren bestehenden Tools. Ein kurzes Video zur Einrichtung würde vermutlich schon viel helfen. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten.
+[41:14] Ich: Also, Wir sollten die Kundenzufriedenheit regelmäßiger messen, nicht nur einmal im Jahr.
+[41:20] Speaker 3: Die großen Kunden sind sehr stabil, da gab es fast keine Kündigungen.
+[41:26] Speaker 5: Gute Frage. Im Onboarding verlieren wir die meisten Leute beim Import der eigenen Daten. Die Supportzeiten sind auch ein Thema, viele Kunden schreiben abends.
+[41:37] Speaker 2: Zur Messe: Die Fachmesse in Köln ist am zweiundzwanzigsten April. Ein Stand kostet uns insgesamt achtzehntausend Euro, inklusive Standbau.
+[41:46] Speaker 4: Genau, Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[41:51] Speaker 2: Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch. Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[42:06] Speaker 3: Achtzehntausend ist viel Geld. Was haben wir letztes Mal von der Messe mitgenommen?
+[42:12] Speaker 5: Okay, Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[42:28] Ich: Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Giveaways würde ich diesmal weglassen, die bringen nichts.
+[42:42] Speaker 2: Letztes Mal hatten wir gut sechzig qualifizierte Gespräche und daraus sind acht Kunden geworden.
+[42:48] Ich: Also, Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch.
+[42:59] Speaker 3: Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen.
+[43:05] Speaker 4: Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[43:15] Ich: Das rechnet sich. Ich bin dafür, dass wir teilnehmen. Gibt es Einwände?
+[43:21] Speaker 3: Also, Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[43:37] Speaker 4: Hm, Wer betreut den Stand an welchem Tag? Das sollten wir früh planen. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen.
+[43:49] Speaker 2: Also, Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[43:59] Speaker 4: Keine Einwände, ich wäre gern am Stand dabei.
+[44:03] Ich: Gute Frage. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[44:09] Speaker 2: Okay, Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen.
+[44:24] Ich: Dann ist entschieden: Wir nehmen an der Messe in Köln am zweiundzwanzigsten April teil.
+[44:31] Speaker 4: Genau, Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[44:47] Ich: Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[44:52] Speaker 4: Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[45:02] Ich: Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen. Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[45:18] Speaker 2: Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[45:29] Speaker 4: Ja, Giveaways würde ich diesmal weglassen, die bringen nichts. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[45:38] Ich: Also, Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen.
+[45:48] Speaker 5: Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Giveaways würde ich diesmal weglassen, die bringen nichts.
+[45:57] Speaker 2: Gute Frage. Giveaways würde ich diesmal weglassen, die bringen nichts. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[46:06] Speaker 3: Okay, Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch.
+[46:17] Speaker 2: Ja, Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen.
+[46:34] Speaker 5: Genau, Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[46:40] Speaker 2: Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen.
+[46:50] Speaker 3: Okay, Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[46:56] Speaker 2: Okay, Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[47:12] Speaker 5: Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Giveaways würde ich diesmal weglassen, die bringen nichts. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen.
+[47:26] Speaker 2: Giveaways würde ich diesmal weglassen, die bringen nichts. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[47:34] Ich: Also, Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten.
+[47:45] Speaker 4: Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[47:55] Speaker 5: Also, Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen. Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch.
+[48:11] Speaker 4: Gute Frage. Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen. Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen.
+[48:22] Speaker 2: Ja, Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Ein kleiner Vortrag im Rahmenprogramm wäre super, die Bewerbungsfrist läuft noch.
+[48:33] Ich: Ja, Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen. Wir brauchen neue Roll-ups, die alten haben noch das alte Logo.
+[48:48] Speaker 2: Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen. Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen.
+[48:59] Ich: Gute Frage. Giveaways würde ich diesmal weglassen, die bringen nichts.
+[49:04] Speaker 2: Genau, Für die Lead Erfassung am Stand sollten wir direkt das neue CRM nutzen. Wir könnten vorher gezielt Kunden einladen, uns am Stand zu besuchen.
+[49:15] Speaker 3: Hm, Wir brauchen neue Roll-ups, die alten haben noch das alte Logo. Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[49:26] Ich: Eine Live Demo am Stand fand ich letztes Mal am wirkungsvollsten. Hotels in Köln sind zur Messezeit schnell ausgebucht, wir sollten früh buchen.
+[49:37] Speaker 4: Wer betreut den Stand an welchem Tag? Das sollten wir früh planen.
+[49:42] Speaker 5: Noch ein Punkt zum Büro: Der Umzug in die neuen Räume ist jetzt für Juli bestätigt.
+[49:50] Speaker 3: Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet. Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen.
+[50:06] Ich: Okay, Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[50:12] Ich: Gut zu wissen. Das betrifft uns vor allem bei der Planung der Teamtage.
+[50:19] Speaker 5: Also, Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm. Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat.
+[50:30] Speaker 2: Gute Frage. Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet. Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat.
+[50:42] Ich: Genau, Die Anbindung mit der Bahn ist am neuen Standort deutlich besser.
+[50:48] Speaker 4: Genau, Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[50:54] Ich: Ja, Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Die Anbindung mit der Bahn ist am neuen Standort deutlich besser.
+[51:06] Speaker 3: Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[51:12] Speaker 2: Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet. Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[51:22] Ich: Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen. Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm. Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[51:36] Speaker 5: Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[51:42] Speaker 2: Ja, Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[51:55] Speaker 5: Okay, Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt. Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen. Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm.
+[52:10] Ich: Ja, Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[52:16] Speaker 4: Hm, Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen. Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen.
+[52:27] Speaker 2: Ja, Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach. Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[52:39] Speaker 5: Also, Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[52:45] Speaker 3: Okay, Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss. Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Parkplätze gibt es leider weniger, da müssen wir eine Regel finden.
+[53:02] Speaker 5: Gute Frage. Parkplätze gibt es leider weniger, da müssen wir eine Regel finden. Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach.
+[53:13] Speaker 4: Also, Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[53:19] Speaker 2: Hm, Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[53:26] Speaker 5: Okay, Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[53:32] Speaker 3: Okay, Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach.
+[53:44] Speaker 5: Okay, Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[53:51] Speaker 4: Genau, Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen. Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[54:01] Ich: Gute Frage. Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss. Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm.
+[54:18] Speaker 5: Hm, Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Die Anbindung mit der Bahn ist am neuen Standort deutlich besser. Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm.
+[54:34] Ich: Ja, Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach. Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[54:46] Speaker 4: Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[54:51] Speaker 2: Okay, Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach. Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat.
+[55:03] Ich: Also, Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[55:16] Speaker 4: Ja, Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[55:22] Speaker 2: Genau, Parkplätze gibt es leider weniger, da müssen wir eine Regel finden. Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[55:32] Speaker 3: Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Parkplätze gibt es leider weniger, da müssen wir eine Regel finden.
+[55:43] Ich: Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach. Die Anbindung mit der Bahn ist am neuen Standort deutlich besser. Der Teamtag im Frühjahr könnte schon im neuen Büro stattfinden, wenn alles klappt.
+[55:59] Speaker 3: Also, Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen. Parkplätze gibt es leider weniger, da müssen wir eine Regel finden.
+[56:11] Ich: Okay, Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Parkplätze gibt es leider weniger, da müssen wir eine Regel finden.
+[56:23] Speaker 3: Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[56:29] Speaker 2: Ja, Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm. Die Anbindung mit der Bahn ist am neuen Standort deutlich besser. Das Internet im neuen Büro muss vor dem Umzug laufen, nicht danach.
+[56:44] Speaker 3: Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet. Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Die neuen Räume haben endlich mehr Besprechungsräume, das hilft enorm.
+[56:59] Ich: Ja, Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet.
+[57:05] Speaker 4: Für den Umzug brauchen wir einen Tag, an dem niemand Termine bei Kunden hat. Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[57:16] Ich: Ich fände eine kleine Einweihungsfeier schön, vielleicht mit Kunden zusammen. Die Anbindung mit der Bahn ist am neuen Standort deutlich besser.
+[57:26] Speaker 4: Also, Parkplätze gibt es leider weniger, da müssen wir eine Regel finden. Die alten Möbel können wir teilweise mitnehmen, der Rest wird gespendet. Wir sollten eine Liste machen, was beim Umzug alles erledigt werden muss.
+[57:41] Speaker 5: Also, Die Anbindung mit der Bahn ist am neuen Standort deutlich besser. Wir sollten klären, ob jeder einen festen Platz bekommt oder ob wir Desk Sharing machen.
+[57:53] Ich: Okay, wir sind fast durch. Ich schicke euch die Zusammenfassung heute Nachmittag. Gibt es noch etwas Dringendes?
+[58:01] Speaker 4: Hm, Danke für die gute Vorbereitung, das ging heute echt zügig.
+[58:07] Speaker 5: Genau, Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Danke für die gute Vorbereitung, das ging heute echt zügig. Ja, Ende des nächsten Quartals machen wir das wieder.
+[58:19] Ich: Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Ja, Ende des nächsten Quartals machen wir das wieder.
+[58:28] Speaker 2: Gute Frage. Danke für die gute Vorbereitung, das ging heute echt zügig. Ja, Ende des nächsten Quartals machen wir das wieder. Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[58:41] Ich: Gute Frage. Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[58:46] Speaker 5: Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[58:51] Speaker 2: Von mir nicht, danke.
+[58:53] Ich: Hm, Danke für die gute Vorbereitung, das ging heute echt zügig. Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[59:03] Speaker 5: Hm, Ja, Ende des nächsten Quartals machen wir das wieder. Danke für die gute Vorbereitung, das ging heute echt zügig.
+[59:12] Speaker 4: Also, Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Danke für die gute Vorbereitung, das ging heute echt zügig. Ja, Ende des nächsten Quartals machen wir das wieder.
+[59:25] Speaker 2: Ja, Danke für die gute Vorbereitung, das ging heute echt zügig. Ja, Ende des nächsten Quartals machen wir das wieder. Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[59:38] Speaker 5: Gute Frage. Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Danke für die gute Vorbereitung, das ging heute echt zügig. Ja, Ende des nächsten Quartals machen wir das wieder.
+[59:51] Speaker 4: Nein, alles gut.
+[59:53] Ich: Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Ja, Ende des nächsten Quartals machen wir das wieder.
+[1:00:01] Speaker 5: Gute Frage. Danke für die gute Vorbereitung, das ging heute echt zügig. Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Ja, Ende des nächsten Quartals machen wir das wieder.
+[1:00:14] Ich: Gute Frage. Danke für die gute Vorbereitung, das ging heute echt zügig.
+[1:00:20] Speaker 3: Hm, Danke für die gute Vorbereitung, das ging heute echt zügig. Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Ja, Ende des nächsten Quartals machen wir das wieder.
+[1:00:33] Speaker 5: Also, Ja, Ende des nächsten Quartals machen wir das wieder. Wann ist das nächste Planungsmeeting, wieder in drei Monaten?
+[1:00:42] Ich: Dann danke euch allen, bis nächste Woche.
+[1:00:46] Speaker 5: Also, Wann ist das nächste Planungsmeeting, wieder in drei Monaten? Danke für die gute Vorbereitung, das ging heute echt zügig.

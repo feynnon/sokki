@@ -1,0 +1,15 @@
+[package]
+name = "meeting-detect"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Notice when a meeting app starts and stops using the microphone (macOS Core Audio process objects)"
+
+[dependencies]
+log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+[[example]]
+name = "watch"

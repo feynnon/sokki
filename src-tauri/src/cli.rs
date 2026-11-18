@@ -20,6 +20,22 @@ pub struct CliArgs {
     #[arg(long)]
     pub toggle_post_process: bool,
 
+    /// Print the default settings as JSON and exit (for CONFIG.md)
+    #[arg(long)]
+    pub print_default_settings: bool,
+
+    /// Start or stop a meeting recording (sent to running instance)
+    #[arg(long)]
+    pub toggle_meeting: bool,
+
+    /// Start a meeting recording; does nothing if one is running (sent to running instance)
+    #[arg(long)]
+    pub start_meeting: bool,
+
+    /// Stop the meeting recording; does nothing if none is running (sent to running instance)
+    #[arg(long)]
+    pub stop_meeting: bool,
+
     /// Cancel the current operation (sent to running instance)
     #[arg(long)]
     pub cancel: bool,

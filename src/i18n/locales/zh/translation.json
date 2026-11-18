@@ -19,7 +19,8 @@
     "postProcessing": "后处理",
     "history": "历史记录",
     "debug": "调试",
-    "about": "关于"
+    "about": "关于",
+    "meetings": "Meetings"
   },
   "onboarding": {
     "customModelDescription": "非官方支持",
@@ -348,6 +349,10 @@
           "transcribe_with_post_process": {
             "name": "后处理快捷键",
             "description": "可选：一个专用快捷键，始终对您的转录应用 AI 后处理。"
+          },
+          "meeting": {
+            "name": "Meeting Shortcut",
+            "description": "Starts or stops recording a meeting."
           }
         },
         "errors": {
@@ -957,7 +962,11 @@
     "filePostProcessFailedTitle": "已转录，未经后处理",
     "filePostProcessFailed": "后处理未完成，因此按原样保存转录内容。",
     "fileTranscriptionFailedTitle": "文件转录失败",
-    "transcriptionFailedTitle": "转录失败"
+    "transcriptionFailedTitle": "转录失败",
+    "meetingStartFailedTitle": "Meeting Recording Didn't Start",
+    "meetingStartFailed": "Handy Meetings needs microphone access, and for calls on this Mac also system audio recording (macOS 14.2 or later). Allow them in System Settings > Privacy & Security, or switch on microphone-only mode.",
+    "meetingStopFailedTitle": "Meeting Recording Wasn't Saved",
+    "meetingStopFailed": "The recording stopped, but it couldn't be saved for processing."
   },
   "notices": {
     "errorOne": "{{n}} 个错误",
@@ -994,5 +1003,148 @@
     "learnMore": "如何解决",
     "recorderBlocked": "当前无法录制快捷键——macOS 的 Secure Input 正在阻止按键事件。请先解决 Secure Input 警告。",
     "dismiss": "关闭"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "description": "Record a meeting and get a note with speakers, a summary and tasks in your notes folder. Tell everyone you are recording.",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "recording": "Recording",
+    "listTitle": "Recent meetings",
+    "empty": "No meetings yet.",
+    "untitled": "Untitled meeting",
+    "openNote": "Open note",
+    "reprocess": "Process again",
+    "delete": "Delete meeting and audio",
+    "stage": {
+      "waiting": "Waiting to be processed…",
+      "diarizing": "Finding speakers…",
+      "transcribing": "Transcribing…",
+      "summarizing": "Writing summary…",
+      "writing": "Saving note…",
+      "correcting": "Correcting transcript…"
+    },
+    "back": "Meetings",
+    "setupHint": "The language model for summaries isn't ready yet. Set it up under Models → Language model.",
+    "settings": {
+      "title": "Meeting settings",
+      "notesTitle": "Notes",
+      "notesDir": "Notes folder",
+      "notesDirDescription": "Where meeting notes are saved as Markdown, e.g. a folder in your Obsidian vault.",
+      "choose": "Choose…",
+      "userName": "Your name",
+      "userNameDescription": "The main voice on the microphone is labelled with this name.",
+      "dictionary": "Dictionary",
+      "dictionaryDescription": "Names and words the transcript should spell correctly, separated by commas: customers, colleagues, products.",
+      "detection": "Notice meetings",
+      "detectionDescription": "Offer to record when Zoom, Teams, Meet or another call app starts using the microphone. Never records on its own.",
+      "keepAudio": "Keep recordings",
+      "keepAudioDescription": "The audio is kept so a meeting can be processed again.",
+      "keepAudioNone": "Delete after the note is written",
+      "keepAudioDays": "For {{count}} days",
+      "aiTitle": "Summary",
+      "aiDescription": "A language model fixes misheard dictionary words and writes the summary, decisions and tasks.",
+      "model": "Language model",
+      "modelDescription": "Chosen under Models → Language model.",
+      "change": "Change"
+    },
+    "lm": {
+      "tabSpeech": "Speech",
+      "tabLanguage": "Language model",
+      "intro": "Corrects misheard dictionary words in meeting transcripts and writes the summary, decisions and tasks.",
+      "onThisMac": "On this computer",
+      "cloud": "In the cloud · needs an API key",
+      "other": "Other",
+      "recommended": "Recommended",
+      "qwen": "Private and free. Runs on this Mac with Ollama, about a minute per meeting.",
+      "sonnet": "Fast and accurate. Sends the transcript to Anthropic.",
+      "opus": "Most accurate. Sends the transcript to Anthropic.",
+      "gpt": "Sends the transcript to OpenAI.",
+      "openrouter": "One key for many providers. Sends the transcript to OpenRouter.",
+      "custom": "Set in the config file",
+      "off": "No summary",
+      "offLine": "Transcript only: no correction, no summary.",
+      "apiKeyPlaceholder": "{{provider}} API key",
+      "readyLocal": "Ready. Nothing leaves this Mac.",
+      "readyCloud": "Ready. Transcripts are sent to {{provider}}.",
+      "noKey": "Paste your {{provider}} API key above. It stays on this Mac.",
+      "noOllama": "Needs Ollama, a free app that runs the model on your Mac.",
+      "getOllama": "Get Ollama",
+      "recheck": "Check again",
+      "notRunning": "Ollama is installed but not running.",
+      "startOllama": "Start Ollama",
+      "modelMissing": "Not downloaded yet (7.6 GB).",
+      "download": "Download",
+      "downloading": "Downloading… {{pct}}%"
+    },
+    "renameSpeaker": "Rename speaker",
+    "newName": "Name",
+    "rememberVoice": "Remember voice",
+    "save": "Save",
+    "voices": {
+      "title": "Known voices",
+      "description": "Remembered voices are named automatically in new meetings. Name a speaker in a meeting to add one.",
+      "empty": "No voices remembered yet.",
+      "forget": "Forget this voice"
+    },
+    "online": "Online meeting",
+    "singleMic": "One microphone",
+    "details": {
+      "summary": "Summary",
+      "copyTranscript": "Copy transcript",
+      "copied": "Copied",
+      "transcript": "Transcript",
+      "noSummary": "This meeting has no summary."
+    }
+  },
+  "verbatim": {
+    "nav": {
+      "home": "Home",
+      "vocabulary": "Vocabulary",
+      "settings": "Settings",
+      "sound": "Sound"
+    },
+    "keep": {
+      "title": "Keep recordings for",
+      "description": "Dictations and meeting audio older than this are deleted. Notes and transcripts stay.",
+      "days3": "3 days",
+      "weeks2": "2 weeks",
+      "months3": "3 months",
+      "forever": "Forever",
+      "latest": "Latest {{count}} dictations"
+    },
+    "settings": {
+      "title": "Settings",
+      "appearance": "Appearance",
+      "shortcuts": "Shortcuts",
+      "application": "Application",
+      "window": "Recording window",
+      "windowDescription": "What you see while you dictate.",
+      "windowLive": "Live text",
+      "windowMini": "Mini",
+      "windowNone": "None",
+      "advanced": "Advanced settings",
+      "advancedDescription": "Rarely needed. The defaults work for most people.",
+      "textInput": "Text input",
+      "transcription": "Transcription",
+      "basedOn": "based on Handy",
+      "version": "Verbatim {{version}}"
+    },
+    "sound": {
+      "title": "Sound",
+      "effects": "Sound effects",
+      "effectsDescription": "Played when a dictation starts and stops.",
+      "off": "Off",
+      "recording": "Recording"
+    },
+    "vocabulary": {
+      "title": "Vocabulary",
+      "description": "Names and terms from your work: customers, colleagues, products. Misheard versions are corrected in meeting transcripts.",
+      "placeholder": "Add a word, or several separated by commas",
+      "add": "Add words",
+      "empty": "No words yet. Add the names that the transcript gets wrong.",
+      "remove": "Remove {{word}}",
+      "note": "Used for meetings. Dictation leaves your words as spoken: swapping words there directly turned „Lied“ into „Lead“ in a test."
+    }
   }
 }

@@ -1,0 +1,457 @@
+//! Tauri commands for meeting notes. Meeting recording is macOS only. On
+//! other platforms the same commands exist (so the generated bindings match)
+//! and report that the feature is unavailable.
+
+#[cfg(target_os = "macos")]
+use crate::meeting::{
+    self,
+    store::{MeetingRecord, MeetingStatus, MeetingStore},
+    MeetingManager,
+};
+use crate::settings::MeetingSettings;
+#[cfg(target_os = "macos")]
+use std::sync::Arc;
+use tauri::AppHandle;
+
+/// A meeting's note, split for the app: summary (Markdown) and transcript
+/// (plain "[00:03] Speaker 2: Hi." lines, ready to copy).
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+pub struct MeetingNoteParts {
+    pub summary: String,
+    pub transcript: String,
+}
+
+/// Sent whenever a meeting record changes (recording, progress, done, failed).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+pub struct MeetingChanged {
+    pub id: String,
+}
+#[cfg(target_os = "macos")]
+use tauri::{Manager, State};
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn start_meeting_recording(app: AppHandle) -> Result<String, String> {
+    meeting::start_meeting(&app, None)
+}
+
+/// Stops the meeting and starts turning it into a note. Returns its id.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn stop_meeting_recording(app: AppHandle) -> Result<String, String> {
+    meeting::stop_meeting(&app)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn is_meeting_recording(meetings: State<'_, Arc<MeetingManager>>) -> bool {
+    meetings.is_recording()
+}
+
+/// Meetings, newest first.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn list_meetings(store: State<'_, Arc<MeetingStore>>) -> Result<Vec<MeetingRecord>, String> {
+    Ok(store.list())
+}
+
+/// Opens the meeting's note: in Obsidian when the notes folder is inside a
+/// vault, otherwise with the default app for Markdown.
+/// Summary and transcript of a meeting, read from its note (so edits made
+/// in the note show up here).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting_note(
+    store: State<'_, Arc<MeetingStore>>,
+    id: String,
+) -> Result<MeetingNoteParts, String> {
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    let path = record.note_path.ok_or("This meeting has no note yet")?;
+    let md = std::fs::read_to_string(&path)
+        .map_err(|e| format!("The note could not be read ({path}): {e}"))?;
+    let p = meeting_core::note::split_note(&md);
+    Ok(MeetingNoteParts {
+        summary: p.summary,
+        transcript: p.transcript,
+    })
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn open_meeting_note(store: State<'_, Arc<MeetingStore>>, id: String) -> Result<(), String> {
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    let path = record.note_path.ok_or("This meeting has no note yet")?;
+    let path = std::path::PathBuf::from(path);
+    if !path.exists() {
+        return Err(format!("The note was moved or deleted: {}", path.display()));
+    }
+    let target = match obsidian_url(&path) {
+        Some(url) => url,
+        None => path.to_string_lossy().into_owned(),
+    };
+    std::process::Command::new("open")
+        .arg(&target)
+        .spawn()
+        .map_err(|e| format!("Opening the note failed: {e}"))?;
+    Ok(())
+}
+
+/// `obsidian://open?path=…` when the file sits inside an Obsidian vault.
+#[cfg(target_os = "macos")]
+fn obsidian_url(path: &std::path::Path) -> Option<String> {
+    let in_vault = path
+        .ancestors()
+        .skip(1)
+        .any(|dir| dir.join(".obsidian").is_dir());
+    if !in_vault {
+        return None;
+    }
+    let encoded: String = path
+        .to_string_lossy()
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect();
+    Some(format!("obsidian://open?path={encoded}"))
+}
+
+/// Processes a meeting again from its audio (e.g. after changing the model).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn reprocess_meeting(app: AppHandle, id: String) -> Result<(), String> {
+    let store = app.state::<Arc<MeetingStore>>();
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    if record.audio_deleted {
+        return Err("The audio of this meeting was already deleted.".into());
+    }
+    if matches!(
+        record.status,
+        MeetingStatus::Recording | MeetingStatus::Processing { .. }
+    ) {
+        return Err("This meeting is still being recorded or processed.".into());
+    }
+    store
+        .update(&id, |r| {
+            r.status = MeetingStatus::Processing {
+                stage: "waiting".into(),
+                progress: None,
+            };
+            r.warnings.clear();
+        })
+        .map_err(|e| e.to_string())?;
+    meeting::emit_changed(&app, &id);
+    meeting::process::spawn(app.clone(), id);
+    Ok(())
+}
+
+/// Deletes the meeting record and its audio. The note stays in the notes folder.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {
+    let store = app.state::<Arc<MeetingStore>>();
+    if let Some(r) = store.get(&id) {
+        if matches!(
+            r.status,
+            MeetingStatus::Recording | MeetingStatus::Processing { .. }
+        ) {
+            return Err("Stop the recording or wait for processing to finish first.".into());
+        }
+    }
+    store.remove(&id).map_err(|e| e.to_string())?;
+    meeting::emit_changed(&app, &id);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_settings(app: AppHandle, settings: MeetingSettings) -> Result<(), String> {
+    let mut all = crate::settings::get_settings(&app);
+    all.meetings = settings;
+    crate::settings::write_settings(&app, all);
+    meeting::detect::sync_with_settings(&app);
+    Ok(())
+}
+
+/// The language model's state for the settings page. `probe` makes a tiny
+/// real request to a cloud provider.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_llm_status(
+    app: AppHandle,
+    probe: bool,
+) -> Result<meeting::process::LlmStatus, String> {
+    let all = crate::settings::get_settings(&app);
+    let keys: std::collections::HashMap<String, String> = (*all.post_process_api_keys).clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        meeting::process::llm_status(&all.meetings, &keys, probe)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Starts Ollama when it is installed but not running.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn start_ollama(app: AppHandle) -> Result<(), String> {
+    let settings = crate::settings::get_settings(&app).meetings;
+    tauri::async_runtime::spawn_blocking(move || meeting::process::start_ollama(&settings))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("{e:#}"))
+}
+
+/// Downloads the local language model through Ollama. Progress arrives as
+/// "meeting-llm-pull" events ({status, completed, total}).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn pull_meeting_llm(app: AppHandle) -> Result<(), String> {
+    use tauri::Emitter;
+    let settings = crate::settings::get_settings(&app).meetings;
+    tauri::async_runtime::spawn_blocking(move || {
+        meeting::process::pull_model(&settings, |p| {
+            let _ = app.emit("meeting-llm-pull", p);
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}
+
+/// Renames a speaker of a processed meeting in its note. With `remember`,
+/// the voice is saved under the new name so later meetings recognise it.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn rename_meeting_speaker(
+    app: AppHandle,
+    id: String,
+    from: String,
+    to: String,
+    remember: bool,
+) -> Result<(), String> {
+    let to = to.trim().to_string();
+    if to.is_empty() {
+        return Err("The new name is empty.".into());
+    }
+    let store = app.state::<Arc<MeetingStore>>();
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    if let Some(path) = record.note_path.as_deref() {
+        let md =
+            std::fs::read_to_string(path).map_err(|e| format!("Reading the note failed: {e}"))?;
+        let renamed = meeting_core::note::rename_speaker_in_markdown(&md, &from, &to);
+        std::fs::write(path, renamed).map_err(|e| format!("Saving the note failed: {e}"))?;
+    }
+    let dir = store.audio_dir(&id);
+    let mut speakers = meeting::process::load_speakers(&dir);
+    let embedding = speakers
+        .iter()
+        .find(|s| s.name == from)
+        .and_then(|s| s.embedding.clone());
+    for s in &mut speakers {
+        if s.name == from {
+            s.name = to.clone();
+        }
+    }
+    let _ = std::fs::write(
+        dir.join(meeting::process::SPEAKERS_FILE),
+        serde_json::to_string(&speakers).unwrap_or_default(),
+    );
+    if remember {
+        let embedding = embedding.ok_or("This speaker has no voice sample to remember.")?;
+        let mut profiles =
+            meeting::process::voice_profiles(&app).ok_or("Voice profiles unavailable")?;
+        profiles
+            .enroll(&to, &embedding)
+            .map_err(|e| format!("{e:#}"))?;
+    }
+    store
+        .update(&id, |r| {
+            for s in &mut r.speakers {
+                if *s == from {
+                    *s = to.clone();
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    meeting::emit_changed(&app, &id);
+    Ok(())
+}
+
+/// Names of remembered voices.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn list_voice_profiles(app: AppHandle) -> Result<Vec<String>, String> {
+    Ok(meeting::process::voice_profiles(&app)
+        .map(|p| p.names())
+        .unwrap_or_default())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn delete_voice_profile(app: AppHandle, name: String) -> Result<(), String> {
+    let mut profiles =
+        meeting::process::voice_profiles(&app).ok_or("Voice profiles unavailable")?;
+    profiles.remove(&name).map_err(|e| format!("{e:#}"))?;
+    Ok(())
+}
+
+// ------------------------------------------------------------ other OSes
+
+#[cfg(not(target_os = "macos"))]
+const UNAVAILABLE: &str = "Meeting notes are only available on macOS.";
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn start_meeting_recording() -> Result<String, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn stop_meeting_recording() -> Result<String, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn is_meeting_recording() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn list_meetings() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting_note(_id: String) -> Result<MeetingNoteParts, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn open_meeting_note(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn reprocess_meeting(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn delete_meeting(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_settings(app: AppHandle, settings: MeetingSettings) -> Result<(), String> {
+    let mut all = crate::settings::get_settings(&app);
+    all.meetings = settings;
+    crate::settings::write_settings(&app, all);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct LlmStatus {
+    pub state: String,
+    pub detail: String,
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_llm_status(probe: bool) -> Result<LlmStatus, String> {
+    let _ = probe;
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn start_ollama() -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn pull_meeting_llm() -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn rename_meeting_speaker(
+    _id: String,
+    _from: String,
+    _to: String,
+    _remember: bool,
+) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn list_voice_profiles() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn delete_voice_profile(_name: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::obsidian_url;
+
+    #[test]
+    fn obsidian_url_only_inside_a_vault() {
+        let vault = std::env::temp_dir().join(format!("hm-vault-{}", std::process::id()));
+        std::fs::create_dir_all(vault.join(".obsidian")).unwrap();
+        std::fs::create_dir_all(vault.join("Meetings")).unwrap();
+        let note = vault.join("Meetings/2026-11-17 1000 Kick-off ä.md");
+        let url = obsidian_url(&note).unwrap();
+        assert!(url.starts_with("obsidian://open?path=/"));
+        assert!(url.contains("Kick-off%20%C3%A4.md"));
+        assert!(obsidian_url(&std::env::temp_dir().join("x.md")).is_none());
+    }
+}

@@ -821,6 +821,155 @@ async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async startMeetingRecording() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_meeting_recording") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stops the meeting and starts turning it into a note. Returns its id.
+ */
+async stopMeetingRecording() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_meeting_recording") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async isMeetingRecording() : Promise<boolean> {
+    return await TAURI_INVOKE("is_meeting_recording");
+},
+/**
+ * Meetings, newest first.
+ */
+async listMeetings() : Promise<Result<MeetingRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_meetings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Opens the meeting's note: in Obsidian when the notes folder is inside a
+ * vault, otherwise with the default app for Markdown.
+ */
+async getMeetingNote(id: string) : Promise<Result<MeetingNoteParts, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting_note", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async openMeetingNote(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_meeting_note", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Processes a meeting again from its audio (e.g. after changing the model).
+ */
+async reprocessMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reprocess_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Deletes the meeting record and its audio. The note stays in the notes folder.
+ */
+async deleteMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setMeetingSettings(settings: MeetingSettings) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_settings", { settings }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The language model's state for the settings page. `probe` makes a tiny
+ * real request to a cloud provider.
+ */
+async meetingLlmStatus(probe: boolean) : Promise<Result<LlmStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_llm_status", { probe }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts Ollama when it is installed but not running.
+ */
+async startOllama() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_ollama") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Downloads the local language model through Ollama. Progress arrives as
+ * "meeting-llm-pull" events ({status, completed, total}).
+ */
+async pullMeetingLlm() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pull_meeting_llm") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Renames a speaker of a processed meeting in its note. With `remember`,
+ * the voice is saved under the new name so later meetings recognise it.
+ */
+async renameMeetingSpeaker(id: string, from: string, to: string, remember: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_meeting_speaker", { id, from, to, remember }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Names of remembered voices.
+ */
+async listVoiceProfiles() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_voice_profiles") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteVoiceProfile(name: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_voice_profile", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getMicrophoneMode() : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_microphone_mode") };
@@ -1074,6 +1223,7 @@ async dismissOverlayNotice() : Promise<void> {
 
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
+meetingChanged: MeetingChanged,
 noticesChanged: NoticesChanged,
 recordingStateEvent: RecordingStateEvent,
 streamPhaseEvent: StreamPhaseEvent,
@@ -1082,6 +1232,7 @@ transcriptionCompleteEvent: TranscriptionCompleteEvent,
 transcriptionJob: TranscriptionJob
 }>({
 historyUpdatePayload: "history-update-payload",
+meetingChanged: "meeting-changed",
 noticesChanged: "notices-changed",
 recordingStateEvent: "recording-state-event",
 streamPhaseEvent: "stream-phase-event",
@@ -1185,7 +1336,11 @@ language_detection_window_secs?: number;
  * not gated on this — that follows model capability. Migrated from the old
  * `overlay_position` (position `none` → style `None`).
  */
-overlay_style?: OverlayStyle }
+overlay_style?: OverlayStyle; 
+/**
+ * Meeting notes (this fork): recording, speakers, summary and the notes folder.
+ */
+meetings?: MeetingSettings }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AutoUnavailableReason = 
@@ -1236,7 +1391,16 @@ language: string | null;
 /**
  * How that language was chosen; `None` before it was recorded.
  */
-language_source: LanguageSource | null }
+language_source: LanguageSource | null; 
+/**
+ * The meeting this track belongs to; `None` outside meeting recordings.
+ * Both tracks of one meeting share it.
+ */
+meeting_id: string | null; 
+/**
+ * `"me"` (microphone) or `"them"` (system audio); `None` outside meetings.
+ */
+meeting_track: string | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 /**
  * Result of changing keyboard implementation
@@ -1321,6 +1485,127 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * A macOS privacy permission Handy asks for during onboarding.
  */
 export type MacPermission = "accessibility" | "microphone"
+/**
+ * Sent whenever a meeting record changes (recording, progress, done, failed).
+ */
+export type MeetingChanged = { id: string }
+export type MeetingRecord = { id: string; 
+/**
+ * Local start time, RFC 3339.
+ */
+started_at: string; duration_s: number; status: MeetingStatus; 
+/**
+ * Track files in the meeting's audio folder ("mic.flac", "system.flac").
+ */
+tracks: string[]; 
+/**
+ * The meeting app that held the microphone, if detection saw one.
+ */
+source_app: string | null; title: string | null; note_path: string | null; speakers: string[]; 
+/**
+ * Problems that did not stop the note (e.g. the summary model was offline).
+ */
+warnings: string[]; 
+/**
+ * When the audio was deleted, if it was.
+ */
+audio_deleted: boolean; 
+/**
+ * After processing: `true` for an online meeting (someone spoke on the
+ * system track), `false` for everything on one microphone.
+ */
+online?: boolean | null }
+/**
+ * Settings for meeting notes. Every field falls back to its default when
+ * missing, so older stores load unchanged.
+ */
+export type MeetingSettings = { 
+/**
+ * Folder the Markdown notes are written to. `None`: ~/Documents/Handy Meetings.
+ */
+notes_dir: string | null; 
+/**
+ * How the user is named in transcripts (the main voice on the microphone).
+ */
+user_name: string; 
+/**
+ * Separate speakers within each track.
+ */
+diarization_enabled: boolean; 
+/**
+ * Fix misheard words in the transcript with the language model before
+ * the summary (only short, similar-sounding replacements; each one is
+ * listed at the end of the note).
+ */
+correction_enabled: boolean; 
+/**
+ * Terms likely in your meetings (names, products, jargon), e.g.
+ * ["Kalasar", "Lead", "Claude Code"]. Used by the correction; the
+ * dictation `custom_words` are added automatically.
+ */
+glossary: string[]; 
+/**
+ * Write a summary, decisions and action items with a language model.
+ */
+summary_enabled: boolean; 
+/**
+ * Which language model corrects and summarises: "local" (the server
+ * at `llm_base_url`, normally Ollama; nothing leaves the computer),
+ * or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
+ * provider gets the transcript; its API key is the one stored for
+ * that provider under `post_process_api_keys`.
+ */
+llm_provider: string; 
+/**
+ * Model for the cloud provider. Empty: the provider's default
+ * (see `meeting::process::default_cloud_model`).
+ */
+cloud_model: string; 
+/**
+ * Local server: Ollama (`http://localhost:11434`) or any
+ * OpenAI-compatible server (a URL ending in `/v1`).
+ */
+llm_base_url: string; 
+/**
+ * Model on the local server.
+ */
+llm_model: string; 
+/**
+ * Keep the recorded audio for this many days after the note is written.
+ * 0 deletes it as soon as processing succeeds.
+ */
+keep_audio_days: number; 
+/**
+ * Offer to record when a meeting app starts using the microphone.
+ */
+detection_enabled: boolean }
+/**
+ * Where a meeting is in its life.
+ */
+/**
+ * What the settings page shows about the language model.
+ */
+export type LlmStatus = { 
+/**
+ * "off", "ready", "no_key", "no_ollama", "not_running",
+ * "model_missing" or "error".
+ */
+state: string; 
+/**
+ * Model name, or the error text for "error".
+ */
+detail: string }
+/**
+ * A meeting's note, split for the app: summary (Markdown) and transcript
+ * (plain "[00:03] Speaker 2: Hi." lines, ready to copy).
+ */
+export type MeetingNoteParts = { summary: string; transcript: string }
+export type MeetingStatus = { kind: "recording" } | 
+/**
+ * `stage`: "diarizing", "transcribing", "summarizing" or "writing".
+ * `progress`: 0..=1 within the whole job, when known.
+ */
+{ kind: "processing"; stage: string; progress: number | null } | { kind: "done" } | { kind: "failed"; error: string }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
@@ -1356,7 +1641,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingStartFailed" | "MeetingStopFailed"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.
@@ -1371,7 +1656,7 @@ export type NoticeLevel =
  * overlay: a file job finishes while the user is doing something else, and
  * `Model` is a switch the user made in Settings or the tray.
  */
-export type NoticeSource = "dictation" | "file" | "model"
+export type NoticeSource = "dictation" | "file" | "model" | "meeting"
 export type NoticesChanged = { 
 /**
  * Every active notice, newest first.

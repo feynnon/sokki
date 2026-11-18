@@ -1,0 +1,59 @@
+{
+  "scenario": "three_remote",
+  "duration_s": 26.13,
+  "speakers": [
+    "R1",
+    "R2",
+    "R3"
+  ],
+  "turns": [
+    {
+      "track": "system",
+      "speaker": "R1",
+      "lang": "de",
+      "text": "Willkommen zum wöchentlichen Planungsmeeting.",
+      "start_s": 0.5,
+      "end_s": 3.795
+    },
+    {
+      "track": "system",
+      "speaker": "R2",
+      "lang": "de",
+      "text": "Ich würde gern mit dem Thema Recruiting beginnen.",
+      "start_s": 4.495,
+      "end_s": 7.677
+    },
+    {
+      "track": "system",
+      "speaker": "R3",
+      "lang": "de",
+      "text": "Wir haben diese Woche drei Bewerbungsgespräche geführt.",
+      "start_s": 8.377,
+      "end_s": 12.088
+    },
+    {
+      "track": "system",
+      "speaker": "R1",
+      "lang": "de",
+      "text": "Wie war euer Eindruck von den Kandidaten?",
+      "start_s": 12.788,
+      "end_s": 15.667
+    },
+    {
+      "track": "system",
+      "speaker": "R3",
+      "lang": "de",
+      "text": "Zwei davon waren sehr stark, wir sollten beide einladen.",
+      "start_s": 16.367,
+      "end_s": 20.52
+    },
+    {
+      "track": "system",
+      "speaker": "R2",
+      "lang": "de",
+      "text": "Einverstanden, ich organisiere die zweiten Gespräche.",
+      "start_s": 21.22,
+      "end_s": 24.93
+    }
+  ]
+}

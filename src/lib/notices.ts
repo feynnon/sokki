@@ -47,6 +47,14 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
     title: "errors.noModelSelectedTitle",
     explanation: (t) => t("errors.noModelSelected"),
   },
+  MeetingStartFailed: {
+    title: "errors.meetingStartFailedTitle",
+    explanation: (t) => t("errors.meetingStartFailed"),
+  },
+  MeetingStopFailed: {
+    title: "errors.meetingStopFailedTitle",
+    explanation: (t) => t("errors.meetingStopFailed"),
+  },
   PostProcessFailed: {
     title: "errors.postProcessFailedTitle",
     explanation: (t) => t("errors.postProcessFailed"),

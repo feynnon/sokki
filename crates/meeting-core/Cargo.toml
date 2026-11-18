@@ -1,0 +1,16 @@
+[package]
+name = "meeting-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Platform-independent meeting pipeline: transcript model, merge, dedup, summary and Markdown notes"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Small blocking HTTP client for the LLM summariser (Ollama / OpenAI-compatible).
+# rustls so https endpoints work without OpenSSL; no gzip.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]

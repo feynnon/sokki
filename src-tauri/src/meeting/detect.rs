@@ -1,0 +1,156 @@
+//! Meeting detection in the app: when a call app starts using the microphone,
+//! ask whether to record; when it stops, offer to stop (and stop on its own
+//! after a while, so a recording never runs on after the call). Never starts
+//! recording without the user saying yes.
+//!
+//! Detection itself is the `meeting-detect` crate (approach from Lark, MIT).
+
+use meeting_detect::{MeetingEvent, Watcher, WatcherConfig};
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Manager};
+
+use super::MeetingManager;
+
+/// Keeps the watcher alive and remembers which meeting detection started.
+#[derive(Default)]
+pub struct DetectState {
+    watcher: Mutex<Option<Watcher>>,
+    /// (app id, meeting id) of a recording started from a detection prompt.
+    started: Mutex<Option<(String, String)>>,
+}
+
+/// Starts or stops the watcher to match the setting. Safe to call repeatedly.
+pub fn sync_with_settings(app: &AppHandle) {
+    let enabled = crate::settings::get_settings(app)
+        .meetings
+        .detection_enabled;
+    let state = app.state::<Arc<DetectState>>();
+    let mut watcher = state.watcher.lock().unwrap_or_else(|e| e.into_inner());
+    match (enabled, watcher.is_some()) {
+        (true, false) => {
+            let handle = app.clone();
+            match Watcher::spawn(WatcherConfig::default(), std::process::id(), move |event| {
+                on_event(&handle, event)
+            }) {
+                Ok(w) => *watcher = Some(w),
+                Err(e) => log::warn!("Meeting detection could not start: {e}"),
+            }
+        }
+        (false, true) => {
+            if let Some(w) = watcher.take() {
+                w.stop();
+            }
+        }
+        _ => {}
+    }
+}
+
+fn on_event(app: &AppHandle, event: MeetingEvent) {
+    match event {
+        MeetingEvent::Started { app: meeting } => {
+            if app.state::<Arc<MeetingManager>>().is_recording() {
+                return;
+            }
+            let handle = app.clone();
+            let (id, name) = (meeting.id.to_string(), meeting.name.to_string());
+            std::thread::spawn(move || {
+                let question = format!("{name}-Meeting erkannt. Aufnehmen?\n\nSag allen Beteiligten, dass du aufnimmst.");
+                if ask(&question, "Aufnehmen", "Nicht jetzt", 45) == Some(true) {
+                    match super::start_meeting(&handle, Some(name)) {
+                        Ok(meeting_id) => {
+                            let state = handle.state::<Arc<DetectState>>();
+                            *state.started.lock().unwrap_or_else(|e| e.into_inner()) =
+                                Some((id, meeting_id));
+                        }
+                        Err(e) => log::warn!("Starting the detected meeting failed: {e}"),
+                    }
+                }
+            });
+        }
+        MeetingEvent::Ended { app: meeting, .. } => {
+            let state = app.state::<Arc<DetectState>>();
+            let ours = state
+                .started
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            let manager = app.state::<Arc<MeetingManager>>();
+            let Some((app_id, meeting_id)) = ours else {
+                return;
+            };
+            if app_id != meeting.id || manager.active_id().as_deref() != Some(meeting_id.as_str()) {
+                return;
+            }
+            let handle = app.clone();
+            let name = meeting.name.to_string();
+            std::thread::spawn(move || {
+                // No answer within 20 s counts as "stop": the call is over.
+                let keep = ask(
+                    &format!("Das {name}-Meeting ist vorbei. Aufnahme beenden?"),
+                    "Beenden",
+                    "Weiter aufnehmen",
+                    20,
+                ) == Some(false);
+                if !keep {
+                    let still_ours = handle.state::<Arc<MeetingManager>>().active_id().as_deref()
+                        == Some(meeting_id.as_str());
+                    if still_ours {
+                        if let Err(e) = super::stop_meeting(&handle) {
+                            log::warn!("Stopping the detected meeting failed: {e}");
+                        }
+                    }
+                }
+                let state = handle.state::<Arc<DetectState>>();
+                *state.started.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            });
+        }
+    }
+}
+
+/// Shows a dialog with two buttons. `Some(true)` for `yes`, `Some(false)` for
+/// `no`, `None` when it timed out or failed.
+fn ask(question: &str, yes: &str, no: &str, timeout_s: u32) -> Option<bool> {
+    let script = format!(
+        "display dialog {} buttons {{{}, {}}} default button {} with title {} giving up after {}",
+        applescript_string(question),
+        applescript_string(no),
+        applescript_string(yes),
+        applescript_string(yes),
+        applescript_string(crate::brand::app_name()),
+        timeout_s
+    );
+    let out = Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    if text.contains("gave up:true") || !out.status.success() {
+        return None;
+    }
+    Some(text.contains(&format!("button returned:{yes}")))
+}
+
+/// A macOS notification banner.
+pub fn notify(title: &str, body: &str) {
+    let script = format!(
+        "display notification {} with title {}",
+        applescript_string(body),
+        applescript_string(title)
+    );
+    let _ = Command::new("osascript").args(["-e", &script]).spawn();
+}
+
+fn applescript_string(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::applescript_string;
+
+    #[test]
+    fn quotes_are_escaped() {
+        assert_eq!(applescript_string(r#"a "b" \c"#), r#""a \"b\" \\c""#);
+    }
+}

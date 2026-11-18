@@ -40,7 +40,7 @@ mod job;
 mod live;
 pub mod policy;
 
-pub use job::ChunkControl;
+pub use job::{ChunkControl, Polisher};
 
 const STREAM_PERF_LOG_INTERVAL: Duration = Duration::from_secs(5);
 

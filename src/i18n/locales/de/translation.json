@@ -19,7 +19,8 @@
     "postProcessing": "Nachbearbeitung",
     "history": "Verlauf",
     "debug": "Debug",
-    "about": "Info"
+    "about": "Info",
+    "meetings": "Meetings"
   },
   "onboarding": {
     "customModelDescription": "Nicht offiziell unterstützt",
@@ -348,6 +349,10 @@
           "transcribe_with_post_process": {
             "name": "Nachbearbeitungs-Tastenkürzel",
             "description": "Optional: Ein dediziertes Tastenkürzel, das immer die KI-Nachbearbeitung auf deine Transkription anwendet."
+          },
+          "meeting": {
+            "name": "Meeting-Tastenkürzel",
+            "description": "Startet oder beendet die Aufnahme eines Meetings."
           }
         },
         "errors": {
@@ -957,7 +962,11 @@
     "filePostProcessFailedTitle": "Ohne Nachbearbeitung transkribiert",
     "filePostProcessFailed": "Die Nachbearbeitung wurde nicht abgeschlossen, daher wurde das Transkript unverändert gespeichert.",
     "fileTranscriptionFailedTitle": "Dateitranskription fehlgeschlagen",
-    "transcriptionFailedTitle": "Transkription fehlgeschlagen"
+    "transcriptionFailedTitle": "Transkription fehlgeschlagen",
+    "meetingStartFailedTitle": "Meeting-Aufnahme nicht gestartet",
+    "meetingStartFailed": "Handy Meetings braucht Zugriff aufs Mikrofon. Erlaube ihn unter Systemeinstellungen > Datenschutz & Sicherheit.",
+    "meetingStopFailedTitle": "Meeting-Aufnahme nicht gespeichert",
+    "meetingStopFailed": "Die Aufnahme wurde beendet, konnte aber nicht zur Verarbeitung gespeichert werden."
   },
   "notices": {
     "errorOne": "{{n}} Fehler",
@@ -994,5 +1003,148 @@
     "learnMore": "So behebst du das",
     "recorderBlocked": "Tastenkürzel können gerade nicht aufgezeichnet werden — macOS Secure Input blockiert Tastenereignisse. Behebe zuerst die Secure-Input-Warnung.",
     "dismiss": "Ausblenden"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "description": "Nimm ein Meeting auf und erhalte eine Notiz mit Sprechern, Zusammenfassung und Aufgaben in deinem Notizordner. Sag allen, dass du aufnimmst.",
+    "start": "Aufnahme starten",
+    "stop": "Aufnahme beenden",
+    "recording": "Aufnahme läuft",
+    "listTitle": "Letzte Meetings",
+    "empty": "Noch keine Meetings.",
+    "untitled": "Meeting ohne Titel",
+    "openNote": "Notiz öffnen",
+    "reprocess": "Neu verarbeiten",
+    "delete": "Meeting und Audio löschen",
+    "stage": {
+      "waiting": "Wartet auf Verarbeitung…",
+      "diarizing": "Sprecher werden erkannt…",
+      "transcribing": "Wird transkribiert…",
+      "summarizing": "Zusammenfassung wird geschrieben…",
+      "writing": "Notiz wird gespeichert…",
+      "correcting": "Transkript wird korrigiert…"
+    },
+    "back": "Meetings",
+    "setupHint": "Das Sprachmodell für Zusammenfassungen ist noch nicht bereit. Einrichten unter Modelle → Sprachmodell.",
+    "settings": {
+      "title": "Meeting-Einstellungen",
+      "notesTitle": "Notizen",
+      "notesDir": "Notizordner",
+      "notesDirDescription": "Wo Meeting-Notizen als Markdown gespeichert werden, z. B. ein Ordner in deinem Obsidian-Vault.",
+      "choose": "Wählen…",
+      "userName": "Dein Name",
+      "userNameDescription": "Die Hauptstimme am Mikrofon bekommt diesen Namen.",
+      "dictionary": "Wörterbuch",
+      "dictionaryDescription": "Namen und Wörter, die im Transkript richtig geschrieben sein sollen, durch Kommas getrennt: Kunden, Kollegen, Produkte.",
+      "detection": "Meetings erkennen",
+      "detectionDescription": "Bietet eine Aufnahme an, wenn Zoom, Teams, Meet oder eine andere Call-App das Mikrofon nutzt. Nimmt nie von selbst auf.",
+      "keepAudio": "Aufnahmen behalten",
+      "keepAudioDescription": "Das Audio bleibt, damit ein Meeting neu verarbeitet werden kann.",
+      "keepAudioNone": "Löschen, sobald die Notiz steht",
+      "keepAudioDays": "{{count}} Tage",
+      "aiTitle": "Zusammenfassung",
+      "aiDescription": "Ein Sprachmodell korrigiert falsch verstandene Wörterbuch-Wörter und schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
+      "model": "Sprachmodell",
+      "modelDescription": "Auswahl unter Modelle → Sprachmodell.",
+      "change": "Ändern"
+    },
+    "lm": {
+      "tabSpeech": "Sprache",
+      "tabLanguage": "Sprachmodell",
+      "intro": "Korrigiert falsch verstandene Wörterbuch-Wörter in Meeting-Transkripten und schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
+      "onThisMac": "Auf diesem Computer",
+      "cloud": "In der Cloud · braucht einen API-Schlüssel",
+      "other": "Sonstiges",
+      "recommended": "Empfohlen",
+      "qwen": "Privat und kostenlos. Läuft mit Ollama auf diesem Mac, etwa eine Minute pro Meeting.",
+      "sonnet": "Schnell und genau. Schickt das Transkript an Anthropic.",
+      "opus": "Am genauesten. Schickt das Transkript an Anthropic.",
+      "gpt": "Schickt das Transkript an OpenAI.",
+      "openrouter": "Ein Schlüssel für viele Anbieter. Schickt das Transkript an OpenRouter.",
+      "custom": "In der Konfigurationsdatei gesetzt",
+      "off": "Keine Zusammenfassung",
+      "offLine": "Nur Transkript: keine Korrektur, keine Zusammenfassung.",
+      "apiKeyPlaceholder": "{{provider}}-API-Schlüssel",
+      "readyLocal": "Bereit. Nichts verlässt diesen Mac.",
+      "readyCloud": "Bereit. Transkripte gehen an {{provider}}.",
+      "noKey": "Füge oben deinen {{provider}}-API-Schlüssel ein. Er bleibt auf diesem Mac.",
+      "noOllama": "Braucht Ollama, eine kostenlose App, die das Modell auf deinem Mac ausführt.",
+      "getOllama": "Ollama holen",
+      "recheck": "Erneut prüfen",
+      "notRunning": "Ollama ist installiert, läuft aber nicht.",
+      "startOllama": "Ollama starten",
+      "modelMissing": "Noch nicht heruntergeladen (7,6 GB).",
+      "download": "Herunterladen",
+      "downloading": "Lädt… {{pct}} %"
+    },
+    "renameSpeaker": "Sprecher umbenennen",
+    "newName": "Name",
+    "rememberVoice": "Stimme merken",
+    "save": "Speichern",
+    "voices": {
+      "title": "Bekannte Stimmen",
+      "description": "Gemerkte Stimmen werden in neuen Meetings automatisch benannt. Benenne in einem Meeting einen Sprecher, um eine hinzuzufügen.",
+      "empty": "Noch keine Stimmen gemerkt.",
+      "forget": "Stimme vergessen"
+    },
+    "online": "Online-Meeting",
+    "singleMic": "Ein Mikrofon",
+    "details": {
+      "summary": "Zusammenfassung",
+      "copyTranscript": "Transkript kopieren",
+      "copied": "Kopiert",
+      "transcript": "Transkript",
+      "noSummary": "Dieses Meeting hat keine Zusammenfassung."
+    }
+  },
+  "verbatim": {
+    "nav": {
+      "home": "Start",
+      "vocabulary": "Wörterbuch",
+      "settings": "Einstellungen",
+      "sound": "Ton"
+    },
+    "keep": {
+      "title": "Aufnahmen behalten",
+      "description": "Ältere Diktate und Meeting-Audios werden gelöscht. Notizen und Transkripte bleiben.",
+      "days3": "3 Tage",
+      "weeks2": "2 Wochen",
+      "months3": "3 Monate",
+      "forever": "Für immer",
+      "latest": "Letzte {{count}} Diktate"
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "appearance": "Darstellung",
+      "shortcuts": "Tastenkürzel",
+      "application": "App",
+      "window": "Aufnahmefenster",
+      "windowDescription": "Was du beim Diktieren siehst.",
+      "windowLive": "Live-Text",
+      "windowMini": "Mini",
+      "windowNone": "Keins",
+      "advanced": "Erweiterte Einstellungen",
+      "advancedDescription": "Selten nötig. Die Standardwerte passen für die meisten.",
+      "textInput": "Texteingabe",
+      "transcription": "Transkription",
+      "basedOn": "basiert auf Handy",
+      "version": "Verbatim {{version}}"
+    },
+    "sound": {
+      "title": "Ton",
+      "effects": "Klänge",
+      "effectsDescription": "Spielt beim Start und Ende eines Diktats.",
+      "off": "Aus",
+      "recording": "Aufnahme"
+    },
+    "vocabulary": {
+      "title": "Wörterbuch",
+      "description": "Namen und Begriffe aus deiner Arbeit: Kunden, Kollegen, Produkte. Falsch verstandene Varianten werden in Meeting-Transkripten korrigiert.",
+      "placeholder": "Wort hinzufügen, mehrere mit Komma trennen",
+      "add": "Wörter hinzufügen",
+      "empty": "Noch keine Wörter. Füge die Namen hinzu, die das Transkript falsch schreibt.",
+      "remove": "{{word}} entfernen",
+      "note": "Gilt für Meetings. Beim Diktieren bleiben deine Wörter wie gesprochen: direktes Ersetzen machte im Test aus „Lied“ „Lead“."
+    }
   }
 }

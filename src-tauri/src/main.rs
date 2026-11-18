@@ -34,7 +34,15 @@ fn main() {
     if handy_app_lib::engine_supervisor::is_worker_invocation() {
         std::process::exit(handy_app_lib::engine_supervisor::run_worker());
     }
+    // Speaker detection worker (meeting processing, on the GPU).
+    if handy_app_lib::meeting::diarize_worker::is_invocation() {
+        std::process::exit(handy_app_lib::meeting::diarize_worker::run());
+    }
 
     let cli_args = CliArgs::parse();
+    if cli_args.print_default_settings {
+        println!("{}", handy_app_lib::default_settings_json());
+        return;
+    }
     handy_app_lib::run(cli_args)
 }

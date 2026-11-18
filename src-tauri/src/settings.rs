@@ -1,4 +1,3 @@
-use crate::utils;
 use log::{debug, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -572,6 +571,91 @@ pub struct AppSettings {
     /// `overlay_position` (position `none` → style `None`).
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
+    /// Meeting notes (this fork): recording, speakers, summary and the notes folder.
+    #[serde(default)]
+    pub meetings: MeetingSettings,
+}
+
+/// Settings for meeting notes. Every field falls back to its default when
+/// missing, so older stores load unchanged.
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[serde(default)]
+pub struct MeetingSettings {
+    /// Folder the Markdown notes are written to. `None`: ~/Documents/Handy Meetings.
+    pub notes_dir: Option<String>,
+    /// How the user is named in transcripts (the main voice on the microphone).
+    pub user_name: String,
+    /// Separate speakers within each track.
+    pub diarization_enabled: bool,
+    /// Fix misheard dictionary words (`glossary`) in the transcript with the
+    /// language model before the summary. Only words that sound like a
+    /// dictionary entry are changed; every change is listed at the end of
+    /// the note. Without dictionary entries nothing is corrected.
+    pub correction_enabled: bool,
+    /// Your dictionary: correctly spelled company names, customers,
+    /// colleagues, products and jargon, e.g. ["Kalasar", "AVDO", "Claude
+    /// Code", "Petard", "Noxi"]. Misheard forms are fixed ("Cloud Code" →
+    /// "Claude Code"), and entries are never changed themselves, so add
+    /// names that must stay as they are. Keep it short: very short or
+    /// everyday-sounding words (e.g. "Lead") match more often. The dictation
+    /// `custom_words` are added automatically.
+    pub glossary: Vec<String>,
+    /// Write a summary, decisions and action items with a language model.
+    pub summary_enabled: bool,
+    /// Which language model corrects and summarises: "local" (the server
+    /// at `llm_base_url`, normally Ollama; nothing leaves the computer),
+    /// or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
+    /// provider gets the transcript; its API key is the one stored for
+    /// that provider under `post_process_api_keys`.
+    pub llm_provider: String,
+    /// Model for the cloud provider. Empty: the provider's default
+    /// (see `meeting::process::default_cloud_model`).
+    pub cloud_model: String,
+    /// Local server: Ollama (`http://localhost:11434`) or any
+    /// OpenAI-compatible server (a URL ending in `/v1`).
+    pub llm_base_url: String,
+    /// Model on the local server.
+    pub llm_model: String,
+    /// Keep the recorded audio for this many days after the note is written.
+    /// 0 deletes it as soon as processing succeeds.
+    pub keep_audio_days: u32,
+    /// Offer to record when a meeting app starts using the microphone.
+    pub detection_enabled: bool,
+}
+
+impl Default for MeetingSettings {
+    fn default() -> Self {
+        Self {
+            notes_dir: None,
+            user_name: "Ich".to_string(),
+            diarization_enabled: true,
+            correction_enabled: true,
+            glossary: Vec::new(),
+            summary_enabled: true,
+            llm_provider: "local".to_string(),
+            cloud_model: String::new(),
+            llm_base_url: "http://localhost:11434".to_string(),
+            llm_model: "qwen3.5:9b".to_string(),
+            keep_audio_days: 0,
+            detection_enabled: true,
+        }
+    }
+}
+
+impl MeetingSettings {
+    /// The notes folder, with the default applied.
+    pub fn notes_dir_path(&self) -> std::path::PathBuf {
+        match self.notes_dir.as_deref().map(str::trim) {
+            Some(dir) if !dir.is_empty() => std::path::PathBuf::from(dir),
+            _ => dirs_home().join("Documents").join("Handy Meetings"),
+        }
+    }
+}
+
+fn dirs_home() -> std::path::PathBuf {
+    std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
 }
 
 fn default_model() -> String {
@@ -721,7 +805,8 @@ fn default_app_language() -> String {
 }
 
 fn default_show_tray_icon() -> bool {
-    true
+    // Verbatim has no menu bar icon: the recording pill shows what's going on.
+    !crate::brand::is_verbatim()
 }
 
 fn default_post_process_provider_id() -> String {
@@ -1007,6 +1092,23 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+    #[cfg(target_os = "macos")]
+    let default_meeting_shortcut = "option+shift+m";
+    #[cfg(not(target_os = "macos"))]
+    let default_meeting_shortcut = "ctrl+shift+m";
+
+    bindings.insert(
+        "meeting".to_string(),
+        ShortcutBinding {
+            id: "meeting".to_string(),
+            name: "Meeting Recording".to_string(),
+            description:
+                "Starts or stops recording a meeting (microphone and system audio as two tracks)."
+                    .to_string(),
+            default_binding: default_meeting_shortcut.to_string(),
+            current_binding: default_meeting_shortcut.to_string(),
+        },
+    );
 
     AppSettings {
         settings_schema_version: default_settings_schema_version(),
@@ -1076,6 +1178,7 @@ pub fn get_default_settings() -> AppSettings {
         language_detection: LanguageDetectionMode::default(),
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
+        meetings: MeetingSettings::default(),
     }
 }
 
@@ -1470,10 +1573,12 @@ fn self_update_possible() -> bool {
 /// can't work against an immutable /nix/store install — or when this build
 /// cannot install its own update (see `linux_self_update_possible`).
 pub fn update_checks_forced_disabled() -> bool {
-    use std::sync::OnceLock;
-    static IS_UPDATER_DISABLED: OnceLock<bool> = OnceLock::new();
-    *IS_UPDATER_DISABLED
-        .get_or_init(|| utils::env_flag_enabled("HANDY_DISABLE_UPDATER") || !self_update_possible())
+    // This fork has no update feed of its own: the configured endpoint points
+    // at upstream Handy, whose update would replace the fork. Keep the
+    // upstream logic referenced so it stays compiled and easy to restore.
+    let _upstream =
+        || crate::utils::env_flag_enabled("HANDY_DISABLE_UPDATER") || !self_update_possible();
+    true
 }
 
 /// Effective updater state: the user's stored preference, overridden to `false`

@@ -15,6 +15,7 @@ import {
 import "./App.css";
 import SecureInputWarning from "./components/SecureInputWarning";
 import Footer from "./components/footer";
+import { IS_VERBATIM } from "./lib/brand";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import ModelMigration from "./components/onboarding/ModelMigration";
 import {
@@ -54,7 +55,11 @@ const renderSettingsContent = (
 ) => {
   if (section === "models") {
     return (
-      <ModelsSettings onChangeLanguages={() => onSectionChange("general")} />
+      <ModelsSettings
+        onChangeLanguages={
+          IS_VERBATIM ? undefined : () => onSectionChange("general")
+        }
+      />
     );
   }
   if (section === "debug") {
@@ -82,9 +87,17 @@ function App() {
   // Set when a returning user's selected model is a retired (ONNX) model that
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
-  const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("general");
+  const [currentSection, setCurrentSection] = useState<SidebarSection>(
+    IS_VERBATIM ? "history" : "general",
+  );
   const showHistory = useCallback(() => setCurrentSection("history"), []);
+  // Other pages can ask for a section (e.g. Meetings → Models).
+  useEffect(() => {
+    const open = (e: Event) =>
+      setCurrentSection((e as CustomEvent<SidebarSection>).detail);
+    window.addEventListener("handy-open-section", open);
+    return () => window.removeEventListener("handy-open-section", open);
+  }, []);
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
@@ -335,7 +348,7 @@ function App() {
             <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
               {/* Models fills the window: its table scrolls, not the page. */}
               <div
-                className={`flex flex-col items-center p-4 gap-4 ${currentSection === "models" ? "h-full" : ""}`}
+                className={`flex flex-col items-center ${IS_VERBATIM ? "px-8 py-6" : "p-4"} gap-4 ${currentSection === "models" ? "h-full" : ""}`}
               >
                 <SecureInputWarning />
                 {renderSettingsContent(
@@ -349,8 +362,8 @@ function App() {
             </div>
           </div>
         </div>
-        {/* Fixed footer at bottom */}
-        <Footer onShowHistory={showHistory} />
+        {/* Fixed footer at bottom (Verbatim: none, like Superwhisper) */}
+        {!IS_VERBATIM && <Footer onShowHistory={showHistory} />}
         <FileDropOverlay onDropped={showHistory} />
       </div>
     );

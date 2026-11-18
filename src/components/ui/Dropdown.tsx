@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IS_VERBATIM } from "@/lib/brand";
 
 export interface DropdownOption {
   value: string;
@@ -90,7 +91,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       <button
         type="button"
         ref={triggerRef}
-        className={`px-2 py-[5px] text-sm font-semibold bg-wash border border-line-strong rounded-md min-w-[200px] w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-all duration-150 ${
+        className={`${IS_VERBATIM ? "px-2.5 py-[5px] text-[13px] font-medium bg-wash border border-line rounded-lg min-w-[160px]" : "px-2 py-[5px] text-sm font-semibold bg-wash border border-line-strong rounded-md min-w-[200px]"} w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-all duration-150 ${
           disabled
             ? "opacity-50 cursor-not-allowed"
             : `${hover} cursor-pointer ${tone === "neutral" ? "hover:border-ink-3" : "hover:border-logo-primary"}`

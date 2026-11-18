@@ -1,0 +1,59 @@
+{
+  "scenario": "phone_speaker",
+  "duration_s": 38.583,
+  "speakers": [
+    "A",
+    "B"
+  ],
+  "turns": [
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Hallo zusammen, danke dass ihr Zeit habt. Wir wollen heute den Launch der neuen Kampagne besprechen.",
+      "start_s": 0.5,
+      "end_s": 6.643
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "de",
+      "text": "Gerne. Ich habe die Zahlen von letzter Woche mitgebracht. Die Klickrate lag bei zwei Komma drei Prozent.",
+      "start_s": 7.343,
+      "end_s": 14.925
+    },
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Das ist besser als erwartet. Was ist mit den Kosten pro Lead?",
+      "start_s": 15.625,
+      "end_s": 19.545
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "de",
+      "text": "Die liegen bei achtzehn Euro, also etwas über unserem Ziel von fünfzehn Euro.",
+      "start_s": 20.245,
+      "end_s": 25.682
+    },
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Okay, dann schlage ich vor, dass wir das Budget für die schwachen Anzeigen kürzen.",
+      "start_s": 26.382,
+      "end_s": 31.117
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "de",
+      "text": "Einverstanden. Ich kümmere mich bis Freitag darum und schicke dir dann eine Übersicht.",
+      "start_s": 31.817,
+      "end_s": 37.383
+    }
+  ],
+  "note": "speaker B is on a phone speaker next to the laptop"
+}

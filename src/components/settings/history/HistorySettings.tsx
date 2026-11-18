@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { IS_VERBATIM } from "@/lib/brand";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
@@ -351,9 +352,15 @@ export const HistorySettings: React.FC = () => {
       <div className="space-y-2">
         <div className="px-4 flex items-center justify-between">
           <div>
-            <h2 className="text-xs font-medium text-ink-3 uppercase tracking-wide">
-              {t("settings.history.title")}
-            </h2>
+            {IS_VERBATIM ? (
+              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
+                {t("verbatim.nav.home")}
+              </h1>
+            ) : (
+              <h2 className="text-xs font-medium text-ink-3 uppercase tracking-wide">
+                {t("settings.history.title")}
+              </h2>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <HeaderButton

@@ -1,0 +1,58 @@
+{
+  "scenario": "de_en_mixed",
+  "duration_s": 33.282,
+  "speakers": [
+    "A",
+    "B"
+  ],
+  "turns": [
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Hi Daniel, schön dass du dabei bist. Können wir kurz über das Onboarding sprechen?",
+      "start_s": 0.5,
+      "end_s": 5.784
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "en",
+      "text": "Sure, happy to. We finished the new onboarding flow last week and the first results look promising.",
+      "start_s": 6.484,
+      "end_s": 12.499
+    },
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Super. Wie viele Kunden haben den Flow schon komplett durchlaufen?",
+      "start_s": 13.199,
+      "end_s": 17.159
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "en",
+      "text": "About forty customers so far. Most of them completed it in under ten minutes.",
+      "start_s": 17.859,
+      "end_s": 22.576
+    },
+    {
+      "track": "mic",
+      "speaker": "A",
+      "lang": "de",
+      "text": "Sehr gut. Dann lass uns nächste Woche ein Review mit dem Sales Team machen.",
+      "start_s": 23.276,
+      "end_s": 27.666
+    },
+    {
+      "track": "mic",
+      "speaker": "B",
+      "lang": "en",
+      "text": "Sounds good. I will send out an invite for Tuesday afternoon.",
+      "start_s": 28.366,
+      "end_s": 32.082
+    }
+  ]
+}

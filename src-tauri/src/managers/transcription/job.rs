@@ -136,3 +136,70 @@ impl TranscriptionManager {
         }))
     }
 }
+
+/// Turns a text built from a word-timed run's words into what a chunked
+/// transcription would have output (custom words, filler words, script).
+pub struct Polisher {
+    settings: crate::settings::AppSettings,
+    custom_words_prompted: bool,
+    output_language: crate::audio_toolkit::text::OutputLanguageEvidence,
+    languages: Vec<String>,
+}
+
+impl Polisher {
+    pub fn apply(&self, text: String) -> String {
+        post_process_transcription_text(
+            text,
+            &self.settings,
+            self.custom_words_prompted,
+            &self.output_language,
+            &self.languages,
+        )
+    }
+}
+
+impl TranscriptionManager {
+    /// One run over `audio` (meant for up to ~30 s) with word times, for the
+    /// meeting pipeline. Waits for dictation like [`Self::transcribe_in_chunks`]
+    /// and retries a run a dictation cancelled. `None` if `control` stopped it.
+    pub fn transcribe_words(
+        &self,
+        audio: Vec<f32>,
+        control: &dyn ChunkControl,
+    ) -> Result<Option<(Transcript, Polisher)>> {
+        self.touch_activity();
+        self.initiate_model_load(false);
+        let BatchContext {
+            settings,
+            active_model,
+            setup,
+            ..
+        } = self.batch_context(&audio)?;
+        let run_options = transcribe_cpp::RunOptions {
+            timestamps: transcribe_cpp::TimestampKind::Word,
+            ..setup.run_options.clone()
+        };
+        let mut attempts = 0;
+        let transcript = loop {
+            if !control.proceed() {
+                return Ok(None);
+            }
+            attempts += 1;
+            let mark = self.engine.cancel_mark();
+            match self.run_batch(mark, audio.clone(), &run_options, &active_model) {
+                Ok(t) => break t,
+                Err(EngineError::Cancelled) if attempts < MAX_CHUNK_ATTEMPTS => {
+                    warn!("A meeting window was cancelled; trying it again");
+                }
+                Err(e) => return Err(engine_error(e)),
+            }
+        };
+        let polisher = Polisher {
+            output_language: setup.output_language(&settings, transcript.language.clone()),
+            custom_words_prompted: setup.custom_words_prompted(),
+            languages: setup.languages.clone(),
+            settings,
+        };
+        Ok(Some((transcript, polisher)))
+    }
+}

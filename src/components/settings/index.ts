@@ -3,9 +3,13 @@ export { GeneralSettings } from "./general/GeneralSettings";
 export { AdvancedSettings } from "./advanced/AdvancedSettings";
 export { DebugSettings } from "./debug/DebugSettings";
 export { HistorySettings } from "./history/HistorySettings";
+export { MeetingsSettings } from "./meetings/MeetingsSettings";
 export { AboutSettings } from "./about/AboutSettings";
 export { PostProcessingSettings } from "./post-processing/PostProcessingSettings";
 export { ModelsSettings } from "./models/ModelsSettings";
+export { VerbatimSettingsPage } from "./verbatim/SettingsPage";
+export { VerbatimSoundPage } from "./verbatim/SoundPage";
+export { VerbatimVocabularyPage } from "./verbatim/VocabularyPage";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

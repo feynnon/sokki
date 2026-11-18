@@ -45,3 +45,7 @@ result
 
 # Python bytecode (scripts/)
 __pycache__/
+
+# Meeting test fixtures (regenerate with testdata/generate.py)
+testdata/audio/
+testdata/real/

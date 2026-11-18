@@ -214,6 +214,10 @@ fn windows_taskbar_theme() -> Option<AppTheme> {
 /// macOS Secure Input). Busy states keep their normal icons. The menu line says
 /// what's wrong, so the badge doesn't vary by level.
 pub fn get_icon_path(theme: AppTheme, state: TrayIconState, badge: bool) -> &'static str {
+    crate::brand::tray_icon(default_icon_path(theme, state, badge))
+}
+
+fn default_icon_path(theme: AppTheme, state: TrayIconState, badge: bool) -> &'static str {
     if badge && state == TrayIconState::Idle {
         return match theme {
             AppTheme::Dark => "resources/tray_idle_warning.png",
@@ -254,6 +258,11 @@ pub fn dictation_in_progress(app: &AppHandle) -> bool {
 /// preserved.
 pub fn refresh_tray_icon(app: &AppHandle) {
     sync_tray(app);
+}
+
+/// Re-syncs the tray menu after a meeting started, stopped or finished.
+pub fn refresh_meeting_state(app: &AppHandle) {
+    update_tray_menu(app);
 }
 
 /// Re-syncs the tray after something the menu depends on changed (model
@@ -616,9 +625,17 @@ pub fn tray_tooltip() -> String {
 
 fn version_label() -> String {
     if cfg!(debug_assertions) {
-        format!("Handy v{} (Dev)", env!("CARGO_PKG_VERSION"))
+        format!(
+            "{} v{} (Dev)",
+            crate::brand::app_name(),
+            env!("CARGO_PKG_VERSION")
+        )
     } else {
-        format!("Handy v{}", env!("CARGO_PKG_VERSION"))
+        format!(
+            "{} v{}",
+            crate::brand::app_name(),
+            env!("CARGO_PKG_VERSION")
+        )
     }
 }
 
@@ -766,6 +783,21 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
     // enabled flag.
     if settings::update_checks_forced_disabled() {
         menu.remove(&check_updates_i)?;
+    }
+
+    // Meeting recording (this fork): just above "copy last transcript".
+    #[cfg(target_os = "macos")]
+    {
+        let recording = app
+            .try_state::<std::sync::Arc<crate::meeting::MeetingManager>>()
+            .is_some_and(|m| m.is_recording());
+        let label = if recording {
+            "Meeting-Aufnahme beenden"
+        } else {
+            "Meeting aufnehmen"
+        };
+        let meeting_i = MenuItem::with_id(app, "meeting_toggle", label, true, None::<&str>)?;
+        menu.insert(&meeting_i, 2)?;
     }
 
     // Both layouts start with [version, separator, ...]; slot the warnings in
@@ -974,6 +1006,8 @@ mod tests {
             source_name: None,
             language: None,
             language_source: None,
+            meeting_id: None,
+            meeting_track: None,
         }
     }
 

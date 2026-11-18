@@ -1,5 +1,6 @@
 import React from "react";
 import { InfoTooltip } from "./InfoTooltip";
+import { IS_VERBATIM } from "@/lib/brand";
 
 interface SettingContainerProps {
   title: string;
@@ -25,6 +26,43 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   tooltipPosition = "top",
   grow = false,
 }) => {
+  if (IS_VERBATIM) {
+    // Title with its explanation underneath; the control on the right.
+    const label = (
+      <div className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>
+        <h3 className="text-[14px] font-medium leading-5">{title}</h3>
+        {description && (
+          <p className="text-[12.5px] leading-[18px] text-ink-3 mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+    );
+    if (layout === "stacked") {
+      return (
+        <div className={grouped ? "px-4 py-3" : "px-4 py-3 vb-card"}>
+          <div className="mb-2">{label}</div>
+          <div className="w-full">{children}</div>
+        </div>
+      );
+    }
+    return (
+      <div
+        className={`flex items-center justify-between gap-6 min-h-[56px] px-4 py-2.5 ${grouped ? "" : "vb-card"}`}
+      >
+        <div className="min-w-0 flex-1">{label}</div>
+        <div
+          className={
+            grow
+              ? "relative flex min-w-0 flex-1 justify-end"
+              : "relative shrink-0"
+          }
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
   const info = (
     <InfoTooltip
       text={description}

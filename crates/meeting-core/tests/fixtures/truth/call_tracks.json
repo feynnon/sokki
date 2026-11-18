@@ -1,0 +1,60 @@
+{
+  "scenario": "call_tracks",
+  "duration_s": 28.569,
+  "speakers": [
+    "Me",
+    "R1",
+    "R2"
+  ],
+  "turns": [
+    {
+      "track": "mic",
+      "speaker": "Me",
+      "lang": "de",
+      "text": "Guten Morgen, könnt ihr mich gut hören?",
+      "start_s": 0.5,
+      "end_s": 2.857
+    },
+    {
+      "track": "system",
+      "speaker": "R1",
+      "lang": "de",
+      "text": "Ja, wir hören dich gut. Lass uns direkt mit dem Status Update starten.",
+      "start_s": 3.557,
+      "end_s": 8.964
+    },
+    {
+      "track": "system",
+      "speaker": "R2",
+      "lang": "de",
+      "text": "Von meiner Seite gibt es gute Nachrichten. Das Release ist gestern live gegangen.",
+      "start_s": 9.664,
+      "end_s": 15.326
+    },
+    {
+      "track": "mic",
+      "speaker": "Me",
+      "lang": "de",
+      "text": "Sehr schön. Gab es Probleme beim Deployment?",
+      "start_s": 16.026,
+      "end_s": 18.919
+    },
+    {
+      "track": "system",
+      "speaker": "R1",
+      "lang": "de",
+      "text": "Nur kleinere Dinge, die haben wir aber schon behoben.",
+      "start_s": 19.619,
+      "end_s": 22.993
+    },
+    {
+      "track": "mic",
+      "speaker": "Me",
+      "lang": "de",
+      "text": "Perfekt. Dann machen wir nächste Woche mit dem Monitoring weiter.",
+      "start_s": 23.693,
+      "end_s": 27.369
+    }
+  ],
+  "note": "mic contains an echo of the system track (laptop speakers)"
+}

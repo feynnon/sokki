@@ -13,6 +13,13 @@ import RetiredModelsNotice from "./RetiredModelsNotice";
 import { ModelRow } from "./ModelRow";
 import { Legend } from "./Legend";
 import { useModelEntries } from "./modelEntries";
+import { LanguageModels } from "./LanguageModels";
+import { useModelsTab } from "@/stores/modelsTabStore";
+import { IS_VERBATIM } from "@/lib/brand";
+import { useSettings } from "@/hooks/useSettings";
+import { isChinese } from "@/lib/utils/languageSuggestions";
+import { PreferredLanguages } from "../PreferredLanguages";
+import { ChineseScriptSetting } from "../ChineseScript";
 
 /** Past this many models on disk, the rest fold under "Show N more". */
 const YOURS_LIMIT = 5;
@@ -53,6 +60,10 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
   const { facts, lists } = useModelEntries();
   const { filters, setFilters, searching, matches } = useModelFilters();
   const [more, setMore] = useState(false);
+  const tab = useModelsTab((s) => s.tab);
+  const setTab = useModelsTab((s) => s.setTab);
+  const { getSetting } = useSettings();
+  const speaksChinese = (getSetting("spoken_languages") ?? []).some(isChinese);
 
   if (loading) {
     return (
@@ -140,8 +151,37 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
       {/* The title, and across from it where to change the languages the
           grades are for. */}
       <div className="mb-[16px] flex flex-none items-center justify-between gap-[12px] px-[12px]">
-        <h1 className="text-xl font-semibold">{t("settings.models.title")}</h1>
-        {onChangeLanguages && (
+        <div className="flex items-center gap-[16px]">
+          <h1 className="text-xl font-semibold">
+            {t("settings.models.title")}
+          </h1>
+          <div
+            role="tablist"
+            className="flex rounded-[9px] bg-wash p-[2px] text-small font-medium"
+          >
+            {(["speech", "language"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={tab === k}
+                onClick={() => setTab(k)}
+                className={`h-[26px] cursor-pointer rounded-[7px] px-[10px] focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${
+                  tab === k
+                    ? "bg-background text-text shadow-sm"
+                    : "text-ink-2 hover:text-text"
+                }`}
+              >
+                {t(
+                  k === "speech"
+                    ? "meetings.lm.tabSpeech"
+                    : "meetings.lm.tabLanguage",
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+        {tab === "speech" && onChangeLanguages && (
           <button
             type="button"
             onClick={onChangeLanguages}
@@ -151,31 +191,45 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
           </button>
         )}
       </div>
-      <div className="mx-[12px] mb-[16px] flex-none empty:hidden">
-        <RetiredModelsNotice />
-      </div>
-      <ModelTable
-        grading={facts}
-        filters={filters}
-        setFilters={setFilters}
-        // "Yours" always shows at rest; a search hides empty sections.
-        sections={sections.filter(
-          (s) => s.rows.length || (s.key === "yours" && !searching),
-        )}
-        renderRow={(e) => <ModelRow key={e.id} entry={e} />}
-        actionsHead={<Legend tier={facts.tier} />}
-        footer={
-          !searching &&
-          lists.untested.length > 0 && (
-            <Note>
-              {t("settings.models.untestedHidden", {
-                count: lists.untested.length,
-              })}
-            </Note>
-          )
-        }
-        thinEdge
-      />
+      {tab === "language" ? (
+        <LanguageModels />
+      ) : (
+        <>
+          {IS_VERBATIM && (
+            <div className="mx-[12px] mb-[16px] flex-none vb-card divide-y divide-line">
+              <PreferredLanguages descriptionMode="inline" grouped />
+              {speaksChinese && (
+                <ChineseScriptSetting descriptionMode="inline" grouped />
+              )}
+            </div>
+          )}
+          <div className="mx-[12px] mb-[16px] flex-none empty:hidden">
+            <RetiredModelsNotice />
+          </div>
+          <ModelTable
+            grading={facts}
+            filters={filters}
+            setFilters={setFilters}
+            // "Yours" always shows at rest; a search hides empty sections.
+            sections={sections.filter(
+              (s) => s.rows.length || (s.key === "yours" && !searching),
+            )}
+            renderRow={(e) => <ModelRow key={e.id} entry={e} />}
+            actionsHead={<Legend tier={facts.tier} />}
+            footer={
+              !searching &&
+              lists.untested.length > 0 && (
+                <Note>
+                  {t("settings.models.untestedHidden", {
+                    count: lists.untested.length,
+                  })}
+                </Note>
+              )
+            }
+            thinEdge
+          />
+        </>
+      )}
     </div>
   );
 };

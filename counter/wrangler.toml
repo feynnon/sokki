@@ -7,3 +7,21 @@ binding = "DB"
 database_name = "verbatim-counter"
 # From `wrangler d1 create verbatim-counter` (forks: create your own and replace it).
 database_id = "3773fb37-4532-4cca-a953-e27c7bd70570"
+
+# Donated audio ("Support Sokki & Open Source"): FLAC files under
+# <install id>/<clip>.flac. Workers KV: free up to 1 GB and 1,000 writes a
+# day, errors (never a bill) beyond. From `wrangler kv namespace create sokki-donations`.
+[[kv_namespaces]]
+binding = "AUDIO"
+id = "0bc2f193b454456086d86025fc6db9d4"
+
+# Writes per IP address and minute (Cloudflare's rate limiting, in memory).
+[[ratelimits]]
+name = "WRITE_LIMIT"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "DONATE_LIMIT"
+namespace_id = "1002"
+simple = { limit = 120, period = 60 }

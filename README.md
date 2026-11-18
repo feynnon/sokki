@@ -104,7 +104,7 @@ Sokki keeps **your own voice** with its transcript on your Mac until you delete 
 On first start Sokki offers two things, both off until you tick them, and both can be switched off any time:
 
 - **Help improve Sokki.** Once a day, under a random ID, Sokki sends how it is used (dictations, meeting minutes, models), problems it ran into, how much data you have per language, and your Mac's model and macOS version. Never other people's voices or words, voice prints, your name or your Mac's name.
-- **Support Sokki & Open Source.** Your anonymised data may be used freely: to improve Sokki, for open-source speech models, and shared or sold. You aren't asked again and get no share.
+- **Support Sokki & Open Source.** Sokki uploads your own recordings with their transcripts, so they can be used freely: to improve Sokki, for open-source speech models, and shared or sold. You aren't asked again and get no share. Recordings whose text has a name, a number or contact details stay on your Mac; the page shows how many.
 
 If someone wants to buy data like yours (say, German conversations), Sokki tells you with a notification, but only if enough of your data fits. It finds that out on your Mac: it downloads the message and compares it with what you have, and nothing is sent unless you answer "I'm interested". Before anything would be sold, you'd see what and for how much, and decide then. There's no buyer yet.
 

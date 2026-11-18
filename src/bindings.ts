@@ -1696,7 +1696,16 @@ shared: boolean; clips: number; total_seconds: number; seconds_by_language: Part
 /**
  * The latest buyer message that matched (not for supporters).
  */
-buyer: BuyerRequest | null }
+buyer: BuyerRequest | null; 
+/**
+ * "Support": recordings uploaded so far, and their length.
+ */
+donated_clips: number; donated_seconds: number; 
+/**
+ * "Support": recordings kept on this Mac because their text has a name,
+ * a number or contact details.
+ */
+withheld_clips: number }
 /**
  * Someone wants data in a language; this Mac has `hours` of it.
  */

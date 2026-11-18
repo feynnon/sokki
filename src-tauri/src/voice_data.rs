@@ -63,6 +63,12 @@ struct Config {
     /// The counter holds something under `install_id`.
     #[serde(default)]
     shared: bool,
+    /// Proof of work for `pow_id` (see [`proof_of_work`]); the counter only
+    /// takes ids that carry one.
+    #[serde(default)]
+    pow: String,
+    #[serde(default)]
+    pow_id: String,
     /// Unix seconds of the last count that reached the counter.
     #[serde(default)]
     last_report: i64,
@@ -139,6 +145,12 @@ pub struct VoiceDataStats {
     pub folder: String,
     /// The latest buyer message that matched (not for supporters).
     pub buyer: Option<BuyerRequest>,
+    /// "Support": recordings uploaded so far, and their length.
+    pub donated_clips: u32,
+    pub donated_seconds: f64,
+    /// "Support": recordings kept on this Mac because their text has a name,
+    /// a number or contact details.
+    pub withheld_clips: u32,
 }
 
 /// The total over all counted installs, from the counter service.
@@ -384,6 +396,17 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
             s.bytes += m.len();
         }
     }
+    let donated = read_donated(dir);
+    for c in &clips {
+        match donated.get(&c.file).map(String::as_str) {
+            Some("sent") => {
+                s.donated_clips += 1;
+                s.donated_seconds += c.seconds;
+            }
+            Some(_) => s.withheld_clips += 1,
+            None => {}
+        }
+    }
     s
 }
 
@@ -411,8 +434,12 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
-fn post(path: &str, body: serde_json::Value) -> Result<()> {
+/// Sends `body` to the counter, with the proof of work for its `id`.
+fn post(dir: &Path, path: &str, mut body: serde_json::Value) -> Result<()> {
     let url = counter_url().context("no counter service in this build")?;
+    if let Some(id) = body.get("id").and_then(|v| v.as_str()).map(str::to_owned) {
+        body["pow"] = serde_json::Value::String(pow_for(dir, &id));
+    }
     agent()
         .post(&format!("{}/{path}", url.trim_end_matches('/')))
         .send_json(body)
@@ -447,6 +474,7 @@ fn sync_in_background(app: AppHandle, force: bool) {
         if counted && (force || now - config.last_report >= REPORT_EVERY_S) {
             let s = stats_in(&d);
             match post(
+                &d,
                 "report",
                 serde_json::json!({
                     "id": config.install_id,
@@ -462,20 +490,23 @@ fn sync_in_background(app: AppHandle, force: bool) {
                 Err(e) => log::warn!("Your data: counter not reached: {e:#}"),
             }
         } else if !counted && config.last_report != 0 {
-            match post("leave", serde_json::json!({ "id": config.install_id })) {
+            match post(&d, "leave", serde_json::json!({ "id": config.install_id })) {
                 Ok(()) => update_config(&d, |c| c.last_report = 0),
                 Err(e) => log::warn!("Your data: counter not reached: {e:#}"),
             }
         }
         if config.improve && now - config.last_usage >= USAGE_EVERY_S {
             let body = usage_report(&app, &d, &config);
-            match post("usage", body) {
+            match post(&d, "usage", body) {
                 Ok(()) => update_config(&d, |c| {
                     c.last_usage = now;
                     c.shared = true;
                 }),
                 Err(e) => log::warn!("Your data: daily report not sent: {e:#}"),
             }
+        }
+        if config.support {
+            donate_pending(&app, &d);
         }
     });
 }
@@ -486,7 +517,7 @@ pub fn forget(app: &AppHandle) -> Result<()> {
     let d = dir(app)?;
     let config = read_config(&d);
     if !config.install_id.is_empty() {
-        post("forget", serde_json::json!({ "id": config.install_id }))?;
+        post(&d, "forget", serde_json::json!({ "id": config.install_id }))?;
     }
     update_config(&d, |c| {
         c.install_id = new_install_id();
@@ -494,6 +525,9 @@ pub fn forget(app: &AppHandle) -> Result<()> {
         c.last_report = 0;
         c.last_usage = 0;
     });
+    // The counter deleted the uploads too; a supporter's new id sends them
+    // again.
+    let _ = std::fs::remove_file(d.join(DONATED));
     // With a choice still on, the new id starts reporting again.
     sync_in_background(app.clone(), true);
     Ok(())
@@ -512,6 +546,7 @@ pub fn answer_buyer(app: &AppHandle, answer: &str) -> Result<()> {
             config.install_id.clone()
         };
         post(
+            &d,
             "interest",
             serde_json::json!({
                 "id": id,
@@ -531,6 +566,616 @@ pub fn answer_buyer(app: &AppHandle, answer: &str) -> Result<()> {
         }
     });
     Ok(())
+}
+
+// ----- Proof of work -----
+
+/// Leading zero bits the counter asks for; about a second of work, once per
+/// install id. The counter (`counter/src/index.js`, `POW_BITS`) must agree.
+const POW_BITS: u32 = 24;
+
+fn leading_zero_bits(hash: &[u8]) -> u32 {
+    let mut bits = 0;
+    for b in hash {
+        if *b == 0 {
+            bits += 8;
+        } else {
+            return bits + b.leading_zeros();
+        }
+    }
+    bits
+}
+
+/// The first nonce (hex) for which sha256("sokki:<id>:<nonce>") starts with
+/// `bits` zero bits.
+fn proof_of_work(id: &str, bits: u32) -> String {
+    use sha2::{Digest, Sha256};
+    let mut nonce: u64 = 0;
+    loop {
+        let text = format!("sokki:{id}:{nonce:x}");
+        if leading_zero_bits(&Sha256::digest(text.as_bytes())) >= bits {
+            return format!("{nonce:x}");
+        }
+        nonce += 1;
+    }
+}
+
+/// The proof of work for `id`, worked out once and kept in the config.
+fn pow_for(dir: &Path, id: &str) -> String {
+    let c = read_config(dir);
+    if c.pow_id == id && !c.pow.is_empty() {
+        return c.pow;
+    }
+    let started = std::time::Instant::now();
+    let pow = proof_of_work(id, POW_BITS);
+    log::info!(
+        "Your data: proof of work for a new id took {:.1} s",
+        started.elapsed().as_secs_f64()
+    );
+    update_config(dir, |c| {
+        c.pow = pow.clone();
+        c.pow_id = id.to_string();
+    });
+    pow
+}
+
+// ----- "Support Sokki & Open Source": uploading the user's own recordings -----
+
+/// Which recordings were uploaded ("sent") or kept back ("kept:<reason>").
+const DONATED: &str = "donated.jsonl";
+
+/// One upload at a time.
+static DONATING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Common first names (German and English), lower case. A recording whose
+/// text holds one stays on the Mac. Together with the speaker names Sokki
+/// knows, so it errs on the side of keeping too much back.
+const FIRST_NAMES: &[&str] = &[
+    "aaron",
+    "adam",
+    "adrian",
+    "alex",
+    "alexander",
+    "alexandra",
+    "ali",
+    "alice",
+    "alina",
+    "amelie",
+    "amy",
+    "andi",
+    "andre",
+    "andrea",
+    "andreas",
+    "andrew",
+    "angela",
+    "angelika",
+    "anja",
+    "anke",
+    "ann",
+    "anna",
+    "anne",
+    "annika",
+    "anton",
+    "antonia",
+    "ben",
+    "benedikt",
+    "benjamin",
+    "bernd",
+    "bettina",
+    "birgit",
+    "bob",
+    "brian",
+    "carina",
+    "carl",
+    "carla",
+    "carolin",
+    "caroline",
+    "charlie",
+    "charlotte",
+    "chris",
+    "christian",
+    "christina",
+    "christine",
+    "christoph",
+    "claudia",
+    "clara",
+    "daniel",
+    "daniela",
+    "david",
+    "dennis",
+    "diana",
+    "dieter",
+    "dirk",
+    "dominik",
+    "doris",
+    "elena",
+    "elias",
+    "elisabeth",
+    "ella",
+    "emil",
+    "emily",
+    "emma",
+    "eric",
+    "erik",
+    "eva",
+    "fabian",
+    "felix",
+    "finn",
+    "florian",
+    "frank",
+    "franziska",
+    "frederik",
+    "friedrich",
+    "gabi",
+    "gabriele",
+    "georg",
+    "george",
+    "gerhard",
+    "hannah",
+    "hannes",
+    "hans",
+    "harald",
+    "harry",
+    "heike",
+    "heinz",
+    "helen",
+    "helena",
+    "helga",
+    "helmut",
+    "henrik",
+    "henry",
+    "ingrid",
+    "isabel",
+    "jack",
+    "jacob",
+    "jakob",
+    "james",
+    "jan",
+    "jana",
+    "jane",
+    "janina",
+    "jannik",
+    "jasmin",
+    "jason",
+    "jennifer",
+    "jens",
+    "jessica",
+    "jochen",
+    "johann",
+    "johanna",
+    "johannes",
+    "john",
+    "jonas",
+    "jonathan",
+    "jordan",
+    "josef",
+    "joseph",
+    "josh",
+    "julia",
+    "julian",
+    "juliane",
+    "justin",
+    "jürgen",
+    "karin",
+    "karl",
+    "kai",
+    "katharina",
+    "kathrin",
+    "katja",
+    "katrin",
+    "kerstin",
+    "kevin",
+    "kim",
+    "klaus",
+    "kristina",
+    "lara",
+    "laura",
+    "lea",
+    "leah",
+    "lena",
+    "leni",
+    "leo",
+    "leon",
+    "lina",
+    "linda",
+    "lisa",
+    "lucas",
+    "luca",
+    "lukas",
+    "luis",
+    "luise",
+    "lena",
+    "manfred",
+    "manuel",
+    "manuela",
+    "marc",
+    "marcel",
+    "marco",
+    "maria",
+    "marie",
+    "marina",
+    "mario",
+    "mark",
+    "markus",
+    "marlene",
+    "martin",
+    "martina",
+    "mary",
+    "matthias",
+    "max",
+    "maximilian",
+    "melanie",
+    "mia",
+    "michael",
+    "michaela",
+    "michelle",
+    "mike",
+    "mila",
+    "miriam",
+    "monika",
+    "moritz",
+    "nadine",
+    "natalie",
+    "nicole",
+    "niklas",
+    "nico",
+    "nils",
+    "nina",
+    "noah",
+    "nora",
+    "oliver",
+    "olivia",
+    "oskar",
+    "pascal",
+    "patrick",
+    "paul",
+    "paula",
+    "peter",
+    "petra",
+    "philipp",
+    "rainer",
+    "ralf",
+    "rebecca",
+    "renate",
+    "richard",
+    "robert",
+    "robin",
+    "rolf",
+    "ronja",
+    "rosa",
+    "ruth",
+    "sabine",
+    "sam",
+    "samuel",
+    "sandra",
+    "sarah",
+    "sascha",
+    "sebastian",
+    "simon",
+    "simone",
+    "sofia",
+    "sophia",
+    "sophie",
+    "stefan",
+    "stefanie",
+    "stephan",
+    "steffen",
+    "susanne",
+    "sven",
+    "svenja",
+    "tanja",
+    "theo",
+    "thomas",
+    "tim",
+    "timo",
+    "tina",
+    "tobias",
+    "tom",
+    "torsten",
+    "ulrich",
+    "ulrike",
+    "ursula",
+    "uwe",
+    "valentin",
+    "vanessa",
+    "vera",
+    "victoria",
+    "viktor",
+    "walter",
+    "werner",
+    "william",
+    "wolfgang",
+    "yannick",
+    "yvonne",
+    "zoe",
+];
+
+/// Spoken numbers (German and English). A recording that says one stays on
+/// the Mac, like one with digits: numbers can be phone numbers, prices,
+/// account numbers. Not "one" or "ein": they are mostly not numbers ("this
+/// one", "ein Meeting"), and would keep back nearly everything.
+const NUMBER_WORDS: &[&str] = &[
+    "null",
+    "eins",
+    "zwei",
+    "drei",
+    "vier",
+    "fünf",
+    "sechs",
+    "sieben",
+    "acht",
+    "neun",
+    "zehn",
+    "elf",
+    "zwölf",
+    "dreizehn",
+    "vierzehn",
+    "fünfzehn",
+    "sechzehn",
+    "siebzehn",
+    "achtzehn",
+    "neunzehn",
+    "zwanzig",
+    "dreißig",
+    "vierzig",
+    "fünfzig",
+    "sechzig",
+    "siebzig",
+    "achtzig",
+    "neunzig",
+    "hundert",
+    "tausend",
+    "million",
+    "millionen",
+    "milliarde",
+    "zero",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+    "hundred",
+    "thousand",
+    "billion",
+];
+
+/// Why a recording's text must stay on this Mac, if it must: "number",
+/// "contact" or "name". `names` are lower case.
+fn withheld_reason(
+    text: &str,
+    language: &str,
+    names: &std::collections::HashSet<String>,
+) -> Option<&'static str> {
+    if text.chars().any(|c| c.is_numeric()) {
+        return Some("number");
+    }
+    let lower = text.to_lowercase();
+    if lower.contains('@') || lower.contains("http") || lower.contains("www.") {
+        return Some("contact");
+    }
+    let mut sentence_start = true;
+    let mut word = String::new();
+    let mut words: Vec<(String, bool)> = Vec::new();
+    for c in text.chars().chain(std::iter::once(' ')) {
+        if c.is_alphabetic() || c == '\'' || c == '’' {
+            word.push(c);
+            continue;
+        }
+        if !word.is_empty() {
+            words.push((std::mem::take(&mut word), sentence_start));
+            sentence_start = false;
+        }
+        if matches!(c, '.' | '!' | '?' | '\n' | ':') {
+            sentence_start = true;
+        }
+    }
+    for (w, at_start) in &words {
+        let l = w.to_lowercase();
+        let base = l.split(['\'', '’']).next().unwrap_or(&l);
+        if NUMBER_WORDS.contains(&base) {
+            return Some("number");
+        }
+        if names.contains(base) || FIRST_NAMES.contains(&base) {
+            return Some("name");
+        }
+        // English writes only names (and "I") with a capital inside a
+        // sentence; German capitalises every noun, so this check is English only.
+        if language == "en"
+            && !at_start
+            && w.chars().next().is_some_and(char::is_uppercase)
+            && base != "i"
+        {
+            return Some("name");
+        }
+    }
+    None
+}
+
+/// Names Sokki knows: remembered voices, meeting speakers, the user's name.
+fn known_names(app: &AppHandle) -> std::collections::HashSet<String> {
+    let mut raw: Vec<String> = Vec::new();
+    if let Ok(dir) = crate::portable::app_data_dir(app) {
+        if let Ok(text) = std::fs::read_to_string(dir.join("voice-profiles.json")) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                for p in v["profiles"].as_array().into_iter().flatten() {
+                    if let Some(n) = p["name"].as_str() {
+                        raw.push(n.to_string());
+                    }
+                }
+            }
+        }
+    }
+    raw.push(crate::settings::get_settings(app).meetings.user_name);
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        if let Some(store) = app.try_state::<std::sync::Arc<crate::meeting::store::MeetingStore>>()
+        {
+            for m in store.list() {
+                raw.extend(m.speakers);
+            }
+        }
+    }
+    // Placeholders like "Sprecher 2", "Speaker 1" or "Ich" are not names.
+    const NOT_NAMES: &[&str] = &[
+        "sprecher", "speaker", "person", "ich", "me", "i", "du", "you",
+    ];
+    raw.iter()
+        .flat_map(|n| n.split_whitespace())
+        .map(|w| w.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase())
+        .filter(|w| w.chars().count() >= 2 && !NOT_NAMES.contains(&w.as_str()))
+        .collect()
+}
+
+fn read_donated(dir: &Path) -> std::collections::HashMap<String, String> {
+    std::fs::read_to_string(dir.join(DONATED))
+        .map(|t| {
+            t.lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .filter_map(|v| {
+                    Some((
+                        v["file"].as_str()?.to_string(),
+                        v["status"].as_str()?.to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn mark_donated(dir: &Path, file: &str, status: &str) {
+    let line = serde_json::json!({ "file": file, "status": status }).to_string();
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join(DONATED))
+        .and_then(|mut f| writeln!(f, "{line}"));
+}
+
+/// A kept recording as FLAC (lossless, about half the size of WAV).
+fn flac_bytes(wav: &Path) -> Result<Vec<u8>> {
+    let mut reader = hound::WavReader::open(wav)?;
+    let spec = reader.spec();
+    let channels = spec.channels.max(1) as usize;
+    let samples: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<_, _>>()?,
+        hound::SampleFormat::Int => {
+            let scale = (1_i64 << (spec.bits_per_sample.max(1) - 1)) as f32;
+            reader
+                .samples::<i32>()
+                .map(|s| s.map(|v| v as f32 / scale))
+                .collect::<Result<_, _>>()?
+        }
+    };
+    // Mono: the clips are, but be safe.
+    let mono: Vec<f32> = samples
+        .chunks(channels)
+        .map(|c| c.iter().sum::<f32>() / c.len() as f32)
+        .collect();
+    let path = std::env::temp_dir().join(format!(
+        "sokki-donate-{}-{:04x}.flac",
+        std::process::id(),
+        rand_u16()
+    ));
+    let mut w = crate::meeting::flac::FlacWriter::create(&path, spec.sample_rate)?;
+    w.write_interleaved(&mono, 1)?;
+    w.finish()?;
+    let bytes = std::fs::read(&path);
+    let _ = std::fs::remove_file(&path);
+    Ok(bytes?)
+}
+
+/// Uploads the recordings not sent yet, one after another, while "Support"
+/// stays on. Recordings whose text has a name, a number or contact details
+/// stay on this Mac (marked, so they aren't checked again).
+fn donate_pending(app: &AppHandle, dir: &Path) {
+    use std::sync::atomic::Ordering;
+    if DONATING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let names = known_names(app);
+    let done = read_donated(dir);
+    let (mut sent, mut kept) = (0, 0);
+    for clip in read_clips(dir) {
+        if done.contains_key(&clip.file) {
+            continue;
+        }
+        let config = read_config(dir);
+        if !config.support || config.install_id.is_empty() {
+            break;
+        }
+        let language = normalize_language(clip.language.as_deref());
+        if let Some(reason) = withheld_reason(&clip.text, &language, &names) {
+            mark_donated(dir, &clip.file, &format!("kept:{reason}"));
+            kept += 1;
+            continue;
+        }
+        let audio = match flac_bytes(&dir.join(&clip.file)) {
+            Ok(a) => a,
+            Err(e) => {
+                log::warn!("Your data: {} not readable: {e:#}", clip.file);
+                mark_donated(dir, &clip.file, "kept:unreadable");
+                continue;
+            }
+        };
+        let stem = clip
+            .file
+            .trim_start_matches("clips/")
+            .trim_end_matches(".wav")
+            .to_string();
+        use base64::Engine;
+        let body = serde_json::json!({
+            "id": config.install_id,
+            "clip": stem,
+            "language": language,
+            "source": clip.source,
+            "seconds": clip.seconds,
+            "text": clip.text,
+            "audio": base64::engine::general_purpose::STANDARD.encode(&audio),
+        });
+        match post(dir, "donate", body) {
+            Ok(()) => {
+                mark_donated(dir, &clip.file, "sent");
+                sent += 1;
+            }
+            Err(e) => {
+                // Offline, rate limited or the store is full: try again at
+                // the next sync.
+                log::warn!("Your data: upload stopped: {e:#}");
+                break;
+            }
+        }
+        // Stays under the counter's limit of uploads per minute.
+        std::thread::sleep(std::time::Duration::from_millis(600));
+    }
+    if sent > 0 {
+        update_config(dir, |c| c.shared = true);
+    }
+    if sent + kept > 0 {
+        log::info!("Your data: uploaded {sent} recordings, kept {kept} back");
+    }
+    DONATING.store(false, Ordering::SeqCst);
 }
 
 // ----- The daily report ("Help improve") -----
@@ -954,6 +1599,32 @@ mod tests {
         assert!(buyer_message("en", 1, true)
             .1
             .starts_with("1 Stunde deiner"));
+    }
+
+    #[test]
+    fn names_numbers_and_contacts_stay_on_the_mac() {
+        let names: std::collections::HashSet<String> = ["anouk".to_string()].into();
+        let r = |t: &str, l: &str| withheld_reason(t, l, &names);
+        assert_eq!(r("Ich rufe dich morgen an.", "de"), None);
+        assert_eq!(r("Das kostet 30 Euro.", "de"), Some("number"));
+        assert_eq!(r("Das kostet dreißig Euro.", "de"), Some("number"));
+        assert_eq!(r("Schreib an a@b.de", "de"), Some("contact"));
+        assert_eq!(r("Frag mal Anouk danach.", "de"), Some("name"));
+        assert_eq!(r("Ich habe mit Thomas gesprochen.", "de"), Some("name"));
+        // German nouns are capitalised; that alone isn't a name.
+        assert_eq!(r("Das Meeting war gut.", "de"), None);
+        assert_eq!(r("Sounds good. I think so.", "en"), None);
+        assert_eq!(r("Then we ask Kowalski about it.", "en"), Some("name"));
+    }
+
+    #[test]
+    fn proof_of_work_meets_the_bits() {
+        use sha2::{Digest, Sha256};
+        let id = "0123456789abcdef0123456789abcdef";
+        let nonce = proof_of_work(id, 12);
+        let hash = Sha256::digest(format!("sokki:{id}:{nonce}").as_bytes());
+        assert!(leading_zero_bits(&hash) >= 12);
+        assert_eq!(leading_zero_bits(&[0, 0b0001_0000]), 11);
     }
 
     #[test]

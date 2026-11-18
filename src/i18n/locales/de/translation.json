@@ -1206,7 +1206,10 @@
       "deleteSharedDone": "Alles gelöscht, was Sokki von diesem Mac bekommen hat.",
       "delete": "Löschen",
       "cancel": "Abbrechen",
-      "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal."
+      "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal.",
+      "donated": "Bisher geteilt: {{duration}}.",
+      "withheld_one": "{{count}} Aufnahme bleibt auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthält.",
+      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten."
     }
   }
 }

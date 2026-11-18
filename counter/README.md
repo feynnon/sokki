@@ -12,7 +12,31 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   region. Never names, audio or anyone's words. One row per install and day.
 - "I'm interested" on a buyer message sends the id, the message's id, the
   language and the matching hours (`POST /interest`).
-- **Delete what was shared** removes every row of the id (`POST /forget`).
+- Supporters upload their own recordings (`POST /donate`): FLAC audio into
+  Workers KV (`<id>/<clip>.flac`), the transcript and length into D1
+  (`donations`). The app only sends recordings whose text has no name, number
+  or contact details. The store stops taking uploads at 900 MB (KV's free
+  1 GB; beyond it Cloudflare returns errors, never a bill).
+- **Delete what was shared** removes every row of the id and its audio
+  (`POST /forget`).
+
+### Against fake data
+
+An open-source app can't hold a secret, so anyone can talk to this service.
+What keeps fakes expensive and harmless:
+
+- **Proof of work per id.** `sha256("sokki:<id>:<pow>")` must start with 24
+  zero bits: about a second for the app, once per id, so inventing thousands
+  of installs takes hours. Ids from before this check are accepted without it.
+- **Rate limits per IP address** (Cloudflare's rate limiting binding, counted
+  in memory, never stored): 20 writes and 120 uploads a minute. It's
+  approximate: bursts get cut off, a slow trickle doesn't.
+- **Plausibility.** Hours can't grow faster than time passes; at most 2,000
+  hours per install; daily reports up to 32 KB.
+- **Uploads** only from installs whose count says "support", FLAC only, clip
+  names in the app's format, 5 MB each, 900 MB in all.
+- At a sale, the buyer gets real audio, which can be checked; fake counts can
+  only inflate the public total.
 
 No IP addresses are stored.
 It runs on Cloudflare's free plan: installs report at most once an hour, and the total is recomputed at most every 10 minutes, so it stays far below the free limits (which return errors when exceeded, never a bill).
@@ -24,6 +48,7 @@ npm install -g wrangler
 wrangler login
 wrangler d1 create verbatim-counter          # paste the printed id into wrangler.toml
 wrangler d1 execute verbatim-counter --remote --file schema.sql
+wrangler kv namespace create sokki-donations  # paste the id into wrangler.toml (AUDIO)
 wrangler deploy                               # prints https://verbatim-counter.<you>.workers.dev
 ```
 

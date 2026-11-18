@@ -211,6 +211,16 @@ export const SokkiVoicePage: React.FC = () => {
           }
           variant="switch"
         />
+        {stats.support &&
+          (stats.donated_clips > 0 || stats.withheld_clips > 0) && (
+            <p className="px-1 pt-3 text-[12.5px] leading-[18px] text-ink-3">
+              {t("sokki.voice.donated", {
+                duration: duration(stats.donated_seconds),
+              })}
+              {stats.withheld_clips > 0 &&
+                ` ${t("sokki.voice.withheld", { count: stats.withheld_clips })}`}
+            </p>
+          )}
       </section>
 
       {plainNotice && (

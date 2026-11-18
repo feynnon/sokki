@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.verbatim.mobile",
+      "sha256_cert_fingerprints": [
+        "B3:1F:E6:27:B1:ED:AF:17:9D:68:AF:3E:0D:0A:E0:70:B5:DA:AB:E8:A0:77:6B:43:29:72:F3:FE:34:E3:BF:BE"
+      ]
+    }
+  }
+]

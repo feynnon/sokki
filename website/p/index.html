@@ -38,8 +38,8 @@ Sokki</a>
 </div>
 <div class="card step">
 <span class="n">2</span>
-<p>Open Sokki, go to <strong>Connect to your Mac</strong> and paste this code. Or scan the QR code on the Mac again, from inside Sokki.</p>
-<div class="buttons"><button type="button" class="btn" data-copy-code>Copy pairing code</button></div>
+<p>Open Sokki to pair. If that doesn't work, go to <strong>Connect to your Mac</strong> in Sokki and paste the code.</p>
+<div class="buttons"><a class="btn primary" data-open href="#">Open Sokki</a><button type="button" class="btn" data-copy-code>Copy pairing code</button></div>
 </div>
 </div>
 </section>
@@ -64,6 +64,8 @@ const ua = navigator.userAgent;
 const phone = /Android|iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 const view = !code.startsWith("sokki1:") ? "empty" : phone ? "phone" : "desktop";
 document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== view));
+// The phone app also opens sokki://pair with the same code after #.
+document.querySelector("[data-open]").href = "sokki://pair#" + code;
 const btn = document.querySelector("[data-copy-code]");
 btn.addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(code); btn.textContent = "Copied"; }

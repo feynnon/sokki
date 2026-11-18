@@ -724,7 +724,8 @@ fn usage_report(app: &AppHandle, dir: &Path, config: &Config) -> serde_json::Val
     serde_json::json!({
         "id": config.install_id,
         "app": {
-            "version": env!("CARGO_PKG_VERSION"),
+            // The app's own version (Sokki 0.2.0), not the crate's (Handy 0.10.1).
+            "version": app.package_info().version.to_string(),
             "model": settings.selected_model,
             "language": settings.selected_language,
             "ui_language": settings.app_language,

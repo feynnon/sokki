@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get Sokki</title>
-<meta name="description" content="Get Sokki for your Mac or phone. Free, local, open source.">
+<meta name="description" content="Get Sokki for your Mac. Free, local, open source.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 <meta property="og:title" content="Get Sokki">
@@ -34,7 +34,7 @@ Sokki</a>
 <h1 class="display">Get Sokki.</h1>
 <p class="lead">Free, local, open source. No account.</p>
 
-<!-- One of these is shown, picked from the device. Without script, all stay visible below. -->
+<!-- The script below shows the one for this device. -->
 <section class="card choice" data-for="mac" hidden>
 <h2 class="headline">Sokki for Mac</h2>
 <p>Paste this into Terminal. It installs Sokki and opens it.</p>
@@ -45,24 +45,13 @@ Sokki</a>
 <p class="caption" style="margin: 0">Or <a href="https://github.com/feynnon/sokki/releases/latest">download the zip</a>. macOS 14.2 or later, Apple silicon.</p>
 </section>
 
-<section class="card choice" data-for="android" hidden>
-<h2 class="headline">Sokki for Android</h2>
-<p data-android-ready hidden><a class="btn primary" data-android-link href="#">Download for Android</a></p>
-<p data-android-soon>Almost ready. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a> to hear when it's out.</p>
-</section>
-
-<section class="card choice" data-for="iphone" hidden>
-<h2 class="headline">Not on iPhone yet</h2>
-<p>Sokki runs on Mac now, Android is next. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a> to hear about iPhone.</p>
-</section>
-
 <section class="card choice" data-for="other" hidden>
-<h2 class="headline">Mac only for now</h2>
-<p>Sokki runs on Mac, Android is next. Windows and Linux may follow. Follow <a href="https://github.com/feynnon/sokki">Sokki on GitHub</a>.</p>
+<h2 class="headline">Sokki is for Mac</h2>
+<p>It runs on Macs with Apple silicon. Send this page to your Mac and install it there.</p>
 </section>
 
-<section class="send">
-<p class="eyebrow">For another device</p>
+<section class="send" data-send>
+<p class="eyebrow">Send it to your Mac</p>
 <div class="buttons" style="justify-content: center">
 <button type="button" class="btn" data-share hidden>Share link</button>
 <button type="button" class="btn" data-copy-link>Copy link</button>
@@ -70,11 +59,6 @@ Sokki</a>
 </div>
 </section>
 
-<div class="others rows">
-<div class="row"><span>Mac</span><span><a href="https://github.com/feynnon/sokki/releases/latest">Download</a></span></div>
-<div class="row"><span>Android</span><span data-android-row>Almost ready</span></div>
-<div class="row"><span>iPhone, Windows, Linux</span><span>Not yet</span></div>
-</div>
 </main>
 
 <footer class="footer">
@@ -86,23 +70,15 @@ Sokki</a>
 
 <script>
 // Picks the section for this device. No tracking, no requests.
-// When an Android build is released, put its download link here.
-const ANDROID_URL = null;
 const LINK = "https://sokki.org/get";
 
 const ua = navigator.userAgent;
-const device =
-  /Android/i.test(ua) ? "android" :
-  /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iphone" :
-  /Macintosh|Mac OS X/.test(ua) ? "mac" : "other";
+const ipad = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+const device = /Macintosh|Mac OS X/.test(ua) && !ipad ? "mac" : "other";
 document.querySelector(`[data-for="${device}"]`).hidden = false;
+// On a Mac there is nothing to send elsewhere.
+if (device === "mac") document.querySelector("[data-send]").hidden = true;
 
-if (ANDROID_URL) {
-  document.querySelector("[data-android-ready]").hidden = false;
-  document.querySelector("[data-android-soon]").hidden = true;
-  document.querySelector("[data-android-link]").href = ANDROID_URL;
-  document.querySelector("[data-android-row]").innerHTML = `<a href="${ANDROID_URL}">Download</a>`;
-}
 
 async function copy(text, btn) {
   const label = btn.textContent;

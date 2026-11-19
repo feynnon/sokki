@@ -60,7 +60,10 @@ else
 fi
 
 if [[ "$BUILD" == 1 ]]; then
+  source "$REPO/scripts/build-lock.sh"
+  build_lock_acquire
   (cd "$REPO" && bun run tauri build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}' ${BRAND_CONFIG[@]+"${BRAND_CONFIG[@]}"})
+  build_lock_release
 fi
 
 busy() {

@@ -227,6 +227,59 @@ export const formatKeyCombination = (
   return combination.split("+").map(formatKeyPart).join(" + ");
 };
 
+const KEY_SYMBOLS: Record<string, string> = {
+  option: "⌥",
+  alt: "⌥",
+  shift: "⇧",
+  command: "⌘",
+  cmd: "⌘",
+  meta: "⌘",
+  super: "⌘",
+  control: "⌃",
+  ctrl: "⌃",
+  escape: "esc",
+  esc: "esc",
+  return: "↩",
+  enter: "↩",
+  tab: "⇥",
+  backspace: "⌫",
+  delete: "⌫",
+  up: "↑",
+  down: "↓",
+  left: "←",
+  right: "→",
+  space: "Space",
+};
+
+/**
+ * A binding the way Mac menus show it: "option+shift+m" → "⌥ ⇧ M",
+ * "option_right" → "Right ⌥", "escape" → "esc".
+ */
+export const formatKeySymbols = (combination: string): string => {
+  if (!combination) return "";
+  return combination
+    .split("+")
+    .map((raw) => {
+      const part = raw.trim().toLowerCase();
+      if (!part) return "";
+      let side = "";
+      let name = part;
+      if (part.endsWith("_left")) {
+        side = "Left ";
+        name = part.slice(0, -5);
+      } else if (part.endsWith("_right")) {
+        side = "Right ";
+        name = part.slice(0, -6);
+      }
+      const symbol =
+        KEY_SYMBOLS[name] ??
+        (name.length === 1 ? name.toUpperCase() : capitalizeKey(name));
+      return side + symbol;
+    })
+    .filter(Boolean)
+    .join(" ");
+};
+
 /**
  * Normalize modifier keys to handle left/right variants
  */

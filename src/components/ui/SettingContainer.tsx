@@ -50,7 +50,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
     // dropdowns, pickers and keys share one right edge and one height.
     return (
       <div
-        className={`flex items-center justify-between gap-8 min-h-[60px] px-4 py-3 ${grouped ? "" : "vb-card"}`}
+        className={`group flex items-center justify-between gap-8 min-h-[60px] px-4 py-3 ${grouped ? "" : "vb-card"}`}
       >
         <div className="min-w-0 flex-1">{label}</div>
         <div

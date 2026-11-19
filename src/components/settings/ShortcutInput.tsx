@@ -1,6 +1,9 @@
 import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { formatKeyCombination } from "../../lib/utils/keyboard";
+import {
+  formatKeyCombination,
+  formatKeySymbols,
+} from "../../lib/utils/keyboard";
 import { ResetButton } from "../ui/ResetButton";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
@@ -14,6 +17,9 @@ interface ShortcutInputProps {
   grouped?: boolean;
   shortcutId: string;
   disabled?: boolean;
+  /** Replace the binding's own name and description (empty: no line). */
+  title?: string;
+  description?: string;
 }
 
 /**
@@ -25,6 +31,8 @@ export const ShortcutInput: React.FC<ShortcutInputProps> = ({
   grouped = false,
   shortcutId,
   disabled = false,
+  title,
+  description,
 }) => {
   const { t } = useTranslation();
   const { getSetting, resetBinding, isUpdating, isLoading } = useSettings();
@@ -88,14 +96,20 @@ export const ShortcutInput: React.FC<ShortcutInputProps> = ({
   }
 
   // Get translated name and description for the binding
-  const translatedName = t(
-    `settings.general.shortcut.bindings.${shortcutId}.name`,
-    binding.name,
-  );
-  const translatedDescription = t(
-    `settings.general.shortcut.bindings.${shortcutId}.description`,
-    binding.description,
-  );
+  const translatedName =
+    title ??
+    t(`settings.general.shortcut.bindings.${shortcutId}.name`, binding.name);
+  const translatedDescription =
+    description ??
+    t(
+      `settings.general.shortcut.bindings.${shortcutId}.description`,
+      binding.description,
+    );
+  // Sokki on a Mac shows keys as Mac menus do: ⌥ ⇧ M.
+  const showKeys = (combo: string) =>
+    IS_SOKKI && osType === "macos"
+      ? formatKeySymbols(combo)
+      : formatKeyCombination(combo, osType);
 
   return (
     <SettingContainer
@@ -115,7 +129,7 @@ export const ShortcutInput: React.FC<ShortcutInputProps> = ({
               ariaLabel={t("common.resetSetting", { setting: translatedName })}
               onClick={() => resetBinding(shortcutId)}
               disabled={isUpdating(`binding_${shortcutId}`)}
-              className="text-ink-3"
+              className="text-ink-3 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
             />
           )}
           {capturing ? (
@@ -124,16 +138,16 @@ export const ShortcutInput: React.FC<ShortcutInputProps> = ({
               className="inline-flex h-[var(--vb-control-h)] items-center rounded-[8px] border border-logo-primary bg-logo-primary/15 px-3 text-[13px] font-medium"
             >
               {partial
-                ? formatKeyCombination(partial, osType)
+                ? showKeys(partial)
                 : t("settings.general.shortcut.pressKeys")}
             </div>
           ) : (
             <button
               type="button"
-              className="inline-flex h-[var(--vb-control-h)] cursor-pointer items-center rounded-[8px] border border-line bg-wash px-3 text-[13px] font-medium transition-colors duration-150 hover:border-logo-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+              className="inline-flex h-[var(--vb-control-h)] min-w-[52px] cursor-pointer items-center justify-center rounded-[8px] border border-line border-b-line-strong bg-wash px-3 text-[13px] font-medium tracking-[0.02em] transition-colors duration-150 hover:border-logo-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
               onClick={start}
             >
-              {formatKeyCombination(binding.current_binding, osType)}
+              {showKeys(binding.current_binding)}
             </button>
           )}
         </div>

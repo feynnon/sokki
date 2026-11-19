@@ -3,11 +3,10 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
-import type { OverlayStyle } from "@/bindings";
+import type { OverlayStyle, ShortcutActivation } from "@/bindings";
 import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import { ShortcutInput } from "../ShortcutInput";
-import { ShortcutActivationSetting } from "../ShortcutActivation";
 import { AutostartToggle } from "../AutostartToggle";
 import { ThemeSelector } from "../ThemeSelector";
 import { AppLanguageSelector } from "../AppLanguageSelector";
@@ -49,6 +48,37 @@ const RecordingWindow: React.FC = () => {
   );
 };
 
+/** How the dictation key works; the line under it explains the chosen one. */
+const DictationMode: React.FC = () => {
+  const { t } = useTranslation();
+  const { getSetting, updateSetting } = useSettings();
+  const mode = (getSetting("shortcut_activation") ??
+    "hold_or_toggle") as ShortcutActivation;
+  const explain: Record<ShortcutActivation, string> = {
+    hold_or_toggle: t("sokki.settings.modeAutoDescription"),
+    push_to_talk: t("sokki.settings.modeHoldDescription"),
+    toggle: t("sokki.settings.modeTapDescription"),
+  };
+  return (
+    <SettingContainer
+      title={t("sokki.settings.mode")}
+      description={explain[mode]}
+      grouped
+    >
+      <Segmented<ShortcutActivation>
+        label={t("sokki.settings.mode")}
+        value={mode}
+        onChange={(v) => void updateSetting("shortcut_activation", v)}
+        options={[
+          { value: "hold_or_toggle", label: t("sokki.settings.modeAuto") },
+          { value: "push_to_talk", label: t("sokki.settings.modeHold") },
+          { value: "toggle", label: t("sokki.settings.modeTap") },
+        ]}
+      />
+    </SettingContainer>
+  );
+};
+
 const OverlayPosition: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting } = useSettings();
@@ -81,6 +111,11 @@ const OverlayPosition: React.FC = () => {
 /** Sokki's settings: look, shortcuts, app; the rest behind Advanced. */
 export const SokkiSettingsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { getSetting } = useSettings();
+  // Discard is only offered where a dictation keeps running after the key
+  // is let go (Auto after a tap, and Tap); in Hold, letting go ends it.
+  const activation = (getSetting("shortcut_activation") ??
+    "hold_or_toggle") as ShortcutActivation;
   const [advanced, setAdvanced] = useState(false);
   const [version, setVersion] = useState("");
   useEffect(() => {
@@ -133,15 +168,33 @@ export const SokkiSettingsPage: React.FC = () => {
         <RecordingWindow />
         <AppLanguageSelector descriptionMode="inline" grouped />
       </SettingsGroup>
-      <SettingsGroup title={t("sokki.settings.shortcuts")}>
+      <SettingsGroup title={t("sokki.settings.dictation")}>
         <ShortcutInput
           shortcutId="transcribe"
           grouped
           descriptionMode="inline"
+          title={t("sokki.settings.startDictation")}
+          description=""
         />
-        <ShortcutActivationSetting descriptionMode="inline" grouped />
-        <ShortcutInput shortcutId="meeting" grouped descriptionMode="inline" />
-        <ShortcutInput shortcutId="cancel" grouped descriptionMode="inline" />
+        <DictationMode />
+        {activation !== "push_to_talk" && (
+          <ShortcutInput
+            shortcutId="cancel"
+            grouped
+            descriptionMode="inline"
+            title={t("sokki.settings.discardDictation")}
+            description=""
+          />
+        )}
+      </SettingsGroup>
+      <SettingsGroup title={t("sokki.settings.meetings")}>
+        <ShortcutInput
+          shortcutId="meeting"
+          grouped
+          descriptionMode="inline"
+          title={t("sokki.settings.startMeeting")}
+          description={t("sokki.settings.startMeetingDescription")}
+        />
       </SettingsGroup>
       <SettingsGroup title={t("sokki.settings.application")}>
         <AutostartToggle descriptionMode="inline" grouped />

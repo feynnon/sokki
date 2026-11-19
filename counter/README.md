@@ -4,7 +4,8 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
 
 - Installs with **Help improve Sokki** or **Support Sokki & Open Source** on
   report a random id and how many seconds of their own data they keep per
-  language (`POST /report`); anyone can read the total (`GET /total`).
+  language (`POST /report`); anyone can read the total (`GET /total`), with the
+  number of installs rounded down to 1000, 10000, … (0 below 1000).
   Turning both off removes the install from the count (`POST /leave`).
 - With **Help improve** on, an install sends one report a day
   (`POST /usage`): usage counts, problems from the log (quoted words and
@@ -20,6 +21,10 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
 - **Tell me about paid recording tasks** sends the id and the languages of the
   user's own recordings (`POST /tasks`); unticking removes it. See who ticked it:
   `wrangler d1 execute verbatim-counter --remote --command "SELECT languages, count(*) FROM tasks GROUP BY languages"`.
+- **Page views on sokki.org** (`GET /visit?p=/get/&s=note`): per day, page and
+  the link's tag (`?s=`), so the launch shows which link brings people.
+  Nothing about the visitor. See them:
+  `wrangler d1 execute verbatim-counter --remote --command "SELECT source, page, sum(views) FROM visits GROUP BY source, page ORDER BY 3 DESC"`.
 - **Delete what was shared** removes every row of the id and its audio
   (`POST /forget`).
 

@@ -1,4 +1,4 @@
-// sokki.org: the copy button and the dictation line in the hero. No tracking.
+// sokki.org: the copy button and the dictation line in the hero. Page views: v.js.
 document.querySelectorAll("[data-copy]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const text = document.getElementById(btn.dataset.copy).textContent.trim();

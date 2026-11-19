@@ -54,3 +54,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   languages TEXT NOT NULL, -- JSON: ["de", "en"]
   updated INTEGER NOT NULL
 );
+
+-- Views of sokki.org pages per day, page and link tag (?s=note, ?s=mac-card;
+-- "" without one). Nothing about the visitor.
+CREATE TABLE IF NOT EXISTS visits (
+  day TEXT NOT NULL,       -- "2026-11-19"
+  page TEXT NOT NULL,      -- "/get/"
+  source TEXT NOT NULL,    -- "note", or ""
+  views INTEGER NOT NULL,
+  PRIMARY KEY (day, page, source)
+);

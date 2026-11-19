@@ -18,6 +18,9 @@
 //   POST /forget    {"id", "pow"}   everything stored under the id, audio included
 //   GET  /total     -> {"installs", "donors", "total_seconds", "seconds_by_language",
 //                       "notice", "notice_id"}  (refreshed at most every 10 minutes)
+//   GET  /visit?p=/get/&s=note   one view of a sokki.org page: the page and
+//                       the tag of the link that led there (?s=), per day.
+//                       Nothing about the visitor.
 //
 // Against fake data (an open-source app can't hold a secret):
 // - every id needs a proof of work: sha256("sokki:<id>:<pow>") must start
@@ -323,12 +326,41 @@ async function computeTotal(env) {
       all += secs;
     }
   }
+  // Only the order of magnitude is public: 1000, 10000, …; below 1000, 0
+  // (the app then shows no number).
   return {
-    installs: results.length,
-    donors,
+    installs: atLeast(results.length),
+    donors: atLeast(donors),
     total_seconds: Math.round(all),
     seconds_by_language: byLang,
   };
+}
+
+function atLeast(n) {
+  if (n < 1000) return 0;
+  let step = 1000;
+  while (step * 10 <= n) step *= 10;
+  return step;
+}
+
+// sokki.org pages that count their views, and the link tags they accept.
+const PAGES = new Set(["/", "/get/", "/p/", "/privacy/", "/impressum/", "/changelog/"]);
+const SOURCE = /^[a-z0-9-]{1,24}$/;
+
+/** One page view per call: day, page, link tag. Always 204, even if not counted. */
+async function visit(url, env) {
+  let page = (url.searchParams.get("p") || "").replace(/index\.html$/, "");
+  if (!page.endsWith("/")) page += "/";
+  const s = url.searchParams.get("s") || "";
+  if (PAGES.has(page)) {
+    await env.DB.prepare(
+      `INSERT INTO visits (day, page, source, views) VALUES (?1, ?2, ?3, 1)
+       ON CONFLICT(day, page, source) DO UPDATE SET views = views + 1`,
+    )
+      .bind(new Date().toISOString().slice(0, 10), page, SOURCE.test(s) ? s : "")
+      .run();
+  }
+  return new Response(null, { status: 204, headers: cors });
 }
 
 const ROUTES = {
@@ -346,10 +378,17 @@ export default {
     const { pathname } = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     if (req.method === "GET" && pathname === "/total") return total(env);
-    const route = ROUTES[pathname];
-    if (req.method !== "POST" || !route) return json({ error: "not found" }, 404);
     // Per IP address, counted in memory by Cloudflare and never stored.
     const ip = req.headers.get("CF-Connecting-IP") || "unknown";
+    if (req.method === "GET" && pathname === "/visit") {
+      const { success } = env.WRITE_LIMIT
+        ? await env.WRITE_LIMIT.limit({ key: ip })
+        : { success: true };
+      if (!success) return new Response(null, { status: 204, headers: cors });
+      return visit(new URL(req.url), env);
+    }
+    const route = ROUTES[pathname];
+    if (req.method !== "POST" || !route) return json({ error: "not found" }, 404);
     const limiter = pathname === "/donate" ? env.DONATE_LIMIT : env.WRITE_LIMIT;
     if (limiter) {
       const { success } = await limiter.limit({ key: ip });

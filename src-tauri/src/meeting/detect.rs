@@ -131,8 +131,17 @@ fn ask(question: &str, yes: &str, no: &str, timeout_s: u32) -> Option<bool> {
     Some(text.contains(&format!("button returned:{yes}")))
 }
 
-/// A macOS notification banner.
+/// A macOS notification banner, as Sokki (Script Editor via osascript only
+/// when the app can't use the notification centre).
 pub fn notify(title: &str, body: &str) {
+    #[cfg(target_os = "macos")]
+    if super::notify_macos::notify(title, body, notify_osascript) {
+        return;
+    }
+    notify_osascript(title, body);
+}
+
+fn notify_osascript(title: &str, body: &str) {
     let script = format!(
         "display notification {} with title {}",
         applescript_string(body),

@@ -189,6 +189,9 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
+# Notifications with Sokki's own name and icon (osascript shows Script Editor).
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationSettings"] }
+block2 = "0.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # PRIMARY selection access for Shift+Insert paste (already in the tree via the clipboard plugin).

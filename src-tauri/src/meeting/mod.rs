@@ -18,6 +18,8 @@ pub mod flac;
 pub mod indicator;
 pub mod memguard;
 pub mod mic;
+#[cfg(target_os = "macos")]
+mod notify_macos;
 pub mod process;
 pub mod rate;
 pub mod store;

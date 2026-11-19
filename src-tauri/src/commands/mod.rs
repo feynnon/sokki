@@ -144,6 +144,12 @@ pub fn check_apple_intelligence_available() -> bool {
 pub fn initialize_enigo(app: AppHandle) -> Result<(), String> {
     use crate::input::EnigoState;
 
+    // Test mode pastes nothing, so it needs no Accessibility permission.
+    if crate::test_mic::active() {
+        log::info!("Test mode: no input simulation");
+        return Ok(());
+    }
+
     // Check if already initialized
     if app.try_state::<EnigoState>().is_some() {
         log::debug!("Enigo already initialized");

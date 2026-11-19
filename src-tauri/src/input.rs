@@ -152,7 +152,14 @@ pub struct EnigoState(pub Mutex<Enigo>);
 
 impl EnigoState {
     pub fn new() -> Result<Self, String> {
-        let enigo = Enigo::new(&Settings::default())
+        // Never let enigo open macOS's Accessibility prompt on its own: it
+        // appeared on every launch of a copy without a matching grant (test
+        // builds, a copy started from a terminal). Only onboarding asks.
+        let settings = Settings {
+            open_prompt_to_get_permissions: false,
+            ..Settings::default()
+        };
+        let enigo = Enigo::new(&settings)
             .map_err(|e| format!("Failed to initialize Enigo: {}", e))?;
         Ok(Self(Mutex::new(enigo)))
     }

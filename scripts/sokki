@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# sokki: Sokki from the command line on the Mac, for you and for local agents.
+#
+#   sokki transcribe FILE [--json]   Any audio or video file to text, with Sokki's speech model.
+#   sokki ask [PROMPT]               Ask the local language model Sokki uses for summaries.
+#                                    Reads stdin too: `cat notes.md | sokki ask "Summarise"`.
+#
+# Everything runs on this Mac. On Linux, the `sokki` binary from crates/sokki has
+# the same two commands. Install: ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
+set -euo pipefail
+
+APP_BIN="${SOKKI_APP_BIN:-/Applications/Sokki.app/Contents/MacOS/handy}"
+SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/dev.handymeetings.app/settings_store.json}"
+
+usage() {
+  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+die() { echo "sokki: $*" >&2; exit 1; }
+
+# One setting from Sokki's settings file, or a default.
+setting() {
+  python3 - "$SETTINGS" "$1" "$2" <<'PY' 2>/dev/null || echo "$3"
+import json, sys
+path, key, default = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    s = json.load(open(path))["settings"]["meetings"]
+    v = s.get(key) or default
+except Exception:
+    v = default
+print(v)
+PY
+}
+
+transcribe() {
+  local file="" json=0
+  for a in "$@"; do
+    case "$a" in
+      --json) json=1 ;;
+      -*) die "unknown option $a" ;;
+      *) [ -z "$file" ] && file="$a" || die "one file at a time" ;;
+    esac
+  done
+  [ -n "$file" ] || die "usage: sokki transcribe FILE [--json]"
+  [ -f "$file" ] || die "no such file: $file"
+  [ -x "$APP_BIN" ] || die "Sokki is not installed at ${APP_BIN%/Contents/*}"
+  local ffmpeg; ffmpeg="$(command -v ffmpeg || echo /opt/homebrew/bin/ffmpeg)"
+  [ -x "$ffmpeg" ] || die "needs ffmpeg: brew install ffmpeg"
+
+  local tmp; tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  "$ffmpeg" -nostdin -hide_banner -loglevel error -i "$file" -vn -ac 1 -ar 16000 -c:a pcm_s16le "$tmp/audio.wav" \
+    || die "could not read audio from $file"
+  local out
+  out="$("$APP_BIN" --transcribe-file "$tmp/audio.wav" --json 2>"$tmp/log")" \
+    || { tail -3 "$tmp/log" >&2; die "transcription failed"; }
+  if [ "$json" = 1 ]; then
+    printf '%s\n' "$out"
+  else
+    printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["text"])'
+  fi
+}
+
+ask() {
+  local think=false prompt="" input=""
+  local words=()
+  for a in "$@"; do
+    case "$a" in
+      --think) think=true ;;
+      *) words+=("$a") ;;
+    esac
+  done
+  prompt="${words[*]:-}"
+  if [ ! -t 0 ]; then input="$(cat)"; fi
+  if [ -n "$prompt" ] && [ -n "$input" ]; then prompt="$prompt"$'\n\n'"$input"
+  elif [ -z "$prompt" ]; then prompt="$input"; fi
+  [ -n "$prompt" ] || die "usage: sokki ask PROMPT   (or pipe text in)"
+
+  local base model
+  base="$(setting llm_base_url "" "http://localhost:11434")"
+  model="${SOKKI_MODEL:-$(setting llm_model "" "qwen3.5:9b")}"
+  base="${base%/}"
+
+  # Same call Sokki makes for summaries: Ollama's /api/chat, thinking off,
+  # the model's own temperature. An OpenAI-compatible server (URL ending in /v1)
+  # gets /chat/completions instead.
+  PROMPT="$prompt" MODEL="$model" BASE="$base" THINK="$think" python3 - <<'PY'
+import json, os, sys, urllib.request, urllib.error
+base, model, prompt = os.environ["BASE"], os.environ["MODEL"], os.environ["PROMPT"]
+think = os.environ["THINK"] == "true"
+messages = [{"role": "user", "content": prompt}]
+if base.endswith("/v1"):
+    url, body = base + "/chat/completions", {"model": model, "messages": messages, "stream": False}
+else:
+    url, body = base + "/api/chat", {"model": model, "messages": messages, "stream": False, "think": think}
+req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(req, timeout=600) as r:
+        data = json.load(r)
+except urllib.error.URLError as e:
+    sys.exit(f"sokki: no language model at {base} ({e.reason if hasattr(e, 'reason') else e}). Is Ollama running?")
+if "choices" in data:
+    text = data["choices"][0]["message"]["content"]
+else:
+    text = data.get("message", {}).get("content", "")
+print(text.strip())
+PY
+}
+
+case "${1:-}" in
+  transcribe) shift; transcribe "$@" ;;
+  ask) shift; ask "$@" ;;
+  ""|-h|--help|help) usage ;;
+  *) die "unknown command $1 (try: sokki transcribe FILE, sokki ask PROMPT)" ;;
+esac

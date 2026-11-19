@@ -4,7 +4,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash
 #
 # Downloads the app, puts it in /Applications and opens it. Your settings and
-# meetings are kept on update. Nothing else on your Mac is changed.
+# meetings are kept on update. Also adds the `sokki` command to ~/.local/bin
+# (transcribe a file, ask the local model). Nothing else on your Mac is changed.
 set -euo pipefail
 
 REPO="feynnon/sokki"
@@ -56,6 +57,19 @@ xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
 open "$APP"
 say "Sokki is installed and open."
+
+# The `sokki` command: transcribe a file, ask the local model. A `sokki` that is
+# not ours (or a link to a source checkout) is left alone.
+BIN="$HOME/.local/bin"
+CLI="$BIN/sokki"
+if [[ -L "$CLI" ]] || { [[ -e "$CLI" ]] && ! grep -q "Sokki from the command line" "$CLI" 2>/dev/null; }; then
+  :
+elif mkdir -p "$BIN" && curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/sokki" -o "$tmp/sokki" \
+     && grep -q "Sokki from the command line" "$tmp/sokki"; then
+  install -m 755 "$tmp/sokki" "$CLI"
+  echo "In the terminal: sokki transcribe FILE, sokki ask \"…\""
+  case ":$PATH:" in *":$BIN:"*) ;; *) echo "Add $BIN to your PATH to use it." ;; esac
+fi
 if ! command -v ollama >/dev/null 2>&1 && [[ ! -d /Applications/Ollama.app ]]; then
   echo "For summaries on your Mac, Sokki uses Ollama (free): https://ollama.com/download"
   echo "The app offers this too, under Models → Language model."

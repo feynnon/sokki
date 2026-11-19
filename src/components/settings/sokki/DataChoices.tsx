@@ -12,14 +12,7 @@ export interface DataChoiceValues {
 
 type Sheet = "shared" | "support";
 
-const SHARED_ITEMS = [
-  "mistakes",
-  "usage",
-  "problems",
-  "data",
-  "conditions",
-  "mac",
-] as const;
+const SHARED_ITEMS = ["usage", "data", "problems", "mac"] as const;
 
 /** "What's shared" and "What this means", opened from the choices' links. */
 const Sheets: React.FC<{ sheet: Sheet | null; onClose: () => void }> = ({

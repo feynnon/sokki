@@ -1180,16 +1180,14 @@
       },
       "sharedSheet": {
         "title": "Was geteilt wird",
-        "mistakes": "Fehler: ein Ausschnitt deiner eigenen Stimme, was Sokki verstanden hat, und deine Korrektur",
-        "usage": "Wie du Sokki nutzt: aktive Tage, Diktate, Meeting-Minuten, Funktionen und Modelle",
-        "problems": "Probleme: Fehler, Abstürze und langsame Verarbeitung",
-        "data": "Deine Daten: Stunden pro Sprache, Diktate und Meetings, ihre Länge, Anzahl der Sprecher",
-        "conditions": "Aufnahmebedingungen: Mikrofon, Hintergrundgeräusche, Call-App",
+        "usage": "Wie du Sokki nutzt: wie viele Diktate und Meetings, ihre Länge und Sprecherzahl, die Call-App, das gewählte Modell und die Diktiersprache",
+        "data": "Deine Daten: Stunden pro Sprache, aus Diktaten oder Meetings",
+        "problems": "Probleme: Fehler und Warnungen aus Sokkis Protokoll, ohne zitierten Text und Dateipfade",
         "mac": "Dein Mac: Modell, Chip, Arbeitsspeicher, Speicherplatz, macOS-Version, Sprache und Region",
-        "footer": "Nie die Stimmen oder Worte anderer, keine Stimmprofile, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit in den Einstellungen abschaltbar."
+        "footer": "Nie, was du gesagt hast, keine Aufnahmen, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit unter „Deine Daten“ abschaltbar."
       },
       "supportSheet": {
-        "text": "Bevor etwas diesen Mac verlässt, werden Namen entfernt und Zahlen verfremdet. Danach darf Sokki deine Daten frei nutzen: um Sokki zu verbessern, für offene Spracherkennungsmodelle, und um sie weiterzugeben oder zu verkaufen. Du wirst nicht noch einmal gefragt und bekommst keinen Anteil an einem Verkauf.",
+        "text": "Sokki prüft jede Aufnahme auf diesem Mac. Geteilt werden nur die ohne Namen, Zahlen oder Kontaktdaten. Sokki darf sie frei nutzen: um Sokki zu verbessern, für offene Spracherkennungsmodelle und um sie weiterzugeben oder zu verkaufen. Du wirst nicht noch einmal gefragt und bekommst keinen Anteil an einem Verkauf.",
         "footer": "Nur deine eigenen Aufnahmen. Du kannst jederzeit aufhören; bereits genutzte Daten lassen sich nicht zurückholen."
       },
       "ok": "OK",

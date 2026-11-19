@@ -1180,16 +1180,14 @@
       },
       "sharedSheet": {
         "title": "What's shared",
-        "mistakes": "Mistakes: a clip of your own voice, what Sokki heard, and your correction",
-        "usage": "How you use Sokki: active days, dictations, meeting minutes, features and models",
-        "problems": "Problems: errors, crashes and slow processing",
-        "data": "Your data: hours per language, dictations and meetings, their length, number of speakers",
-        "conditions": "Recording conditions: microphone, background noise, call app",
-        "mac": "Your Mac: model, chip, memory, disk, macOS version, language and region",
-        "footer": "Never other people's voices or words, voice prints, your name or your Mac's name. Sent once a day under a random ID. Turn it off any time in Settings."
+        "usage": "How you use Sokki: how many dictations and meetings, their length and number of speakers, the call app, the model and dictation language you picked",
+        "data": "Your data: hours per language, from dictation or meetings",
+        "problems": "Problems: errors and warnings from Sokki's log, without quoted text or file paths",
+        "mac": "Your Mac: model, chip, memory, disk space, macOS version, language and region",
+        "footer": "Never what you said, your recordings, your name or your Mac's name. Sent once a day under a random ID. Turn it off any time under Your data."
       },
       "supportSheet": {
-        "text": "Before anything leaves this Mac, names are removed and numbers are scrambled. Sokki may then use your data freely: to improve Sokki, to help open-source speech models, and to share or sell it. You won't be asked again and don't get a share of any sale.",
+        "text": "Sokki checks each recording on this Mac. Only those without names, numbers or contact details are shared. Sokki may use them freely: to improve Sokki, for open-source speech models, and to share or sell them. You won't be asked again and get no share of a sale.",
         "footer": "Only your own recordings. You can stop any time; data already used can't be called back."
       },
       "ok": "OK",

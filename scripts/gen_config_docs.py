@@ -22,7 +22,7 @@ EXTRA = {
     "sound_theme": "`marimba`, `pop` or `custom`.",
     "start_hidden": "Start without showing the settings window.",
     "autostart_enabled": "Start at login (applied when changed in the app; after editing the file, restart once).",
-    "update_checks_enabled": "Ignored in this fork: the upstream updater is always off.",
+    "update_checks_enabled": "Sokki downloads a new release in the background, offers “Update now” in the footer, and installs it by itself after the first login of the day; never while recording or processing. Off: update by hand with install.sh.",
     "show_whats_new_on_update": "Show release notes after an update.",
     "selected_model": "Speech model for dictation and meetings, by id (e.g. `parakeet-tdt-0.6b-v3`) or Hugging Face path; see the Models page.",
     "onboarding_completed": "First-run setup finished.",

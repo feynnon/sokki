@@ -1628,12 +1628,12 @@ fn self_update_possible() -> bool {
 /// can't work against an immutable /nix/store install — or when this build
 /// cannot install its own update (see `linux_self_update_possible`).
 pub fn update_checks_forced_disabled() -> bool {
-    // This fork has no update feed of its own: the configured endpoint points
-    // at upstream Handy, whose update would replace the fork. Keep the
-    // upstream logic referenced so it stays compiled and easy to restore.
-    let _upstream =
-        || crate::utils::env_flag_enabled("HANDY_DISABLE_UPDATER") || !self_update_possible();
-    true
+    // Only the Sokki build has its own update feed (brands/sokki/tauri.conf.json).
+    // The plain build's endpoint is upstream Handy, whose update would replace
+    // this fork.
+    !crate::brand::is_sokki()
+        || crate::utils::env_flag_enabled("HANDY_DISABLE_UPDATER")
+        || !self_update_possible()
 }
 
 /// Effective updater state: the user's stored preference, overridden to `false`

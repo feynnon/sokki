@@ -3,6 +3,7 @@ mod actions;
 mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
+mod auto_update;
 mod autostart;
 #[cfg(target_os = "macos")]
 pub mod brand;
@@ -443,6 +444,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     // Create the recording overlay window (hidden by default)
     utils::create_recording_overlay(app_handle);
+
+    auto_update::start(app_handle);
 }
 
 #[tauri::command]
@@ -804,6 +807,8 @@ pub fn run(cli_args: CliArgs) {
             secure_input::run_keyboard_diagnostic,
             trigger_update_check,
             show_main_window_command,
+            auto_update::get_ready_update,
+            auto_update::update_now,
             commands::cancel_operation,
             commands::is_portable,
             commands::is_update_checks_locked,

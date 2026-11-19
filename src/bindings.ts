@@ -559,6 +559,17 @@ async triggerUpdateCheck() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getReadyUpdate() : Promise<ReadyUpdate | null> {
+    return await TAURI_INVOKE("get_ready_update");
+},
+async updateNow() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_now") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async showMainWindowCommand() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("show_main_window_command") };
@@ -1419,6 +1430,10 @@ overlay_style?: OverlayStyle;
  * Meeting notes (this fork): recording, speakers, summary and the notes folder.
  */
 meetings?: MeetingSettings }
+/**
+ * What the footer shows: the new version and how long Sokki will be away.
+ */
+export type ReadyUpdate = { version: string; seconds: number }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AutoUnavailableReason = 

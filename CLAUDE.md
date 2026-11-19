@@ -9,6 +9,8 @@ Read @AGENTS.md
   Regenerate with `scripts/gen_config_docs.py` after changing `settings.rs`.
 - `KNOWN_ISSUES.md`: every known problem. Add new ones there; don't wave
   quality problems away.
+- Releases: `scripts/release.sh`. It uploads the update feed (`latest.json`)
+  that installed apps update from; a release made by hand has none.
 
 ## As few rules as possible
 

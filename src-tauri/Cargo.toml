@@ -64,7 +64,7 @@ ureq = { version = "3", default-features = false, features = ["rustls", "json"] 
 meeting-detect = { path = "../crates/meeting-detect" }
 log = "0.4.25"
 env_filter = "0.1.0"
-tokio = { version = "1.43.0", features = ["process"] }
+tokio = { version = "1.43.0", features = ["process", "time"] }
 earshot = "1.2.2"
 enigo = "0.6.1"
 # Feedback sounds. No `recording`: microphone capture is handy-recorder's.

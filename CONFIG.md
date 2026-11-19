@@ -77,7 +77,7 @@ Most useful keys:
 | `sound_theme` | `SoundTheme` | `"marimba"` | `marimba`, `pop` or `custom`. |
 | `start_hidden` | `bool` | `false` | Start without showing the settings window. |
 | `autostart_enabled` | `bool` | `false` | Start at login (applied when changed in the app; after editing the file, restart once). |
-| `update_checks_enabled` | `bool` | `true` | Ignored in this fork: the upstream updater is always off. |
+| `update_checks_enabled` | `bool` | `true` | Sokki downloads a new release in the background, offers “Update now” in the footer, and installs it by itself after the first login of the day; never while recording or processing. Off: update by hand with install.sh. |
 | `show_whats_new_on_update` | `bool` | `true` | Show release notes after an update. |
 | `whats_new_last_seen_version` | `String` | `"0.10.1"` | The app version whose What's New the user has already seen. Fresh installs default to the current version (nothing is "new" to them). Existing users upgrading from before this key existed are blanked by the migration so they see the current release's notes — see `apply_settings_migrations`. |
 | `selected_model` | `String` | `""` | Speech model for dictation and meetings, by id (e.g. `parakeet-tdt-0.6b-v3`) or Hugging Face path; see the Models page. |

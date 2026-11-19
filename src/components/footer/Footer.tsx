@@ -3,7 +3,9 @@ import { getVersion } from "@tauri-apps/api/app";
 
 import ModelSelector from "../model-selector";
 import UpdateChecker from "../update-checker";
+import { IS_SOKKI } from "../../lib/brand";
 import NoticeChip from "./NoticeChip";
+import UpdateNow from "./UpdateNow";
 import TranscriptionStatus from "./TranscriptionStatus";
 
 interface FooterProps {
@@ -38,8 +40,16 @@ const Footer: React.FC<FooterProps> = ({ onShowHistory }) => {
         <div className="flex items-center gap-3">
           {/* Update Status */}
           <div className="flex items-center gap-1">
-            <UpdateChecker />
-            <span>•</span>
+            {/* Sokki: "Update now" (auto_update.rs). Handy's checker would
+                restart the app even mid-recording. */}
+            {IS_SOKKI ? (
+              <UpdateNow />
+            ) : (
+              <>
+                <UpdateChecker />
+                <span>•</span>
+              </>
+            )}
             {/* eslint-disable-next-line i18next/no-literal-string */}
             <span>v{version}</span>
           </div>

@@ -9,5 +9,13 @@
       "brands/sokki/icons/icon.icns",
       "brands/sokki/icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwNEMyNkM5N0IwRTY1RjkKUldUNVpRNTd5U1pNNExqV2pFYXNyZXc5elU3d1VLd05XUC9VT1JJck8rT0J0Z3JJNmR4Myt3eXoK",
+      "endpoints": [
+        "https://github.com/feynnon/sokki/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

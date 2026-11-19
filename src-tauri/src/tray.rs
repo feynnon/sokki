@@ -781,7 +781,9 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
     // still shifts every entry below it by one position. A manually-disabled
     // toggle in Debug Settings keeps the old greyed-out behavior via the
     // enabled flag.
-    if settings::update_checks_forced_disabled() {
+    // Sokki updates itself in the background (auto_update.rs), so it has no
+    // manual check either.
+    if settings::update_checks_forced_disabled() || crate::brand::is_sokki() {
         menu.remove(&check_updates_i)?;
     }
 

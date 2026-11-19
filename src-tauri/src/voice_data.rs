@@ -263,6 +263,52 @@ fn normalize_language(code: Option<&str>) -> String {
     }
 }
 
+/// The recording's language: the one dictation was set to, else the one its
+/// text is in (German or English), else "other". Dictation set to Auto
+/// reports no language, which put English dictations under "other".
+fn language_of(set: Option<&str>, text: &str) -> String {
+    let set = normalize_language(set);
+    if set != "other" {
+        return set;
+    }
+    let detected = meeting_core::lang::detect_language(text).map(|l| match l {
+        meeting_core::lang::Language::German => "de",
+        meeting_core::lang::Language::English => "en",
+    });
+    normalize_language(detected)
+}
+
+/// Gives recordings kept as "other" their language, where the text shows it.
+fn relabel_other(dir: &Path) {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut clips = read_clips(dir);
+    let mut changed = 0;
+    for c in clips.iter_mut() {
+        if c.language.as_deref() == Some("other") {
+            let l = language_of(None, &c.text);
+            if l != "other" {
+                c.language = Some(l);
+                changed += 1;
+            }
+        }
+    }
+    if changed == 0 {
+        return;
+    }
+    let text: String = clips
+        .iter()
+        .filter_map(|c| serde_json::to_string(c).ok())
+        .map(|l| l + "\n")
+        .collect();
+    let tmp = dir.join(format!("{MANIFEST}.tmp"));
+    if std::fs::write(&tmp, text)
+        .and_then(|_| std::fs::rename(&tmp, dir.join(MANIFEST)))
+        .is_ok()
+    {
+        log::info!("Your data: {changed} recordings got their language");
+    }
+}
+
 fn append(dir: &Path, clip: &Clip) -> Result<()> {
     let mut f = std::fs::OpenOptions::new()
         .create(true)
@@ -310,7 +356,7 @@ pub fn add_dictation(app: &AppHandle, wav: &Path, text: &str, language: Option<&
             &Clip {
                 file: format!("clips/{name}"),
                 text: text.trim().to_string(),
-                language: Some(normalize_language(language)),
+                language: Some(language_of(language, text)),
                 seconds,
                 source: "dictation".into(),
                 created: chrono::Utc::now().timestamp(),
@@ -352,16 +398,12 @@ pub fn add_meeting(app: &AppHandle, mic: &[f32], segments: &[OwnSegment]) {
             }
             let name = clip_name("meeting");
             crate::audio_toolkit::save_wav_file(d.join("clips").join(&name), &mic[a..b])?;
-            let lang = meeting_core::lang::detect_language(s.text).map(|l| match l {
-                meeting_core::lang::Language::German => "de",
-                meeting_core::lang::Language::English => "en",
-            });
             append(
                 &d,
                 &Clip {
                     file: format!("clips/{name}"),
                     text: s.text.trim().to_string(),
-                    language: Some(normalize_language(lang)),
+                    language: Some(language_of(None, s.text)),
                     seconds: (b - a) as f64 / SAMPLE_RATE,
                     source: "meeting".into(),
                     created: chrono::Utc::now().timestamp(),
@@ -398,7 +440,11 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
         support: config.support,
         tasks: config.tasks,
         shared: config.shared,
-        buyer: if config.support || !BUYER_MESSAGES { None } else { config.buyer },
+        buyer: if config.support || !BUYER_MESSAGES {
+            None
+        } else {
+            config.buyer
+        },
         clips: clips.len() as u32,
         folder: dir.to_string_lossy().into_owned(),
         ..Default::default()
@@ -1229,8 +1275,47 @@ fn apple_name_check(text: &str, language: &str) -> Option<&'static str> {
             }
             start = (r.location + r.length) as isize;
         }
+        // Each capitalised word once more on its own, in a plain sentence:
+        // in context the recogniser misses some names ("der Ast-Top ist
+        // ja…") that it knows alone.
+        for w in capitalised_words(text) {
+            let probe = if language == "en" {
+                format!("This is {w} here.")
+            } else {
+                format!("Das ist {w} hier.")
+            };
+            let p = NSString::from_str(&probe);
+            tagger.setString(Some(&p));
+            let at = probe
+                .find(&w)
+                .map(|b| probe[..b].encode_utf16().count())
+                .unwrap_or(0);
+            let tag = unsafe {
+                tagger.tagAtIndex_unit_scheme_tokenRange(
+                    at,
+                    NSLinguisticTaggerUnit::Word,
+                    scheme,
+                    std::ptr::null_mut(),
+                )
+            };
+            if tag.is_some_and(|t| named.iter().any(|n| &*t == *n)) {
+                return Some("name");
+            }
+        }
         None
     })
+}
+
+/// Words starting with a capital, hyphenated parts kept together ("Ast-Top").
+fn capitalised_words(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in text.split(|c: char| !(c.is_alphabetic() || c == '-')) {
+        let w = raw.trim_matches('-');
+        if w.chars().next().is_some_and(char::is_uppercase) && !out.iter().any(|o| o == w) {
+            out.push(w.to_string());
+        }
+    }
+    out
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1335,12 +1420,101 @@ fn flac_bytes(wav: &Path) -> Result<Vec<u8>> {
 /// Uploads the recordings not sent yet, one after another, while "Support"
 /// stays on. Recordings whose text has a name, a number or contact details
 /// stay on this Mac (marked, so they aren't checked again).
+/// The language model on this Mac (Ollama), if the user set one up for
+/// notes. A cloud model is never used: the text must not leave the Mac
+/// before the check.
+struct LocalModel {
+    base: String,
+    model: String,
+}
+
+fn local_model(app: &AppHandle) -> Option<LocalModel> {
+    let m = crate::settings::get_settings(app).meetings;
+    let base = m.llm_base_url.trim_end_matches('/').to_string();
+    (m.llm_provider == "local"
+        && on_this_mac(&base)
+        && !base.ends_with("/v1")
+        && !m.llm_model.is_empty())
+    .then(|| LocalModel {
+        base,
+        model: m.llm_model,
+    })
+}
+
+/// Ollama's address points at this Mac (a "local" server could be another
+/// machine, and the text must not leave this one).
+fn on_this_mac(base: &str) -> bool {
+    let host = base
+        .split("://")
+        .nth(1)
+        .unwrap_or(base)
+        .split('/')
+        .next()
+        .unwrap_or_default();
+    let host = host.rsplit_once(':').map_or(host, |(h, port)| {
+        if port.chars().all(|c| c.is_ascii_digit()) {
+            h
+        } else {
+            host
+        }
+    });
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+const NAME_CHECK_PROMPT: &str = "You check transcripts before they are shared anonymously. Does the text name a specific person, company, brand, product, shop, organisation, street, town or other place, even if misspelled or misheard? Generic words, job titles and common software like Excel, WhatsApp or Google don't count. Answer with JSON: {\"names\": [the names you found]}.";
+
+/// Asks the local model whether `text` names anyone or anything. Catches
+/// what word rules can't: misheard names that are real words ("Nomen") and
+/// German compounds ("Schwabenhaus"). Any answer other than an empty list
+/// counts as a name.
+fn model_finds_names(m: &LocalModel, text: &str) -> Result<bool> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        // The first call may load the model.
+        .timeout_global(Some(std::time::Duration::from_secs(180)))
+        .build()
+        .into();
+    let body = serde_json::json!({
+        "model": m.model,
+        "stream": false,
+        "think": false,
+        "messages": [
+            { "role": "system", "content": NAME_CHECK_PROMPT },
+            { "role": "user", "content": text },
+        ],
+    });
+    let reply: serde_json::Value = agent
+        .post(&format!("{}/api/chat", m.base))
+        .send_json(body)
+        .context("local model")?
+        .body_mut()
+        .read_json()
+        .context("local model's answer")?;
+    let content = reply["message"]["content"].as_str().unwrap_or_default();
+    Ok(names_in_answer(content))
+}
+
+/// True unless the answer holds `{"names": []}`.
+fn names_in_answer(content: &str) -> bool {
+    let json = content
+        .find('{')
+        .zip(content.rfind('}'))
+        .and_then(|(a, b)| (a < b).then(|| &content[a..=b]))
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
+    match json.as_ref().and_then(|v| v["names"].as_array()) {
+        Some(names) => names
+            .iter()
+            .any(|n| n.as_str().is_some_and(|s| !s.trim().is_empty())),
+        None => true,
+    }
+}
+
 fn donate_pending(app: &AppHandle, dir: &Path) {
     use std::sync::atomic::Ordering;
     if DONATING.swap(true, Ordering::SeqCst) {
         return;
     }
     let names = known_names(app);
+    let model = local_model(app);
     let done = read_donated(dir);
     let (mut sent, mut kept) = (0, 0);
     for clip in read_clips(dir) {
@@ -1356,6 +1530,21 @@ fn donate_pending(app: &AppHandle, dir: &Path) {
             mark_donated(dir, &clip.file, &format!("kept:{reason}"));
             kept += 1;
             continue;
+        }
+        if let Some(m) = &model {
+            match model_finds_names(m, &clip.text) {
+                Ok(true) => {
+                    mark_donated(dir, &clip.file, "kept:name-model");
+                    kept += 1;
+                    continue;
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    // Not checked, so not sent: the next sync tries again.
+                    log::warn!("Your data: name check not available, uploads wait: {e:#}");
+                    break;
+                }
+            }
         }
         let audio = match flac_bytes(&dir.join(&clip.file)) {
             Ok(a) => a,
@@ -1644,6 +1833,9 @@ pub fn start_notice_watch(app: AppHandle) {
     }
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(60));
+        if let Ok(d) = dir(&app) {
+            relabel_other(&d);
+        }
         // Sends what is due (and, after an update from the old choices,
         // takes this install out of the count).
         sync_in_background(app.clone(), false);
@@ -1883,6 +2075,89 @@ mod tests {
         assert_eq!(
             scrub(line, "/Users/rob"),
             r#"[a][WARN] couldn't open "…" in ~/x: "…""#
+        );
+    }
+
+    #[test]
+    fn model_answers_count_as_names_unless_empty() {
+        assert!(!names_in_answer(r#"{"names": []}"#));
+        assert!(!names_in_answer("Sure.\n```json\n{\"names\": []}\n```"));
+        assert!(names_in_answer(r#"{"names": ["Schwabenhaus"]}"#));
+        // Anything unreadable is treated as a name: not sent.
+        assert!(names_in_answer("I can't tell."));
+        assert!(names_in_answer(""));
+    }
+
+    #[test]
+    fn the_name_check_only_asks_this_mac() {
+        assert!(on_this_mac("http://localhost:11434"));
+        assert!(on_this_mac("http://127.0.0.1:11434/"));
+        assert!(on_this_mac("http://[::1]:11434"));
+        assert!(!on_this_mac("http://192.168.2.10:11434"));
+        assert!(!on_this_mac("https://ollama.example.com"));
+    }
+
+    #[test]
+    fn capitalised_words_keep_hyphenated_names() {
+        assert_eq!(
+            capitalised_words("Und der Ast-Top ist ja fast eine Ein-Mann-Show, oder?"),
+            vec!["Und", "Ast-Top", "Ein-Mann-Show"]
+        );
+    }
+
+    #[test]
+    fn dictations_set_to_auto_get_their_language_from_the_text() {
+        assert_eq!(language_of(Some("de-DE"), "whatever"), "de");
+        assert_eq!(
+            language_of(
+                None,
+                "Let's improve this, so please show me also what is shared."
+            ),
+            "en"
+        );
+        assert_eq!(
+            language_of(
+                Some("auto"),
+                "Ich glaube, das ist halt immer so der Winkel von mir."
+            ),
+            "de"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn names_alone_are_caught_even_when_missed_in_context() {
+        assert_eq!(
+            apple_name_check(
+                "Und der Ast-Top ist ja auch fast eine Ein-Mann-Show mit seiner Frau.",
+                "de"
+            ),
+            Some("name")
+        );
+        assert_eq!(
+            apple_name_check("Wir sollten den Verkaufsprozess nochmal anschauen.", "de"),
+            None
+        );
+    }
+
+    /// Needs Ollama with qwen3.5:9b: `cargo test --lib model_check_live -- --ignored`.
+    #[test]
+    #[ignore]
+    fn model_check_live() {
+        let m = LocalModel {
+            base: "http://localhost:11434".into(),
+            model: "qwen3.5:9b".into(),
+        };
+        assert!(model_finds_names(
+            &m,
+            "Oder auch wie Schwabenhaus, die das auch selber machen."
+        )
+        .unwrap());
+        assert!(
+            model_finds_names(&m, "Ich war gestern bei Lumicare, Norman übernimmt das.").unwrap()
+        );
+        assert!(
+            !model_finds_names(&m, "Wir sollten den Verkaufsprozess nochmal anschauen.").unwrap()
         );
     }
 }

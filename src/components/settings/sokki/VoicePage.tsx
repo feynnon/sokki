@@ -95,6 +95,15 @@ export const SokkiVoicePage: React.FC = () => {
     };
   }, [load]);
 
+  // Uploads run in the background; while sharing is on, the "Shared so
+  // far" line follows them.
+  const sharing = stats?.support ?? false;
+  useEffect(() => {
+    if (!sharing) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [sharing, load]);
+
   if (!stats) return null;
   const lang = (k: string) =>
     languageName(k, i18n.language, t("sokki.voice.otherLanguage"));

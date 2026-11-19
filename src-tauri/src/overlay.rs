@@ -528,7 +528,8 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     // only chooses Top vs Bottom placement. Checked here (off the main thread)
     // so the common overlay-disabled case never pays for a main-thread hop.
     let settings = settings::get_settings(app_handle);
-    if settings.overlay_style == OverlayStyle::None {
+    // Test mode shows nothing on Robin's screen; its live text goes to the log.
+    if settings.overlay_style == OverlayStyle::None || crate::test_mic::active() {
         return;
     }
     OVERLAY_SESSION_SHOWING.store(true, Ordering::SeqCst);

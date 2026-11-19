@@ -17,7 +17,8 @@ use crate::managers::model::ModelManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::overlay;
 use crate::settings::{
-    get_settings, AppSettings, ChineseScript, ModelUnloadTimeout, TranscribeAcceleratorSetting,
+    get_settings, AppSettings, ChineseScript, ModelUnloadTimeout, OverlayStyle,
+    TranscribeAcceleratorSetting,
 };
 use anyhow::Result;
 use chunked::{ChunkSetup, ChunkedDecode};
@@ -885,9 +886,11 @@ impl TranscriptionManager {
             caps.supports_translate,
             caps.languages,
         );
+        let settings = get_settings(&self.app_handle);
         let mode = live_decode(
             ModelTraits::of(&info),
-            get_settings(&self.app_handle).long_form_chunking,
+            settings.long_form_chunking,
+            settings.overlay_style == OverlayStyle::Live,
         );
         let Some(mut session) = LiveSession::begin(self, mode, &info, &model_id) else {
             // Nothing to decode live: the recording is transcribed in batch.

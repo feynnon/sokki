@@ -29,8 +29,12 @@ pub enum LiveDecode {
     /// The model decodes the audio as it arrives.
     Stream,
     /// Long audio is cut at pauses and each chunk decoded once its cut is
-    /// certain.
+    /// certain. With live text on, the chunk still growing is previewed too.
     Chunked,
+    /// Live text only: decoded as `Chunked` for the overlay, then the whole
+    /// recording in batch when it stops, so the result is what it would be
+    /// without live text.
+    Preview,
     /// Nothing until the recording stops; then it is decoded in batch.
     None,
 }
@@ -47,12 +51,16 @@ pub enum BatchDecode {
 }
 
 /// Streaming wins: a streaming model handles long audio itself. Otherwise
-/// long audio is chunked unless the model keeps its accuracy on it.
-pub fn live_decode(model: ModelTraits, long_form_chunking: bool) -> LiveDecode {
+/// long audio is chunked unless the model keeps its accuracy on it, and
+/// `live_text` (the Live overlay) previews what a model that doesn't stream
+/// hears.
+pub fn live_decode(model: ModelTraits, long_form_chunking: bool, live_text: bool) -> LiveDecode {
     if model.streaming {
         LiveDecode::Stream
     } else if long_form_chunking && !model.long_form {
         LiveDecode::Chunked
+    } else if live_text {
+        LiveDecode::Preview
     } else {
         LiveDecode::None
     }
@@ -65,5 +73,34 @@ pub fn batch_decode(model: ModelTraits, long_form_chunking: bool) -> BatchDecode
         BatchDecode::Chunked
     } else {
         BatchDecode::Whole
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PARAKEET: ModelTraits = ModelTraits {
+        streaming: false,
+        long_form: false,
+    };
+    const WHISPER: ModelTraits = ModelTraits {
+        streaming: false,
+        long_form: true,
+    };
+    const NEMOTRON: ModelTraits = ModelTraits {
+        streaming: true,
+        long_form: false,
+    };
+
+    #[test]
+    fn live_text_previews_models_that_dont_stream() {
+        assert_eq!(live_decode(NEMOTRON, true, true), LiveDecode::Stream);
+        // Chunked keeps its result; live text only adds previews to it.
+        assert_eq!(live_decode(PARAKEET, true, true), LiveDecode::Chunked);
+        assert_eq!(live_decode(PARAKEET, false, true), LiveDecode::Preview);
+        assert_eq!(live_decode(WHISPER, true, true), LiveDecode::Preview);
+        assert_eq!(live_decode(WHISPER, true, false), LiveDecode::None);
+        assert_eq!(live_decode(PARAKEET, false, false), LiveDecode::None);
     }
 }

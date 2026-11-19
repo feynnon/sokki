@@ -217,6 +217,11 @@ impl Chunker {
         self.len
     }
 
+    /// The audio not yet in a chunk: the chunk still growing.
+    pub fn pending(&self) -> &[f32] {
+        &self.pending
+    }
+
     /// Adds audio. Returns the chunks whose cuts this made certain, in order.
     /// A whole clip pushed at once is moved in, not copied.
     pub fn push(&mut self, pcm: impl Into<Vec<f32>>) -> Vec<Vec<f32>> {

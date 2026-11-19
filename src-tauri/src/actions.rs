@@ -591,7 +591,8 @@ impl ShortcutAction for TranscribeAction {
             streaming: model_supports_streaming,
             long_form: false,
         };
-        if live_decode(expected_model, settings.long_form_chunking) != LiveDecode::None {
+        let live_text = settings.overlay_style == OverlayStyle::Live;
+        if live_decode(expected_model, settings.long_form_chunking, live_text) != LiveDecode::None {
             tm.start_stream();
         }
         let plan_elapsed = plan_started.elapsed();
@@ -601,8 +602,9 @@ impl ShortcutAction for TranscribeAction {
         // pill instead of an oversized transparent live window.
         let overlay_started = Instant::now();
         match settings.overlay_style {
-            OverlayStyle::Live if model_supports_streaming => utils::show_streaming_overlay(app),
-            OverlayStyle::Live | OverlayStyle::Minimal => show_recording_overlay(app),
+            // A model that doesn't stream gets live text too (LiveDecode::Preview).
+            OverlayStyle::Live => utils::show_streaming_overlay(app),
+            OverlayStyle::Minimal => show_recording_overlay(app),
             OverlayStyle::None => {} // show_overlay_state no-ops on None anyway
         }
         // Everything above runs before capture can begin, so each span here is
@@ -923,8 +925,17 @@ impl ShortcutAction for TranscribeAction {
                                         // UI while this paste ran.
                                         let owns_ui =
                                             || RECORDING_SESSION.load(Ordering::SeqCst) == session;
+                                        let pasted = if crate::test_mic::active() {
+                                            log::info!(
+                                                "Test mode, not pasted ({:?} after the stop): {final_text}",
+                                                stop_time.elapsed()
+                                            );
+                                            Ok(utils::PasteOutcome::Pasted)
+                                        } else {
+                                            utils::paste(final_text, ah_clone.clone())
+                                        };
                                         let (outcome, notice) =
-                                            match utils::paste(final_text, ah_clone.clone()) {
+                                            match pasted {
                                                 Ok(utils::PasteOutcome::Pasted) => {
                                                     debug!(
                                                         "Text pasted successfully in {:?}",

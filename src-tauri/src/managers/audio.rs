@@ -412,12 +412,17 @@ fn microphone_config(
 
 fn open_microphone(config: RecorderConfig) -> Result<OpenMicrophone, handy_recorder::Error> {
     let failed = Arc::new(AtomicBool::new(false));
-    let recorder = Recorder::open_with_failure_handler(config, {
+    let on_failure = {
         let failed = Arc::clone(&failed);
         // handy-recorder logs the failure. The stream is rebuilt on the next
         // start; a recording in progress keeps the audio captured before it.
         move |_| failed.store(true, Ordering::Release)
-    })?;
+    };
+    let recorder = if crate::test_mic::active() {
+        crate::test_mic::open(config, Box::new(on_failure))?
+    } else {
+        Recorder::open_with_failure_handler(config, on_failure)?
+    };
     Ok(OpenMicrophone { recorder, failed })
 }
 

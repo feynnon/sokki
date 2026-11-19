@@ -34,6 +34,7 @@ mod settings;
 mod shortcut;
 mod signal_handle;
 mod system_languages;
+mod test_mic;
 mod transcription_coordinator;
 mod transcription_hook;
 mod tray;
@@ -277,6 +278,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // (#1660) — see signal_handle.rs.
     #[cfg(unix)]
     signal_handle::setup_signal_handler(app_handle.clone());
+    test_mic::drive(app_handle);
 
     // The macOS activation policy for a start-hidden launch is applied before
     // the event loop runs (see `apply_startup_activation_policy`), not here:

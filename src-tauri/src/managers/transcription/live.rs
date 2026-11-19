@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use log::{debug, error, info};
 use transcribe_cpp::StreamOptions;
 
-use super::chunked::{ChunkSetup, ChunkedDecode, PendingSetup};
+use super::chunked::{ChunkSetup, ChunkedDecode, PendingSetup, Preview};
 use super::policy::LiveDecode;
 use super::{
     emit_stream_text, join_chunks, lock_perf, PreviewScript, RunOutcome, RunSetup,
@@ -15,7 +15,7 @@ use super::{
 };
 use crate::audio_toolkit::OutputLanguageEvidence;
 use crate::engine_supervisor::{EngineError, LoadedInfo, StreamHandle, StreamProgress};
-use crate::settings::{get_settings, AppSettings};
+use crate::settings::{get_settings, AppSettings, OverlayStyle};
 
 /// One recording's live decode.
 pub(super) struct LiveSession<'a> {
@@ -27,6 +27,8 @@ enum LiveDecoder<'a> {
     Stream(StreamSession<'a>, Box<RunSetup>),
     /// Its setup is resolved by its first chunk.
     Chunked(Box<ChunkedDecode<'a>>),
+    /// Live text only; the recording is transcribed in batch when it stops.
+    Preview(Box<ChunkedDecode<'a>>),
 }
 
 /// A decoded text and the language the model detected in it, if any.
@@ -58,10 +60,12 @@ impl<'a> LiveSession<'a> {
                 let stream = StreamSession::begin(tm, info, &settings, &setup, model_id)?;
                 LiveDecoder::Stream(stream, Box::new(setup))
             }
-            LiveDecode::Chunked => {
-                info!("Live long-form chunking started (model '{}')", model_id);
+            LiveDecode::Chunked | LiveDecode::Preview => {
                 let backend = settings.vad_backend;
-                LiveDecoder::Chunked(Box::new(ChunkedDecode::new(
+                let live_text = settings.overlay_style == OverlayStyle::Live;
+                let preview = live_text
+                    .then(|| Preview::new(plan.clone(), info.clone(), settings.clone()));
+                let mut chunks = ChunkedDecode::new(
                     tm,
                     tm.engine.cancel_mark(),
                     ChunkSetup::Pending(Box::new(PendingSetup {
@@ -71,7 +75,19 @@ impl<'a> LiveSession<'a> {
                     })),
                     model_id,
                     backend,
-                )))
+                );
+                if let Some(preview) = preview {
+                    chunks = chunks.with_preview(preview);
+                    // The stop shows the working state in the Live panel.
+                    tm.stream_active.store(true, Ordering::Release);
+                }
+                if mode == LiveDecode::Chunked {
+                    info!("Live long-form chunking started (model '{}', live text: {})", model_id, live_text);
+                    LiveDecoder::Chunked(Box::new(chunks))
+                } else {
+                    info!("Live text started (model '{}')", model_id);
+                    LiveDecoder::Preview(Box::new(chunks))
+                }
             }
         };
         Some(Self { decoder })
@@ -80,7 +96,7 @@ impl<'a> LiveSession<'a> {
     pub(super) fn feed(&mut self, pcm: Vec<f32>) {
         match &mut self.decoder {
             LiveDecoder::Stream(stream, _) => stream.feed(pcm),
-            LiveDecoder::Chunked(chunks) => chunks.push(pcm),
+            LiveDecoder::Chunked(chunks) | LiveDecoder::Preview(chunks) => chunks.push(pcm),
         }
     }
 
@@ -98,6 +114,7 @@ impl<'a> LiveSession<'a> {
                     }))
             }
             LiveDecoder::Chunked(chunks) => finish_chunks(*chunks, recorded_samples),
+            LiveDecoder::Preview(_) => Ok(None),
         }
     }
 }

@@ -33,6 +33,11 @@ use crate::tray;
 
 /// Initialize shortcuts using the configured implementation
 pub fn init_shortcuts(app: &AppHandle) {
+    // Test mode is driven from outside; no keyboard hook, no shortcuts.
+    if crate::test_mic::active() {
+        log::info!("Test mode: no keyboard shortcuts");
+        return;
+    }
     let user_settings = settings::load_or_create_app_settings(app);
 
     // Check which implementation to use
@@ -108,7 +113,7 @@ fn reconcile_cancel_shortcut(app: &AppHandle) {
     }
 
     #[cfg(not(target_os = "linux"))]
-    {
+    if !crate::test_mic::active() {
         let mut registered = CANCEL_REGISTERED.lock().unwrap_or_else(|e| e.into_inner());
         let requested = CANCEL_REQUESTED.load(Ordering::SeqCst);
         if requested == *registered {

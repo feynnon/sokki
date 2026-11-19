@@ -125,7 +125,7 @@ export const ModelTableRow: React.FC<ModelTableRowProps> = ({
     ) : entry.kind === "legacy" ? (
       t("modelTable.legacyLine")
     ) : IS_SOKKI ? (
-      (SOKKI_MODEL_LINES[entry.id] ?? entry.description)
+      ((entry.model && SOKKI_MODEL_LINES[entry.model.id]) ?? entry.description)
     ) : (
       entry.description
     ));

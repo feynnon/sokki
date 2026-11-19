@@ -55,6 +55,7 @@ Status: open unless marked.
 | X6 | Apple Intelligence is a stub (Command Line Tools only) | install Xcode if wanted |
 | X7 | Processing starts only after the meeting ends (21-min call: ready ~3 min after stopping) | live transcription measured and rejected, see F3 |
 | X8 | **Fixed 2026-11-19:** keyboard and mouse froze Mac-wide (13:3x, forced restart; 15:02, 5 min). Onboarding ran `tccutil reset` before asking for a permission. A second copy (started from a shell, or a test copy with a fresh data folder) reads "not granted" and resets while the running Sokki holds an active keyboard event tap; revoking that grant hangs all input (Apple FB24619068, developer.apple.com/forums/thread/844416) | reset removed (onboarding only asks; a stale grant after a signature change is fixed by the user in System Settings). Still open: a listen-only tap when no shortcut needs blocking |
+| X9 | **Partly fixed 2026-11-19:** an in-person meeting recorded in front of the laptop was cut off when the Mac went to idle sleep. A recording now holds a `PreventUserIdleSystemSleep` assertion (`meeting/keep_awake.rs`; the display may still turn off). Still open: closing the lid sleeps the Mac and ends the capture (with no external display); a power assertion can't prevent that, only the admin-level `pmset disablesleep`. Linux and Windows hold nothing yet | warn when the lid closes during a recording; `systemd-inhibit` / `PowerSetRequest` on the other hosts |
 
 ## Found in the first real call (2026-11-17)
 

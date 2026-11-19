@@ -16,6 +16,7 @@ pub mod detect;
 pub mod diarize_worker;
 pub mod flac;
 pub mod indicator;
+pub mod keep_awake;
 pub mod memguard;
 pub mod mic;
 #[cfg(target_os = "macos")]
@@ -108,6 +109,9 @@ struct ActiveMeeting {
     // Stopped in `stop`. Dropping them ends the capture as well.
     system: Option<SystemAudioCapture>,
     mic: MicCapture,
+    // Keeps the Mac from idle-sleeping until the meeting is stopped; dropped
+    // with it, after both files are finalized.
+    _awake: keep_awake::KeepAwake,
 }
 
 #[derive(Default)]
@@ -127,6 +131,8 @@ impl MeetingManager {
             bail!("A meeting is already being recorded.");
         }
         std::fs::create_dir_all(dir).with_context(|| format!("Creating {}", dir.display()))?;
+        // Held from before the captures open; released if starting fails.
+        let awake = keep_awake::KeepAwake::acquire();
 
         MIC_FIRST_US.store(0, std::sync::atomic::Ordering::Relaxed);
         SYSTEM_FIRST_US.store(0, std::sync::atomic::Ordering::Relaxed);
@@ -159,6 +165,7 @@ impl MeetingManager {
             started: std::time::Instant::now(),
             system,
             mic,
+            _awake: awake,
         });
         Ok(warnings)
     }

@@ -1,12 +1,12 @@
 //! Correcting misheard dictionary words in a transcript with a language model.
 //!
 //! Parakeet cannot be given a vocabulary, so the user's own words come out
-//! misheard: "Cloud Code" for "Claude Code", "Kalazar" for "Kalasar",
-//! "APDO" for "AVDO", "Lied" for "Lead".
+//! misheard: "Cloud Code" for "Claude Code", "Kelazur" for "Kelasur",
+//! "OPDA" for "OVDA", "Lied" for "Lead".
 //!
 //! Measured on two real calls (`scripts/correction_eval.py`): asking a small
 //! local model to fix *any* recognition error makes things worse. It
-//! "corrects" correct names and Denglisch ("Noxi" → "Kalasar", "raisen" →
+//! "corrects" correct names and Denglisch ("Nuxa" → "Kelasur", "raisen" →
 //! "raise") and invents words. Research agrees (RECOVER, arXiv 2603.16411):
 //! constrain the model to the user's terms and check every edit.
 //!
@@ -14,9 +14,9 @@
 //! are a misheard word from the user's dictionary? Each answer is then
 //! checked in code before it is applied:
 //! - the span exists in the line and contains no dictionary entry itself (so
-//!   known names like "Noxi" or "Petard" are never replaced);
+//!   known names like "Nuxa" or "Patird" are never replaced);
 //! - the replacement contains a dictionary entry;
-//! - the two sound alike (Kölner Phonetik), so "strugglen" → "Kalasar" fails;
+//! - the two sound alike (Kölner Phonetik), so "strugglen" → "Kelasur" fails;
 //! - it is not just another ending or a longer/shorter form of the same word
 //!   ("Marketer" → "Marketing", "raisen" → "raise", "Location" →
 //!   "Multilocation");
@@ -192,7 +192,7 @@ fn system_prompt(dictionary: &[String]) -> String {
         "You find places in a meeting transcript (German, with English business terms) where the speech \
 recogniser misheard a word from the user's dictionary. Dictionary (correct spellings): {}.\n\
 Report a span only if BOTH hold: it sounds similar to a dictionary entry (also misspellings like \
-'APDO' for 'AVDO', split or merged words), AND that entry makes sense in the sentence.\n\
+'OPDA' for 'OVDA', split or merged words), AND that entry makes sense in the sentence.\n\
 Do not report anything else: other errors, grammar, English words, Denglisch, or names that are not \
 in the dictionary. Most lines contain no such span.\n\
 Answer with JSON only: {{\"matches\": [{{\"line\": <number>, \"heard\": \"<exact words in the line>\", \
@@ -256,7 +256,7 @@ fn has_candidate(text: &str, dictionary: &[String], codes: &[String], max_distan
                 let dist =
                     levenshtein(&kg, kd) as f64 / kg.chars().count().max(kd.chars().count()) as f64;
                 // Sound alone matches too much for short entries ("machen" ~
-                // "Noxi"); the letters must be fairly close too. Measured on
+                // "Nuxa"); the letters must be fairly close too. Measured on
                 // two real calls: 45% of lines pass, 22 of 23 misheard
                 // dictionary words are among them.
                 let dc = compact(d);
@@ -346,7 +346,7 @@ fn propagate_term_fixes(out: &mut Transcript, applied: &mut Vec<Correction>) {
 /// Replaces every whole-word occurrence of `from` (words joined by spaces or
 /// hyphens) and returns how many. The search always continues after the
 /// inserted text: the replacement may contain `from` ("Account" →
-/// "AVDO-Account"), and searching from the start again once looped forever
+/// "OVDA-Account"), and searching from the start again once looped forever
 /// and ate 50 GB.
 fn replace_all(text: &mut String, from: &str, to: &str) -> usize {
     let mut at = 0;
@@ -453,7 +453,7 @@ fn apply(
     find_phrase(&seg.text, heard, 0)?;
     // The replacement uses an entry, also inflected or in a compound
     // ("USPs", "Lead-Follow-up"); the heard words are not already one (so a
-    // known name such as "Noxi" is never replaced).
+    // known name such as "Nuxa" is never replaced).
     let uses_entry = dictionary
         .iter()
         .any(|d| compact(correct).contains(&compact(d)));
@@ -464,7 +464,7 @@ fn apply(
         return None;
     }
     // One change brings in one entry: "Pflegeheim Multi Location" ->
-    // "Tigny Kare Multilocation" invented a name next to a real fix.
+    // "Tegna Kure Multilocation" invented a name next to a real fix.
     let (cc, ch) = (compact(correct), compact(heard));
     let added: Vec<String> = dictionary
         .iter()
@@ -484,7 +484,7 @@ fn apply(
         return None;
     }
     // Every entry the change brings in must sound like some words of the
-    // original ("Pflegeheim" does not sound like "Tigny Kare").
+    // original ("Pflegeheim" does not sound like "Tegna Kure").
     for d in dictionary {
         let dc = compact(d);
         if !cc.contains(dc.as_str()) || ch.contains(dc.as_str()) {
@@ -628,8 +628,8 @@ mod tests {
 
     fn dict() -> Vec<String> {
         [
-            "Kalasar",
-            "AVDO",
+            "Kelasur",
+            "OVDA",
             "Claude Code",
             "Claude",
             "Meta Ads",
@@ -637,10 +637,10 @@ mod tests {
             "USP",
             "Multilocation",
             "Performance Marketing",
-            "Petard",
-            "Noxi",
-            "Nordim",
-            "Tigny Kare",
+            "Patird",
+            "Nuxa",
+            "Nardum",
+            "Tegna Kure",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -680,11 +680,11 @@ mod tests {
             try_apply("keinen Cloud-Code nutzt", "Cloud Code", "Claude Code").unwrap(),
             "keinen Claude Code nutzt"
         );
-        assert!(try_apply("wofür brauche ich Color", "Color", "Kalasar").is_some());
-        assert!(try_apply("Für APDO finde ich", "APDO", "AVDO").is_some());
-        assert!(try_apply("bei APitao habe ich", "APitao", "AVDO").is_some());
-        assert!(try_apply("für den Nordim von der VDO", "VDO", "AVDO").is_some());
-        assert!(try_apply("Perdard, dem muss ich", "Perdard", "Petard").is_some());
+        assert!(try_apply("wofür brauche ich Color", "Color", "Kelasur").is_some());
+        assert!(try_apply("Für OPDA finde ich", "OPDA", "OVDA").is_some());
+        assert!(try_apply("bei OPitaa habe ich", "OPitaa", "OVDA").is_some());
+        assert!(try_apply("für den Nardum von der VDA", "VDA", "OVDA").is_some());
+        assert!(try_apply("Pardird, dem muss ich", "Pardird", "Patird").is_some());
         assert!(try_apply("Hypothesen zu Use Ps", "Use Ps", "USPs").is_some());
         assert!(try_apply("ein Multiculation", "Multiculation", "Multilocation").is_some());
         assert!(try_apply("die Metaads laufen", "Metaads", "Meta Ads").is_some());
@@ -694,16 +694,16 @@ mod tests {
     fn real_call_mistakes_are_rejected() {
         // Correct words the models "fixed" on real calls.
         assert!(
-            try_apply("damit strugglen", "strugglen", "Kalasar").is_none(),
+            try_apply("damit strugglen", "strugglen", "Kelasur").is_none(),
             "does not sound alike"
         );
-        assert!(try_apply("über den Accountant weg", "Accountant", "Kalasar").is_none());
+        assert!(try_apply("über den Accountant weg", "Accountant", "Kelasur").is_none());
         assert!(
-            try_apply("introducing Noxi", "Noxi", "Nordim").is_none(),
+            try_apply("introducing Nuxa", "Nuxa", "Nardum").is_none(),
             "known name"
         );
         assert!(
-            try_apply("sobald ich Petard fertig habe", "Petard", "Ethard").is_none(),
+            try_apply("sobald ich Patird fertig habe", "Patird", "Ethard").is_none(),
             "known name"
         );
         assert!(
@@ -748,7 +748,7 @@ mod tests {
         assert!(try_apply(
             "diesem Pflegeheim Multi Location.",
             "Pflegeheim Multi Location",
-            "Tigny Kare Multilocation"
+            "Tegna Kure Multilocation"
         )
         .is_none());
         assert!(try_apply("mit Cloud Code plus", "Cloud Code", "Claude Code").is_some());
@@ -805,24 +805,24 @@ mod tests {
 
     #[test]
     fn propagation_ends_when_the_fix_contains_the_misheard_words() {
-        // Once looped forever: "Account" -> "AVDO-Account" matched again
+        // Once looped forever: "Account" -> "OVDA-Account" matched again
         // inside its own replacement, growing the line until memory ran out.
         let mut t = Transcript {
             segments: vec![
                 seg("Das Account ist neu."),
-                seg("Account, Account und AVDO-Account."),
+                seg("Account, Account und OVDA-Account."),
             ],
         };
         let mut applied = vec![Correction {
             segment: 0,
             from: "Account".into(),
-            to: "AVDO-Account".into(),
+            to: "OVDA-Account".into(),
         }];
         propagate_term_fixes(&mut t, &mut applied);
-        assert_eq!(t.segments[0].text, "Das AVDO-Account ist neu.");
+        assert_eq!(t.segments[0].text, "Das OVDA-Account ist neu.");
         assert!(t.segments[1]
             .text
-            .starts_with("AVDO-Account, AVDO-Account und "));
+            .starts_with("OVDA-Account, OVDA-Account und "));
         assert!(applied.len() <= 6, "{applied:?}");
     }
 
@@ -867,15 +867,15 @@ mod tests {
         let codes: Vec<String> = d.iter().map(|x| koelner_phonetik(x)).collect();
         let cand = |t: &str| has_candidate(t, &d, &codes, 0.35);
         assert!(cand("Was kostet ein qualifizierter Lied?"));
-        assert!(cand("wofür brauche ich eigentlich Colazar"));
-        // Trade-off: "Color" for Kalasar is too far in letters to be flagged.
+        assert!(cand("wofür brauche ich eigentlich Colazur"));
+        // Trade-off: "Color" for Kelasur is too far in letters to be flagged.
         assert!(!cand("wofür brauche ich eigentlich Color"));
         assert!(cand("mit Cloud Code plus MCP"));
-        assert!(cand("Für APDO finde ich"));
+        assert!(cand("Für OPDA finde ich"));
         assert!(cand("Hypothesen zu Use Ps"));
         assert!(!cand("Ja, genau, das machen wir so."));
         assert!(!cand("Und dann hängt der Account halt jetzt so."));
         // Exact entries are not candidates by themselves.
-        assert!(!cand("Kalasar"));
+        assert!(!cand("Kelasur"));
     }
 }

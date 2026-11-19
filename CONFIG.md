@@ -54,7 +54,7 @@ Most useful keys:
 | `meetings.user_name` | `String` | `"Ich"` | How the user is named in transcripts (the main voice on the microphone). |
 | `meetings.diarization_enabled` | `bool` | `true` | Separate speakers within each track. |
 | `meetings.correction_enabled` | `bool` | `true` | Fix misheard dictionary words (`glossary`) in the transcript with the language model before the summary. Only words that sound like a dictionary entry are changed; every change is listed at the end of the note. Without dictionary entries nothing is corrected. |
-| `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kalasar", "AVDO", "Claude Code", "Petard", "Noxi"]. Misheard forms are fixed ("Cloud Code" → "Claude Code"), and entries are never changed themselves, so add names that must stay as they are. Keep it short: very short or everyday-sounding words (e.g. "Lead") match more often. The dictation `custom_words` are added automatically. |
+| `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude Code", "Patird", "Nuxa"]. Misheard forms are fixed ("Cloud Code" → "Claude Code"), and entries are never changed themselves, so add names that must stay as they are. Keep it short: very short or everyday-sounding words (e.g. "Lead") match more often. The dictation `custom_words` are added automatically. |
 | `meetings.summary_enabled` | `bool` | `true` | Write a summary, decisions and action items with a language model. |
 | `meetings.footer_enabled` | `bool` | `true` | End every note, and the summary shown in the app and on the phone, with "Transcribed on my Mac with sokki.org". |
 | `meetings.llm_provider` | `String` | `"local"` | Which language model corrects and summarises: "local" (the server at `llm_base_url`, normally Ollama; nothing leaves the computer), or a cloud provider: "anthropic", "openai" or "openrouter". A cloud provider gets the transcript; its API key is the one stored for that provider under `post_process_api_keys`. |
@@ -94,7 +94,7 @@ Most useful keys:
 | `overlay_position` | `OverlayPosition` | `"bottom"` | Dictation overlay position: `top` or `bottom`. |
 | `debug_mode` | `bool` | `false` | Show the debug page and extra logging. |
 | `log_level` | `LogLevel` | `"debug"` | `trace`, `debug`, `info`, `warn` or `error`. |
-| `custom_words` | `Vec<String>` | `["Sokki"]` | Words to prefer in dictation (names, jargon), e.g. `["Kalasar"]`. Starts with `Sokki`. |
+| `custom_words` | `Vec<String>` | `["Sokki"]` | Words to prefer in dictation (names, jargon), e.g. `["Kelasur"]`. Starts with `Sokki`. |
 | `model_unload_timeout` | `ModelUnloadTimeout` | `"min5"` | Unload the model after inactivity: `never`, `immediately`, `min2`, `min5`, `min10`, `min15`, `hour1`. |
 | `word_correction_threshold` | `f64` | `0.18` | How close a transcribed word must be to a custom word to be replaced (0–1; lower = stricter). |
 | `history_limit` | `usize` | `5` | Dictations kept in History. |

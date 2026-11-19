@@ -594,8 +594,8 @@ pub struct MeetingSettings {
     /// the note. Without dictionary entries nothing is corrected.
     pub correction_enabled: bool,
     /// Your dictionary: correctly spelled company names, customers,
-    /// colleagues, products and jargon, e.g. ["Kalasar", "AVDO", "Claude
-    /// Code", "Petard", "Noxi"]. Misheard forms are fixed ("Cloud Code" →
+    /// colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude
+    /// Code", "Patird", "Nuxa"]. Misheard forms are fixed ("Cloud Code" →
     /// "Claude Code"), and entries are never changed themselves, so add
     /// names that must stay as they are. Keep it short: very short or
     /// everyday-sounding words (e.g. "Lead") match more often. The dictation
@@ -2019,11 +2019,11 @@ mod tests {
         let mut settings = get_default_settings();
         assert_eq!(settings.custom_words, vec!["Sokki".to_string()]);
 
-        settings.custom_words = vec!["Kalasar".into()];
+        settings.custom_words = vec!["Kelasur".into()];
         settings.settings_schema_version = 3;
         let raw = serde_json::to_value(&settings).unwrap();
         assert!(apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(settings.custom_words, vec!["Sokki", "Kalasar"]);
+        assert_eq!(settings.custom_words, vec!["Sokki", "Kelasur"]);
 
         // Already there in any case: nothing is added.
         settings.custom_words = vec!["sokki".into()];

@@ -35,7 +35,7 @@ EXTRA = {
     "overlay_position": "Dictation overlay position: `top` or `bottom`.",
     "debug_mode": "Show the debug page and extra logging.",
     "log_level": "`trace`, `debug`, `info`, `warn` or `error`.",
-    "custom_words": "Words to prefer in dictation (names, jargon), e.g. `[\"Kalasar\"]`. Starts with `Sokki`.",
+    "custom_words": "Words to prefer in dictation (names, jargon), e.g. `[\"Kelasur\"]`. Starts with `Sokki`.",
     "model_unload_timeout": "Unload the model after inactivity: `never`, `immediately`, `min2`, `min5`, `min10`, `min15`, `hour1`.",
     "word_correction_threshold": "How close a transcribed word must be to a custom word to be replaced (0–1; lower = stricter).",
     "history_limit": "Dictations kept in History.",

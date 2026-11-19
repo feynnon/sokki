@@ -1727,7 +1727,7 @@ diarization_enabled: boolean;
 correction_enabled: boolean; 
 /**
  * Terms likely in your meetings (names, products, jargon), e.g.
- * ["Kalasar", "Lead", "Claude Code"]. Used by the correction; the
+ * ["Kelasur", "Lead", "Claude Code"]. Used by the correction; the
  * dictation `custom_words` are added automatically.
  */
 glossary: string[]; 

@@ -33,7 +33,7 @@ pill shows recording); first start is permissions, then the model. Options
 not shown keep their defaults and stay in the config file
 (`src/components/settings/sokki/`). The Vocabulary list feeds only the
 meeting correction: Handy's direct dictation word swap turned „Lied“ into
-„Lead“ and „Mach“ into „Noxi“ with these words.
+„Lead“ and „Mach“ into „Nuxa“ with these words.
 
 Both use the same bundle identifier, settings and meetings; installing one
 replaces the other in /Applications. Icons are drawn as SVG in

@@ -190,7 +190,7 @@ pub fn tokenize(text: &str) -> Vec<(String, usize)> {
 /// Levenshtein distance over chars.
 /// Kölner Phonetik: a sound code for German words (like Soundex, made for
 /// German). Similar-sounding words get similar digit strings: "Color" 457,
-/// "Kalasar" 4587; "Lied" and "Lead" both 52. Letters other than a–z (after
+/// "Kelasur" 4587; "Lied" and "Lead" both 52. Letters other than a–z (after
 /// folding umlauts and ß) are ignored.
 pub fn koelner_phonetik(text: &str) -> String {
     let w: Vec<char> = text
@@ -372,11 +372,11 @@ mod tests {
         let k = koelner_phonetik;
         assert_eq!(k("Lied"), k("Lead"));
         assert_eq!(k("Cloud"), k("Claude"));
-        assert_eq!(k("Kalazar"), k("Kalasar"));
+        assert_eq!(k("Kelazur"), k("Kelasur"));
         assert_eq!(k("Müller"), "657");
         assert_eq!(k("Color"), "457");
-        assert_eq!(k("Kalasar"), "4587");
-        assert_ne!(k("strugglen"), k("Kalasar"));
+        assert_eq!(k("Kelasur"), "4587");
+        assert_ne!(k("strugglen"), k("Kelasur"));
         assert_eq!(k("123"), "");
     }
 }

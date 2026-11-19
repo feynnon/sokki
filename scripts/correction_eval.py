@@ -4,7 +4,7 @@
 Data (gitignored, testdata/real/<call>/):
   raw.json     uncorrected transcript (crates/meeting-e2e/examples/raw_transcript.rs)
   labels.json  {"fixes": [{"line": 12, "wrong": "Cloud Code", "right": "Claude Code"}],
-                "keep":  [{"line": 30, "text": "Petard"}]}
+                "keep":  [{"line": 30, "text": "Patird"}]}
                fixes: misrecognitions a good correction must repair;
                keep:  correct but unusual words it must leave alone
                       (customer names, Denglisch).
@@ -269,7 +269,7 @@ def terms_system(dictionary):
         "You find places in a German business meeting transcript where the speech recogniser misheard a word "
         "from the user's dictionary. Dictionary (correct spellings): " + ", ".join(dictionary) + ".\n"
         "Report a span only if BOTH hold: it sounds similar to a dictionary entry (also misspellings like "
-        "'APDO' for 'AVDO', split or merged words), AND that entry makes sense in the sentence.\n"
+        "'OPDA' for 'OVDA', split or merged words), AND that entry makes sense in the sentence.\n"
         "Do not report anything else: other errors, grammar, English words, Denglisch, or names that are not "
         "in the dictionary. Most lines contain no such span.\n"
         "Answer with JSON only: {\"matches\": [{\"line\": <number>, \"heard\": \"<exact words in the line>\", "

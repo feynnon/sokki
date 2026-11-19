@@ -385,7 +385,7 @@ const MeetingSettingsView: React.FC<{
           >
             <SavedInput
               value={meetingSettings.glossary.join(", ")}
-              placeholder="Kalasar, AVDO, Claude Code"
+              placeholder="Kelasur, OVDA, Claude Code"
               className="w-full"
               onSave={(v) =>
                 void save({

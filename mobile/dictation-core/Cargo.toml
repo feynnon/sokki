@@ -1,0 +1,8 @@
+[package]
+name = "dictation-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Cuts live microphone audio into pieces at pauses, for transcribing while you speak."
+
+[dependencies]

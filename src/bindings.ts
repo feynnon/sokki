@@ -851,9 +851,84 @@ async listMeetings() : Promise<Result<MeetingRecord[], string>> {
 }
 },
 /**
- * Opens the meeting's note: in Obsidian when the notes folder is inside a
- * vault, otherwise with the default app for Markdown.
+ * The milestone card to show now, if any.
  */
+async getMilestone() : Promise<Result<Milestone | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_milestone") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Closes the card for `hours` (and every milestone below it) for good.
+ */
+async closeMilestone(hours: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("close_milestone", { hours }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Saves the card's picture (a PNG made in the app) and shows it in Finder.
+ */
+async savePicture(path: string, pngBase64: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_picture", { path, pngBase64 }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Puts the heads-up line for the call chat on the clipboard.
+ */
+async copyHeadsUp() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copy_heads_up") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * A QR code (SVG) for a link the app hands out, e.g. sokki.org/get.
+ */
+async qrCodeSvg(text: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("qr_code_svg", { text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getPhoneLinkInfo() : Promise<Result<PhoneLinkInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_phone_link_info") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async renewPhoneLinkCode() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("renew_phone_link_code") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async removePairedPhone(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_paired_phone", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * How much of the user's own data is kept, and the two choices.
  */
@@ -866,12 +941,12 @@ async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
 }
 },
 /**
- * Sets "Help improve", "Support Sokki & Open Source" and "Tell me about
- * paid recording tasks".
+ * Sets "Help improve Sokki", "Share all my recordings" and "Ask me when
+ * there's a buyer".
  */
-async voiceDataSetChoices(improve: boolean, support: boolean, tasks: boolean) : Promise<Result<null, string>> {
+async voiceDataSetChoices(improve: boolean, support: boolean, buyers: boolean) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support, tasks }) };
+    return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support, buyers }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -940,6 +1015,22 @@ async getMeetingNote(id: string) : Promise<Result<MeetingNoteParts, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Saves the meeting's note as one web page (title, date, summary; no
+ * transcript) that opens in any browser, then shows it in Finder.
+ */
+async saveMeetingPage(id: string, path: string, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_meeting_page", { id, path, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Opens the meeting's note: in Obsidian when the notes folder is inside a
+ * vault, otherwise with the default app for Markdown.
+ */
 async openMeetingNote(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_meeting_note", { id }) };
@@ -954,6 +1045,19 @@ async openMeetingNote(id: string) : Promise<Result<null, string>> {
 async reprocessMeeting(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("reprocess_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Adds the missing summary to a done meeting's note, from the note itself
+ * (works after the audio is deleted). Starts Ollama first if it isn't
+ * running. The card follows through `emit_changed`.
+ */
+async summarizeMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("summarize_meeting", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1580,9 +1684,14 @@ tracks: string[];
  */
 source_app: string | null; title: string | null; note_path: string | null; speakers: string[]; 
 /**
- * Problems that did not stop the note (e.g. the summary model was offline).
+ * Problems that did not stop the note, one short sentence each (e.g.
+ * the summary model was offline). The error text is in the log.
  */
 warnings: string[]; 
+/**
+ * Set while the note lacks a summary that should be there.
+ */
+summary_missing?: SummaryMissing | null; 
 /**
  * When the audio was deleted, if it was.
  */
@@ -1661,7 +1770,12 @@ keep_audio_days: number;
 /**
  * Offer to record when a meeting app starts using the microphone.
  */
-detection_enabled: boolean }
+detection_enabled: boolean; 
+/**
+ * Accept recordings from the Sokki phone app on the local network
+ * (direct and end-to-end encrypted, paired by QR code; `meeting/phone_link.rs`).
+ */
+phone_link_enabled: boolean }
 /**
  * Where a meeting is in its life.
  */
@@ -1682,7 +1796,32 @@ detail: string }
  * A meeting's note, split for the app: summary (Markdown) and transcript
  * (plain "[00:03] Speaker 2: Hi." lines, ready to copy).
  */
+/**
+ * The milestone card to show, if any.
+ */
+export type Milestone = { 
+/**
+ * The milestone reached, e.g. 100.
+ */
+hours: number; 
+/**
+ * All hours so far, rounded down.
+ */
+total_hours: number }
 export type MeetingNoteParts = { summary: string; transcript: string }
+/**
+ * What the settings page shows for pairing.
+ */
+export type PairedPhone = { id: string; name: string; paired_at: string }
+export type PhoneLinkInfo = { enabled: boolean; running: boolean; 
+/**
+ * "sokki1:<this Mac's key>:<code>": what the phone scans or pastes.
+ */
+ticket: string; 
+/**
+ * The ticket as a QR code (SVG markup).
+ */
+qr_svg: string; code: string; phones: PairedPhone[] }
 /**
  * What the "Your data" page shows.
  */
@@ -1692,30 +1831,26 @@ export type VoiceDataStats = {
  */
 improve: boolean; 
 /**
- * "Support Sokki & Open Source" is on.
+ * "Share all my recordings" is on.
  */
 support: boolean; 
 /**
- * "Tell me about paid recording tasks" is on.
+ * "Ask me when there's a buyer" is on.
  */
-tasks: boolean; 
+buyers: boolean; 
 /**
  * The counter holds something of this install ("Delete what was shared").
  */
 shared: boolean; clips: number; total_seconds: number; seconds_by_language: Partial<{ [key in string]: number }>; seconds_by_source: Partial<{ [key in string]: number }>; bytes: number; folder: string; 
 /**
- * The latest buyer message that matched (not for supporters).
+ * The latest buyer message that matched (only with "Ask me when
+ * there's a buyer", and not while sharing everything).
  */
 buyer: BuyerRequest | null; 
 /**
- * "Support": recordings uploaded so far, and their length.
+ * Recordings uploaded so far, and their length.
  */
-donated_clips: number; donated_seconds: number; 
-/**
- * "Support": recordings kept on this Mac because their text has a name,
- * a number or contact details.
- */
-withheld_clips: number }
+donated_clips: number; donated_seconds: number }
 /**
  * Someone wants data in a language; this Mac has `hours` of it.
  */
@@ -1928,6 +2063,19 @@ export type ShortcutActivation =
 "hold_or_toggle"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
+/**
+ * Why a done meeting's note has no summary although summaries are on.
+ */
+export type SummaryMissing = 
+/**
+ * The language model wasn't ready; the summary is added once it is.
+ */
+"waiting" | 
+/**
+ * The language model answered but the summary failed; the card offers
+ * to try again.
+ */
+"failed"
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */

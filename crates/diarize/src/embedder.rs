@@ -29,18 +29,20 @@ pub struct SpeakerEmbedder {
 impl SpeakerEmbedder {
     /// Loads `config.embedding_model` (downloading it when allowed).
     pub fn new(config: &DiarizeConfig) -> Result<Self> {
-        let path = models::ensure(
+        let extractor = models::ensure_and_load(
             &config.models_dir,
             &config.embedding_model.file(),
             config.allow_download,
+            |path| {
+                SpeakerEmbeddingExtractor::create(&SpeakerEmbeddingExtractorConfig {
+                    model: Some(path.to_string_lossy().into_owned()),
+                    num_threads: config.num_threads as i32,
+                    debug: false,
+                    provider: Some("cpu".into()),
+                })
+                .ok_or_else(|| anyhow!("failed to load speaker embedding model {}", path.display()))
+            },
         )?;
-        let extractor = SpeakerEmbeddingExtractor::create(&SpeakerEmbeddingExtractorConfig {
-            model: Some(path.to_string_lossy().into_owned()),
-            num_threads: config.num_threads as i32,
-            debug: false,
-            provider: Some("cpu".into()),
-        })
-        .ok_or_else(|| anyhow!("failed to load speaker embedding model {}", path.display()))?;
         Ok(Self {
             extractor,
             model: config.embedding_model,

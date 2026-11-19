@@ -1,0 +1,85 @@
+#!/bin/bash
+# Records the Sokki demo in the Omarchy VM: a Google Meet web-app call that
+# Sokki asks about, records, stops by itself and turns into a note; naming a
+# speaker; dictation with Alt + Space. All audio stays on virtual devices.
+# Output: $REPO/vm-share/demo/demo-raw.mp4 and marks.txt
+set -euo pipefail
+cd "$(dirname "$0")"; REPO=$(cd ../../.. && pwd)
+OUT=$REPO/vm-share/demo
+mark() { ./vm "echo \"$1 \$(date +%s.%N)\" >> ~/vm-share/demo/marks.txt"; }
+
+./vm 'set -e
+  hyprctl eval "hl.monitor({ output = \"Virtual-1\", mode = \"1920x1080@60\", position = \"0x0\", scale = 1.5 })" >/dev/null
+  pkill -x foot || true; pkill -x omawrite || true
+  # Omawrite restores a killed, unsaved page on its next start; start clean.
+  rm -f ~/.local/share/Omacom/omawrite/recovery-*
+  bash ~/vm-share/browsercall.sh hangup >/dev/null
+  omarchy-shell sokki.meetings close >/dev/null 2>&1 || true
+  rm -rf ~/.local/share/sokki/meetings/* ~/Documents/Sokki/* ~/vm-share/demo/marks.txt ~/vm-share/demo/demo-raw.mp4
+  # The story: Sam was named in an earlier call, Reed is new.
+  f=~/.local/share/sokki/voice-profiles.json
+  jq "{profiles: [.profiles[] | select(.name != \"Reed\")]} + (del(.profiles))" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  jq -c "[.profiles[].name]" "$f"
+  bash ~/vm-share/safe-audio.sh on >/dev/null
+  # The video hears both sides through its own sink (never the Mac).
+  if ! pactl list short sinks | grep -q sokki_demo_mix; then
+    pactl load-module module-null-sink sink_name=sokki_demo_mix >> /tmp/sokki-vmcall/modules
+    pactl load-module module-loopback source=sokki_test_speakers.monitor sink=sokki_demo_mix latency_msec=20 >> /tmp/sokki-vmcall/modules
+    pactl load-module module-loopback source=sokki_test_micfeed.monitor sink=sokki_demo_mix latency_msec=20 >> /tmp/sokki-vmcall/modules
+  fi
+  [ "$(bash ~/vm-share/safe-audio.sh check | sed -n "s/.*nothing playing: \([0-9]*\).*/\1/p")" = 0 ] || { echo "test mic not silent"; exit 1; }
+  pgrep -x ollama >/dev/null || (setsid ollama serve > /tmp/ollama.log 2>&1 < /dev/null &)
+  sleep 1'
+
+./vm '(setsid wf-recorder -f ~/vm-share/demo/demo-raw.mp4 -a sokki_demo_mix.monitor -c libx264 -r 30 -p preset=veryfast -p crf=22 > /tmp/wf.log 2>&1 < /dev/null &); sleep 2'
+mark start
+sleep 3
+
+# The call.
+./vm 'bash ~/vm-share/browsercall.sh start 15000 >/dev/null; date +%s > /tmp/t0; for i in $(seq 30); do sokki status 2>/dev/null | grep -q asking && break; sleep 0.5; done'
+mark asked
+sleep 3
+python3 qmp.py keys super-ctrl-m; sleep 1.2; python3 qmp.py keys ret
+mark recording
+./vm 't0=$(cat /tmp/t0); now=$(date +%s); sleep $(( 15 - (now - t0) > 0 ? 15 - (now - t0) : 0 )); pw-play --target sokki_test_micfeed ~/vm-share/demo/mic.wav'
+sleep 2
+./vm 'bash ~/vm-share/browsercall.sh hangup >/dev/null'
+mark hangup
+./vm 'for i in $(seq 900); do sokki notes --json 2>/dev/null | grep -q "\"status\":\"done\"" && break; sleep 0.5; done'
+mark note
+sleep 5
+
+# Name the speaker Sokki did not know yet.
+python3 qmp.py keys super-ctrl-m; sleep 1.5
+python3 qmp.py keys j; sleep 0.5; python3 qmp.py keys j; sleep 0.6; python3 qmp.py keys ret; sleep 0.6
+for ch in R e e d; do python3 qmp.py type "$ch"; sleep 0.15; done
+sleep 1; python3 qmp.py keys ret
+mark named
+sleep 2.5
+
+# Open the note: the summary first, then the transcript.
+python3 qmp.py keys ret
+mark opened
+sleep 3
+python3 qmp.py keys ctrl-home
+sleep 1
+python3 qmp.py keys ctrl-minus ctrl-minus ctrl-minus
+sleep 9
+python3 qmp.py keys ctrl-0
+python3 qmp.py keys super-w
+sleep 1.5
+
+# Dictation into a blank page.
+./vm '(setsid omawrite >/dev/null 2>&1 < /dev/null &); sleep 3'
+mark editor
+python3 qmp.py keys alt-spc; sleep 0.6
+./vm 'pw-play --target sokki_test_micfeed ~/vm-share/demo/dictate.wav'
+sleep 0.4; python3 qmp.py keys alt-spc
+mark dictated
+sleep 6
+
+./vm 'pkill -INT -x wf-recorder; sleep 2'
+mark end
+./vm 'pkill -x omawrite; rm -f ~/.local/share/Omacom/omawrite/recovery-*' || true
+echo "recorded: $OUT/demo-raw.mp4"
+cat "$OUT/marks.txt"

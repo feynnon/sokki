@@ -1,0 +1,61 @@
+# Maintainer: Sokki <https://github.com/feynnon/sokki>
+#
+# Builds the Linux host (crates/sokki) from the main branch.
+pkgname=sokki-git
+pkgver=r0.0000000
+pkgrel=1
+pkgdesc='Local meeting notes and dictation: asks before recording a call, writes the note on this machine (from git)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/feynnon/sokki'
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'jq' 'pipewire' 'vulkan-icd-loader' 'wl-clipboard' 'wtype')
+makedepends=('cargo' 'clang' 'cmake' 'git' 'ninja' 'pkgconf' 'shaderc' 'spirv-headers' 'vulkan-headers')
+optdepends=(
+  'ollama-vulkan: summaries with a local language model (ollama-cuda on NVIDIA)'
+  'quickshell: the Omarchy bar plugin (part of every Omarchy install)'
+  'vulkan-driver: speech recognition on the GPU'
+)
+provides=('sokki')
+conflicts=('sokki' 'sokki-bin')
+install=sokki-git.install
+source=('sokki::git+https://github.com/feynnon/sokki.git')
+sha256sums=('SKIP')
+
+pkgver() {
+  cd sokki
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd sokki
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/^host: //p')" \
+    --manifest-path crates/sokki/Cargo.toml
+}
+
+build() {
+  cd sokki
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --frozen --release --manifest-path crates/sokki/Cargo.toml
+}
+
+package() {
+  cd sokki
+  local omarchy=packaging/omarchy
+
+  install -Dm755 "$srcdir/target/release/sokki" "$pkgdir/usr/bin/sokki"
+  install -Dm755 -t "$pkgdir/usr/bin" \
+    "$omarchy/bin/sokki-omarchy-setup" \
+    "$omarchy/bin/omarchy-dictation-sokki" \
+    "$omarchy/bin/omarchy-install-dictation-sokki" \
+    "$omarchy/bin/omarchy-remove-dictation-sokki"
+  install -Dm644 "$omarchy/systemd/sokki.service" "$pkgdir/usr/lib/systemd/user/sokki.service"
+
+  local file
+  while IFS= read -r -d '' file; do
+    install -Dm644 "$file" "$pkgdir/usr/share/sokki/omarchy-plugin/${file#"$omarchy"/plugin/}"
+  done < <(find "$omarchy/plugin" -type f -print0)
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

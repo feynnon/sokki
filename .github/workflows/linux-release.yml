@@ -1,0 +1,93 @@
+# Linux release: builds `sokki` for x86_64 and aarch64 on Arch Linux (what
+# Omarchy runs), packs each with the Omarchy integration, and attaches the
+# tarballs plus a ready PKGBUILD to the GitHub release of the tag.
+# install.sh (sokki.org/omarchy) builds the package from these files.
+name: Linux release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach to (e.g. v0.3.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            image: archlinux:base-devel
+            # The AVX2 generation: every AMD Zen and Intel since Haswell (2013).
+            cmake: -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            image: menci/archlinuxarm:base-devel
+            # ARMv8.2 with dot products: Apple M, Snapdragon X, Cortex-A76+.
+            cmake: -DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    env:
+      TRANSCRIBE_CMAKE_ARGS: ${{ matrix.cmake }}
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Build tools
+        run: |
+          pacman -Syu --disable-sandbox --noconfirm --needed git rust clang cmake ninja pkgconf \
+            pipewire libpulse alsa-lib vulkan-headers vulkan-icd-loader shaderc spirv-headers
+      - uses: actions/checkout@v4
+      - name: Build
+        working-directory: crates/sokki
+        run: cargo build --release --locked
+      - name: Test
+        working-directory: crates/sokki
+        run: cargo test --release --locked
+      - name: Pack
+        run: |
+          version=${TAG#v}
+          dir=sokki-$version-linux-${{ matrix.arch }}
+          mkdir -p "$dir/omarchy"
+          install -m755 crates/sokki/target/release/sokki "$dir/sokki"
+          strip "$dir/sokki"
+          cp LICENSE "$dir/"
+          cp -R packaging/omarchy/bin packaging/omarchy/plugin packaging/omarchy/systemd "$dir/omarchy/"
+          tar -czf "$dir.tar.gz" "$dir"
+          sha256sum "$dir.tar.gz" | cut -d' ' -f1 > "$dir.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: sokki-*-linux-${{ matrix.arch }}.tar.gz*
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: PKGBUILD with this release's version and checksums
+        run: |
+          version=${TAG#v}
+          x86=$(cat "sokki-$version-linux-x86_64.tar.gz.sha256")
+          arm=$(cat "sokki-$version-linux-aarch64.tar.gz.sha256")
+          sed -e "s/^pkgver=.*/pkgver=$version/" \
+              -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('$x86')/" \
+              -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('$arm')/" \
+              packaging/omarchy/sokki-bin/PKGBUILD > PKGBUILD
+          cp packaging/omarchy/sokki-bin/sokki-bin.install .
+          grep -E "^(pkgver|sha256sums)" PKGBUILD
+      - name: Attach to the release
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Linux builds for Omarchy."
+          gh release upload "$TAG" --clobber sokki-*-linux-*.tar.gz PKGBUILD sokki-bin.install

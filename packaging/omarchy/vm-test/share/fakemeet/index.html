@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Meet – xkd-ptqa-rnm</title>
+<style>
+ body{margin:0;background:#202124;color:#e8eaed;font:16px system-ui;display:grid;place-items:center;height:100vh}
+ .grid{display:grid;grid-template-columns:repeat(3,260px);gap:12px}
+ .tile{height:170px;border-radius:10px;background:#3c4043;display:grid;place-items:center;font-size:40px;position:relative}
+ .tile span{position:absolute;bottom:8px;left:10px;font-size:13px}
+ .talk{outline:3px solid #8ab4f8}
+ .bar{position:fixed;bottom:18px;display:flex;gap:10px} .bar div{background:#3c4043;border-radius:20px;padding:10px 16px;font-size:13px}
+ .leave{background:#ea4335!important}
+</style></head>
+<body>
+<div class="grid">
+ <div class="tile" id="me">R<span>You</span></div>
+ <div class="tile" id="a">S<span>Sam</span></div>
+ <div class="tile" id="b">R<span>Reed</span></div>
+</div>
+<div class="bar"><div>🎤</div><div>📷</div><div class="leave">Leave call</div></div>
+<audio id="keep" src="silence.wav" loop></audio>
+<audio id="them" src="system.wav"></audio>
+<script>
+ // A call: the mic is open for as long as the page is, the other people are heard after DELAY ms.
+ const delay = Number(new URLSearchParams(location.search).get('delay') || 20000);
+ navigator.mediaDevices.getUserMedia({audio:true}).then(s => { window.mic = s; });
+ document.getElementById('keep').play();
+ setTimeout(() => document.getElementById('them').play(), delay);
+ const them = document.getElementById('them');
+ them.ontimeupdate = () => { document.getElementById('a').classList.toggle('talk', Math.floor(them.currentTime/6)%2==0); document.getElementById('b').classList.toggle('talk', Math.floor(them.currentTime/6)%2==1); };
+</script>
+</body></html>

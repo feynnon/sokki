@@ -31,6 +31,8 @@ pub struct SortformerDiarizer {
     preset: Option<SortformerPreset>,
     #[cfg(feature = "sherpa")]
     embedder: Option<SpeakerEmbedder>,
+    #[cfg(feature = "sherpa")]
+    embedder_error: Option<String>,
 }
 
 impl SortformerDiarizer {
@@ -40,9 +42,15 @@ impl SortformerDiarizer {
     /// Loads the Sortformer model (and the embedding model when
     /// `config.speaker_embeddings` is set), downloading them when allowed.
     pub fn new(config: DiarizeConfig) -> Result<Self> {
-        let path = models::ensure(&config.models_dir, &SORTFORMER_Q8_0, config.allow_download)?;
-        let model = Model::load(&path)
-            .with_context(|| format!("load Sortformer model {}", path.display()))?;
+        let model = models::ensure_and_load(
+            &config.models_dir,
+            &SORTFORMER_Q8_0,
+            config.allow_download,
+            |path| {
+                Model::load(path)
+                    .with_context(|| format!("load Sortformer model {}", path.display()))
+            },
+        )?;
         let info = model.diarize_info().context("model has no diarize role")?;
         if info.sample_rate != SAMPLE_RATE as i32 {
             return Err(anyhow!("unexpected model sample rate {}", info.sample_rate));
@@ -52,11 +60,19 @@ impl SortformerDiarizer {
                 n_threads: config.num_threads as i32,
             })
             .context("open Sortformer diarize session")?;
+        // Without the embedding model, speakers are still told apart; only
+        // known voices go unrecognised. So its failure is not fatal here.
         #[cfg(feature = "sherpa")]
-        let embedder = if config.speaker_embeddings {
-            Some(SpeakerEmbedder::new(&config)?)
+        let (embedder, embedder_error) = if config.speaker_embeddings {
+            match SpeakerEmbedder::new(&config) {
+                Ok(e) => (Some(e), None),
+                Err(e) => {
+                    log::warn!("Speaker embeddings unavailable: {e:#}");
+                    (None, Some(format!("{e:#}")))
+                }
+            }
         } else {
-            None
+            (None, None)
         };
         Ok(Self {
             config,
@@ -65,7 +81,16 @@ impl SortformerDiarizer {
             preset: Some(SortformerPreset::VeryHighLatency),
             #[cfg(feature = "sherpa")]
             embedder,
+            #[cfg(feature = "sherpa")]
+            embedder_error,
         })
+    }
+
+    /// Why speaker embeddings are missing although they were asked for
+    /// (the embedding model could not be loaded); `None` otherwise.
+    #[cfg(feature = "sherpa")]
+    pub fn embedder_error(&self) -> Option<&str> {
+        self.embedder_error.as_deref()
     }
 
     /// Sortformer operating point. Default here: `VeryHighLatency`

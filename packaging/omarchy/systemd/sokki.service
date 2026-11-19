@@ -1,0 +1,29 @@
+[Unit]
+Description=Sokki meeting notes and dictation
+Documentation=https://github.com/feynnon/sokki
+# Like Hex: part of the graphical session, which uwsm starts after it has
+# handed the user manager WAYLAND_DISPLAY and HYPRLAND_INSTANCE_SIGNATURE.
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service wireplumber.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Bring the user's copy of the shell plugin up to date after a package
+# upgrade. Never stops the service from starting.
+ExecStartPre=-/usr/bin/sokki-omarchy-setup --refresh
+ExecStart=/usr/bin/sokki daemon
+# The session's display environment, written by sokki-omarchy-setup, for a
+# start the session environment has not reached (Hex reads
+# ~/.local/share/hex/session.env the same way). In the runtime directory, so
+# it never outlives the login it describes.
+EnvironmentFile=-%t/sokki/session.env
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+# Recordings and notes are private.
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target

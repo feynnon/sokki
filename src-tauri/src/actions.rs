@@ -56,10 +56,14 @@ fn emit_transcription_complete(
     sample_count: usize,
     stop_time: Instant,
 ) {
+    let audio_seconds =
+        sample_count as f64 / crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE as f64;
+    if matches!(outcome, TranscriptionOutcome::Typed) {
+        crate::milestones::add_dictation(app, audio_seconds);
+    }
     let event = TranscriptionCompleteEvent {
         outcome,
-        audio_seconds: sample_count as f64
-            / crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE as f64,
+        audio_seconds,
         wait_seconds: stop_time.elapsed().as_secs_f64(),
     };
     if let Err(e) = event.emit(app) {

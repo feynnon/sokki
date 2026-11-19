@@ -127,12 +127,28 @@ pub struct PipelineResult {
     pub transcript: Transcript,
     /// Speakers in order of first appearance.
     pub speakers: Vec<SpeakerInfo>,
-    /// Problems that did not stop the run (diarizer failure on a track,
-    /// failed transcriber calls).
+    /// Problems that did not stop the run, one short sentence each for the
+    /// user (no error text): see [`SPEAKERS_NOT_SEPARATED`] and
+    /// [`PARTS_NOT_TRANSCRIBED`].
     pub warnings: Vec<String>,
+    /// The same problems with their error text, for the log.
+    pub details: Vec<String>,
     pub dedup: DedupReport,
     /// Mic turns dropped before transcription as acoustic echo of the system track.
     pub echo_turns_dropped: usize,
+}
+
+/// Shown when the diarizer failed on a track (or could not be loaded).
+pub const SPEAKERS_NOT_SEPARATED: &str =
+    "Speakers couldn't be told apart, so each audio track is one speaker.";
+/// Shown when some transcriber calls failed.
+pub const PARTS_NOT_TRANSCRIBED: &str = "Parts of the audio couldn't be transcribed.";
+
+/// Adds `sentence` to `warnings` unless it is there already.
+pub fn warn_once(warnings: &mut Vec<String>, sentence: &str) {
+    if !warnings.iter().any(|w| w == sentence) {
+        warnings.push(sentence.to_string());
+    }
 }
 
 /// Runs the pipeline without a naming hook or progress callback.
@@ -158,22 +174,22 @@ fn transcribe_jobs(
     cfg: &PipelineConfig,
     hooks: Hooks<'_>,
     failures: &mut usize,
-    warnings: &mut Vec<String>,
+    details: &mut Vec<String>,
 ) -> Vec<String> {
     let total = jobs.len();
     let mut texts = vec![String::new(); total];
     let mut done = 0usize;
-    let mut fail = |warnings: &mut Vec<String>, kind: TrackKind, at: f64, e: &anyhow::Error| {
+    let mut fail = |details: &mut Vec<String>, kind: TrackKind, at: f64, e: &anyhow::Error| {
         *failures += 1;
         if *failures <= 3 {
-            warnings.push(format!(
+            details.push(format!(
                 "Transcription failed for {} audio at {}: {e:#}",
                 track_label(kind),
                 crate::format_mmss(at)
             ));
         }
     };
-    let mut per_job = |i: usize, texts: &mut Vec<String>, warnings: &mut Vec<String>| {
+    let mut per_job = |i: usize, texts: &mut Vec<String>, details: &mut Vec<String>| {
         let job = &jobs[i];
         let track = &tracks[job.track_index];
         let pad_a = if job.pad_before { cfg.pad_s } else { 0.0 };
@@ -181,7 +197,7 @@ fn transcribe_jobs(
         let slice = slice_samples(&track.samples, job.start_s - pad_a, job.end_s + pad_b);
         match transcriber.transcribe(slice) {
             Ok(t) => texts[i] = t,
-            Err(e) => fail(warnings, track.kind, job.start_s, &e),
+            Err(e) => fail(details, track.kind, job.start_s, &e),
         }
     };
     let progress = |done: usize| {
@@ -194,7 +210,7 @@ fn transcribe_jobs(
     let mut i = 0;
     while i < total {
         if !words_supported {
-            per_job(i, &mut texts, warnings);
+            per_job(i, &mut texts, details);
             i += 1;
             done += 1;
             progress(done);
@@ -239,13 +255,13 @@ fn transcribe_jobs(
                 continue;
             }
             Err(e) => {
-                warnings.push(format!(
+                details.push(format!(
                     "Transcribing {} audio at {} in one piece failed ({e:#}); trying turn by turn.",
                     track_label(track.kind),
                     crate::format_mmss(jobs[i].start_s)
                 ));
                 for k in i..j {
-                    per_job(k, &mut texts, warnings);
+                    per_job(k, &mut texts, details);
                 }
             }
         }
@@ -297,6 +313,7 @@ pub fn run_with(
     hooks: Hooks<'_>,
 ) -> Result<PipelineResult> {
     let mut warnings = Vec::new();
+    let mut details = Vec::new();
     // (track index, cluster) -> embedding
     let mut embeddings: HashMap<(usize, String), Vec<f32>> = HashMap::new();
     let mut jobs: Vec<Job> = Vec::new();
@@ -310,10 +327,11 @@ pub fn run_with(
         let turns = match diarizer.diarize(&track.samples) {
             Ok(t) => sanitize_turns(t, dur),
             Err(e) => {
-                warnings.push(format!(
+                details.push(format!(
                     "Diarization failed for the {} track ({e:#}); treating the whole track as one speaker.",
                     track_label(track.kind)
                 ));
+                warn_once(&mut warnings, SPEAKERS_NOT_SEPARATED);
                 vec![SpeakerTurn {
                     start_s: 0.0,
                     end_s: dur,
@@ -378,7 +396,7 @@ pub fn run_with(
         cfg,
         hooks,
         &mut failures,
-        &mut warnings,
+        &mut details,
     );
     for (job, text) in jobs.iter().zip(texts) {
         let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -398,10 +416,13 @@ pub fn run_with(
         ));
     }
     if failures > 3 {
-        warnings.push(format!("{failures} transcriber calls failed in total."));
+        details.push(format!("{failures} transcriber calls failed in total."));
     }
     if total > 0 && failures == total {
-        bail!("all {total} transcriber calls failed; see warnings: {warnings:?}");
+        bail!("all {total} transcriber calls failed: {details:?}");
+    }
+    if failures > 0 {
+        warn_once(&mut warnings, PARTS_NOT_TRANSCRIBED);
     }
 
     // Merge by time. Mic first on ties so the user's line leads.
@@ -480,6 +501,7 @@ pub fn run_with(
         transcript: Transcript { segments },
         speakers,
         warnings,
+        details,
         dedup: dedup_report,
         echo_turns_dropped: echo_dropped,
     })
@@ -1049,10 +1071,9 @@ mod tests {
         ]);
         let t = FakeTranscriber::new(vec![(0.0, 4.5, "Hallo."), (4.5, 40.0, "Remote spricht.")]);
         let r = run(&tracks, &d, &t, &no_dedup()).unwrap();
-        assert_eq!(r.warnings.len(), 1);
-        assert!(
-            r.warnings[0].contains("system audio") && r.warnings[0].contains("model not loaded")
-        );
+        assert_eq!(r.warnings, vec![SPEAKERS_NOT_SEPARATED]);
+        assert_eq!(r.details.len(), 1);
+        assert!(r.details[0].contains("system audio") && r.details[0].contains("model not loaded"));
         // Whole 40 s system track -> 2 chunks, both "Speaker 2".
         let sys: Vec<_> = r
             .transcript
@@ -1147,7 +1168,8 @@ mod tests {
         t.fail_at = Some(6.0);
         let r = run(std::slice::from_ref(&track), &d, &t, &no_dedup()).unwrap();
         assert_eq!(r.transcript.segments.len(), 1);
-        assert_eq!(r.warnings.len(), 1);
+        assert_eq!(r.warnings, vec![PARTS_NOT_TRANSCRIBED]);
+        assert_eq!(r.details.len(), 1);
 
         let d = FakeDiarizer::new(vec![Ok(vec![turn(5.0, 7.0, "S1")])]);
         assert!(run(std::slice::from_ref(&track), &d, &t, &no_dedup()).is_err());
@@ -1301,10 +1323,12 @@ mod tests {
             .map(|s| s.text.as_str())
             .collect();
         assert_eq!(texts, vec!["eins", "zwei"]);
+        // Recovered, so nothing for the user; the log has it.
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings);
         assert!(
-            r.warnings.iter().any(|w| w.contains("turn by turn")),
+            r.details.iter().any(|w| w.contains("turn by turn")),
             "{:?}",
-            r.warnings
+            r.details
         );
     }
 

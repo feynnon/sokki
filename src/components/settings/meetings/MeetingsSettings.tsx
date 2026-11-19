@@ -18,6 +18,7 @@ import {
 import { useModelsTab } from "@/stores/modelsTabStore";
 import { IS_SOKKI } from "@/lib/brand";
 import { MeetingDetails } from "./MeetingDetails";
+import { PhoneLink } from "./PhoneLink";
 import {
   commands,
   events,
@@ -227,13 +228,57 @@ const StatusLine: React.FC<{ record: MeetingRecord }> = ({ record }) => {
   }
   if (s.kind === "failed") {
     return (
-      <span className="flex items-start gap-2 text-sm text-red-500 select-text">
-        <AlertTriangle width={14} height={14} className="mt-0.5 shrink-0" />
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-600 select-text">
+        <AlertTriangle width={14} height={14} className="shrink-0" />
         {s.error}
+        {!record.audio_deleted && (
+          <TryAgain onClick={() => void commands.reprocessMeeting(record.id)} />
+        )}
       </span>
     );
   }
   return null;
+};
+
+/** A small "Try again" link after a problem's sentence. */
+const TryAgain: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-xs font-medium text-logo-primary hover:underline"
+    >
+      <RotateCcw width={12} height={12} />
+      {t("meetings.tryAgain")}
+    </button>
+  );
+};
+
+/** The problems a done meeting had, one short sentence each. A missing
+ * summary is the last line and gets a "Try again". */
+const Warnings: React.FC<{ record: MeetingRecord }> = ({ record }) => {
+  if (record.warnings.length === 0) return null;
+  const last = record.warnings.length - 1;
+  return (
+    <div className="space-y-0.5">
+      {record.warnings.map((w, i) => (
+        <div
+          key={w}
+          className="flex flex-wrap items-center gap-x-2 text-xs text-amber-600 select-text"
+        >
+          {w}
+          {i === last &&
+            record.summary_missing &&
+            record.status.kind === "done" && (
+              <TryAgain
+                onClick={() => void commands.summarizeMeeting(record.id)}
+              />
+            )}
+        </div>
+      ))}
+    </div>
+  );
 };
 
 /** The current language model, with a way to the Models page to change it. */
@@ -395,6 +440,8 @@ const MeetingSettingsView: React.FC<{
         <ModelSetting meetingSettings={meetingSettings} />
       </SettingsGroup>
 
+      <PhoneLink meetingSettings={meetingSettings} save={save} />
+
       <VoiceProfiles />
     </div>
   );
@@ -465,6 +512,12 @@ export const MeetingsSettings: React.FC = () => {
   const needsSetup =
     llm && !["ready", "off"].includes(llm.state) ? llm.state : null;
 
+  const startOllama = async () => {
+    await commands.startOllama();
+    const r = await commands.meetingLlmStatus(false);
+    if (r.status === "ok") setLlm(r.data);
+  };
+
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
       <div
@@ -502,7 +555,21 @@ export const MeetingsSettings: React.FC = () => {
         </div>
       </div>
 
-      {needsSetup && (
+      {needsSetup === "not_running" && (
+        <div className="mx-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-600">
+          <AlertTriangle width={14} height={14} className="shrink-0" />
+          {t("meetings.lm.notRunning")}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void startOllama()}
+          >
+            {t("meetings.lm.startOllama")}
+          </Button>
+        </div>
+      )}
+
+      {needsSetup && needsSetup !== "not_running" && (
         <button
           type="button"
           onClick={openLanguageModels}
@@ -582,13 +649,14 @@ export const MeetingsSettings: React.FC = () => {
               <MeetingDetails
                 id={m.id}
                 noteKey={`${m.title}|${m.speakers.join(",")}|${m.note_path}`}
+                title={m.title ?? t("meetings.untitled")}
+                date={formatDateTime(
+                  String(Date.parse(m.started_at) / 1000),
+                  i18n.language,
+                )}
               />
             )}
-            {m.warnings.map((w) => (
-              <div key={w} className="text-xs text-amber-600 select-text">
-                {w}
-              </div>
-            ))}
+            <Warnings record={m} />
           </div>
         ))}
       </SettingsGroup>

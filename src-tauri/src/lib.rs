@@ -5,9 +5,7 @@ mod audio_feedback;
 pub mod audio_toolkit;
 mod auto_update;
 mod autostart;
-#[cfg(target_os = "macos")]
 pub mod brand;
-pub mod voice_data;
 mod catalog;
 mod chinese_script;
 pub mod cli;
@@ -23,6 +21,7 @@ mod llm_client;
 mod managers;
 pub mod meeting;
 mod memory;
+mod milestones;
 mod notices;
 mod overlay;
 mod paste_tx;
@@ -40,6 +39,7 @@ mod transcription_hook;
 mod tray;
 mod tray_i18n;
 mod utils;
+pub mod voice_data;
 pub mod webkit_renderer;
 
 pub use cli::CliArgs;
@@ -266,6 +266,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         meeting::detect::sync_with_settings(app_handle);
         meeting::process::apply_retention(app_handle);
         meeting::resume_interrupted(app_handle);
+        meeting::process::retry_summaries(app_handle);
+        meeting::phone_link::start_if_enabled(app_handle);
     }
 
     // Note: Shortcuts are NOT initialized here.
@@ -846,7 +848,9 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::is_meeting_recording,
             commands::meeting::list_meetings,
             commands::meeting::open_meeting_note,
+            commands::meeting::save_meeting_page,
             commands::meeting::reprocess_meeting,
+            commands::meeting::summarize_meeting,
             commands::meeting::delete_meeting,
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
@@ -858,6 +862,14 @@ pub fn run(cli_args: CliArgs) {
             commands::voice::voice_data_delete,
             commands::voice::voice_data_community,
             commands::voice::voice_data_open_folder,
+            commands::meeting::qr_code_svg,
+            commands::meeting::copy_heads_up,
+            commands::milestone::get_milestone,
+            commands::milestone::close_milestone,
+            commands::milestone::save_picture,
+            commands::meeting::get_phone_link_info,
+            commands::meeting::renew_phone_link_code,
+            commands::meeting::remove_paired_phone,
             commands::meeting::start_ollama,
             commands::meeting::pull_meeting_llm,
             commands::meeting::rename_meeting_speaker,
@@ -931,6 +943,21 @@ pub fn run(cli_args: CliArgs) {
         .plugin(
             LogBuilder::new()
                 .level(log::LevelFilter::Trace) // Set to most verbose level globally
+                // The phone link's networking stack (iroh and below) logs
+                // several lines a second while connected, which pushed every
+                // app line out of the 500 KB log within minutes. Warnings only.
+                .level_for("iroh", log::LevelFilter::Warn)
+                .level_for("iroh_relay", log::LevelFilter::Warn)
+                .level_for("iroh_base", log::LevelFilter::Warn)
+                .level_for("noq", log::LevelFilter::Warn)
+                .level_for("noq_proto", log::LevelFilter::Warn)
+                .level_for("rustls", log::LevelFilter::Warn)
+                .level_for("tracing::span", log::LevelFilter::Warn)
+                .level_for("portmapper", log::LevelFilter::Warn)
+                .level_for("igd_next", log::LevelFilter::Warn)
+                .level_for("n0_dns_resolver", log::LevelFilter::Warn)
+                .level_for("netwatch", log::LevelFilter::Warn)
+                .level_for("hyper_util", log::LevelFilter::Warn)
                 .max_file_size(500_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()

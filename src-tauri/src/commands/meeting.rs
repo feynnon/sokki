@@ -21,6 +21,53 @@ pub struct MeetingNoteParts {
     pub transcript: String,
 }
 
+/// A QR code (SVG) for a link the app hands out, e.g. sokki.org/get.
+#[tauri::command]
+#[specta::specta]
+pub fn qr_code_svg(text: String) -> Result<String, String> {
+    qrcode::QrCode::new(text.as_bytes())
+        .map(|c| {
+            c.render::<qrcode::render::svg::Color>()
+                .min_dimensions(160, 160)
+                .quiet_zone(true)
+                .build()
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Puts the heads-up line for the call chat on the clipboard.
+#[tauri::command]
+#[specta::specta]
+pub fn copy_heads_up(app: AppHandle) -> Result<(), String> {
+    crate::meeting::heads_up::copy(&app)
+}
+
+/// Phone link pairing details for the settings page.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn get_phone_link_info(app: AppHandle) -> Result<meeting::phone_link::PhoneLinkInfo, String> {
+    Ok(meeting::phone_link::info(&app))
+}
+
+/// A new pairing code; stops new pairings with the old one (paired phones
+/// keep working).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn renew_phone_link_code(app: AppHandle) -> Result<String, String> {
+    Ok(meeting::phone_link::renew_code(&app))
+}
+
+/// Forgets a paired phone.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn remove_paired_phone(app: AppHandle, id: String) -> Result<(), String> {
+    meeting::phone_link::remove_phone(&app, &id);
+    Ok(())
+}
+
 /// Sent whenever a meeting record changes (recording, progress, done, failed).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 pub struct MeetingChanged {
@@ -79,6 +126,34 @@ pub fn get_meeting_note(
         summary: p.summary,
         transcript: p.transcript,
     })
+}
+
+/// Saves the meeting's note as one web page (title, date, summary; no
+/// transcript) that opens in any browser, then shows it in Finder.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn save_meeting_page(
+    app: AppHandle,
+    store: State<'_, Arc<MeetingStore>>,
+    id: String,
+    path: String,
+    date: String,
+) -> Result<(), String> {
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    let note = record.note_path.ok_or("This meeting has no note yet")?;
+    let md = std::fs::read_to_string(&note)
+        .map_err(|e| format!("The note could not be read ({note}): {e}"))?;
+    let lang = crate::settings::get_settings(&app).app_language;
+    let lang = lang.split('-').next().unwrap_or("en").to_string();
+    let title = record.title.unwrap_or_else(|| "Meeting".to_string());
+    let html = meeting_core::share::note_html(&md, &title, &date, &lang);
+    std::fs::write(&path, html)
+        .map_err(|e| format!("The page could not be saved ({path}): {e}"))?;
+    let _ = std::process::Command::new("open")
+        .args(["-R", &path])
+        .spawn();
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -148,10 +223,27 @@ pub fn reprocess_meeting(app: AppHandle, id: String) -> Result<(), String> {
                 progress: None,
             };
             r.warnings.clear();
+            r.summary_missing = None;
         })
         .map_err(|e| e.to_string())?;
     meeting::emit_changed(&app, &id);
     meeting::process::spawn(app.clone(), id);
+    Ok(())
+}
+
+/// Adds the missing summary to a done meeting's note, from the note itself
+/// (works after the audio is deleted). Starts Ollama first if it isn't
+/// running. The card follows through `emit_changed`.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn summarize_meeting(app: AppHandle, id: String) -> Result<(), String> {
+    let store = app.state::<Arc<MeetingStore>>();
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    if record.status != MeetingStatus::Done || record.note_path.is_none() {
+        return Err("This meeting has no note yet.".into());
+    }
+    meeting::process::spawn_summarize(app.clone(), id, true);
     Ok(())
 }
 
@@ -182,6 +274,7 @@ pub fn set_meeting_settings(app: AppHandle, settings: MeetingSettings) -> Result
     all.meetings = settings;
     crate::settings::write_settings(&app, all);
     meeting::detect::sync_with_settings(&app);
+    meeting::phone_link::start_if_enabled(&app);
     Ok(())
 }
 
@@ -347,9 +440,56 @@ pub fn list_meetings() -> Result<Vec<String>, String> {
 }
 
 #[cfg(not(target_os = "macos"))]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct PairedPhone {
+    pub id: String,
+    pub name: String,
+    pub paired_at: String,
+}
+
+#[cfg(not(target_os = "macos"))]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct PhoneLinkInfo {
+    pub enabled: bool,
+    pub running: bool,
+    pub ticket: String,
+    pub qr_svg: String,
+    pub code: String,
+    pub phones: Vec<PairedPhone>,
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn get_phone_link_info() -> Result<PhoneLinkInfo, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn renew_phone_link_code() -> Result<String, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn remove_paired_phone(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
 #[tauri::command]
 #[specta::specta]
 pub fn get_meeting_note(_id: String) -> Result<MeetingNoteParts, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn save_meeting_page(_id: String, _path: String, _date: String) -> Result<(), String> {
     Err(UNAVAILABLE.to_string())
 }
 
@@ -364,6 +504,13 @@ pub fn open_meeting_note(_id: String) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn reprocess_meeting(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn summarize_meeting(_id: String) -> Result<(), String> {
     Err(UNAVAILABLE.to_string())
 }
 

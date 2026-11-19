@@ -15,12 +15,14 @@
 pub mod detect;
 pub mod diarize_worker;
 pub mod flac;
+pub mod heads_up;
 pub mod indicator;
 pub mod keep_awake;
 pub mod memguard;
 pub mod mic;
 #[cfg(target_os = "macos")]
 mod notify_macos;
+pub mod phone_link;
 pub mod process;
 pub mod rate;
 pub mod store;
@@ -84,17 +86,8 @@ pub fn note_first_sample(slot: &std::sync::atomic::AtomicU64, frames: usize, rat
     );
 }
 
-/// Start times of the tracks, saved next to the audio for processing.
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Default)]
-pub struct TrackTiming {
-    pub mic_first_us: u64,
-    pub system_first_us: u64,
-}
-
-pub const TIMING_FILE: &str = "timing.json";
-
-pub const MIC_FILE: &str = "mic.flac";
-pub const SYSTEM_FILE: &str = "system.flac";
+/// Start times of the tracks and the track file names, shared with every host.
+pub use sokki_engine::tracks::{TrackTiming, MIC_FILE, SYSTEM_FILE, TIMING_FILE};
 
 /// Files produced by one meeting, finalized.
 #[derive(Debug)]
@@ -143,10 +136,7 @@ impl MeetingManager {
             Ok(s) => Some(s),
             Err(e) => {
                 log::warn!("System audio capture unavailable: {e:#}");
-                warnings.push(format!(
-                    "Only the microphone was recorded; system audio was unavailable ({e:#}). Allow \"System Audio Recording\" for {} in System Settings > Privacy & Security to capture calls on this Mac.",
-                    crate::brand::app_name()
-                ));
+                warnings.push(system_audio_warning());
                 None
             }
         };
@@ -241,6 +231,7 @@ pub fn start_meeting(
         note_path: None,
         speakers: Vec::new(),
         warnings,
+        summary_missing: None,
         audio_deleted: false,
         online: None,
     };
@@ -284,7 +275,8 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     }
     let mut warnings = Vec::new();
     if let Some(err) = &recording.mic.error {
-        warnings.push(format!("Microphone problem during the recording: {err}"));
+        log::warn!("Meeting {meeting_id}: microphone problem during the recording: {err}");
+        warnings.push(MIC_PROBLEM.into());
     }
     log::info!(
         "Meeting {meeting_id}: mic {} ({} frames at {} Hz, {} dropped)",
@@ -372,6 +364,18 @@ pub fn finalize_on_exit(app: &AppHandle) {
     }
 }
 
+/// The meeting card's line when the microphone failed during a recording.
+pub const MIC_PROBLEM: &str =
+    "The microphone stopped working for a while, so parts may be missing.";
+
+/// The meeting card's line when system audio could not be recorded.
+pub fn system_audio_warning() -> String {
+    format!(
+        "Only the microphone was recorded. To record calls too, allow System Audio Recording for {} in System Settings → Privacy & Security.",
+        crate::brand::app_name()
+    )
+}
+
 /// Status text of a meeting closed at quit, picked up by `resume_interrupted`.
 pub const RESUME_MARKER: &str =
     "Recording ended because the app quit; processing at the next launch.";
@@ -380,6 +384,15 @@ pub const RESUME_MARKER: &str =
 pub fn resume_interrupted(app: &AppHandle) {
     let store = app.state::<Arc<MeetingStore>>();
     for r in store.list() {
+        // Quit while a summary was being added: the note is complete, the
+        // summary is tried again by `process::retry_summaries`.
+        if r.summary_missing.is_some()
+            && r.note_path.is_some()
+            && matches!(&r.status, MeetingStatus::Failed { error } if error.starts_with("Interrupted:"))
+        {
+            let _ = store.update(&r.id, |rec| rec.status = MeetingStatus::Done);
+            continue;
+        }
         // Closed at quit, or quit while processing (store marks it interrupted).
         let resumable = matches!(&r.status, MeetingStatus::Failed { error }
             if error == RESUME_MARKER || error.starts_with("Interrupted:"));
@@ -424,6 +437,7 @@ mod resume_tests {
             note_path: None,
             speakers: vec![],
             warnings: vec!["The app quit during this meeting; the recording ends there.".into()],
+            summary_missing: None,
             audio_deleted: false,
             online: None,
         }

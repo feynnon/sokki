@@ -1,0 +1,18 @@
+post_install() {
+  echo 'Set Sokki up for your user (bar, keys, menu, autostart):'
+  echo '  sokki-omarchy-setup        add --dictation to also use it for Alt + Space'
+  echo '  sokki models install       download the speech models'
+}
+
+post_upgrade() {
+  echo 'Your copy of the Sokki bar plugin updates when the service next starts:'
+  echo '  systemctl --user restart sokki'
+}
+
+post_remove() {
+  echo 'Sokki leaves its bar plugin, keys and menu rows switched off but in place.'
+  echo 'To clear them: rm -r ~/.config/omarchy/plugins/sokki.meetings, and delete the'
+  echo '"sokki: begin" blocks in ~/.config/hypr/bindings.lua and in the file'
+  echo 'omarchy-menu.jsonc in ~/.config/omarchy/extensions.'
+  echo '(sokki-omarchy-setup --remove does all of this, before the package goes.)'
+}

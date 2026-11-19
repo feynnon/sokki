@@ -14,7 +14,9 @@
 //!
 //! Limits: closing the lid (without an external display) still sleeps the
 //! Mac; no power assertion prevents that (only the admin-level
-//! `pmset disablesleep`). Linux and Windows: no-op.
+//! `pmset disablesleep`). Off macOS this app holds nothing; the Linux host
+//! (`crates/sokki/src/keep_awake.rs`) and Android (`MainActivity.kt`) have
+//! their own.
 
 /// The reason shown by `pmset -g assertions` and Activity Monitor.
 pub fn reason() -> String {

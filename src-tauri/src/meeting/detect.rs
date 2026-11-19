@@ -56,7 +56,18 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             let (id, name) = (meeting.id.to_string(), meeting.name.to_string());
             std::thread::spawn(move || {
                 let question = format!("{name}-Meeting erkannt. Aufnehmen?\n\nSag allen Beteiligten, dass du aufnimmst.");
-                if ask(&question, "Aufnehmen", "Nicht jetzt", 45) == Some(true) {
+                // Sokki also offers the heads-up line for the call chat.
+                let mut buttons = vec!["Nicht jetzt", "Aufnehmen"];
+                if crate::brand::is_sokki() {
+                    buttons.push(COPY_AND_RECORD);
+                }
+                let answer = choose(&question, &buttons, "Aufnehmen", 45);
+                if answer.as_deref() == Some(COPY_AND_RECORD) {
+                    if let Err(e) = super::heads_up::copy(&handle) {
+                        log::warn!("Copying the heads-up failed: {e}");
+                    }
+                }
+                if matches!(answer.as_deref(), Some("Aufnehmen" | COPY_AND_RECORD)) {
                     match super::start_meeting(&handle, Some(name)) {
                         Ok(meeting_id) => {
                             let state = handle.state::<Arc<DetectState>>();
@@ -108,15 +119,28 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
     }
 }
 
+/// The third button on the "meeting detected" dialog in Sokki.
+const COPY_AND_RECORD: &str = "Aufnehmen + Hinweis kopieren";
+
 /// Shows a dialog with two buttons. `Some(true)` for `yes`, `Some(false)` for
 /// `no`, `None` when it timed out or failed.
 fn ask(question: &str, yes: &str, no: &str, timeout_s: u32) -> Option<bool> {
+    choose(question, &[no, yes], yes, timeout_s).map(|b| b == yes)
+}
+
+/// Shows a dialog with up to three buttons (left to right). The label of the
+/// button pressed, or `None` when it timed out or failed.
+fn choose(question: &str, buttons: &[&str], default: &str, timeout_s: u32) -> Option<String> {
+    let list = buttons
+        .iter()
+        .map(|b| applescript_string(b))
+        .collect::<Vec<_>>()
+        .join(", ");
     let script = format!(
-        "display dialog {} buttons {{{}, {}}} default button {} with title {} giving up after {}",
+        "display dialog {} buttons {{{}}} default button {} with title {} giving up after {}",
         applescript_string(question),
-        applescript_string(no),
-        applescript_string(yes),
-        applescript_string(yes),
+        list,
+        applescript_string(default),
         applescript_string(crate::brand::app_name()),
         timeout_s
     );
@@ -128,7 +152,13 @@ fn ask(question: &str, yes: &str, no: &str, timeout_s: u32) -> Option<bool> {
     if text.contains("gave up:true") || !out.status.success() {
         return None;
     }
-    Some(text.contains(&format!("button returned:{yes}")))
+    // Output is "button returned:X, gave up:false".
+    let pressed = text.split("button returned:").nth(1)?;
+    let pressed = pressed.split(", gave up:").next()?.trim();
+    buttons
+        .iter()
+        .find(|b| **b == pressed)
+        .map(|b| b.to_string())
 }
 
 /// A macOS notification banner, as Sokki (Script Editor via osascript only

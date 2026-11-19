@@ -1,0 +1,59 @@
+[package]
+name = "mobile"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# On-device dictation: Parakeet via transcribe-cpp (CPU), cut at pauses.
+transcribe-cpp = { version = "0.4.2", default-features = false }
+dictation-core = { path = "../dictation-core" }
+base64 = "0.22"
+# Model download (TLS without system certificates, works on Android).
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+# Link to Sokki on the Mac: direct, end-to-end encrypted (iroh).
+sokki-link = { path = "../../crates/sokki-link" }
+tokio = { version = "1", features = ["sync"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# The Sokki keyboard calls dictation over JNI (keyboard_voice.rs).
+jni = "0.21"
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+# Pairing: scan the QR code the Mac shows.
+tauri-plugin-barcode-scanner = "2"
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Debug builds (what we install for testing): optimise all dependencies,
+# the speech engine included, and keep only line tables, so the library
+# loads fast and transcription runs at full speed.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3

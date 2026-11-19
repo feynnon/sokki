@@ -1,0 +1,34 @@
+[package]
+name = "sokki"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "Sokki for Linux: dictation and meeting notes as a background service with a command line"
+repository = "https://github.com/feynnon/sokki"
+
+[dependencies]
+sokki-engine = { path = "../sokki-engine", features = ["asr"] }
+meeting-core = { path = "../meeting-core" }
+meeting-detect = { path = "../meeting-detect" }
+diarize = { path = "../diarize" }
+anyhow = "1"
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+libc = "0.2"
+# Decoding the recorded FLAC tracks (pure Rust).
+claxon = "0.4"
+# Model downloads with progress, hash-checked.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+sha2 = "0.10"
+
+# GPU through Vulkan on Linux (AMD, Intel, NVIDIA), CPU otherwise.
+[target.'cfg(target_os = "linux")'.dependencies]
+transcribe-cpp = { version = "0.4.2", default-features = false, features = ["vulkan"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

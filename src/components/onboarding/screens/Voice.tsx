@@ -15,8 +15,9 @@ interface VoiceProps {
   onContinue: () => void;
 }
 
-/** Sokki: "Your data". Both boxes start unticked; nothing is sent before
- * Continue. Paid tasks are paused, so they stay off. */
+/** Sokki: "Your data". "Help improve" and the buyer question start
+ * unticked; nothing is sent before Continue. "Share all my recordings" is
+ * only in Settings. */
 export const Voice: React.FC<VoiceProps> = ({
   progress,
   onBack,
@@ -26,6 +27,7 @@ export const Voice: React.FC<VoiceProps> = ({
   const { preview } = useOnboardingStore();
   const [choices, setChoices] = useState<DataChoiceValues>({
     improve: false,
+    buyers: false,
     support: false,
   });
   const next = async () => {
@@ -33,7 +35,7 @@ export const Voice: React.FC<VoiceProps> = ({
       await commands.voiceDataSetChoices(
         choices.improve,
         choices.support,
-        false,
+        choices.buyers,
       );
     }
     onContinue();

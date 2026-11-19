@@ -49,3 +49,8 @@ __pycache__/
 # Meeting test fixtures (regenerate with testdata/generate.py)
 testdata/audio/
 testdata/real/
+
+# Files shared with the Omarchy test VM
+vm-share/
+crates/*/target/
+vm-tools/

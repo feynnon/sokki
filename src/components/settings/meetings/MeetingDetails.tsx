@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Copy } from "lucide-react";
+import { Check, ChevronDown, Copy, Globe } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
 import { commands, type MeetingNoteParts } from "@/bindings";
 import { copyToClipboard } from "../history/clipboard";
 
@@ -89,16 +90,20 @@ const SummaryView: React.FC<{ markdown: string }> = ({ markdown }) => {
 };
 
 /** Summary of a finished meeting, unfolded in the list, plus its transcript to copy or read. */
-export const MeetingDetails: React.FC<{ id: string; noteKey: string }> = ({
-  id,
-  noteKey,
-}) => {
+export const MeetingDetails: React.FC<{
+  id: string;
+  noteKey: string;
+  /** Title and date as shown in the list; the web page uses them too. */
+  title: string;
+  date: string;
+}> = ({ id, noteKey, title, date }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [parts, setParts] = useState<MeetingNoteParts | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"transcript" | "summary" | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const load = async () => {
     const r = await commands.getMeetingNote(id);
@@ -116,14 +121,34 @@ export const MeetingDetails: React.FC<{ id: string; noteKey: string }> = ({
     if (open) void load();
   }, [open, noteKey]);
 
-  const copy = async () => {
+  const copy = async (what: "transcript" | "summary") => {
     const data = parts ?? (await load());
     if (!data) return;
-    if (await copyToClipboard(data.transcript)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+    if (await copyToClipboard(data[what])) {
+      setCopied(what);
+      setTimeout(() => setCopied(null), 1600);
     }
   };
+
+  /** One HTML file anyone can open in a browser: title, date, summary. */
+  const savePage = async () => {
+    const name = title.replace(/[/\\:*?"<>|]/g, " ").trim() || "Meeting";
+    const path = await save({
+      defaultPath: `${name}.html`,
+      filters: [{ name: "Web page", extensions: ["html"] }],
+    });
+    if (!path) return;
+    const r = await commands.saveMeetingPage(id, path, date);
+    if (r.status === "ok") {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1600);
+    } else {
+      setError(r.error);
+    }
+  };
+
+  const chip =
+    "inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[12.5px] text-ink-2 bg-wash border border-line hover:text-text cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary";
 
   return (
     <div className="flex flex-col gap-2">
@@ -143,17 +168,44 @@ export const MeetingDetails: React.FC<{ id: string; noteKey: string }> = ({
         </button>
         <button
           type="button"
-          onClick={() => void copy()}
-          className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[12.5px] text-ink-2 bg-wash border border-line hover:text-text cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+          onClick={() => void copy("summary")}
+          className={chip}
         >
-          {copied ? (
+          {copied === "summary" ? (
             <Check width={13} height={13} className="text-moss" />
           ) : (
             <Copy width={13} height={13} />
           )}
-          {copied
+          {copied === "summary"
+            ? t("meetings.details.copied")
+            : t("meetings.details.copySummary")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void copy("transcript")}
+          className={chip}
+        >
+          {copied === "transcript" ? (
+            <Check width={13} height={13} className="text-moss" />
+          ) : (
+            <Copy width={13} height={13} />
+          )}
+          {copied === "transcript"
             ? t("meetings.details.copied")
             : t("meetings.details.copyTranscript")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void savePage()}
+          className={chip}
+          title={t("meetings.details.savePageHint")}
+        >
+          {saved ? (
+            <Check width={13} height={13} className="text-moss" />
+          ) : (
+            <Globe width={13} height={13} />
+          )}
+          {saved ? t("meetings.details.saved") : t("meetings.details.savePage")}
         </button>
       </div>
       {error && <p className="text-xs text-red-500 select-text">{error}</p>}

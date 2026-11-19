@@ -1017,6 +1017,7 @@
     "untitled": "Untitled meeting",
     "openNote": "Open note",
     "reprocess": "Process again",
+    "tryAgain": "Försök igen",
     "delete": "Delete meeting and audio",
     "stage": {
       "waiting": "Waiting to be processed…",
@@ -1099,6 +1100,27 @@
       "copied": "Copied",
       "transcript": "Transcript",
       "noSummary": "This meeting has no summary."
+    },
+    "phone": {
+      "title": "Phone",
+      "description": "Record on your phone with the Sokki app; this Mac turns it into a note.",
+      "enable": "Accept recordings from my phone",
+      "enableDescription": "Directly and encrypted, from any network. Nothing is stored in between: if this Mac is off, the recording stays on the phone until you send it again.",
+      "pair": "Pair a phone",
+      "pairDescription": "In the Sokki app on your phone, scan this code. Or copy it and paste it there.",
+      "copy": "Copy code",
+      "copied": "Copied",
+      "code": "Pairing code",
+      "codeDescription": "A new code stops new phones from pairing with the old one. Paired phones keep working.",
+      "renew": "New code",
+      "phones": "Paired phones",
+      "noPhones": "No phone paired yet.",
+      "phone": "Phone",
+      "pairedOn": "paired {{date}}",
+      "remove": "Remove",
+      "invite": "Set up your phone",
+      "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
+      "inviteButton": "Email me the setup"
     }
   },
   "sokki": {
@@ -1146,7 +1168,9 @@
       "textInput": "Text input",
       "transcription": "Transcription",
       "basedOn": "based on Handy",
-      "version": "Sokki {{version}}"
+      "version": "Sokki {{version}}",
+      "sharing": "Delning",
+      "sharers": "{{people}}+ personer delar sina inspelningar."
     },
     "sound": {
       "title": "Sound",
@@ -1174,9 +1198,13 @@
         "text": "Share mistakes and usage under a random ID.",
         "link": "What's shared"
       },
+      "buyers": {
+        "title": "Ask me when there's a buyer",
+        "text": "Your recordings stay on this Mac. If a company wants to buy recordings like yours, Sokki asks you first, and you'd get a share of the profit."
+      },
       "support": {
-        "title": "Support Sokki & Open Source",
-        "text": "Share your anonymised audio and transcripts.",
+        "title": "Share all my recordings",
+        "text": "Your voice and everything you say, as audio and text, including names and numbers.",
         "link": "What this means"
       },
       "sharedSheet": {
@@ -1188,8 +1216,16 @@
         "footer": "Never what you said, your recordings, your name or your Mac's name. Sent once a day under a random ID. Turn it off any time under Your data."
       },
       "supportSheet": {
-        "text": "Sokki checks each recording on this Mac. Only those without names, numbers or contact details are shared. Sokki may use them freely: to improve Sokki, for open-source speech models, and to share or sell them. You won't be asked again and get no share of a sale.",
-        "footer": "Only your own recordings. You can stop any time; data already used can't be called back."
+        "text": "Each new recording and its transcript goes to Sokki unchanged. Sokki may use them to improve Sokki, for open-source speech models, and to share or sell them. You get no share of a sale.",
+        "footer": "Only the parts where you speak, not the other people in a meeting. You can stop any time; data already used can't be called back."
+      },
+      "buyer": {
+        "title": "Someone wants {{language}} data",
+        "text_one": "{{count}} hour of your recordings fits. You'd get a share of the profit.",
+        "text_other": "{{count}} hours of your recordings fit. You'd get a share of the profit.",
+        "interested": "I'm interested",
+        "no": "Not interested",
+        "thanks": "Thanks. Before anything is sold, you'll see exactly what and for how much, and decide then."
       },
       "ok": "OK",
       "onThisMac": "On this Mac: {{duration}} of your recordings · {{size}}",
@@ -1200,10 +1236,7 @@
       "fromMeetings": "Meetings (your microphone)",
       "otherLanguage": "Other",
       "notice": "Message from Sokki",
-      "community_one": "{{count}} Sokki user helps improve Sokki.",
-      "community_other": "{{count}} Sokki users help improve Sokki.",
-      "communityDonors_one": "{{count}} Sokki user helps improve Sokki; {{donors}} support Sokki & Open Source.",
-      "communityDonors_other": "{{count}} Sokki users help improve Sokki; {{donors}} of them support Sokki & Open Source.",
+      "community": "{{people}}+ people help improve Sokki.",
       "showFolder": "Show folder",
       "deleteRecordings": "Delete my recordings",
       "deleteRecordingsAsk": "Delete {{duration}} of your recordings for good?",
@@ -1213,9 +1246,7 @@
       "delete": "Delete",
       "cancel": "Cancel",
       "failed": "Couldn't reach Sokki. Try again later.",
-      "donated": "Shared so far: {{duration}}.",
-      "withheld_one": "{{count}} recording stays on this Mac because it has a name, a number or contact details in it.",
-      "withheld_other": "{{count}} recordings stay on this Mac because they have a name, a number or contact details in them."
+      "donated": "Shared so far: {{duration}}."
     }
   }
 }

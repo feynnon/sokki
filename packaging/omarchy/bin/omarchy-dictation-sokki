@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Sokki
+# omarchy:args=<start|stop|toggle>
+
+# Sokki types the transcript itself (wtype, or the clipboard where typing is
+# not possible), so this adapter only passes the command on to its user
+# service. omarchy-dictation holds its lock while this runs, so a quick
+# push-to-talk tap reaches the daemon as start, then stop.
+
+socket="${XDG_RUNTIME_DIR:-/run/user/$UID}/sokki/sokki.sock"
+
+# Start the service when it is not running, and wait for its socket.
+sokki_running() {
+  [[ -S $socket ]] && systemctl --user is-active --quiet sokki.service && return 0
+  systemctl --user start sokki.service || return 1
+  for (( i = 0; i < 50; i++ )); do
+    [[ -S $socket ]] && return 0
+    sleep 0.1
+  done
+  echo "Sokki did not start; see: journalctl --user -u sokki" >&2
+  return 1
+}
+
+case "${1:-}" in
+  start | toggle)
+    sokki_running && sokki dictation "$1"
+    ;;
+  stop)
+    # Nothing is listening without the service, so there is nothing to stop.
+    if omarchy-cmd-missing sokki || ! systemctl --user is-active --quiet sokki.service; then
+      exit 0
+    else
+      sokki dictation stop
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation sokki <start|stop|toggle>" >&2; exit 1 ;;
+esac

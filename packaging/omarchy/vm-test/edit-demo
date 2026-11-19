@@ -1,0 +1,58 @@
+#!/bin/bash
+# Cuts the raw demo (vm-share/demo/demo-raw.mp4 + marks.txt) into the final
+# video: the call at normal speed with its sound, the note-writing wait sped
+# up (and labelled so), short captions. Runs ffmpeg in the Arch container
+# (Homebrew's ffmpeg has no drawtext).
+set -euo pipefail
+REPO=$(cd "$(dirname "$0")/../../.." && pwd)
+D=$REPO/vm-share/demo
+OUT=${1:-$D/sokki-omarchy-demo.mp4}
+m() { awk -v k="$1" '$1==k{print $2}' "$D/marks.txt"; }
+S=$(m start)
+# Video time of a mark: the recorder started ~2 s before "start".
+t() { awk -v a="$(m "$1")" -v s="$S" -v o="${2:-0}" 'BEGIN{printf "%.2f", a-s+2.0+o}'; }
+END=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$D/demo-raw.mp4")
+A_END=$(t hangup 4)          # call, then a few seconds after leaving it
+B_END=$(t note -1)           # just before the note is ready
+FAST_LEN=6
+FACTOR=$(awk -v a="$A_END" -v b="$B_END" -v l="$FAST_LEN" 'BEGIN{printf "%.1f", (b-a)/l}')
+# Output time of a raw time after the fast part.
+after() { awk -v x="$1" -v a="$A_END" -v b="$B_END" -v l="$FAST_LEN" 'BEGIN{printf "%.2f", a+l+(x-b)}'; }
+
+ASKED=$(t asked 1); REC=$(t recording); HANG=$(t hangup)
+NOTE=$(after "$(t note)"); NAMED=$(after "$(t named)"); OPENED=$(after "$(t opened)")
+EDITOR=$(after "$(t editor)"); TOTAL=$(after "$END")
+
+N=0
+cap() { # n text from to -- the text goes in a file (no filter escaping)
+  printf '%s' "$2" > "$D/cap$1.txt"
+  shift
+  printf "drawtext=fontfile=/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf:textfile=/d/cap$N.txt:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.62:boxborderw=18:x=(w-text_w)/2:y=h-120:enable='between(t,%s,%s)'" "$2" "$3"
+}
+CAPS=""
+add() { N=$((N + 1)); CAPS="${CAPS:+$CAPS,}$(cap "$N" "$@")"; }
+REC7=$(awk -v r="$REC" 'BEGIN{print r+7}'); ED1=$(awk -v e="$EDITOR" 'BEGIN{print e-1}')
+add "A Google Meet call starts in the browser" 0.5 "$ASKED"
+add "Sokki asks before it records" "$ASKED" "$REC"
+add "Super + Ctrl + M, Enter: recording" "$REC" "$REC7"
+add "Both sides of the call, recorded on this computer" "$REC7" "$HANG"
+add "Leave the call: Sokki stops by itself" "$HANG" "$A_END"
+add "Writing the note: speakers, transcript, summary · VM CPU, sped up ${FACTOR}x" "$A_END" "$NOTE"
+add "Sam was recognised by voice. Name Reed once." "$NOTE" "$OPENED"
+add "A Markdown note: summary, decisions, tasks" "$OPENED" "$ED1"
+add "Dictation: Alt + Space, speak, Alt + Space" "$EDITOR" "$TOTAL"
+
+echo "A 0-$A_END  B $A_END-$B_END (x$FACTOR)  C $B_END-$END  -> ${TOTAL}s"
+docker run --rm --platform linux/arm64 -v "$D":/d sokki-build:arch bash -c "
+  pacman -S --disable-sandbox --noconfirm --needed ffmpeg ttf-jetbrains-mono >/dev/null 2>&1
+  ffmpeg -loglevel error -y -i /d/demo-raw.mp4 -filter_complex \"
+    [0:v]trim=0:$A_END,setpts=PTS-STARTPTS[va];
+    [0:v]trim=$A_END:$B_END,setpts=(PTS-STARTPTS)/$FACTOR[vb];
+    [0:v]trim=$B_END,setpts=PTS-STARTPTS[vc];
+    [0:a]atrim=0:$A_END,asetpts=PTS-STARTPTS[aa];
+    anullsrc=r=48000:cl=stereo,atrim=0:$FAST_LEN[ab];
+    [0:a]atrim=$B_END,asetpts=PTS-STARTPTS[ac];
+    [va][aa][vb][ab][vc][ac]concat=n=3:v=1:a=1[v][a];
+    [v]$CAPS[vt]\" -map '[vt]' -map '[a]' -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart /d/$(basename "$OUT")
+"
+ls -la "$OUT"

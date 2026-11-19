@@ -625,6 +625,9 @@ pub struct MeetingSettings {
     pub keep_audio_days: u32,
     /// Offer to record when a meeting app starts using the microphone.
     pub detection_enabled: bool,
+    /// Accept recordings from the Sokki phone app: direct and end-to-end
+    /// encrypted from any network, paired by QR code (`meeting/phone_link.rs`).
+    pub phone_link_enabled: bool,
 }
 
 impl Default for MeetingSettings {
@@ -643,6 +646,7 @@ impl Default for MeetingSettings {
             llm_model: "qwen3.5:9b".to_string(),
             keep_audio_days: 0,
             detection_enabled: true,
+            phone_link_enabled: false,
         }
     }
 }
@@ -1631,7 +1635,10 @@ pub fn update_checks_forced_disabled() -> bool {
     // Only the Sokki build has its own update feed (brands/sokki/tauri.conf.json).
     // The plain build's endpoint is upstream Handy, whose update would replace
     // this fork.
+    // Dev builds (scripts/build-and-install.sh) are newer than any release and
+    // would be replaced by the next one.
     !crate::brand::is_sokki()
+        || option_env!("SOKKI_DEV_BUILD").is_some()
         || crate::utils::env_flag_enabled("HANDY_DISABLE_UPDATER")
         || !self_update_possible()
 }

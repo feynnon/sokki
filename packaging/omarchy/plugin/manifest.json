@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "sokki.meetings",
+  "name": "Sokki",
+  "version": "0.1.0",
+  "author": "Sokki",
+  "license": "MIT",
+  "description": "Local meeting notes: asks before recording a call, shows the recording in the bar, and lists recent notes.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Sokki",
+    "description": "Hidden until a call starts: then the record prompt, a recording dot with the time, and progress while the note is written.",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "centerBegin"
+  }
+}

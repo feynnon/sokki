@@ -2,8 +2,15 @@
 //!
 //! [`Detector`] is the pure state machine: feed it "these meeting apps hold
 //! the mic now" plus a timestamp, get events back. [`Watcher`] runs it on a
-//! background thread against Core Audio (or an injected [`ClientSource`] and
-//! [`Clock`], for tests).
+//! background thread, in one of two ways:
+//!
+//! - polling a [`ClientSource`] every `poll_interval` (macOS, Core Audio);
+//! - event-driven from an [`EventSource`] that pushes the client list when
+//!   it changes (Linux, `pw-dump --monitor`). The detector then runs on a
+//!   change and once more at its next deadline (`start_after`,
+//!   `end_after`), never in between: idle means blocked, no wakeups.
+//!
+//! Sources and the [`Clock`] can be injected, for tests.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
@@ -27,7 +34,8 @@ pub enum MeetingEvent {
 /// Timing knobs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WatcherConfig {
-    /// How often Core Audio is polled. Default 2 s.
+    /// How often Core Audio is polled. Default 2 s. Unused by the
+    /// event-driven watcher.
     pub poll_interval: Duration,
     /// How long a meeting app must hold the mic before `Started`. Filters
     /// out blips such as a browser's permission probe. Default 3 s. With a
@@ -97,6 +105,19 @@ impl Detector {
 
     pub fn state(&self) -> &DetectorState {
         &self.state
+    }
+
+    /// When [`Detector::observe`] next has something to decide even if
+    /// nothing changes: the end of `start_after` while pending, the end of
+    /// `end_after` while releasing. `None` when only a change can matter.
+    pub fn next_deadline(&self) -> Option<Instant> {
+        match &self.state {
+            DetectorState::Pending { since, .. } => Some(*since + self.config.start_after),
+            DetectorState::Releasing { released_at, .. } => {
+                Some(*released_at + self.config.end_after)
+            }
+            DetectorState::Idle | DetectorState::Active { .. } => None,
+        }
     }
 
     /// The app of the current meeting, if `Started` was emitted and `Ended`
@@ -221,6 +242,46 @@ impl ClientSource for SystemSource {
     }
 }
 
+/// Where an [`EventSource`] delivers the client list.
+pub struct ClientSink(Box<dyn Fn(Vec<AudioClient>) -> bool + Send>);
+
+impl ClientSink {
+    /// `deliver` gets every new list and returns `false` once nobody
+    /// listens any more.
+    pub fn new(deliver: impl Fn(Vec<AudioClient>) -> bool + Send + 'static) -> Self {
+        ClientSink(Box::new(deliver))
+    }
+
+    /// Hand over the full current list of mic clients. Returns `false`
+    /// when the receiver is gone; the source should stop then.
+    pub fn send(&self, clients: Vec<AudioClient>) -> bool {
+        (self.0)(clients)
+    }
+}
+
+/// Pushes the list of mic clients whenever it changes, from its own
+/// thread, instead of being polled. Implemented for closures
+/// `FnOnce(ClientSink) -> io::Result<G>`; `PwMonitor` is the real one on
+/// Linux.
+pub trait EventSource: Send + 'static {
+    /// Stops the source when dropped.
+    type Guard: Send + 'static;
+    /// Start delivering to `sink`: the current list first, then each
+    /// change.
+    fn start(self, sink: ClientSink) -> std::io::Result<Self::Guard>;
+}
+
+impl<F, G> EventSource for F
+where
+    F: FnOnce(ClientSink) -> std::io::Result<G> + Send + 'static,
+    G: Send + 'static,
+{
+    type Guard = G;
+    fn start(self, sink: ClientSink) -> std::io::Result<G> {
+        self(sink)
+    }
+}
+
 /// Supplies "now". Implemented for closures `Fn() -> Instant`;
 /// [`SystemClock`] is the real one.
 pub trait Clock: Send + 'static {
@@ -246,7 +307,49 @@ impl Clock for SystemClock {
     }
 }
 
-/// Polls on its own thread and calls back with [`MeetingEvent`]s.
+/// What wakes the watcher thread.
+enum Msg {
+    Clients(Vec<AudioClient>),
+    Stop,
+}
+
+/// What the event loop waits for: a new client list, the detector's
+/// deadline, or the end.
+enum Wake {
+    Clients(Vec<AudioClient>),
+    Deadline,
+    Stop,
+}
+
+/// The event-driven loop, apart from threads and channels so tests can
+/// drive it with a scripted `wait`. `wait(deadline)` blocks until a new
+/// list arrives or `deadline` passes (`None`: no deadline).
+fn run_events(
+    config: WatcherConfig,
+    own_pid: u32,
+    mut wait: impl FnMut(Option<Instant>) -> Wake,
+    clock: &impl Clock,
+    name_calls: &mut impl FnMut(&mut [MeetingApp]),
+    on_event: &mut impl FnMut(MeetingEvent),
+) {
+    let mut detector = Detector::new(config);
+    let mut apps = Vec::new();
+    loop {
+        match wait(detector.next_deadline()) {
+            Wake::Clients(clients) => apps = classify_all(&clients, own_pid),
+            Wake::Deadline => {}
+            Wake::Stop => break,
+        }
+        // Again at a deadline too: a tab title can change while pending.
+        name_calls(&mut apps);
+        for event in detector.observe(clock.now(), &apps) {
+            log::info!("meeting event: {event:?}");
+            on_event(event);
+        }
+    }
+}
+
+/// Watches on its own thread and calls back with [`MeetingEvent`]s.
 ///
 /// The callback runs on the watcher thread; keep it short (hand work off to
 /// another thread or a channel). `stop()` or dropping the watcher stops the
@@ -257,17 +360,91 @@ impl Clock for SystemClock {
 /// is skipped: the state is left as it was and a warning is logged once
 /// per run of failures.
 pub struct Watcher {
-    stop_tx: Option<Sender<()>>,
+    stop_tx: Option<Sender<Msg>>,
     handle: Option<JoinHandle<()>>,
 }
 
 impl Watcher {
-    /// Watch Core Audio, ignoring `own_pid` (pass `std::process::id()`).
+    /// Watch the system, ignoring `own_pid` (pass `std::process::id()`).
+    /// macOS polls Core Audio every `poll_interval`.
+    #[cfg(not(target_os = "linux"))]
     pub fn spawn<F>(config: WatcherConfig, own_pid: u32, on_event: F) -> std::io::Result<Self>
     where
         F: FnMut(MeetingEvent) + Send + 'static,
     {
         Self::spawn_with(config, own_pid, SystemSource, SystemClock, on_event)
+    }
+
+    /// Watch the system, ignoring `own_pid` (pass `std::process::id()`).
+    /// Linux follows `pw-dump --monitor` and names browser calls from
+    /// Hyprland's windows; nothing polls.
+    #[cfg(target_os = "linux")]
+    pub fn spawn<F>(config: WatcherConfig, own_pid: u32, on_event: F) -> std::io::Result<Self>
+    where
+        F: FnMut(MeetingEvent) + Send + 'static,
+    {
+        Self::spawn_events_with(
+            config,
+            own_pid,
+            crate::PwMonitor,
+            crate::linux::name_calls,
+            SystemClock,
+            on_event,
+        )
+    }
+
+    /// Event-driven: `source` pushes client lists, `name_calls` may fill in
+    /// [`MeetingApp::call`] before each observation. The thread blocks
+    /// until a list arrives or the detector's next deadline.
+    pub fn spawn_events_with<S, N, C, F>(
+        config: WatcherConfig,
+        own_pid: u32,
+        source: S,
+        mut name_calls: N,
+        clock: C,
+        mut on_event: F,
+    ) -> std::io::Result<Self>
+    where
+        S: EventSource,
+        N: FnMut(&mut [MeetingApp]) + Send + 'static,
+        C: Clock,
+        F: FnMut(MeetingEvent) + Send + 'static,
+    {
+        let (tx, rx) = mpsc::channel::<Msg>();
+        let sink_tx = tx.clone();
+        let guard = source.start(ClientSink::new(move |clients| {
+            sink_tx.send(Msg::Clients(clients)).is_ok()
+        }))?;
+        let handle = std::thread::Builder::new()
+            .name("meeting-detect".into())
+            .spawn(move || {
+                let _guard = guard; // stops the source when the loop ends
+                log::info!("meeting watcher started");
+                let wait = |deadline: Option<Instant>| {
+                    let msg = match deadline {
+                        None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
+                        Some(d) => rx.recv_timeout(d.saturating_duration_since(clock.now())),
+                    };
+                    match msg {
+                        Ok(Msg::Clients(c)) => Wake::Clients(c),
+                        Err(RecvTimeoutError::Timeout) => Wake::Deadline,
+                        Ok(Msg::Stop) | Err(RecvTimeoutError::Disconnected) => Wake::Stop,
+                    }
+                };
+                run_events(
+                    config,
+                    own_pid,
+                    wait,
+                    &clock,
+                    &mut name_calls,
+                    &mut on_event,
+                );
+                log::info!("meeting watcher stopped");
+            })?;
+        Ok(Watcher {
+            stop_tx: Some(tx),
+            handle: Some(handle),
+        })
     }
 
     /// Like [`Watcher::spawn`] but delivering events on a channel.
@@ -282,7 +459,7 @@ impl Watcher {
         Ok((w, rx))
     }
 
-    /// Fully injectable variant for tests: custom client source and clock.
+    /// Polling, fully injectable: custom client source and clock.
     pub fn spawn_with<S, C, F>(
         config: WatcherConfig,
         own_pid: u32,
@@ -295,7 +472,7 @@ impl Watcher {
         C: Clock,
         F: FnMut(MeetingEvent) + Send + 'static,
     {
-        let (stop_tx, stop_rx) = mpsc::channel::<()>();
+        let (stop_tx, stop_rx) = mpsc::channel::<Msg>();
         let handle = std::thread::Builder::new()
             .name("meeting-detect".into())
             .spawn(move || {
@@ -321,7 +498,7 @@ impl Watcher {
                     }
                     match stop_rx.recv_timeout(config.poll_interval) {
                         Err(RecvTimeoutError::Timeout) => continue,
-                        Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
+                        Ok(_) | Err(RecvTimeoutError::Disconnected) => break,
                     }
                 }
                 log::info!("meeting watcher stopped");
@@ -332,14 +509,14 @@ impl Watcher {
         })
     }
 
-    /// Stop polling and join the thread.
+    /// Stop watching and join the thread.
     pub fn stop(mut self) {
         self.shutdown();
     }
 
     fn shutdown(&mut self) {
         if let Some(tx) = self.stop_tx.take() {
-            let _ = tx.send(());
+            let _ = tx.send(Msg::Stop);
         }
         if let Some(h) = self.handle.take() {
             // Don't deadlock if the callback itself dropped the watcher.
@@ -373,6 +550,7 @@ mod tests {
             bundle_id: None,
             exe_path: None,
             matched_by: MatchedBy::BundleId,
+            call: None,
         }
     }
 
@@ -615,6 +793,186 @@ mod tests {
         script.extend((12..=20).step_by(2).map(|_| vec!["chrome", "zoom"]));
         let events = run_watcher(script);
         assert_eq!(ids(&events), vec![(16, "started", "zoom")]);
+    }
+
+    #[test]
+    fn next_deadline_follows_the_state() {
+        let mut d = Detector::new(WatcherConfig::default());
+        let t0 = Instant::now();
+        assert_eq!(d.next_deadline(), None);
+        d.observe(t0, &[app("zoom")]);
+        assert_eq!(d.next_deadline(), Some(t0 + S * 3));
+        d.observe(t0 + S * 3, &[app("zoom")]);
+        assert_eq!(d.next_deadline(), None, "active: only a change matters");
+        d.observe(t0 + S * 10, &[]);
+        assert_eq!(d.next_deadline(), Some(t0 + S * 30));
+    }
+
+    // ---- the event-driven loop with a scripted source and a fake clock ----
+
+    fn linux_client(id: &str) -> AudioClient {
+        match id {
+            "zoom" => AudioClient::new(100, None, Some("/opt/zoom/zoom")),
+            "chrome" => AudioClient::new(200, None, Some("/opt/google/chrome/chrome")),
+            "own" => AudioClient::new(999, None, Some("/opt/zoom/zoom")),
+            _ => unreachable!(),
+        }
+    }
+
+    type Wakes = Vec<(u64, &'static str)>;
+
+    /// Runs the event loop on a script of (second, apps holding the mic),
+    /// one entry per change the source pushes. Waiting jumps the fake clock
+    /// to the next change or to the detector's deadline, whichever comes
+    /// first, as `recv_timeout` would. Once nothing is left and there is no
+    /// deadline, the loop would block for good; the script ends there.
+    /// Returns the events and every wakeup.
+    fn run_script(
+        script: &[(u64, &[&'static str])],
+        mut name_calls: impl FnMut(&mut [MeetingApp]),
+    ) -> (Vec<(u64, MeetingEvent)>, Wakes) {
+        let t0 = Instant::now();
+        let now = Arc::new(Mutex::new(t0));
+        let secs = |t: Instant| t.duration_since(t0).as_secs();
+        let mut changes = script.iter().peekable();
+        let mut wakes = Vec::new();
+        let wait = |deadline: Option<Instant>| {
+            assert!(wakes.len() < 100, "loop does not settle");
+            let mut now = now.lock().unwrap();
+            let next = changes.peek().map(|(t, _)| t0 + S * *t as u32);
+            match (next, deadline) {
+                (Some(n), Some(d)) if d <= n => {}
+                (Some(n), _) => {
+                    *now = n;
+                    wakes.push((secs(n), "change"));
+                    let (_, ids) = changes.next().unwrap();
+                    return Wake::Clients(ids.iter().map(|id| linux_client(id)).collect());
+                }
+                (None, Some(_)) => {}
+                (None, None) => return Wake::Stop,
+            }
+            let d = deadline.unwrap().max(*now);
+            *now = d;
+            wakes.push((secs(d), "deadline"));
+            Wake::Deadline
+        };
+        let clock = {
+            let now = now.clone();
+            move || *now.lock().unwrap()
+        };
+        let mut events = Vec::new();
+        let mut on_event = |e| events.push((secs(clock()), e));
+        let config = WatcherConfig::default();
+        run_events(config, 999, wait, &clock, &mut name_calls, &mut on_event);
+        (events, wakes)
+    }
+
+    fn no_names(_: &mut [MeetingApp]) {}
+
+    #[test]
+    fn events_fire_at_deadlines_without_polling() {
+        let (events, wakes) = run_script(&[(0, &["zoom"]), (100, &[])], no_names);
+        assert_eq!(
+            ids(&events),
+            vec![(3, "started", "zoom"), (120, "ended", "zoom")]
+        );
+        match &events[1].1 {
+            MeetingEvent::Ended { after, .. } => assert_eq!(*after, S * 100),
+            e => panic!("{e:?}"),
+        }
+        // Two changes, two deadlines, nothing else in 120 s.
+        assert_eq!(
+            wakes,
+            [
+                (0, "change"),
+                (3, "deadline"),
+                (100, "change"),
+                (120, "deadline")
+            ]
+        );
+    }
+
+    #[test]
+    fn event_blip_needs_no_deadline_wakeup() {
+        let (events, wakes) = run_script(&[(0, &["chrome"]), (2, &[])], no_names);
+        assert!(events.is_empty());
+        assert_eq!(wakes, [(0, "change"), (2, "change")]);
+    }
+
+    #[test]
+    fn event_reacquire_within_grace_is_one_meeting() {
+        let script: &[(u64, &[&str])] = &[(0, &["zoom"]), (50, &[]), (60, &["zoom"]), (200, &[])];
+        let (events, wakes) = run_script(script, no_names);
+        assert_eq!(
+            ids(&events),
+            vec![(3, "started", "zoom"), (220, "ended", "zoom")]
+        );
+        assert_eq!(wakes.len(), 6, "{wakes:?}");
+    }
+
+    #[test]
+    fn event_app_switch_ends_then_starts() {
+        let (events, _) = run_script(&[(0, &["zoom"]), (60, &["chrome"])], no_names);
+        assert_eq!(
+            ids(&events),
+            vec![
+                (3, "started", "zoom"),
+                (80, "ended", "zoom"),
+                (83, "started", "chrome"),
+            ]
+        );
+    }
+
+    #[test]
+    fn event_loop_ignores_own_pid_and_names_calls() {
+        let mut namings = 0;
+        let namer = |apps: &mut [MeetingApp]| {
+            namings += 1;
+            for a in apps.iter_mut().filter(|a| a.kind == AppKind::Browser) {
+                a.call = Some("Google Meet".into());
+            }
+        };
+        let (events, _) = run_script(&[(0, &["own"]), (10, &["chrome"])], namer);
+        assert_eq!(ids(&events), vec![(13, "started", "chrome")]);
+        match &events[0].1 {
+            MeetingEvent::Started { app } => assert_eq!(app.label(), "Google Meet"),
+            e => panic!("{e:?}"),
+        }
+        assert_eq!(namings, 3, "each change and the deadline");
+    }
+
+    #[test]
+    fn event_watcher_thread_delivers_and_stops_its_source() {
+        struct Guard(Arc<Mutex<bool>>);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                *self.0.lock().unwrap() = true;
+            }
+        }
+        let stopped = Arc::new(Mutex::new(false));
+        let flag = stopped.clone();
+        let source = move |sink: ClientSink| {
+            assert!(sink.send(vec![linux_client("zoom")]));
+            assert!(sink.send(vec![]));
+            Ok(Guard(flag))
+        };
+        let config = WatcherConfig {
+            start_after: Duration::ZERO,
+            end_after: Duration::ZERO,
+            ..WatcherConfig::default()
+        };
+        let (tx, rx) = mpsc::channel();
+        let w = Watcher::spawn_events_with(config, 999, source, no_names, SystemClock, move |e| {
+            let _ = tx.send(e);
+        })
+        .unwrap();
+        let first = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let second = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(first, MeetingEvent::Started { ref app } if app.id == "zoom"));
+        assert!(matches!(second, MeetingEvent::Ended { ref app, .. } if app.id == "zoom"));
+        assert!(!*stopped.lock().unwrap());
+        w.stop();
+        assert!(*stopped.lock().unwrap(), "source guard dropped on stop");
     }
 
     #[test]

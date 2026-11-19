@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Stop using Sokki for dictation
+
+set -e
+
+# Sokki also takes meeting notes, so removing it as the dictation backend
+# leaves the app, its service and its models in place. To remove Sokki
+# entirely: sokki-omarchy-setup --remove, then omarchy-pkg-drop sokki-bin.
+backend_config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+if [[ -f $backend_config && $(< "$backend_config") == "sokki" ]]; then
+  if omarchy-cmd-present sokki && systemctl --user is-active --quiet sokki.service; then
+    sokki dictation cancel || true
+  fi
+  rm "$backend_config"
+fi
+
+omarchy-restart-hyprctl

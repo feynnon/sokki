@@ -11,17 +11,17 @@ pub fn voice_data_stats(app: AppHandle) -> Result<VoiceDataStats, String> {
     voice_data::stats(&app).map_err(|e| format!("{e:#}"))
 }
 
-/// Sets "Help improve", "Support Sokki & Open Source" and "Tell me about
-/// paid recording tasks".
+/// Sets "Help improve Sokki", "Share all my recordings" and "Ask me when
+/// there's a buyer".
 #[tauri::command]
 #[specta::specta]
 pub fn voice_data_set_choices(
     app: AppHandle,
     improve: bool,
     support: bool,
-    tasks: bool,
+    buyers: bool,
 ) -> Result<(), String> {
-    voice_data::set_choices(&app, improve, support, tasks).map_err(|e| format!("{e:#}"))
+    voice_data::set_choices(&app, improve, support, buyers).map_err(|e| format!("{e:#}"))
 }
 
 /// Deletes every kept recording on this Mac.

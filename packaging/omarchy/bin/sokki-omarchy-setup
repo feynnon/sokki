@@ -1,0 +1,289 @@
+#!/bin/bash
+
+# Sets Sokki up for the current user on Omarchy 4: the shell plugin in the
+# bar, the user service, two keys and three menu rows. Safe to run again; it
+# only changes what is missing or out of date.
+#
+#   sokki-omarchy-setup              set up (or update) Sokki
+#   sokki-omarchy-setup --dictation  also make Sokki the dictation engine
+#   sokki-omarchy-setup --refresh    only update the plugin copy (the service
+#                                    runs this at every start)
+#   sokki-omarchy-setup --remove     undo all of it; notes and settings stay
+
+set -euo pipefail
+
+id="sokki.meetings"
+source_dir="${SOKKI_OMARCHY_PLUGIN:-/usr/share/sokki/omarchy-plugin}"
+# The shell reads plugins from here, regardless of XDG_CONFIG_HOME.
+plugins_dir="$HOME/.config/omarchy/plugins"
+plugin_dir="$plugins_dir/$id"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+bindings="$config_home/hypr/bindings.lua"
+menu="$config_home/omarchy/extensions/omarchy-menu.jsonc"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+begin_marker="sokki: begin"
+end_marker="sokki: end"
+
+say() { printf '%s\n' "$*"; }
+warn() { printf 'sokki-omarchy-setup: %s\n' "$*" >&2; }
+fail() { warn "$*"; exit 1; }
+
+usage() {
+  sed -n '3,12s/^# \{0,1\}//p' "$0"
+}
+
+shell_running() {
+  command -v omarchy-shell >/dev/null && omarchy-shell shell ping >/dev/null 2>&1
+}
+
+# ------------------------------------------------------------------ plugin
+
+# Copy the plugin next to the user's own. A hidden staging folder keeps the
+# shell's watcher from loading a half-copied plugin.
+refresh_plugin() {
+  [[ -d $source_dir ]] || fail "plugin not found at $source_dir; is Sokki installed?"
+  if [[ -d $plugin_dir ]] && diff -rq "$source_dir" "$plugin_dir" >/dev/null 2>&1; then
+    return 1
+  fi
+  mkdir -p "$plugins_dir"
+  local staging="$plugins_dir/.$id.new" old="$plugins_dir/.$id.old"
+  rm -rf "$staging" "$old"
+  cp -R "$source_dir" "$staging"
+  if [[ -d $plugin_dir ]]; then
+    mv "$plugin_dir" "$old"
+  fi
+  mv "$staging" "$plugin_dir"
+  rm -rf "$old"
+  return 0
+}
+
+install_plugin() {
+  if refresh_plugin; then
+    say "Copied the shell plugin to $plugin_dir"
+  fi
+  if ! shell_running; then
+    warn "the Omarchy shell is not running; run this again from your desktop to put Sokki in the bar"
+    return 0
+  fi
+  omarchy-shell shell rescanPlugins >/dev/null
+  # Beside the indicators, left of the clock: where the screen recording dot
+  # shows too. A widget already on the bar stays where its owner put it.
+  omarchy-bar put "$id" --section centerBegin --after omarchy.indicators >/dev/null ||
+    warn "could not put Sokki on the bar; try: omarchy bar put $id"
+  # Pick up a daemon that was started after the shell.
+  omarchy-shell -q "$id" reconnect
+  say "Sokki is on the bar (hidden until a call starts)"
+}
+
+remove_plugin() {
+  if shell_running && [[ -d $plugin_dir ]]; then
+    omarchy-plugin-disable "$id" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$plugin_dir" "$plugins_dir/.$id.new" "$plugins_dir/.$id.old"
+  if shell_running; then
+    omarchy-shell shell rescanPlugins >/dev/null || true
+  fi
+}
+
+# ----------------------------------------------------------------- service
+
+# Like Hex, the unit reads this session's display environment from a file,
+# for when the user manager has not been given it (a service started from a
+# TTY or before uwsm). It lives in the runtime directory, so a later login
+# never reads a stale Hyprland instance from it.
+write_session_env() {
+  [[ -n ${WAYLAND_DISPLAY:-} ]] || return 0
+  local dir="$runtime_dir/sokki" name
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+  {
+    for name in WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY; do
+      if [[ -n ${!name:-} ]]; then
+        printf '%s=%s\n' "$name" "${!name}"
+      fi
+    done
+  } >"$dir/session.env"
+  chmod 600 "$dir/session.env"
+}
+
+install_service() {
+  write_session_env
+  systemctl --user daemon-reload
+  systemctl --user enable --now sokki.service
+  say "Started the Sokki service"
+}
+
+remove_service() {
+  systemctl --user disable --now sokki.service 2>/dev/null || true
+  rm -f "$runtime_dir/sokki/session.env"
+}
+
+# ---------------------------------------------------------------- bindings
+
+# Whether Hyprland already binds this modifier mask and key (SUPER=64,
+# CTRL=4, ALT=8). Without a Hyprland to ask, assume the key is free.
+key_taken() {
+  local modmask="$1" key="$2" binds
+  binds=$(hyprctl binds -j 2>/dev/null) || return 1
+  jq -e --argjson mask "$modmask" --arg key "$key" \
+    'any(.[]; .modmask == $mask and (.key | ascii_downcase) == ($key | ascii_downcase))' \
+    <<<"$binds" >/dev/null 2>&1
+}
+
+# One bind line, or the same line commented out with the reason when the key
+# is already in use.
+bind_line() {
+  local modmask="$1" key="$2" line="$3"
+  if key_taken "$modmask" "$key"; then
+    warn "a key Sokki wanted is already bound; left commented out in $bindings: $line"
+    printf '  -- Already bound, so left off: %s\n' "$line"
+  else
+    printf '  %s\n' "$line"
+  fi
+}
+
+install_bindings() {
+  if [[ -f $bindings ]] && grep -q "^-- $begin_marker" "$bindings"; then
+    return 0
+  fi
+  mkdir -p "${bindings%/*}"
+  {
+    printf '\n-- %s (added by sokki-omarchy-setup; sokki-omarchy-setup --remove takes it out)\n' "$begin_marker"
+    printf 'if o.cmd_present("sokki") then\n'
+    # Panels live on Super + Ctrl; the Alt variant skips the panel and acts,
+    # as Super + Ctrl + Alt + C takes the screenshot the capture menu offers.
+    bind_line 68 M 'o.bind("SUPER + CTRL + M", "Meetings", "omarchy-shell sokki.meetings toggle")'
+    bind_line 76 M 'o.bind("SUPER + CTRL + ALT + M", "Record or stop meeting", "sokki meeting toggle")'
+    printf 'end\n'
+    printf -- '-- %s\n' "$end_marker"
+  } >>"$bindings"
+  say "Added Super + Ctrl + M (meetings) and Super + Ctrl + Alt + M (record or stop) to $bindings"
+}
+
+remove_block() {
+  local file="$1" comment="$2"
+  [[ -f $file ]] || return 0
+  grep -q "^[[:space:]]*$comment $begin_marker" "$file" || return 0
+  local temporary
+  temporary=$(mktemp "$file.XXXXXX")
+  # Also drops the blank line the block was added after.
+  awk -v begin="$comment $begin_marker" -v end="$comment $end_marker" '
+    { line = $0; sub(/^[[:space:]]+/, "", line) }
+    index(line, begin) == 1 { skipping = 1; blank = 0; next }
+    skipping { if (index(line, end) == 1) skipping = 0; next }
+    line == "" { if (blank) print ""; blank = 1; next }
+    { if (blank) print ""; blank = 0; print }
+    END { if (blank) print "" }
+  ' "$file" >"$temporary"
+  # Written back in place, so the file keeps its mode and any symlink.
+  cat "$temporary" >"$file"
+  rm -f "$temporary"
+}
+
+# -------------------------------------------------------------------- menu
+
+# Rows in the Omarchy menu (Trigger > Capture, and Setup > Defaults >
+# Dictation). They go right after the opening brace and each ends in a
+# comma, which the menu's JSONC parser accepts before anything that follows.
+menu_block() {
+  local mic=$'\U000f036c' stop=$'\U000f04db' notes=$'\U000f09ed'
+  cat <<EOF
+  // $begin_marker (added by sokki-omarchy-setup; sokki-omarchy-setup --remove takes it out)
+  "trigger.capture.meeting": {"icon":"$mic","label":"Record Meeting","when":"omarchy-cmd-present sokki && [[ \$(omarchy-shell sokki.meetings status 2>/dev/null) != recording ]]","action":"sokki meeting record"},
+  "trigger.capture.meeting-stop": {"icon":"$stop","label":"Stop Meeting Recording","when":"[[ \$(omarchy-shell sokki.meetings status 2>/dev/null) == recording ]]","action":"sokki meeting stop"},
+  "trigger.capture.meeting-notes": {"icon":"$notes","label":"Meeting Notes","when":"omarchy-cmd-present sokki","action":"omarchy-shell sokki.meetings open"},
+  "setup.default.dictation.sokki": {"icon":"$mic","label":"Sokki","checked":"[[ \"\$(omarchy-default-dictation)\" == \"sokki\" ]]","action":"omarchy-default-dictation sokki"},
+  // $end_marker
+EOF
+}
+
+install_menu() {
+  if [[ -f $menu ]] && grep -q "^[[:space:]]*// $begin_marker" "$menu"; then
+    return 0
+  fi
+  mkdir -p "${menu%/*}"
+  if [[ ! -s $menu ]]; then
+    { printf '{\n'; menu_block; printf '}\n'; } >"$menu"
+  elif grep -q '^[[:space:]]*{[[:space:]]*$' "$menu"; then
+    local temporary block
+    block=$(menu_block)
+    temporary=$(mktemp "$menu.XXXXXX")
+    # Through the environment: awk -v would eat the backslashes in the JSON.
+    SOKKI_MENU_BLOCK="$block" awk '
+      !done && /^[[:space:]]*\{[[:space:]]*$/ { print; print ENVIRON["SOKKI_MENU_BLOCK"]; done = 1; next }
+      { print }
+    ' "$menu" >"$temporary"
+    cat "$temporary" >"$menu"
+    rm -f "$temporary"
+  else
+    warn "could not find where to add the menu rows in $menu; skipped them"
+    return 0
+  fi
+  say "Added Record Meeting and Meeting Notes to Trigger > Capture in the Omarchy menu"
+}
+
+# --------------------------------------------------------------- dictation
+
+use_for_dictation() {
+  omarchy-dictation-use sokki
+  say "Sokki is the dictation engine: hold Right Alt to dictate, or toggle with Alt + Space"
+}
+
+stop_dictation() {
+  if command -v omarchy-remove-dictation-sokki >/dev/null; then
+    omarchy-remove-dictation-sokki >/dev/null
+  fi
+}
+
+# -------------------------------------------------------------------- main
+
+check_omarchy() {
+  if ! command -v omarchy-shell >/dev/null; then
+    fail "this is for Omarchy 4 (omarchy-shell not found)"
+  fi
+  (( EUID != 0 )) || fail "run this as yourself, not as root: it sets Sokki up for your user"
+}
+
+mode="setup"
+dictation=0
+while (( $# > 0 )); do
+  case "$1" in
+    --dictation) dictation=1 ;;
+    --refresh) mode="refresh" ;;
+    --remove) mode="remove" ;;
+    -h | --help) usage; exit 0 ;;
+    *) usage >&2; exit 1 ;;
+  esac
+  shift
+done
+
+case "$mode" in
+  refresh)
+    # Only for someone who set Sokki up; never fails the service start.
+    if [[ -d $plugin_dir ]]; then
+      refresh_plugin || true
+    fi
+    ;;
+  remove)
+    check_omarchy
+    stop_dictation
+    remove_plugin
+    remove_service
+    remove_block "$bindings" "--"
+    remove_block "$menu" "//"
+    omarchy-restart-hyprctl
+    say "Removed Sokki from the bar, the keys, the menu and autostart."
+    say "Your notes (~/.local/share/sokki) and settings (~/.config/sokki) are still there."
+    ;;
+  setup)
+    check_omarchy
+    install_service
+    install_plugin
+    install_bindings
+    install_menu
+    if (( dictation )); then
+      use_for_dictation
+    fi
+    omarchy-restart-hyprctl
+    ;;
+esac

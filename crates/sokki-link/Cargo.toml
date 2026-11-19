@@ -1,0 +1,19 @@
+[package]
+name = "sokki-link"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Direct, end-to-end encrypted link between the Sokki phone app and the Mac (iroh)"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Peer-to-peer QUIC dialed by public key: finds the other device through
+# n0's DNS, connects directly (hole punching), falls back to n0's public
+# relays. Everything is encrypted end to end; a relay only forwards bytes.
+iroh = "1.4.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

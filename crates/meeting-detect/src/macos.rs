@@ -253,6 +253,7 @@ pub(crate) fn audio_input_clients() -> Result<Vec<AudioClient>> {
             name,
             responsible_pid,
             responsible_path,
+            binary: None,
         });
     }
     Ok(clients)

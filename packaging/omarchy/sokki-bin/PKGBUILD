@@ -1,0 +1,48 @@
+# Maintainer: Sokki <https://github.com/feynnon/sokki>
+#
+# The prebuilt release. The release workflow sets pkgver and the checksums
+# and attaches this file (with sokki-bin.install) to each GitHub release;
+# install.sh builds from those attached copies.
+pkgname=sokki-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Local meeting notes and dictation: asks before recording a call, writes the note on this machine'
+arch=('x86_64' 'aarch64')
+url='https://github.com/feynnon/sokki'
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'jq' 'pipewire' 'vulkan-icd-loader' 'wl-clipboard' 'wtype')
+optdepends=(
+  'ollama-vulkan: summaries with a local language model (ollama-cuda on NVIDIA)'
+  'quickshell: the Omarchy bar plugin (part of every Omarchy install)'
+  'vulkan-driver: speech recognition on the GPU'
+)
+provides=('sokki')
+conflicts=('sokki')
+options=('!strip' '!debug')
+install=sokki-bin.install
+source_x86_64=("https://github.com/feynnon/sokki/releases/download/v${pkgver}/sokki-${pkgver}-linux-x86_64.tar.gz")
+source_aarch64=("https://github.com/feynnon/sokki/releases/download/v${pkgver}/sokki-${pkgver}-linux-aarch64.tar.gz")
+# Filled in per release (updpkgsums); these placeholders fail on purpose.
+sha256sums_x86_64=('0000000000000000000000000000000000000000000000000000000000000000')
+sha256sums_aarch64=('0000000000000000000000000000000000000000000000000000000000000000')
+
+package() {
+  cd "sokki-${pkgver}-linux-${CARCH}"
+
+  install -Dm755 sokki "$pkgdir/usr/bin/sokki"
+  install -Dm755 -t "$pkgdir/usr/bin" \
+    omarchy/bin/sokki-omarchy-setup \
+    omarchy/bin/omarchy-dictation-sokki \
+    omarchy/bin/omarchy-install-dictation-sokki \
+    omarchy/bin/omarchy-remove-dictation-sokki
+  install -Dm644 omarchy/systemd/sokki.service "$pkgdir/usr/lib/systemd/user/sokki.service"
+
+  # The shell plugin; sokki-omarchy-setup copies it into each user's
+  # ~/.config/omarchy/plugins.
+  local file
+  while IFS= read -r -d '' file; do
+    install -Dm644 "$file" "$pkgdir/usr/share/sokki/omarchy-plugin/${file#omarchy/plugin/}"
+  done < <(find omarchy/plugin -type f -print0)
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

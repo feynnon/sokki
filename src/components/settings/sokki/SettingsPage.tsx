@@ -22,6 +22,7 @@ import { AppDataDirectory } from "../AppDataDirectory";
 import { LogDirectory } from "../debug/LogDirectory";
 import { KeepRecordings } from "./KeepRecordings";
 import { SoundGroup } from "./SoundPage";
+import { SharingGroup } from "./SharingGroup";
 import { Page, PageHeader, Segmented } from "./parts";
 
 /** Classic / Mini / None, as Superwhisper calls it. */
@@ -164,6 +165,7 @@ export const SokkiSettingsPage: React.FC = () => {
   return (
     <Page>
       <PageHeader title={t("sokki.settings.title")} />
+      <SharingGroup />
       <SettingsGroup title={t("sokki.settings.appearance")}>
         <ThemeSelector descriptionMode="inline" grouped />
         <RecordingWindow />

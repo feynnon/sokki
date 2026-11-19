@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Trash2, Users } from "lucide-react";
+import { FolderOpen, Trash2 } from "lucide-react";
 import {
   commands,
   events,
@@ -9,10 +9,9 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { Page, PageHeader } from "./parts";
-import { DataChoices } from "./DataChoices";
 
 /** "3 h 12 min", "12 min", "45 s". */
-function duration(seconds: number): string {
+export function duration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)} s`;
   const m = Math.round(seconds / 60);
   if (m < 60) return `${m} min`;
@@ -70,8 +69,9 @@ const Breakdown: React.FC<{
 
 type Asking = "recordings" | "shared" | null;
 
-/** "Your data": the user's own recordings on this Mac, the two choices and
- * the delete buttons. Buyer messages and paid tasks are paused. */
+/** "Your data": a matching buyer message, the user's own recordings on
+ * this Mac and the delete buttons; the sharing choices are in Settings.
+ * Paid tasks are paused. */
 export const SokkiVoicePage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<VoiceDataStats | null>(null);
@@ -95,8 +95,8 @@ export const SokkiVoicePage: React.FC = () => {
     };
   }, [load]);
 
-  // Uploads run in the background; while sharing is on, the "Shared so
-  // far" line follows them.
+  // Uploads run in the background; while sharing is on, the delete button
+  // for shared data appears once something was shared.
   const sharing = stats?.support ?? false;
   useEffect(() => {
     if (!sharing) return;
@@ -111,12 +111,19 @@ export const SokkiVoicePage: React.FC = () => {
     k === "meeting"
       ? t("sokki.voice.fromMeetings")
       : t("sokki.voice.fromDictation");
-  // A plain-text message from Sokki (a buyer message is JSON; buyer
-  // messages are paused, so it isn't shown).
+  const buyer = stats.buyer;
+  // A plain-text message from Sokki (a buyer message is JSON and shows as
+  // the buyer card instead).
   const plainNotice =
     community?.notice && !community.notice.trim().startsWith("{")
       ? community.notice
       : null;
+
+  const answerBuyer = async (answer: "interested" | "no") => {
+    const r = await commands.voiceDataAnswerBuyer(answer);
+    setStatus(r.status === "ok" ? null : t("sokki.voice.failed"));
+    void load();
+  };
 
   const forget = async () => {
     const r = await commands.voiceDataForget();
@@ -135,6 +142,46 @@ export const SokkiVoicePage: React.FC = () => {
         title={t("sokki.voice.title")}
         description={t("sokki.voice.intro")}
       />
+
+      {buyer && (
+        <section className="vb-card p-4 flex flex-col gap-2 border-logo-primary">
+          <h2 className="text-[14px] font-semibold">
+            {t("sokki.voice.buyer.title", {
+              language: languageName(buyer.language, i18n.language, ""),
+            })}
+          </h2>
+          <p className="text-[13.5px]">
+            {t("sokki.voice.buyer.text", { count: buyer.hours })}
+          </p>
+          {buyer.text && (
+            <p className="text-[13px] text-ink-2 select-text whitespace-pre-line">
+              {buyer.text}
+            </p>
+          )}
+          {buyer.answer === "interested" ? (
+            <p className="text-[13px] text-ink-2">
+              {t("sokki.voice.buyer.thanks")}
+            </p>
+          ) : buyer.answer === "no" ? null : (
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void answerBuyer("interested")}
+              >
+                {t("sokki.voice.buyer.interested")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void answerBuyer("no")}
+              >
+                {t("sokki.voice.buyer.no")}
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="vb-card p-5 flex flex-col gap-5">
         <p className="text-body">
@@ -163,31 +210,6 @@ export const SokkiVoicePage: React.FC = () => {
         )}
       </section>
 
-      <section className="vb-card px-5">
-        <DataChoices
-          value={{
-            improve: stats.improve,
-            support: stats.support,
-          }}
-          onChange={(v) =>
-            void commands
-              .voiceDataSetChoices(v.improve, v.support, false)
-              .then(() => load())
-          }
-          variant="switch"
-        />
-        {stats.support &&
-          (stats.donated_clips > 0 || stats.withheld_clips > 0) && (
-            <p className="border-t border-line py-4 text-small leading-[1.45] text-ink-2">
-              {t("sokki.voice.donated", {
-                duration: duration(stats.donated_seconds),
-              })}
-              {stats.withheld_clips > 0 &&
-                ` ${t("sokki.voice.withheld", { count: stats.withheld_clips })}`}
-            </p>
-          )}
-      </section>
-
       {plainNotice && (
         <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
           <h2 className="text-small font-semibold text-logo-primary">
@@ -195,24 +217,6 @@ export const SokkiVoicePage: React.FC = () => {
           </h2>
           <p className="text-body select-text whitespace-pre-line">
             {plainNotice}
-          </p>
-        </section>
-      )}
-
-      {community && community.installs > 0 && (
-        <section className="vb-card p-4 flex items-center gap-3">
-          <Users
-            width={18}
-            height={18}
-            className="text-logo-primary shrink-0"
-          />
-          <p className="text-small text-ink-2">
-            {t(
-              community.donors > 0
-                ? "sokki.voice.communityDonors"
-                : "sokki.voice.community",
-              { count: community.installs, donors: community.donors },
-            )}
           </p>
         </section>
       )}

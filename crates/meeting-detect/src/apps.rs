@@ -39,6 +39,17 @@ pub struct MeetingApp {
     pub bundle_id: Option<String>,
     pub exe_path: Option<String>,
     pub matched_by: MatchedBy,
+    /// For a browser: the call service its windows show, e.g.
+    /// `"Google Meet"`, when that is known (Linux with Hyprland).
+    pub call: Option<String>,
+}
+
+impl MeetingApp {
+    /// What to call this meeting in the UI: the call service if known,
+    /// else the app name.
+    pub fn label(&self) -> &str {
+        self.call.as_deref().unwrap_or(self.name)
+    }
 }
 
 struct KnownApp {
@@ -54,6 +65,10 @@ struct KnownApp {
     /// leading `/` (and usually a trailing `.app/`) so they match a path
     /// component, not arbitrary text.
     paths: &'static [&'static str],
+    /// Executable file names on Linux, which has no bundle ids. Matched
+    /// against the last component of the executable path,
+    /// case-insensitive.
+    bins: &'static [&'static str],
 }
 
 /// Known meeting apps, in preference order: when several hold the mic at
@@ -68,6 +83,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["us.zoom.xos"],
         paths: &["/zoom.us.app/"],
+        bins: &["zoom"],
     },
     KnownApp {
         id: "teams",
@@ -80,6 +96,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         // Listed before Edge: new Teams' helper path also contains
         // "Microsoft Edge Framework".
         paths: &["/microsoft teams"],
+        bins: &["teams-for-linux", "teams"],
     },
     KnownApp {
         id: "webex",
@@ -95,6 +112,7 @@ const KNOWN_APPS: &[KnownApp] = &[
             "/cisco webex meetings.app/",
             "/webex meetings.app/",
         ],
+        bins: &["CiscoCollabHost"],
     },
     KnownApp {
         id: "slack",
@@ -102,6 +120,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["com.tinyspeck.slackmacgap"],
         paths: &["/slack.app/"],
+        bins: &["slack"],
     },
     KnownApp {
         id: "facetime",
@@ -111,6 +130,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         // phone) call audio.
         bundle_ids: &["com.apple.FaceTime", "com.apple.avconference"],
         paths: &["/facetime.app/", "/avconferenced"],
+        bins: &[],
     },
     KnownApp {
         id: "discord",
@@ -122,6 +142,7 @@ const KNOWN_APPS: &[KnownApp] = &[
             "com.hnc.DiscordCanary",
         ],
         paths: &["/discord.app/", "/discord ptb.app/", "/discord canary.app/"],
+        bins: &["Discord", "DiscordPTB", "DiscordCanary"],
     },
     KnownApp {
         id: "skype",
@@ -129,6 +150,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["com.skype.skype"],
         paths: &["/skype.app/"],
+        bins: &["skypeforlinux"],
     },
     KnownApp {
         id: "whatsapp",
@@ -136,6 +158,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["net.whatsapp.WhatsApp", "desktop.WhatsApp"],
         paths: &["/whatsapp.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "signal",
@@ -143,6 +166,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["org.whispersystems.signal-desktop"],
         paths: &["/signal.app/"],
+        bins: &["signal-desktop", "signal-desktop-beta"],
     },
     KnownApp {
         id: "telegram",
@@ -150,6 +174,16 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["ru.keepcoder.Telegram", "org.telegram.desktop"],
         paths: &["/telegram.app/", "/telegram desktop.app/"],
+        bins: &["telegram-desktop", "Telegram"],
+    },
+    KnownApp {
+        id: "element",
+        name: "Element",
+        kind: AppKind::Native,
+        // Linux only for now; on macOS Element is not in the table.
+        bundle_ids: &[],
+        paths: &[],
+        bins: &["element-desktop"],
     },
     KnownApp {
         id: "around",
@@ -157,6 +191,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["co.teamport.around"],
         paths: &["/around.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "tuple",
@@ -164,6 +199,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["app.tuple.app"],
         paths: &["/tuple.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "gotomeeting",
@@ -171,6 +207,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["com.logmein.GoToMeeting"],
         paths: &["/goto meeting.app/", "/gotomeeting.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "chime",
@@ -178,6 +215,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Native,
         bundle_ids: &["com.amazon.Amazon-Chime"],
         paths: &["/amazon chime.app/"],
+        bins: &[],
     },
     // ---- browsers (Google Meet, Teams/Zoom/Whereby web, ...) ----
     KnownApp {
@@ -189,6 +227,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         // Covers "Google Chrome.app", "Google Chrome Beta.app", "Google
         // Chrome Canary.app" and "Google Chrome Helper.app".
         paths: &["/google chrome"],
+        bins: &["chrome"],
     },
     KnownApp {
         id: "arc",
@@ -196,6 +235,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["company.thebrowser.Browser"],
         paths: &["/arc.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "dia",
@@ -203,6 +243,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["company.thebrowser.dia"],
         paths: &["/dia.app/"],
+        bins: &[],
     },
     KnownApp {
         id: "edge",
@@ -215,6 +256,7 @@ const KNOWN_APPS: &[KnownApp] = &[
             "/microsoft edge dev.app/",
             "/microsoft edge canary.app/",
         ],
+        bins: &["msedge"],
     },
     KnownApp {
         id: "brave",
@@ -222,6 +264,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["com.brave.Browser"],
         paths: &["/brave browser"],
+        bins: &["brave"],
     },
     KnownApp {
         id: "vivaldi",
@@ -229,6 +272,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["com.vivaldi.Vivaldi"],
         paths: &["/vivaldi.app/"],
+        bins: &["vivaldi-bin"],
     },
     KnownApp {
         id: "opera",
@@ -236,6 +280,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["com.operasoftware.Opera", "com.operasoftware.OperaGX"],
         paths: &["/opera.app/", "/opera gx.app/"],
+        bins: &["opera"],
     },
     KnownApp {
         id: "firefox",
@@ -249,6 +294,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         // Firefox.app, Firefox Nightly.app, Firefox Developer Edition.app,
         // including plugin-container inside them.
         paths: &["/firefox"],
+        bins: &["firefox", "firefox-bin"],
     },
     KnownApp {
         id: "chromium",
@@ -256,6 +302,15 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["org.chromium.Chromium"],
         paths: &["/chromium.app/"],
+        bins: &["chromium"],
+    },
+    KnownApp {
+        id: "helium",
+        name: "Helium",
+        kind: AppKind::Browser,
+        bundle_ids: &[],
+        paths: &[],
+        bins: &["helium"],
     },
     KnownApp {
         id: "safari",
@@ -263,6 +318,7 @@ const KNOWN_APPS: &[KnownApp] = &[
         kind: AppKind::Browser,
         bundle_ids: &["com.apple.Safari", "com.apple.SafariTechnologyPreview"],
         paths: &["/safari.app/", "/safari technology preview.app/"],
+        bins: &[],
     },
 ];
 
@@ -319,10 +375,11 @@ fn match_known(bundle_id: Option<&str>, path: Option<&str>) -> Option<(usize, Ma
         }
     }
     if let Some(path) = path {
-        if let Some(i) = KNOWN_APPS
-            .iter()
-            .position(|k| k.paths.iter().any(|f| path_matches(path, f)))
-        {
+        let file = path.rsplit('/').next().unwrap_or(path);
+        if let Some(i) = KNOWN_APPS.iter().position(|k| {
+            k.paths.iter().any(|f| path_matches(path, f))
+                || k.bins.iter().any(|b| file.eq_ignore_ascii_case(b))
+        }) {
             return Some((i, MatchedBy::ExePath));
         }
     }
@@ -364,6 +421,9 @@ fn classify_client(c: &AudioClient, own_pid: u32) -> Option<(usize, MatchedBy)> 
     if let Some(m) = match_known(c.bundle_id.as_deref(), c.exe_path.as_deref()) {
         return Some(m);
     }
+    if let Some(m) = c.binary.as_deref().and_then(|b| match_known(None, Some(b))) {
+        return Some(m);
+    }
     c.responsible_path
         .as_deref()
         .and_then(|rp| match_known(None, Some(rp)))
@@ -400,6 +460,7 @@ pub fn classify_all(clients: &[AudioClient], own_pid: u32) -> Vec<MeetingApp> {
                 bundle_id: c.bundle_id.clone(),
                 exe_path: c.exe_path.clone(),
                 matched_by,
+                call: None,
             },
         ));
     }
@@ -629,6 +690,74 @@ mod tests {
                 "{p}"
             );
         }
+    }
+
+    #[test]
+    fn linux_apps_match_by_binary() {
+        let cases = [
+            ("/opt/zoom/zoom", "zoom"),
+            ("/usr/lib/teams-for-linux/teams-for-linux", "teams"),
+            ("/opt/Webex/bin/CiscoCollabHost", "webex"),
+            ("/usr/lib/slack/slack", "slack"),
+            ("/opt/discord/Discord", "discord"),
+            ("/usr/share/skypeforlinux/skypeforlinux", "skype"),
+            ("/usr/lib/signal-desktop/signal-desktop", "signal"),
+            ("/usr/bin/telegram-desktop", "telegram"),
+            ("/usr/bin/Telegram", "telegram"),
+            ("/opt/Element/element-desktop", "element"),
+            ("/opt/google/chrome/chrome", "chrome"),
+            ("/usr/lib/chromium/chromium", "chromium"),
+            ("/opt/brave-bin/brave", "brave"),
+            ("/usr/lib/firefox/firefox", "firefox"),
+            ("/opt/vivaldi/vivaldi-bin", "vivaldi"),
+            ("/opt/microsoft/msedge/msedge", "edge"),
+            ("/usr/lib/opera/opera", "opera"),
+            ("/opt/helium/helium", "helium"),
+            // /proc/<pid>/exe unreadable: only application.process.binary.
+            ("chrome", "chrome"),
+            ("zoom", "zoom"),
+        ];
+        for (p, id) in cases {
+            let app = classify(&[c(1, None, Some(p))], OWN);
+            assert_eq!(app.as_ref().map(|a| a.id), Some(id), "{p}");
+            assert_eq!(app.unwrap().matched_by, MatchedBy::ExePath);
+        }
+        for p in [
+            "/usr/bin/pw-cat",
+            "/usr/bin/parecord",
+            "/usr/bin/zoomer",
+            "/home/me/chrome-tools/run",
+        ] {
+            assert_eq!(classify(&[c(1, None, Some(p))], OWN), None, "{p}");
+        }
+    }
+
+    #[test]
+    fn linux_native_app_preferred_over_browser() {
+        let clients = [
+            c(10, None, Some("/opt/google/chrome/chrome")),
+            c(20, None, Some("/opt/zoom/zoom")),
+        ];
+        let ids: Vec<_> = classify_all(&clients, OWN).iter().map(|a| a.id).collect();
+        assert_eq!(ids, ["zoom", "chrome"]);
+    }
+
+    #[test]
+    fn pipewire_binary_is_a_second_chance() {
+        // /proc names a translator (Rosetta in an x86 container); PipeWire
+        // still says which program it is.
+        let mut client = c(42, None, Some("/run/rosetta/rosetta"));
+        assert!(classify(&[client.clone()], OWN).is_none());
+        client.binary = Some("zoom".into());
+        assert_eq!(classify(&[client], OWN).map(|a| a.id), Some("zoom"));
+    }
+
+    #[test]
+    fn label_prefers_the_call() {
+        let mut app = classify(&[c(1, None, Some("/usr/lib/chromium/chromium"))], OWN).unwrap();
+        assert_eq!(app.label(), "Chromium");
+        app.call = Some("Google Meet".into());
+        assert_eq!(app.label(), "Google Meet");
     }
 
     #[test]

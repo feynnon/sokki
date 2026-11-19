@@ -20,6 +20,8 @@ Scenarios:
                  speakers (echo), which cross-track dedup must remove
   three_remote   three speakers on the system track
   silence        ten seconds of faint noise on the mic track
+  demo_en        an English laptop call for demos: me on mic, two remote
+                 speakers on system audio, speaker echo on the mic
 """
 import json
 import os
@@ -190,6 +192,28 @@ def scenario_call_tracks():
          extra={"note": "mic contains an echo of the system track (laptop speakers)"})
 
 
+def scenario_demo_en():
+    me, sam, reed = "Samantha", "Daniel", "Reed (English (US))"
+    turns = [
+        ("mic", "Me", me, "en", "Morning, everyone. Quick one today: are we ready to ship the Linux version on Friday?", None),
+        ("system", "R1", sam, "en", "Almost. Recording and call detection work on Omarchy. The installer still needs testing on a real laptop.", None),
+        ("system", "R2", reed, "en", "I can do that tomorrow on my Framework. If it passes, Friday works for me.", None),
+        ("mic", "Me", me, "en", "Great. Then let's decide: we ship on Friday if the laptop test passes.", None),
+        ("system", "R1", sam, "en", "Agreed. I'll write the release notes and record a short demo video.", None),
+        ("mic", "Me", me, "en", "Perfect. I'll send the demo to D H H once it's out. Thanks, both of you.", None),
+    ]
+    tracks, truth, total = place(turns)
+    delay = int(0.04 * SR)
+    leak = np.zeros_like(tracks["system"])
+    leak[delay:] = tracks["system"][:-delay]
+    leak = 0.12 * ffmpeg_filter(leak, "lowpass=f=6000,aecho=0.5:0.3:20:0.2")
+    # The voice alone too, for live tests that add their own speaker echo.
+    tracks["mic_dry"] = tracks["mic"].copy()
+    tracks["mic"] = tracks["mic"] + leak
+    save("demo_en", tracks, truth, total,
+         extra={"note": "demo call; mic contains an echo of the system track"})
+
+
 def scenario_three_remote():
     turns = [
         ("system", "R1", EDDY, "de", "Willkommen zum wöchentlichen Planungsmeeting.", None),
@@ -212,6 +236,7 @@ SCENARIOS = {
     "de_en_mixed": scenario_de_en_mixed,
     "phone_speaker": scenario_phone_speaker,
     "call_tracks": scenario_call_tracks,
+    "demo_en": scenario_demo_en,
     "three_remote": scenario_three_remote,
     "silence": scenario_silence,
 }

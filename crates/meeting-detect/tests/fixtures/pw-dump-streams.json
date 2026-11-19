@@ -1,0 +1,1858 @@
+[
+  {
+    "id": 2,
+    "type": "PipeWire:Interface:SecurityContext",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "object.serial": 3
+    }
+  },
+  {
+    "id": 4,
+    "type": "PipeWire:Interface:Profiler",
+    "version": 3,
+    "permissions": [
+      "r"
+    ],
+    "props": {
+      "object.serial": 5
+    }
+  },
+  {
+    "id": 28,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 0,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 0,
+      "n-output-ports": 0,
+      "state": "suspended",
+      "error": null,
+      "props": {
+        "clock.id": "monotonic",
+        "clock.name": "clock.system.monotonic",
+        "clock.quantum-limit": 8192,
+        "factory.id": 10,
+        "factory.name": "support.node.driver",
+        "node.driver": true,
+        "node.group": "pipewire.dummy",
+        "node.loop.name": "data-loop.0",
+        "node.name": "Dummy-Driver",
+        "node.sync-group": "sync.dummy",
+        "object.id": 28,
+        "object.serial": 29,
+        "priority.driver": 200000
+      }
+    }
+  },
+  {
+    "id": 29,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 0,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 0,
+      "n-output-ports": 0,
+      "state": "suspended",
+      "error": null,
+      "props": {
+        "clock.id": "monotonic",
+        "clock.name": "clock.system.monotonic",
+        "clock.quantum-limit": 8192,
+        "factory.id": 10,
+        "factory.name": "support.node.driver",
+        "node.driver": true,
+        "node.freewheel": true,
+        "node.group": "pipewire.freewheel",
+        "node.loop.name": "data-loop.0",
+        "node.name": "Freewheel-Driver",
+        "node.sync-group": "sync.dummy",
+        "object.id": 29,
+        "object.serial": 30,
+        "priority.driver": 190000
+      }
+    }
+  },
+  {
+    "id": 30,
+    "type": "PipeWire:Interface:Metadata",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "metadata.name": "settings",
+      "object.serial": 31
+    },
+    "metadata": [
+      {
+        "subject": 0,
+        "key": "log.level",
+        "type": "",
+        "value": 2
+      },
+      {
+        "subject": 0,
+        "key": "clock.rate",
+        "type": "",
+        "value": 48000
+      },
+      {
+        "subject": 0,
+        "key": "clock.allowed-rates",
+        "type": "",
+        "value": "[ 48000 ]"
+      },
+      {
+        "subject": 0,
+        "key": "clock.quantum",
+        "type": "",
+        "value": 1024
+      },
+      {
+        "subject": 0,
+        "key": "clock.min-quantum",
+        "type": "",
+        "value": 32
+      },
+      {
+        "subject": 0,
+        "key": "clock.max-quantum",
+        "type": "",
+        "value": 2048
+      },
+      {
+        "subject": 0,
+        "key": "clock.force-quantum",
+        "type": "",
+        "value": 0
+      },
+      {
+        "subject": 0,
+        "key": "clock.force-rate",
+        "type": "",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "WirePlumber",
+        "application.process.binary": "wireplumber",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 14,
+        "application.process.user": "root",
+        "application.version": "0.5.19",
+        "clock.power-of-two-quantum": true,
+        "config.name": "null",
+        "context.modules.allow-empty": true,
+        "core.name": "pipewire-root-14",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 2,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 31,
+        "object.serial": 32,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.access.portal.gate-supported": true,
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 14,
+        "pipewire.sec.socket": "pipewire-0-manager",
+        "pipewire.sec.uid": 0,
+        "remote.name": "[pipewire-0-manager,pipewire-0]",
+        "session.services": "[bluetooth.audio, policy.linking.standard, audio, api.bluez, api.libcamera, api.v4l2, api.alsa-seq, policy.linking.role-based, bluetooth.midi, policy.device.profile, midi, policy.default-nodes, api.alsa, policy.device.routes, video-capture]",
+        "settings.check-quantum": false,
+        "settings.check-rate": false,
+        "wireplumber.daemon": true,
+        "wireplumber.profile": "main"
+      }
+    }
+  },
+  {
+    "id": 32,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "pipewire",
+        "application.process.binary": "pipewire",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 15,
+        "application.process.user": "root",
+        "clock.power-of-two-quantum": true,
+        "config.name": "pipewire-pulse.conf",
+        "core.name": "pipewire-root-15",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 2,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 32,
+        "object.serial": 33,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 15,
+        "pipewire.sec.socket": "pipewire-0",
+        "pipewire.sec.uid": 0,
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 34,
+    "type": "PipeWire:Interface:Metadata",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "client.id": 31,
+      "factory.id": 6,
+      "metadata.name": "schema-sm-settings",
+      "module.id": 5,
+      "object.serial": 35
+    },
+    "metadata": [
+      {
+        "subject": 0,
+        "key": "bluetooth.use-persistent-storage",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Persistent storage",
+          "description": "Remember and restore Bluetooth headset mode status",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-to-headset-profile",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Auto-switch to headset profile",
+          "description": "Always show microphone for Bluetooth headsets, and switch to headset mode when recording",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-switch-timeout",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Auto-switch timeout",
+          "description": "How long to wait, in milliseconds, before switching to headset mode when recording starts",
+          "type": "int",
+          "default": 500,
+          "min": 0,
+          "max": 60000
+        }
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-restore-timeout",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Auto-switch restore timeout",
+          "description": "How long to wait, in milliseconds, before restoring the previous profile when recording stops",
+          "type": "int",
+          "default": 4000,
+          "min": 0,
+          "max": 60000
+        }
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.profile-preference",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Bluetooth profile preference",
+          "description": "Prefer better quality or better latency when auto-selecting profiles (only 'quality' or 'latency' values are accepted)",
+          "type": "string",
+          "default": "quality"
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.restore-profile",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Restore profile",
+          "description": "Remember and restore device profiles",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.restore-routes",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Restore routes",
+          "description": "Remember and restore device routes",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.default-sink-volume",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Default sink volume",
+          "description": "The default volume for audio sinks",
+          "type": "float",
+          "default": 0.064,
+          "min": 0.0,
+          "max": 1.0
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.default-source-volume",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Default source volume",
+          "description": "The default volume for audio sources",
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.mute-on-alsa-playback-removed",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Auto-mute on wired audio disconnect",
+          "description": "Automatically mute all audio devices when active wired headphones/speakers are disconnected to prevent unintended sound output",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.mute-on-bluetooth-playback-removed",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Auto-mute on Bluetooth audio disconnect",
+          "description": "Automatically mute all audio devices when active Bluetooth headphones/speakers are disconnected to prevent unintended sound output",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "linking.role-based.duck-level",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Ducking level",
+          "description": "The volume level to apply when ducking (= reducing volume for a higher priority stream to be audible) in the role-based linking policy",
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 1.0
+        }
+      },
+      {
+        "subject": 0,
+        "key": "linking.allow-moving-streams",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Allow moving streams",
+          "description": "Streams may be moved by adding PipeWire metadata at runtime",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "linking.follow-default-target",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Follow default target",
+          "description": "Streams connected to the default device follow when default changes",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "linking.pause-playback",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Pause playback if output removed",
+          "description": "Pause media players if their target sink is removed",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "monitor.camera-discovery-timeout",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Discovery timeout",
+          "description": "The camera discovery timeout in milliseconds",
+          "type": "int",
+          "default": 1000,
+          "min": 0,
+          "max": 60000
+        }
+      },
+      {
+        "subject": 0,
+        "key": "monitor.alsa.autodetect-hdmi-channels",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Automatically detect HDMI channels (experimental)",
+          "description": "Automatically detect channel count and positions for HDMI devices (experimental)",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.no-dsp",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "No DSP",
+          "description": "Do not convert audio to F32 format",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.monitor-ports",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Monitor ports",
+          "description": "Enable monitor ports on audio nodes",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.control-port",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Control ports",
+          "description": "Enable control ports on audio nodes",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.mono",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Mono",
+          "description": "Configure all audio device sink nodes in MONO",
+          "type": "bool",
+          "default": false
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.restore-props",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Restore properties",
+          "description": "Remember and restore properties of streams",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.restore-target",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Restore target",
+          "description": "Remember and restore stream targets",
+          "type": "bool",
+          "default": true
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-playback-volume",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Default playback volume",
+          "description": "The default volume for playback nodes",
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-capture-volume",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Default capture volume",
+          "description": "The default volume for capture nodes",
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-media-role",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Default media role",
+          "description": "Default media.role to assign on streams that do not specify it",
+          "type": "string",
+          "default": "null"
+        }
+      },
+      {
+        "subject": 0,
+        "key": "node.restore-default-targets",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "Restore default target",
+          "description": "Remember and restore default audio/video input/output devices",
+          "type": "bool",
+          "default": true
+        }
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "type": "PipeWire:Interface:Metadata",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "client.id": 31,
+      "factory.id": 6,
+      "metadata.name": "sm-settings",
+      "module.id": 5,
+      "object.serial": 37
+    },
+    "metadata": [
+      {
+        "subject": 0,
+        "key": "bluetooth.use-persistent-storage",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-to-headset-profile",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-switch-timeout",
+        "type": "Spa:String:JSON",
+        "value": 500
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.autoswitch-restore-timeout",
+        "type": "Spa:String:JSON",
+        "value": 4000
+      },
+      {
+        "subject": 0,
+        "key": "bluetooth.profile-preference",
+        "type": "Spa:String:JSON",
+        "value": "quality"
+      },
+      {
+        "subject": 0,
+        "key": "device.restore-profile",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "device.restore-routes",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.default-sink-volume",
+        "type": "Spa:String:JSON",
+        "value": 0.064
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.default-source-volume",
+        "type": "Spa:String:JSON",
+        "value": 1.0
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.mute-on-alsa-playback-removed",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "device.routes.mute-on-bluetooth-playback-removed",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "linking.role-based.duck-level",
+        "type": "Spa:String:JSON",
+        "value": 0.3
+      },
+      {
+        "subject": 0,
+        "key": "linking.allow-moving-streams",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "linking.follow-default-target",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "linking.pause-playback",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "monitor.camera-discovery-timeout",
+        "type": "Spa:String:JSON",
+        "value": 1000
+      },
+      {
+        "subject": 0,
+        "key": "monitor.alsa.autodetect-hdmi-channels",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.no-dsp",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.monitor-ports",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.control-port",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "node.features.audio.mono",
+        "type": "Spa:String:JSON",
+        "value": false
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.restore-props",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.restore-target",
+        "type": "Spa:String:JSON",
+        "value": true
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-playback-volume",
+        "type": "Spa:String:JSON",
+        "value": 1.0
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-capture-volume",
+        "type": "Spa:String:JSON",
+        "value": 1.0
+      },
+      {
+        "subject": 0,
+        "key": "node.stream.default-media-role",
+        "type": "Spa:String:JSON",
+        "value": "null"
+      },
+      {
+        "subject": 0,
+        "key": "node.restore-default-targets",
+        "type": "Spa:String:JSON",
+        "value": true
+      }
+    ]
+  },
+  {
+    "id": 39,
+    "type": "PipeWire:Interface:Metadata",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "client.id": 31,
+      "factory.id": 6,
+      "metadata.name": "default",
+      "module.id": 5,
+      "object.serial": 40
+    },
+    "metadata": [
+      {
+        "subject": 0,
+        "key": "default.audio.sink",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "fake-speaker"
+        }
+      },
+      {
+        "subject": 0,
+        "key": "default.audio.source",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "fake-mic"
+        }
+      },
+      {
+        "subject": 62,
+        "key": "target.node",
+        "type": "Spa:Id",
+        "value": -1
+      }
+    ]
+  },
+  {
+    "id": 46,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "WirePlumber [client]",
+        "application.process.binary": "wireplumber",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 14,
+        "application.process.user": "root",
+        "application.version": "0.5.19",
+        "clock.power-of-two-quantum": true,
+        "config.name": "null",
+        "context.modules.allow-empty": true,
+        "core.name": "pipewire-root-14",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 2,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 46,
+        "object.serial": 47,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.access.portal.gate-supported": true,
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 14,
+        "pipewire.sec.socket": "pipewire-0-manager",
+        "pipewire.sec.uid": 0,
+        "remote.name": "[pipewire-0-manager,pipewire-0]",
+        "settings.check-quantum": false,
+        "settings.check-rate": false,
+        "wireplumber.client-context": true,
+        "wireplumber.daemon": true,
+        "wireplumber.profile": "main"
+      }
+    }
+  },
+  {
+    "id": 48,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "audio.position": "[FL FR]",
+        "clock.quantum-limit": 8192,
+        "factory.id": 18,
+        "factory.name": "support.null-audio-sink",
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.class": "Audio/Sink",
+        "node.description": "Fake Speaker",
+        "node.driver": true,
+        "node.loop.name": "data-loop.0",
+        "node.name": "fake-speaker",
+        "object.id": 48,
+        "object.linger": true,
+        "object.serial": 49,
+        "port.group": "stream.0"
+      }
+    }
+  },
+  {
+    "id": 42,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "audio.position": "[FL FR]",
+        "clock.quantum-limit": 8192,
+        "factory.id": 18,
+        "factory.name": "support.null-audio-sink",
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.class": "Audio/Source/Virtual",
+        "node.description": "Fake Mic",
+        "node.driver": true,
+        "node.loop.name": "data-loop.0",
+        "node.name": "fake-mic",
+        "object.id": 42,
+        "object.linger": true,
+        "object.serial": 55,
+        "port.group": "stream.0"
+      }
+    }
+  },
+  {
+    "id": 52,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "pw-dump",
+        "application.process.binary": "pw-dump",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 28,
+        "application.process.user": "root",
+        "clock.power-of-two-quantum": true,
+        "core.name": "pipewire-root-28",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 0,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 52,
+        "object.serial": 60,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 28,
+        "pipewire.sec.socket": "pipewire-0-manager",
+        "pipewire.sec.uid": 0,
+        "remote.intention": "manager",
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 53,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.icon-name": "google-chrome",
+        "application.language": "en_US.UTF-8",
+        "application.name": "Google Chrome",
+        "application.process.binary": "chrome",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 30,
+        "application.process.machine-id": "83a4db0116264d189bce39137e7b8dd7",
+        "application.process.user": "root",
+        "client.api": "pipewire-pulse",
+        "clock.power-of-two-quantum": true,
+        "config.name": "pipewire-pulse.conf",
+        "core.name": "pipewire-root-15",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 2,
+        "media.format": "WAV (Microsoft)",
+        "media.name": "RecordStream",
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 53,
+        "object.serial": 61,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 15,
+        "pipewire.sec.socket": "pipewire-0",
+        "pipewire.sec.uid": 0,
+        "pulse.server.type": "unix",
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 54,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "adapt.follower.spa-node": "",
+        "application.icon-name": "google-chrome",
+        "application.language": "en_US.UTF-8",
+        "application.name": "Google Chrome",
+        "application.process.binary": "chrome",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 30,
+        "application.process.machine-id": "83a4db0116264d189bce39137e7b8dd7",
+        "application.process.user": "root",
+        "client.api": "pipewire-pulse",
+        "client.id": 53,
+        "clock.quantum-limit": 8192,
+        "factory.id": 6,
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.class": "Stream/Input/Audio",
+        "media.format": "WAV (Microsoft)",
+        "media.name": "RecordStream",
+        "node.autoconnect": true,
+        "node.driver-id": 42,
+        "node.latency": "88200/44100",
+        "node.loop.name": "data-loop.0",
+        "node.name": "Google Chrome",
+        "node.rate": "1/44100",
+        "node.want-driver": true,
+        "object.id": 54,
+        "object.register": false,
+        "object.serial": 62,
+        "port.group": "stream.0",
+        "pulse.attr.fragsize": 352800,
+        "pulse.attr.maxlength": 4194304,
+        "pulse.corked": false,
+        "pulse.server.type": "unix",
+        "stream.is-live": true
+      }
+    }
+  },
+  {
+    "id": 59,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 50,
+      "input-node-id": 54,
+      "input-port-id": 55,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.input.node": 54,
+        "link.input.port": 55,
+        "link.output.node": 42,
+        "link.output.port": 50,
+        "object.id": 59,
+        "object.serial": 67
+      }
+    }
+  },
+  {
+    "id": 60,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 51,
+      "input-node-id": 54,
+      "input-port-id": 56,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.input.node": 54,
+        "link.input.port": 56,
+        "link.output.node": 42,
+        "link.output.port": 51,
+        "object.id": 60,
+        "object.serial": 68
+      }
+    }
+  },
+  {
+    "id": 61,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "pw-cat",
+        "application.process.binary": "pw-cat",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 32,
+        "application.process.user": "root",
+        "clock.power-of-two-quantum": true,
+        "core.name": "pipewire-root-32",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 0,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 61,
+        "object.serial": 69,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 32,
+        "pipewire.sec.socket": "pipewire-0",
+        "pipewire.sec.uid": 0,
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 62,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "adapt.follower.spa-node": "",
+        "application.name": "sokki",
+        "client.id": 61,
+        "clock.quantum-limit": 8192,
+        "factory.id": 8,
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.category": "Capture",
+        "media.class": "Stream/Input/Audio",
+        "media.filename": "/tmp/b.wav",
+        "media.name": "/tmp/b.wav",
+        "media.role": "Music",
+        "media.type": "Audio",
+        "node.async": true,
+        "node.autoconnect": true,
+        "node.driver-id": 48,
+        "node.loop.class": "main",
+        "node.loop.name": "main-loop",
+        "node.name": "pw-record",
+        "node.rate": "1/48000",
+        "node.want-driver": true,
+        "object.id": 62,
+        "object.register": false,
+        "object.serial": 70,
+        "port.group": "stream.0",
+        "stream.capture.sink": true,
+        "stream.is-live": true,
+        "target.object": "fake-speaker"
+      }
+    }
+  },
+  {
+    "id": 67,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 48,
+      "output-port-id": 44,
+      "input-node-id": 62,
+      "input-port-id": 63,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.async": true,
+        "link.input.node": 62,
+        "link.input.port": 63,
+        "link.output.node": 48,
+        "link.output.port": 44,
+        "object.id": 67,
+        "object.serial": 75
+      }
+    }
+  },
+  {
+    "id": 68,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 48,
+      "output-port-id": 43,
+      "input-node-id": 62,
+      "input-port-id": 64,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.async": true,
+        "link.input.node": 62,
+        "link.input.port": 64,
+        "link.output.node": 48,
+        "link.output.port": 43,
+        "object.id": 68,
+        "object.serial": 76
+      }
+    }
+  },
+  {
+    "id": 69,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "pw-cat",
+        "application.process.binary": "pw-cat",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 34,
+        "application.process.user": "root",
+        "clock.power-of-two-quantum": true,
+        "core.name": "pipewire-root-34",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 0,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 69,
+        "object.serial": 77,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 34,
+        "pipewire.sec.socket": "pipewire-0",
+        "pipewire.sec.uid": 0,
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 70,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "adapt.follower.spa-node": "",
+        "application.name": "pw-record",
+        "client.id": 69,
+        "clock.quantum-limit": 8192,
+        "factory.id": 8,
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.category": "Capture",
+        "media.class": "Stream/Input/Audio",
+        "media.filename": "/tmp/c.wav",
+        "media.name": "/tmp/c.wav",
+        "media.role": "Music",
+        "media.type": "Audio",
+        "node.async": true,
+        "node.autoconnect": true,
+        "node.driver-id": 42,
+        "node.loop.class": "main",
+        "node.loop.name": "main-loop",
+        "node.name": "pw-record",
+        "node.rate": "1/48000",
+        "node.want-driver": true,
+        "object.id": 70,
+        "object.register": false,
+        "object.serial": 78,
+        "port.group": "stream.0",
+        "stream.is-live": true
+      }
+    }
+  },
+  {
+    "id": 75,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 50,
+      "input-node-id": 70,
+      "input-port-id": 71,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.async": true,
+        "link.input.node": 70,
+        "link.input.port": 71,
+        "link.output.node": 42,
+        "link.output.port": 50,
+        "object.id": 75,
+        "object.serial": 83
+      }
+    }
+  },
+  {
+    "id": 76,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 51,
+      "input-node-id": 70,
+      "input-port-id": 72,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.async": true,
+        "link.input.node": 70,
+        "link.input.port": 72,
+        "link.output.node": 42,
+        "link.output.port": 51,
+        "object.id": 76,
+        "object.serial": 84
+      }
+    }
+  },
+  {
+    "id": 77,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "ZOOM VoiceEngine",
+        "application.process.binary": "zoom",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 36,
+        "application.process.machine-id": "83a4db0116264d189bce39137e7b8dd7",
+        "application.process.user": "root",
+        "client.api": "pipewire-pulse",
+        "clock.power-of-two-quantum": true,
+        "config.name": "pipewire-pulse.conf",
+        "core.name": "pipewire-root-15",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 2,
+        "media.format": "WAV (Microsoft)",
+        "media.name": "record",
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 77,
+        "object.serial": 85,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 15,
+        "pipewire.sec.socket": "pipewire-0",
+        "pipewire.sec.uid": 0,
+        "pulse.server.type": "unix",
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  },
+  {
+    "id": 78,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "running",
+      "error": null,
+      "props": {
+        "adapt.follower.spa-node": "",
+        "application.language": "en_US.UTF-8",
+        "application.name": "ZOOM VoiceEngine",
+        "application.process.binary": "zoom",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 36,
+        "application.process.machine-id": "83a4db0116264d189bce39137e7b8dd7",
+        "application.process.user": "root",
+        "client.api": "pipewire-pulse",
+        "client.id": 77,
+        "clock.quantum-limit": 8192,
+        "factory.id": 6,
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.class": "Stream/Input/Audio",
+        "media.format": "WAV (Microsoft)",
+        "media.name": "record",
+        "node.autoconnect": true,
+        "node.driver-id": 42,
+        "node.latency": "88200/44100",
+        "node.loop.name": "data-loop.0",
+        "node.name": "ZOOM VoiceEngine",
+        "node.rate": "1/44100",
+        "node.want-driver": true,
+        "object.id": 78,
+        "object.register": false,
+        "object.serial": 86,
+        "port.group": "stream.0",
+        "pulse.attr.fragsize": 352800,
+        "pulse.attr.maxlength": 4194304,
+        "pulse.corked": false,
+        "pulse.server.type": "unix",
+        "stream.is-live": true
+      }
+    }
+  },
+  {
+    "id": 83,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 50,
+      "input-node-id": 78,
+      "input-port-id": 79,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.input.node": 78,
+        "link.input.port": 79,
+        "link.output.node": 42,
+        "link.output.port": 50,
+        "object.id": 83,
+        "object.serial": 91
+      }
+    }
+  },
+  {
+    "id": 84,
+    "type": "PipeWire:Interface:Link",
+    "version": 3,
+    "permissions": [
+      "r",
+      "x"
+    ],
+    "info": {
+      "output-node-id": 42,
+      "output-port-id": 51,
+      "input-node-id": 78,
+      "input-port-id": 80,
+      "change-mask": [
+        "state",
+        "format",
+        "props"
+      ],
+      "state": "active",
+      "error": null,
+      "format": {
+        "mediaType": "audio",
+        "mediaSubtype": "dsp",
+        "format": "F32P"
+      },
+      "props": {
+        "client.id": 31,
+        "factory.id": 20,
+        "link.input.node": 78,
+        "link.input.port": 80,
+        "link.output.node": 42,
+        "link.output.port": 51,
+        "object.id": 84,
+        "object.serial": 92
+      }
+    }
+  },
+  {
+    "id": 85,
+    "type": "PipeWire:Interface:Client",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props"
+      ],
+      "props": {
+        "application.language": "en_US.UTF-8",
+        "application.name": "pw-dump",
+        "application.process.binary": "pw-dump",
+        "application.process.host": "a6daf0b5b1b7",
+        "application.process.id": 38,
+        "application.process.user": "root",
+        "clock.power-of-two-quantum": true,
+        "core.name": "pipewire-root-38",
+        "core.version": "1.6.11",
+        "cpu.max-align": 16,
+        "default.clock.max-quantum": 2048,
+        "default.clock.min-quantum": 32,
+        "default.clock.quantum": 1024,
+        "default.clock.quantum-floor": 4,
+        "default.clock.quantum-limit": 8192,
+        "default.clock.rate": 48000,
+        "default.video.height": 480,
+        "default.video.rate.denom": 1,
+        "default.video.rate.num": 25,
+        "default.video.width": 640,
+        "link.max-buffers": 64,
+        "log.level": 0,
+        "mem.allow-mlock": true,
+        "mem.warn-mlock": false,
+        "module.id": 1,
+        "object.id": 85,
+        "object.serial": 93,
+        "pipewire.access": "unrestricted",
+        "pipewire.access.effective": "unrestricted",
+        "pipewire.protocol": "protocol-native",
+        "pipewire.sec.gid": 0,
+        "pipewire.sec.pid": 38,
+        "pipewire.sec.socket": "pipewire-0-manager",
+        "pipewire.sec.uid": 0,
+        "remote.intention": "manager",
+        "settings.check-quantum": false,
+        "settings.check-rate": false
+      }
+    }
+  }
+]

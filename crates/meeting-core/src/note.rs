@@ -22,7 +22,7 @@
 //! Transkribiert auf meinem Mac mit sokki.org
 //! ```
 //!
-//! Headings are German unless the summary is in English. Empty sections are
+//! Headings follow the summary's language, else the spoken language, else German. Empty sections are
 //! left out. The footer is the note's last line; [`split_note`] puts it at the
 //! end of the summary too, so a shared summary carries it.
 
@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::lang::{detect_language, Language};
-use crate::{format_mmss, MeetingNote, MeetingSummary, Transcript};
+use crate::{format_mmss, MeetingNote, MeetingSummary, Segment, TrackKind, Transcript};
 
 struct Labels {
     summary: &'static str,
@@ -42,7 +42,9 @@ struct Labels {
     transcript: &'static str,
     no_summary: &'static str,
     no_speech: &'static str,
+    /// Footer on a Mac, and on any other computer.
     footer: &'static str,
+    footer_pc: &'static str,
 }
 
 const DE: Labels = Labels {
@@ -53,6 +55,7 @@ const DE: Labels = Labels {
     no_summary: "_Keine Zusammenfassung erstellt._",
     no_speech: "_Keine Sprache erkannt._",
     footer: "Transkribiert auf meinem Mac mit sokki.org",
+    footer_pc: "Transkribiert auf meinem Computer mit sokki.org",
 };
 
 const EN: Labels = Labels {
@@ -63,6 +66,7 @@ const EN: Labels = Labels {
     no_summary: "_No summary was created._",
     no_speech: "_No speech detected._",
     footer: "Transcribed on my Mac with sokki.org",
+    footer_pc: "Transcribed on my computer with sokki.org",
 };
 
 /// Language of the note's headings: the summary's language, German by
@@ -81,6 +85,17 @@ pub fn note_language(note: &MeetingNote) -> Language {
                 text.push_str(&a.text);
             }
             detect_language(&text)
+        })
+        // No summary (no language model): the language people spoke, so an
+        // English call does not get German headings.
+        .or_else(|| {
+            let spoken: Vec<&str> = note
+                .transcript
+                .segments
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect();
+            detect_language(&spoken.join(" "))
         })
         .unwrap_or(Language::German)
 }
@@ -240,15 +255,20 @@ pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
         lang == Language::German,
     ));
     if opts.footer {
-        out.push_str(&format!("\n{}\n", l.footer));
+        let footer = if cfg!(target_os = "macos") {
+            l.footer
+        } else {
+            l.footer_pc
+        };
+        out.push_str(&format!("\n{footer}\n"));
     }
     out
 }
 
 /// Whether a line is the note footer, in any language.
-fn is_footer(line: &str) -> bool {
+pub(crate) fn is_footer(line: &str) -> bool {
     let t = line.trim();
-    t == DE.footer || t == EN.footer
+    [DE, EN].iter().any(|l| t == l.footer || t == l.footer_pc)
 }
 
 fn one_line(s: &str) -> String {
@@ -394,6 +414,105 @@ pub fn split_note(md: &str) -> NoteParts {
     }
 }
 
+/// The transcript of a written note, read back from its lines
+/// ("**[00:03] Speaker 2:** Hi."), to summarize the note later. Each
+/// segment ends where the next begins; the track is not in the note, so
+/// all are `Mic`. Lines in another shape are skipped.
+pub fn transcript_from_note(md: &str) -> Transcript {
+    let mut segments: Vec<Segment> = Vec::new();
+    for line in split_note(md).transcript.lines() {
+        let Some((time, rest)) = line.strip_prefix('[').and_then(|l| l.split_once("] ")) else {
+            continue;
+        };
+        let Some((speaker, text)) = rest.split_once(": ") else {
+            continue;
+        };
+        let mut start_s = 0.0;
+        let mut ok = !time.is_empty();
+        for part in time.split(':') {
+            match part.parse::<u32>() {
+                Ok(n) => start_s = start_s * 60.0 + n as f64,
+                Err(_) => ok = false,
+            }
+        }
+        if !ok || text.trim().is_empty() {
+            continue;
+        }
+        if let Some(prev) = segments.last_mut() {
+            prev.end_s = start_s.max(prev.start_s);
+        }
+        segments.push(Segment {
+            start_s,
+            end_s: start_s,
+            track: TrackKind::Mic,
+            speaker: speaker.trim().to_string(),
+            text: text.trim().to_string(),
+        });
+    }
+    Transcript { segments }
+}
+
+/// Puts `summary` into a note that was written without one: the "no
+/// summary" line becomes the summary sections, and the title heading the
+/// summary's title. Everything else, including the user's edits, stays.
+/// `None` when the note has no "no summary" line (summarized already, or
+/// edited there).
+pub fn add_summary(md: &str, summary: &MeetingSummary) -> Option<String> {
+    let l = [&DE, &EN]
+        .into_iter()
+        .find(|l| md.lines().any(|line| line.trim() == l.no_summary))?;
+    let mut rendered = String::new();
+    render_summary(&mut rendered, summary, l);
+    let rendered = rendered.trim_end();
+    let title = one_line(summary.title.trim());
+    let mut out = String::with_capacity(md.len() + rendered.len());
+    let (mut placed, mut titled) = (false, title.is_empty());
+    for line in md.split_inclusive('\n') {
+        let eol = if line.ends_with('\n') { "\n" } else { "" };
+        if !placed && line.trim() == l.no_summary {
+            placed = true;
+            out.push_str(rendered);
+            out.push_str(eol);
+        } else if !titled && !placed && line.starts_with("# ") {
+            titled = true;
+            out.push_str(&format!("# {title}{eol}"));
+        } else {
+            out.push_str(line);
+        }
+    }
+    Some(out)
+}
+
+/// The file stem for a note once it got its summary: "YYYY-MM-DD HHmm
+/// <Title>" when the note still has the name it was written with ("… Meeting"
+/// or "… Meeting 2"), `None` when the user renamed it (keep that name).
+pub fn summarized_file_stem(stem: &str, title: &str) -> Option<String> {
+    let b = stem.as_bytes();
+    let prefix_ok = stem.len() >= 15
+        && stem.is_char_boundary(15)
+        && b[..15].iter().enumerate().all(|(i, c)| match i {
+            4 | 7 => *c == b'-',
+            10 => *c == b' ',
+            _ => c.is_ascii_digit(),
+        });
+    if !prefix_ok {
+        return None;
+    }
+    let rest = stem[15..].strip_prefix(" Meeting")?;
+    if !(rest.is_empty()
+        || rest
+            .strip_prefix(' ')
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit())))
+    {
+        return None;
+    }
+    let title = sanitize_filename(title, 80);
+    if title.is_empty() {
+        return None;
+    }
+    Some(format!("{} {title}", &stem[..15]))
+}
+
 pub fn sanitize_filename(s: &str, max_chars: usize) -> String {
     let cleaned: String = s
         .chars()
@@ -486,6 +605,17 @@ mod tests {
     }
 
     #[test]
+    fn without_summary_the_spoken_language_picks_the_headings() {
+        assert_eq!(note_language(&note(None)), Language::German);
+        let mut n = note(None);
+        n.transcript.segments = vec![
+            seg(0.0, "Me", "Good morning, can you all hear me?"),
+            seg(3.0, "Speaker 2", "Yes, we can hear you. Let us start with the update."),
+        ];
+        assert_eq!(note_language(&n), Language::English);
+    }
+
+    #[test]
     fn sanitizes_file_names() {
         assert_eq!(
             sanitize_filename("Q4: Budget / Plan?", 80),
@@ -524,6 +654,71 @@ mod tests {
         assert!(md.contains("## Transkript"));
         assert!(md.contains("**[00:00] Ich:** Hallo zusammen. Fangen wir an.\n"));
         assert!(md.contains("**[01:05] Ich:** Gut.\n"));
+    }
+
+    fn german_summary() -> MeetingSummary {
+        MeetingSummary {
+            title: "Größe der Kampagne".into(),
+            summary: "Wir haben über die Größe gesprochen.".into(),
+            decisions: vec!["Wir fangen klein an.".into()],
+            action_items: vec![ActionItem {
+                owner: Some("Ich".into()),
+                text: "Budget prüfen".into(),
+            }],
+        }
+    }
+
+    #[test]
+    fn a_summary_added_later_matches_one_written_at_once() {
+        let later = add_summary(&render_markdown(&note(None)), &german_summary()).unwrap();
+        assert_eq!(later, render_markdown(&note(Some(german_summary()))));
+        // Summarized already: nothing to add.
+        assert_eq!(add_summary(&later, &german_summary()), None);
+    }
+
+    #[test]
+    fn adding_a_summary_keeps_the_users_edits() {
+        let md = render_markdown(&note(None)).replace("Gut.", "Gut, danke.");
+        let later = add_summary(&md, &german_summary()).unwrap();
+        assert!(later.contains("**[01:05] Ich:** Gut, danke.\n"));
+        assert!(later.contains("# Größe der Kampagne\n"));
+    }
+
+    #[test]
+    fn the_transcript_reads_back_from_the_note() {
+        let t = transcript_from_note(&render_markdown(&note(None)));
+        let lines: Vec<(f64, &str, &str)> = t
+            .segments
+            .iter()
+            .map(|s| (s.start_s, s.speaker.as_str(), s.text.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            vec![
+                (0.0, "Ich", "Hallo zusammen. Fangen wir an."),
+                (5.0, "Speaker 2", "Gerne, über die Größe."),
+                (65.0, "Ich", "Gut."),
+            ]
+        );
+        assert_eq!(t.segments[0].end_s, 5.0);
+    }
+
+    #[test]
+    fn only_a_note_with_its_first_name_is_renamed() {
+        assert_eq!(
+            summarized_file_stem("2026-11-17 1403 Meeting", "Launch: Plan?").as_deref(),
+            Some("2026-11-17 1403 Launch Plan")
+        );
+        assert_eq!(
+            summarized_file_stem("2026-11-17 1403 Meeting 2", "Plan").as_deref(),
+            Some("2026-11-17 1403 Plan")
+        );
+        assert_eq!(
+            summarized_file_stem("2026-11-17 1403 Kickoff", "Plan"),
+            None
+        );
+        assert_eq!(summarized_file_stem("Meeting", "Plan"), None);
+        assert_eq!(summarized_file_stem("2026-11-17 1403 Meeting", "???"), None);
     }
 
     #[test]

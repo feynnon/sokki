@@ -1,4 +1,5 @@
 //! Tests against the real Core Audio on this machine.
+#![cfg(target_os = "macos")]
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};

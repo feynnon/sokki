@@ -1,0 +1,18 @@
+#!/bin/bash
+# Shuts the Omarchy VM down cleanly (ACPI power button through QEMU's QMP)
+# and waits until it is off. `ssh omarchy-vm systemctl poweroff` is refused
+# in an SSH session without a password.
+python3 - <<'PY' || exit 1
+import glob, json, os, socket, sys
+socks = sorted(glob.glob("/tmp/omarchy-qemu-gpu.*/qmp.sock"), key=os.path.getmtime)
+if not socks:
+    sys.exit("no running VM")
+s = socket.socket(socket.AF_UNIX); s.connect(socks[-1]); f = s.makefile("rw"); f.readline()
+for c in ("qmp_capabilities", "system_powerdown"):
+    f.write(json.dumps({"execute": c}) + "\n"); f.flush(); f.readline()
+PY
+for _ in $(seq 60); do
+  pgrep -f "runtime/bin/Try Omarchy" >/dev/null || { echo "VM off"; exit 0; }
+  sleep 3
+done
+echo "VM still running after 3 minutes" >&2; exit 1

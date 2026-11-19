@@ -14,7 +14,9 @@ import {
   Volume2,
   Settings as SettingsIcon,
   AudioLines,
+  Heart,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import HandyTextLogo from "./icons/HandyTextLogo";
 import HandyHand from "./icons/HandyHand";
@@ -34,6 +36,9 @@ import {
   SokkiVocabularyPage,
   SokkiVoicePage,
 } from "./settings";
+
+/** Sokki's "Sponsor" entry: sokki.org/sponsor/ forwards to GitHub Sponsors. */
+const SPONSOR_URL = "https://sokki.org/sponsor/?s=sidebar";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
@@ -195,6 +200,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => void openUrl(SPONSOR_URL)}
+          className="group mt-auto flex items-center gap-2.5 h-8 px-2.5 w-full rounded-lg text-start text-[13.5px] cursor-pointer transition-colors text-ink-2 hover:bg-wash hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+        >
+          <Heart
+            width={16}
+            height={16}
+            className="shrink-0 transition-colors group-hover:text-[#db61a2]"
+          />
+          <span className="truncate">{t("sokki.nav.sponsor")}</span>
+        </button>
       </nav>
     );
   }

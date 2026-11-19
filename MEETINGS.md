@@ -95,6 +95,8 @@ replaces the other in /Applications. Icons are drawn as SVG in
 
 | Path | What |
 |---|---|
+| `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, Ollama |
+| `crates/sokki` | The Linux/Omarchy host: `sokki daemon` (PipeWire recording, call detection, dictation), the CLI and the processing worker. See ARCHITECTURE.md |
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
 | `crates/meeting-detect` | Which processes use the mic (Core Audio), meeting-app matching, debounce watcher |
@@ -120,6 +122,7 @@ python3 -I testdata/generate.py                      # once: synthetic fixtures
 
 (cd crates/meeting-core   && CARGO_TARGET_DIR=/tmp/hm-target-core   cargo test)
 (cd crates/meeting-detect && CARGO_TARGET_DIR=/tmp/hm-target-detect cargo test)
+(cd crates/sokki-engine   && CARGO_TARGET_DIR=/tmp/hm-target-engine cargo test)
 (cd crates/diarize        && CARGO_TARGET_DIR=/tmp/hm-target-diarize cargo test --release)
 (cd crates/meeting-e2e    && CARGO_TARGET_DIR=/tmp/hm-target-e2e    cargo test --release -- --nocapture --test-threads=1)
 

@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure Sokki dictation
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-cmd-missing sokki; then
+  omarchy-pkg-add sokki-bin
+fi
+systemctl --user daemon-reload
+systemctl --user enable --now sokki.service
+# Download the speech models here, with progress, instead of on first use.
+sokki models install
+omarchy-dictation-use sokki
+omarchy-restart-hyprctl
+
+# The catalog key ships with Omarchy once this lands there; until then the
+# English title stands in.
+title=$(omarchy-i18n dictation.sokkiReady)
+[[ $title != "dictation.sokkiReady" ]] || title="Sokki Dictation Ready"
+omarchy-notification-send -g  "$title" "$(omarchy-i18n dictation.hint)" -t 10000

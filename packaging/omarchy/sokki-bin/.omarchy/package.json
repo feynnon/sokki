@@ -1,0 +1,12 @@
+{
+  "source": "local",
+  "min_release_age": "24h",
+  "upstream": {
+    "github": "feynnon/sokki",
+    "digests": true,
+    "assets": {
+      "x86_64": "sokki-{pkgver}-linux-x86_64.tar.gz",
+      "aarch64": "sokki-{pkgver}-linux-aarch64.tar.gz"
+    }
+  }
+}

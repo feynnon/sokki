@@ -1,0 +1,4 @@
+#!/bin/bash
+# Runs a command in the VM's desktop session (Hyprland's environment).
+# SSH host: $SOKKI_VM_SSH, default "omarchy-vm" (see README).
+exec ssh "${SOKKI_VM_SSH:-omarchy-vm}" 'while IFS= read -r -d "" kv; do case $kv in OMARCHY*|PATH=*|XDG_*|WAYLAND_*|HYPRLAND_*|DBUS_*|QT_*|LANG=*) export "$kv";; esac; done < /proc/$(pgrep -xo Hyprland)/environ; export PATH=$HOME/.local/bin:$PATH; export HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t $XDG_RUNTIME_DIR/hypr | head -1)}; export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-$(cd $XDG_RUNTIME_DIR && ls wayland-? | head -1)}; '"$*"

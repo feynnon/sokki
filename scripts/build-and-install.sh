@@ -40,6 +40,8 @@ case "$BRAND" in
   *) echo "unknown BRAND: $BRAND" >&2; exit 2 ;;
 esac
 export HANDY_BRAND="$BRAND" VITE_HANDY_BRAND="$BRAND"
+# A dev build never updates itself: the next release would replace it.
+export SOKKI_DEV_BUILD=1
 # The voice-data counter (counter/), once deployed; empty: count locally only.
 if [[ -z "${SOKKI_COUNTER_URL:-}" && -f "$REPO/counter/url.txt" ]]; then
   export SOKKI_COUNTER_URL="$(tr -d '[:space:]' < "$REPO/counter/url.txt")"

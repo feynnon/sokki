@@ -1,0 +1,18 @@
+[package]
+name = "asr-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Measures speech-to-text speed and memory on a phone (Parakeet via transcribe-cpp)."
+
+[dependencies]
+transcribe-cpp = { version = "0.4.2", default-features = false }
+hound = "3"
+dictation-core = { path = "../dictation-core" }
+
+[features]
+# On the Mac: use the GPU, as Sokki does.
+metal = ["transcribe-cpp/metal"]
+
+[profile.release]
+opt-level = 3

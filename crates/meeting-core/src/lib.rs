@@ -28,6 +28,7 @@ pub mod echo;
 pub mod lang;
 pub mod note;
 pub mod pipeline;
+pub mod share;
 pub mod summary;
 
 /// All audio handed to this crate is 16 kHz mono f32 in [-1, 1].

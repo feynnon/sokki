@@ -7,6 +7,9 @@ import { Switch } from "@/components/ui/Switch";
 
 export interface DataChoiceValues {
   improve: boolean;
+  /** "Ask me when there's a buyer". */
+  buyers: boolean;
+  /** "Share all my recordings". */
   support: boolean;
 }
 
@@ -65,9 +68,10 @@ const Sheets: React.FC<{ sheet: Sheet | null; onClose: () => void }> = ({
   );
 };
 
-/** The two things a user can agree to share. First start shows them as
- * checkboxes, Settings as switches; both as rows split by a hairline: a
- * rounded row title over small text, the sheet's link at its end. */
+/** What a user can agree to. First start shows "Help improve" and the buyer
+ * question as checkboxes (a rounded row title over small text); Settings
+ * adds "Share all my recordings", all as switches in its own row style. A
+ * sheet's link ends a row's text. */
 export const DataChoices: React.FC<{
   value: DataChoiceValues;
   onChange: (value: DataChoiceValues) => void;
@@ -75,12 +79,30 @@ export const DataChoices: React.FC<{
 }> = ({ value, onChange, variant }) => {
   const { t } = useTranslation();
   const [sheet, setSheet] = useState<Sheet | null>(null);
-  const rows: { key: keyof DataChoiceValues; sheet: Sheet }[] = [
+  const all: { key: keyof DataChoiceValues; sheet?: Sheet }[] = [
     { key: "improve", sheet: "shared" },
+    { key: "buyers" },
     { key: "support", sheet: "support" },
   ];
+  const rows =
+    variant === "switch" ? all : all.filter((r) => r.key !== "support");
   const set = (key: keyof DataChoiceValues, on: boolean) =>
     onChange({ ...value, [key]: on });
+  const sheetLink = (key: keyof DataChoiceValues, to?: Sheet) =>
+    to && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSheet(to);
+        }}
+        // Enter and Space open the sheet, not tick the box around it.
+        onKeyDown={(e) => e.stopPropagation()}
+        className="cursor-pointer text-logo-primary hover:underline focus:outline-none focus-visible:underline"
+      >
+        {t(`sokki.voice.${key}.link`)}
+      </button>
+    );
 
   return (
     <>
@@ -97,30 +119,29 @@ export const DataChoices: React.FC<{
                 {t(`sokki.voice.${r.key}.title`)}
               </b>
               <span className="mt-[2px] block text-small leading-[1.45] text-ink-2 text-pretty">
-                {t(`sokki.voice.${r.key}.text`)}{" "}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSheet(r.sheet);
-                  }}
-                  // Enter and Space open the sheet, not tick the box around it.
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="cursor-pointer text-logo-primary hover:underline focus:outline-none focus-visible:underline"
-                >
-                  {t(`sokki.voice.${r.key}.link`)}
-                </button>
+                {t(`sokki.voice.${r.key}.text`)} {sheetLink(r.key, r.sheet)}
               </span>
             </span>
           );
           const rowClass = "py-4 [&+&]:border-t [&+&]:border-line";
           if (variant === "switch") {
+            // A Settings row: same type and padding as SettingContainer.
             return (
               <div
                 key={r.key}
-                className={`flex items-center gap-4 text-start ${rowClass}`}
+                className="flex min-h-[60px] items-center justify-between gap-8 px-4 py-3 text-start [&+&]:border-t [&+&]:border-line"
               >
-                <span className="grow">{text}</span>
+                <span className="min-w-0 flex-1">
+                  <h3
+                    id={labelId}
+                    className="text-[14px] font-medium leading-5"
+                  >
+                    {t(`sokki.voice.${r.key}.title`)}
+                  </h3>
+                  <span className="mt-0.5 block text-[12.5px] leading-[18px] text-ink-3">
+                    {t(`sokki.voice.${r.key}.text`)} {sheetLink(r.key, r.sheet)}
+                  </span>
+                </span>
                 <Switch
                   checked={on}
                   onChange={(c) => set(r.key, c)}

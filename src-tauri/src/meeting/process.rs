@@ -2,21 +2,22 @@
 //! decode tracks → diarize → transcribe turns → remove echoes → name speakers
 //! → summarize (optional) → write the Markdown note → apply audio retention.
 //!
-//! The platform-independent steps live in the `meeting-core` crate; this file
-//! supplies Handy's transcription engine, the diarizer, voice profiles and the
-//! summary model, and reports progress to the meeting store.
+//! The steps themselves are `sokki_engine::run`, shared with the Linux
+//! service; this file supplies Handy's transcription engine, the GPU
+//! diarizer worker and voice profiles, and reports progress to the meeting
+//! store and the menu bar.
 
-use anyhow::{bail, Context, Result};
-use meeting_core::pipeline::{self, Hooks, PipelineConfig};
-use meeting_core::summary::{LlmConfig, LlmSummarizer};
-use meeting_core::{MeetingMeta, MeetingNote, Track, TrackKind, Transcriber, SAMPLE_RATE};
+use anyhow::{Context, Result};
+use meeting_core::{Track, TrackKind, Transcriber, SAMPLE_RATE};
+use sokki_engine::tracks::WholeTrack;
+use sokki_engine::Stage;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-use super::store::{MeetingStatus, MeetingStore};
+use super::store::{MeetingStatus, MeetingStore, SummaryMissing};
 use super::{emit_changed, MIC_FILE, SYSTEM_FILE};
 use crate::audio_toolkit::decode_audio_file;
 use crate::managers::transcription::{ChunkControl, TranscriptionManager};
@@ -39,22 +40,37 @@ pub fn spawn(app: AppHandle, id: String) {
             super::memguard::set_current(None);
             let error = match result {
                 Ok(Ok(())) => None,
-                Ok(Err(e)) => Some(format!("{e:#}")),
-                Err(p) => Some(crate::managers::transcription::panic_payload_message(
-                    p.as_ref(),
+                Ok(Err(e)) => Some((format!("{e:#}"), failure_message(&e))),
+                Err(p) => Some((
+                    crate::managers::transcription::panic_payload_message(p.as_ref()),
+                    PROCESSING_FAILED.to_string(),
                 )),
             };
             if error.is_none() {
                 super::indicator::flash_menu_bar_status(&app, "🟢");
             }
-            if let Some(error) = error {
+            if let Some((detail, error)) = error {
                 super::indicator::flash_menu_bar_status(&app, "⚠️");
-                log::error!("Meeting {id} failed: {error}");
+                log::error!("Meeting {id} failed: {detail}");
                 let _ = store.update(&id, |r| r.status = MeetingStatus::Failed { error });
             }
             emit_changed(&app, &id);
         })
         .expect("spawn meeting thread");
+}
+
+/// The meeting card's line for a meeting that could not be processed; the
+/// card offers to try again. The error itself is in the log.
+const PROCESSING_FAILED: &str = "This meeting couldn't be processed.";
+
+/// What the card says about a processing error: the error itself when it is
+/// already a sentence for the user, else [`PROCESSING_FAILED`].
+fn failure_message(e: &anyhow::Error) -> String {
+    const FOR_THE_USER: [&str; 1] = ["The recording has no audio."];
+    match FOR_THE_USER.iter().find(|m| e.to_string() == **m) {
+        Some(m) => m.to_string(),
+        None => PROCESSING_FAILED.to_string(),
+    }
 }
 
 fn set_stage(app: &AppHandle, store: &MeetingStore, id: &str, stage: &str, progress: Option<f32>) {
@@ -71,62 +87,80 @@ fn set_stage(app: &AppHandle, store: &MeetingStore, id: &str, stage: &str, progr
     emit_changed(app, id);
 }
 
+/// The meeting settings in the engine's terms.
+pub fn engine_settings(
+    all: &crate::settings::AppSettings,
+) -> sokki_engine::Settings {
+    let m = &all.meetings;
+    let mut glossary = m.glossary.clone();
+    for w in &all.custom_words {
+        if !glossary.contains(w) {
+            glossary.push(w.clone());
+        }
+    }
+    sokki_engine::Settings {
+        user_name: m.user_name.clone(),
+        correction: m.correction_enabled,
+        summary: m.summary_enabled,
+        glossary,
+        footer: m.footer_enabled,
+        notes_dir: m.notes_dir_path(),
+        llm: llm_settings(m, &all.post_process_api_keys),
+    }
+}
+
+/// The language-model part of the meeting settings.
+pub fn llm_settings(
+    m: &MeetingSettings,
+    keys: &HashMap<String, String>,
+) -> sokki_engine::llm::LlmSettings {
+    sokki_engine::llm::LlmSettings {
+        provider: m.llm_provider.clone(),
+        cloud_model: m.cloud_model.clone(),
+        base_url: m.llm_base_url.clone(),
+        model: m.llm_model.clone(),
+        keys: keys.clone(),
+    }
+}
+
 fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
     let record = store.get(id).context("meeting record missing")?;
     let all_settings = crate::settings::get_settings(app);
-    let keys: HashMap<String, String> = (*all_settings.post_process_api_keys).clone();
-    let settings = all_settings.meetings;
+    let settings = all_settings.meetings.clone();
+    let engine = engine_settings(&all_settings);
     let dir = store.audio_dir(id);
 
-    // 1. Decode the tracks to 16 kHz mono.
+    // Decode the tracks to 16 kHz mono: "mic.flac" / "system.flac" from a
+    // recording here, "mic.phone" from the phone app.
     let mut tracks = Vec::new();
-    for (file, kind) in [(MIC_FILE, TrackKind::Mic), (SYSTEM_FILE, TrackKind::System)] {
-        if !record.tracks.iter().any(|t| t == file) {
+    for file in &record.tracks {
+        let kind = if file.starts_with("mic.") {
+            TrackKind::Mic
+        } else if file.starts_with("system.") {
+            TrackKind::System
+        } else {
             continue;
-        }
+        };
         let path = dir.join(file);
         let samples =
             decode_audio_file(&path).with_context(|| format!("decoding {}", path.display()))?;
-        if !samples.is_empty() {
-            tracks.push(Track { kind, samples });
-        }
-    }
-    if tracks.is_empty() {
-        bail!("The recording has no audio.");
+        tracks.push(Track { kind, samples });
     }
     let timing: Option<super::TrackTiming> = std::fs::read_to_string(dir.join(super::TIMING_FILE))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok());
-    if let Some(t) = timing {
-        if let Some(w) = align_tracks(&mut tracks, t.mic_first_us, t.system_first_us) {
-            log::warn!("Meeting {id}: {w}");
-        }
-    }
-    // Remove the remote voices the mic picked up from the speakers, so they
-    // are not found as an extra speaker on the mic.
-    let t0 = std::time::Instant::now();
-    if meeting_core::aec::cancel_echo_in_tracks(&mut tracks) {
-        log::info!(
-            "Meeting {id}: echo cancelled on the mic track in {:.1}s",
-            t0.elapsed().as_secs_f64()
-        );
-    }
-    let duration_s = tracks.iter().map(|t| t.duration_s()).fold(0.0, f64::max);
 
-    // Load the language model while speakers are detected (saves ~6 s later).
-    if settings.correction_enabled || settings.summary_enabled {
-        warm_up_llm(&settings, &keys);
-    }
-
-    // 2–4. Diarize, transcribe, dedup, name.
-    set_stage(app, store, id, "diarizing", None);
-    let mut warnings = record.warnings.clone();
     let diarizer_notes = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut warnings = record.warnings.clone();
     let diarizer: Box<dyn meeting_core::Diarizer> =
         match build_diarizer(app, &settings, &dir, diarizer_notes.clone()) {
             Ok(d) => d,
             Err(e) => {
-                warnings.push(format!("Speakers not separated: {e:#}"));
+                log::warn!("Speakers not separated: {e:#}");
+                meeting_core::pipeline::warn_once(
+                    &mut warnings,
+                    meeting_core::pipeline::SPEAKERS_NOT_SEPARATED,
+                );
                 Box::new(WholeTrack)
             }
         };
@@ -137,132 +171,38 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
         polisher: Default::default(),
     };
     let profiles = voice_profiles(app);
-    let namer = |track: TrackKind, _cluster: &str, embedding: Option<&[f32]>| -> Option<String> {
-        let _ = track;
+    let namer = |_track: TrackKind, _cluster: &str, embedding: Option<&[f32]>| -> Option<String> {
         let e = embedding?;
         profiles.as_ref()?.identify(e).map(|(name, _)| name)
     };
-    let last_report = std::sync::Mutex::new(std::time::Instant::now() - Duration::from_secs(5));
-    let progress = |done: usize, total: usize| {
-        let mut last = last_report.lock().unwrap_or_else(|e| e.into_inner());
-        if last.elapsed() >= Duration::from_millis(700) || done == total {
-            *last = std::time::Instant::now();
-            set_stage(
-                app,
-                store,
-                id,
-                "transcribing",
-                Some(done as f32 / total.max(1) as f32),
-            );
-        }
+    let progress = |stage: Stage, progress: Option<f32>| {
+        set_stage(app, store, id, stage.as_str(), progress);
     };
-    let cfg = PipelineConfig {
-        user_name: settings.user_name.clone(),
-        ..Default::default()
-    };
-    let result = pipeline::run_with(
-        &tracks,
-        diarizer.as_ref(),
-        &transcriber,
-        &cfg,
-        Hooks {
-            namer: Some(&namer),
-            progress: Some(&progress),
-        },
-    )?;
-    warnings.extend(result.warnings.iter().cloned());
-    // Free the diarizer as soon as it is done.
-    drop(diarizer);
-    warnings.extend(
-        diarizer_notes
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .drain(..),
-    );
-    save_speakers(&dir, &result.speakers);
-
-    // 4b. Correct misheard words with the language model.
-    let mut corrections = Vec::new();
-    let mut transcript = result.transcript.clone();
-    if settings.correction_enabled && !transcript.segments.is_empty() {
-        set_stage(app, store, id, "correcting", None);
-        let all = crate::settings::get_settings(app);
-        let mut glossary = settings.glossary.clone();
-        for w in all.custom_words {
-            if !glossary.contains(&w) {
-                glossary.push(w);
-            }
-        }
-        let cfg = meeting_core::correct::CorrectConfig {
-            glossary,
-            ..Default::default()
-        };
-        // The model's default temperature (none is sent).
-        // Answers are a few short lines; the cap stops a runaway answer
-        // (seen: 3072 tokens, 133 s for one request).
-        let llm = LlmSummarizer::new(LlmConfig {
-            max_output_tokens: 400,
-            ..llm_config(&settings, &keys)
-        });
-        let (fixed, applied, warns) =
-            meeting_core::correct::correct_transcript(&llm, &transcript, &cfg);
-        if !warns.is_empty() {
-            warnings.push(format!(
-                "Transcript correction partly skipped: {}",
-                warns[0]
-            ));
-        }
-        log::info!("Meeting {id}: {} transcript corrections", applied.len());
-        transcript = fixed;
-        corrections = applied;
-    }
-
-    // 5. Summary.
-    let summary = if settings.summary_enabled && !transcript.segments.is_empty() {
-        set_stage(app, store, id, "summarizing", None);
-        match summarize(&settings, &keys, &transcript) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                warnings.push(format!("No summary: {e:#}"));
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // 6. Note.
-    set_stage(app, store, id, "writing", None);
-    let note = MeetingNote {
-        meta: MeetingMeta {
+    let out = sokki_engine::run(
+        sokki_engine::Input {
+            tracks,
+            timing,
             started_at: record.started_at.clone(),
-            duration_s,
             source_app: record.source_app.clone(),
+            previous_note: record.note_path.as_deref().map(PathBuf::from),
+            warnings,
         },
-        transcript: transcript.clone(),
-        summary,
-    };
-    let notes_dir = settings.notes_dir_path();
-    // Reprocessing replaces the earlier note instead of adding a second one.
-    if let Some(old) = record.note_path.as_deref().map(PathBuf::from) {
-        if old.starts_with(&notes_dir) && old.exists() {
-            let _ = std::fs::remove_file(&old);
-        }
-    }
-    let note_path = meeting_core::note::write_note(
-        &notes_dir,
-        &note,
-        &meeting_core::note::NoteOptions {
-            footer: settings.footer_enabled,
-            corrections: &corrections,
+        sokki_engine::Deps {
+            transcriber: &transcriber,
+            diarizer,
+            diarizer_notes: Some(diarizer_notes),
+            namer: Some(&namer),
+            progress: &progress,
         },
+        &engine,
     )?;
-    let title = meeting_core::note::note_title(&note);
+    save_speakers(&dir, &out.speaker_info);
 
     // "Your data": only the user's own microphone segments
     // (named after the user, which happens on calls only).
-    if let Some(mic) = tracks.iter().find(|t| t.kind == TrackKind::Mic) {
-        let own: Vec<crate::voice_data::OwnSegment> = transcript
+    if let Some(mic) = out.tracks.iter().find(|t| t.kind == TrackKind::Mic) {
+        let own: Vec<crate::voice_data::OwnSegment> = out
+            .transcript
             .segments
             .iter()
             .filter(|s| s.track == TrackKind::Mic && s.speaker == settings.user_name)
@@ -275,7 +215,7 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
         crate::voice_data::add_meeting(app, &mic.samples, &own);
     }
 
-    // 7. Audio retention.
+    // Audio retention.
     let delete_audio = settings.keep_audio_days == 0;
     if delete_audio {
         for f in [MIC_FILE, SYSTEM_FILE] {
@@ -283,60 +223,140 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
         }
     }
 
-    let speakers = result.transcript.speakers();
-    let online = result
-        .transcript
-        .segments
-        .iter()
-        .any(|s| s.track == TrackKind::System);
     store.update(id, |r| {
         r.status = MeetingStatus::Done;
-        r.title = Some(title);
-        r.note_path = Some(note_path.to_string_lossy().into_owned());
-        r.speakers = speakers;
-        r.warnings = warnings;
-        r.duration_s = duration_s;
-        r.online = Some(online);
+        r.title = Some(out.title.clone());
+        r.note_path = Some(out.note_path.to_string_lossy().into_owned());
+        r.speakers = out.speakers.clone();
+        r.warnings = out.warnings.clone();
+        r.summary_missing = out.summary_missing.map(Into::into);
+        r.duration_s = out.duration_s;
+        r.online = Some(out.online);
         if delete_audio {
             r.audio_deleted = true;
         }
     })?;
+    crate::milestones::add_meeting(app, id, out.duration_s);
     emit_changed(app, id);
-    notify_done(app, &note_path);
+    notify_done(app, &out.note_path);
     Ok(())
 }
 
-/// Lines the tracks up in time: the track that started later gets leading
-/// silence for the difference, so the same moment has the same timestamp on
-/// both. Returns a warning when the offset looks implausible and is ignored.
-fn align_tracks(tracks: &mut [Track], mic_first_us: u64, system_first_us: u64) -> Option<String> {
-    if mic_first_us == 0 || system_first_us == 0 || tracks.len() < 2 {
-        return None;
-    }
-    let offset_us = mic_first_us as i64 - system_first_us as i64;
-    if offset_us.abs() > 5_000_000 {
-        return Some(format!(
-            "track start offset {offset_us} µs looks wrong; not aligned"
-        ));
-    }
-    let pad = (offset_us.unsigned_abs() * SAMPLE_RATE as u64 / 1_000_000) as usize;
-    // Positive offset: the microphone started later.
-    let later = if offset_us > 0 {
-        TrackKind::Mic
-    } else {
-        TrackKind::System
+// ------------------------------------------------- summary added later
+
+/// Adds the summary to a done meeting whose note has none, on a background
+/// thread, after any meeting being processed. `by_hand`: the person pressed
+/// "Try again", so Ollama is started if it isn't running; the background
+/// retry only comes when the model is ready already.
+pub fn spawn_summarize(app: AppHandle, id: String, by_hand: bool) {
+    std::thread::Builder::new()
+        .name(format!("summary-{id}"))
+        .spawn(move || {
+            let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
+            let store = app.state::<Arc<MeetingStore>>().inner().clone();
+            summarize(&app, &store, &id, by_hand);
+            emit_changed(&app, &id);
+        })
+        .expect("spawn summary thread");
+}
+
+fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
+    let Some(record) = store.get(id) else { return };
+    let Some(note_path) = record.note_path.clone().map(PathBuf::from) else {
+        return;
     };
-    if let Some(t) = tracks.iter_mut().find(|t| t.kind == later) {
-        let mut padded = vec![0.0f32; pad];
-        padded.extend_from_slice(&t.samples);
-        t.samples = padded;
+    if record.status != MeetingStatus::Done || record.summary_missing.is_none() {
+        return;
     }
-    log::info!(
-        "Aligned tracks: {} started {} ms later",
-        if offset_us > 0 { "mic" } else { "system" },
-        offset_us.abs() / 1000
+    let all_settings = crate::settings::get_settings(app);
+    let engine = engine_settings(&all_settings);
+    if by_hand {
+        let _ = sokki_engine::llm::prepare(&engine.llm, &engine.user_name).join();
+    }
+    if !sokki_engine::llm::is_ready(&engine.llm, &engine.user_name) {
+        // Still waiting; the card keeps saying so.
+        let _ = store.update(id, |r| set_summary_missing(r, SummaryMissing::Waiting));
+        return;
+    }
+    set_stage(app, store, id, "summarizing", None);
+    let result = sokki_engine::summarize_note(&note_path, &engine);
+    super::indicator::set_menu_bar_status(app, None);
+    let _ = store.update(id, |r| {
+        r.status = MeetingStatus::Done;
+        match &result {
+            Ok(done) => {
+                r.note_path = Some(done.note_path.to_string_lossy().into_owned());
+                if let Some(t) = &done.title {
+                    r.title = Some(t.clone());
+                }
+                r.summary_missing = None;
+                r.warnings.retain(|w| {
+                    w != sokki_engine::SUMMARY_WAITING && w != sokki_engine::SUMMARY_FAILED
+                });
+            }
+            Err(_) => set_summary_missing(r, SummaryMissing::Failed),
+        }
+    });
+    match result {
+        Ok(done) => log::info!(
+            "Meeting {id}: summary added to {}",
+            done.note_path.display()
+        ),
+        Err(e) => log::warn!("Meeting {id}: adding the summary failed: {e:#}"),
+    }
+}
+
+/// Sets why the summary is missing, with the card's one line for it.
+fn set_summary_missing(r: &mut super::store::MeetingRecord, m: SummaryMissing) {
+    r.summary_missing = Some(m);
+    r.warnings
+        .retain(|w| w != sokki_engine::SUMMARY_WAITING && w != sokki_engine::SUMMARY_FAILED);
+    r.warnings.push(
+        match m {
+            SummaryMissing::Waiting => sokki_engine::SUMMARY_WAITING,
+            SummaryMissing::Failed => sokki_engine::SUMMARY_FAILED,
+        }
+        .to_string(),
     );
-    None
+}
+
+/// How often the background retry looks for summaries to add.
+const SUMMARY_RETRY_EVERY: Duration = Duration::from_secs(60);
+
+/// Background retry: once a minute, while some note waits for its summary
+/// and the language model is ready, adds the summaries. It never starts
+/// Ollama itself (that happens when a meeting needs it, or by hand).
+pub fn retry_summaries(app: &AppHandle) {
+    let app = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("summary-retry".into())
+        .spawn(move || loop {
+            std::thread::sleep(SUMMARY_RETRY_EVERY);
+            let store = app.state::<Arc<MeetingStore>>().inner().clone();
+            let waiting: Vec<String> = store
+                .list()
+                .into_iter()
+                .filter(|r| {
+                    r.status == MeetingStatus::Done
+                        && r.summary_missing == Some(SummaryMissing::Waiting)
+                })
+                .map(|r| r.id)
+                .collect();
+            if waiting.is_empty() {
+                continue;
+            }
+            let engine = engine_settings(&crate::settings::get_settings(&app));
+            if !engine.summary
+                || sokki_engine::llm::check(&engine.llm, &engine.user_name, false).state != "ready"
+            {
+                continue;
+            }
+            for id in waiting {
+                let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
+                summarize(&app, &store, &id, false);
+                emit_changed(&app, &id);
+            }
+        });
 }
 
 /// Deletes audio older than the retention period (called at startup).
@@ -445,23 +465,6 @@ fn models_dir(app: &AppHandle) -> PathBuf {
         .join("meeting-models")
 }
 
-/// No diarization: the whole track is one speaker.
-struct WholeTrack;
-
-impl meeting_core::Diarizer for WholeTrack {
-    fn diarize(&self, samples: &[f32]) -> Result<Vec<meeting_core::SpeakerTurn>> {
-        if samples.is_empty() {
-            return Ok(Vec::new());
-        }
-        Ok(vec![meeting_core::SpeakerTurn {
-            start_s: 0.0,
-            end_s: samples.len() as f64 / SAMPLE_RATE as f64,
-            speaker: "S1".into(),
-            embedding: None,
-        }])
-    }
-}
-
 fn build_diarizer(
     app: &AppHandle,
     settings: &MeetingSettings,
@@ -493,15 +496,14 @@ struct ChildDiarizer {
 
 impl meeting_core::Diarizer for ChildDiarizer {
     fn diarize(&self, samples: &[f32]) -> Result<Vec<meeting_core::SpeakerTurn>> {
+        // A GPU failure is not the user's problem: the CPU does the same
+        // work, only slower. So it goes to the log, not into the note.
         match super::diarize_worker::diarize_in_child(samples, &self.models, &self.scratch) {
-            Ok(turns) => return Ok(turns),
-            Err(e) => {
-                log::warn!("GPU speaker detection failed, using the CPU: {e:#}");
-                self.notes
-                    .lock()
-                    .unwrap_or_else(|p| p.into_inner())
-                    .push(format!("Speaker detection on the GPU failed ({e:#}); the CPU was used instead (slower)."));
+            Ok(out) => {
+                self.note_embedder_error(out.embedder_error.as_deref());
+                return Ok(out.turns);
             }
+            Err(e) => log::warn!("GPU speaker detection failed, using the CPU: {e:#}"),
         }
         let mut cpu = self.cpu.lock().unwrap_or_else(|p| p.into_inner());
         if cpu.is_none() {
@@ -513,9 +515,28 @@ impl meeting_core::Diarizer for ChildDiarizer {
                 diarize::DiarizeConfig::new(&self.models),
             )?);
         }
-        meeting_core::Diarizer::diarize(cpu.as_ref().expect("set above"), samples)
+        let cpu = cpu.as_ref().expect("set above");
+        self.note_embedder_error(cpu.embedder_error());
+        meeting_core::Diarizer::diarize(cpu, samples)
     }
 }
+
+impl ChildDiarizer {
+    /// Speakers were told apart, but without the voice-embedding model known
+    /// voices can't be recognised. One line in the card for the meeting.
+    fn note_embedder_error(&self, error: Option<&str>) {
+        let Some(error) = error else { return };
+        log::warn!("Known voices not recognised: {error}");
+        let mut notes = self.notes.lock().unwrap_or_else(|p| p.into_inner());
+        if !notes.iter().any(|n| n == VOICES_NOT_RECOGNISED) {
+            notes.push(VOICES_NOT_RECOGNISED.to_string());
+        }
+    }
+}
+
+/// Shown on the meeting card when the voice-embedding model failed.
+const VOICES_NOT_RECOGNISED: &str =
+    "Known voices weren't recognized this time, so speakers have generic names.";
 
 fn profiles_path(app: &AppHandle) -> PathBuf {
     app.path()
@@ -535,103 +556,11 @@ pub fn voice_profiles(app: &AppHandle) -> Option<diarize::VoiceProfiles> {
     }
 }
 
-/// One speaker of a processed meeting, kept so a name given later can be
-/// remembered as a voice.
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct SavedSpeaker {
-    pub name: String,
-    pub embedding: Option<Vec<f32>>,
-}
+pub use sokki_engine::llm::{default_cloud_model, PullProgress, CLOUD_PROVIDERS};
+pub use sokki_engine::speakers::{load as load_speakers, SavedSpeaker, SPEAKERS_FILE};
 
-pub const SPEAKERS_FILE: &str = "speakers.json";
-
-fn save_speakers(dir: &std::path::Path, speakers: &[pipeline::SpeakerInfo]) {
-    let saved: Vec<SavedSpeaker> = speakers
-        .iter()
-        .map(|s| SavedSpeaker {
-            name: s.name.clone(),
-            embedding: s.embedding.clone(),
-        })
-        .collect();
-    if let Ok(text) = serde_json::to_string(&saved) {
-        let _ = std::fs::write(dir.join(SPEAKERS_FILE), text);
-    }
-}
-
-pub fn load_speakers(dir: &std::path::Path) -> Vec<SavedSpeaker> {
-    std::fs::read_to_string(dir.join(SPEAKERS_FILE))
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default()
-}
-
-/// Provider ids that can summarise in the cloud, as in Handy's provider list.
-pub const CLOUD_PROVIDERS: [&str; 3] = ["anthropic", "openai", "openrouter"];
-
-/// Model used when `cloud_model` is empty.
-pub fn default_cloud_model(provider: &str) -> &'static str {
-    match provider {
-        "anthropic" => "claude-opus-5-5",
-        "openai" => "gpt-6.2-sol",
-        "openrouter" => "anthropic/claude-opus-5.5",
-        _ => "",
-    }
-}
-
-fn llm_config(settings: &MeetingSettings, keys: &HashMap<String, String>) -> LlmConfig {
-    let provider = settings.llm_provider.trim();
-    if CLOUD_PROVIDERS.contains(&provider) {
-        let model = match settings.cloud_model.trim() {
-            "" => default_cloud_model(provider).to_string(),
-            m => m.to_string(),
-        };
-        let key = keys
-            .get(provider)
-            .filter(|k| !k.trim().is_empty())
-            .map(|k| k.trim().to_string());
-        let mut cfg = match provider {
-            "anthropic" => LlmConfig::anthropic(model, key),
-            "openai" => LlmConfig::openai_compatible("https://api.openai.com/v1", model, key),
-            _ => LlmConfig::openai_compatible("https://openrouter.ai/api/v1", model, key),
-        };
-        if provider != "anthropic" {
-            // Cloud models have large contexts: one request per meeting.
-            cfg.context_tokens = 128_000;
-            cfg.max_output_tokens = 16_000;
-        }
-        cfg.timeout = Duration::from_secs(600);
-        cfg.user_name = Some(settings.user_name.clone());
-        return cfg;
-    }
-    let base = settings
-        .llm_base_url
-        .trim()
-        .trim_end_matches('/')
-        .to_string();
-    let mut cfg = if is_ollama(&base) {
-        LlmConfig {
-            base_url: base,
-            ..LlmConfig::ollama(settings.llm_model.trim())
-        }
-    } else {
-        LlmConfig::openai_compatible(base, settings.llm_model.trim(), None)
-    };
-    cfg.user_name = Some(settings.user_name.clone());
-    cfg
-}
-
-/// Ollama's native API, unless the URL looks like an OpenAI-style `/v1` base.
-fn is_ollama(base: &str) -> bool {
-    !base.ends_with("/v1")
-}
-
-fn summarize(
-    settings: &MeetingSettings,
-    keys: &HashMap<String, String>,
-    transcript: &meeting_core::Transcript,
-) -> Result<meeting_core::MeetingSummary> {
-    use meeting_core::Summarizer;
-    LlmSummarizer::new(llm_config(settings, keys)).summarize(transcript)
+fn save_speakers(dir: &std::path::Path, speakers: &[meeting_core::pipeline::SpeakerInfo]) {
+    sokki_engine::speakers::save(dir, speakers)
 }
 
 /// What the settings page shows about the language model.
@@ -644,51 +573,6 @@ pub struct LlmStatus {
     pub detail: String,
 }
 
-fn status(state: &str, detail: impl Into<String>) -> LlmStatus {
-    LlmStatus {
-        state: state.into(),
-        detail: detail.into(),
-    }
-}
-
-const OLLAMA_APP: &str = "/Applications/Ollama.app";
-const OLLAMA_BINARIES: [&str; 2] = ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama"];
-
-fn ollama_installed() -> bool {
-    std::path::Path::new(OLLAMA_APP).exists()
-        || OLLAMA_BINARIES
-            .iter()
-            .any(|b| std::path::Path::new(b).exists())
-}
-
-fn quick_agent(secs: u64) -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(secs)))
-        .build()
-        .into()
-}
-
-/// Model names Ollama has, or `None` when no server answers.
-fn ollama_models(base: &str) -> Option<Vec<String>> {
-    let body: serde_json::Value = quick_agent(3)
-        .get(&format!("{base}/api/tags"))
-        .call()
-        .ok()?
-        .body_mut()
-        .read_json()
-        .ok()?;
-    Some(
-        body["models"]
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|m| m["name"].as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-    )
-}
-
 /// The language model's state. `probe` sends a tiny real request to a
 /// cloud provider (checks key, model name and network); without it only
 /// the presence of a key is checked.
@@ -698,135 +582,27 @@ pub fn llm_status(
     probe: bool,
 ) -> LlmStatus {
     if !settings.summary_enabled && !settings.correction_enabled {
-        return status("off", "");
-    }
-    let cfg = llm_config(settings, keys);
-    let provider = settings.llm_provider.trim();
-    if CLOUD_PROVIDERS.contains(&provider) {
-        if cfg.api_key.is_none() {
-            return status("no_key", &cfg.model);
-        }
-        if !probe {
-            return status("ready", &cfg.model);
-        }
-        let llm = LlmSummarizer::new(LlmConfig {
-            max_output_tokens: 300,
-            timeout: Duration::from_secs(60),
-            ..cfg.clone()
-        });
-        return match llm.chat_plain("Answer with the single word OK.", "Ping") {
-            Ok(_) => status("ready", &cfg.model),
-            Err(e) => status("error", format!("{e:#}")),
+        return LlmStatus {
+            state: "off".into(),
+            detail: String::new(),
         };
     }
-    let base = cfg.base_url.trim_end_matches('/').to_string();
-    if cfg.backend != meeting_core::summary::Backend::Ollama {
-        // A custom OpenAI-compatible local server (set in the config file).
-        return match quick_agent(3).get(&format!("{base}/models")).call() {
-            Ok(_) => status("ready", &cfg.model),
-            Err(e) => status("error", format!("{base}: {e}")),
-        };
-    }
-    match ollama_models(&base) {
-        None if !ollama_installed() => status("no_ollama", &cfg.model),
-        None => status("not_running", &cfg.model),
-        Some(names) => {
-            let m = cfg.model.as_str();
-            let found = names
-                .iter()
-                .any(|n| n == m || (!m.contains(':') && n.split(':').next() == Some(m)));
-            if found {
-                status("ready", m)
-            } else {
-                status("model_missing", m)
-            }
-        }
+    let s = sokki_engine::llm::check(&llm_settings(settings, keys), &settings.user_name, probe);
+    LlmStatus {
+        state: s.state,
+        detail: s.detail,
     }
 }
 
 /// Starts Ollama (the app, or `ollama serve` for a Homebrew install) and
 /// waits up to 15 s for it to answer.
 pub fn start_ollama(settings: &MeetingSettings) -> Result<()> {
-    let base = settings
-        .llm_base_url
-        .trim()
-        .trim_end_matches('/')
-        .to_string();
-    if ollama_models(&base).is_some() {
-        return Ok(());
-    }
-    if std::path::Path::new(OLLAMA_APP).exists() {
-        std::process::Command::new("open")
-            .args(["-g", "-a", "Ollama"])
-            .status()
-            .context("starting the Ollama app")?;
-    } else if let Some(bin) = OLLAMA_BINARIES
-        .iter()
-        .find(|b| std::path::Path::new(b).exists())
-    {
-        std::process::Command::new(bin)
-            .arg("serve")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .context("starting ollama serve")?;
-    } else {
-        bail!("Ollama is not installed");
-    }
-    for _ in 0..30 {
-        std::thread::sleep(Duration::from_millis(500));
-        if ollama_models(&base).is_some() {
-            return Ok(());
-        }
-    }
-    bail!("Ollama did not start within 15 seconds")
-}
-
-/// Progress of a model download, sent as the "meeting-llm-pull" event.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct PullProgress {
-    pub status: String,
-    pub completed: u64,
-    pub total: u64,
+    sokki_engine::llm::start_ollama(&llm_settings(settings, &HashMap::new()))
 }
 
 /// Downloads the local model through Ollama, reporting progress.
-pub fn pull_model(
-    settings: &MeetingSettings,
-    mut progress: impl FnMut(PullProgress),
-) -> Result<()> {
-    let base = settings.llm_base_url.trim().trim_end_matches('/');
-    let model = settings.llm_model.trim();
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(4 * 3600)))
-        .build()
-        .into();
-    let mut resp = agent
-        .post(&format!("{base}/api/pull"))
-        .send_json(serde_json::json!({ "model": model, "stream": true }))
-        .with_context(|| format!("No model server at {base}"))?;
-    let reader = std::io::BufReader::new(resp.body_mut().as_reader());
-    use std::io::BufRead;
-    for line in reader.lines() {
-        let line = line.context("reading download progress")?;
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
-            continue;
-        };
-        if let Some(e) = v["error"].as_str() {
-            bail!("{e}");
-        }
-        let st = v["status"].as_str().unwrap_or_default().to_string();
-        progress(PullProgress {
-            status: st.clone(),
-            completed: v["completed"].as_u64().unwrap_or(0),
-            total: v["total"].as_u64().unwrap_or(0),
-        });
-        if st == "success" {
-            return Ok(());
-        }
-    }
-    bail!("The download ended early")
+pub fn pull_model(settings: &MeetingSettings, progress: impl FnMut(PullProgress)) -> Result<()> {
+    sokki_engine::llm::pull_model(&llm_settings(settings, &HashMap::new()), progress)
 }
 
 #[cfg(test)]
@@ -834,80 +610,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn later_track_gets_leading_silence() {
-        let mut tracks = vec![
-            Track {
-                kind: TrackKind::Mic,
-                samples: vec![1.0; 10],
-            },
-            Track {
-                kind: TrackKind::System,
-                samples: vec![1.0; 10],
-            },
-        ];
-        // Mic started 250 ms after system audio.
-        assert!(align_tracks(&mut tracks, 1_000_250_000, 1_000_000_000).is_none());
-        assert_eq!(tracks[0].samples.len(), 10 + 4_000);
-        assert_eq!(tracks[0].samples[0], 0.0);
-        assert_eq!(tracks[1].samples.len(), 10);
-        // Implausible offsets are ignored.
-        assert!(align_tracks(&mut tracks, 10_000_000_000, 1_000_000_000).is_some());
-    }
-
-    #[test]
-    fn ollama_vs_openai_detection() {
-        assert!(is_ollama("http://localhost:11434"));
-        assert!(!is_ollama("http://localhost:1234/v1"));
+    fn engine_settings_follow_the_meeting_settings() {
         let mut s = MeetingSettings::default();
-        s.llm_base_url = "http://localhost:11434/".into();
-        s.user_name = "Robin".into();
-        let cfg = llm_config(&s, &HashMap::new());
-        assert_eq!(cfg.base_url, "http://localhost:11434");
-        assert_eq!(cfg.user_name.as_deref(), Some("Robin"));
-    }
-
-    #[test]
-    fn cloud_provider_uses_its_key_and_default_model() {
-        use meeting_core::summary::Backend;
-        let mut s = MeetingSettings::default();
-        let keys: HashMap<String, String> =
-            [("anthropic".to_string(), " key-a ".to_string())].into();
-        assert_eq!(llm_config(&s, &keys).backend, Backend::Ollama);
         s.llm_provider = "anthropic".into();
-        let cfg = llm_config(&s, &keys);
-        assert_eq!(cfg.backend, Backend::Anthropic);
+        s.user_name = "Robin".into();
+        let keys: HashMap<String, String> = [("anthropic".to_string(), "k".to_string())].into();
+        let l = llm_settings(&s, &keys);
+        assert_eq!(l.provider, "anthropic");
+        assert_eq!(l.keys.get("anthropic").map(String::as_str), Some("k"));
+        let cfg = sokki_engine::llm::config(&l, &s.user_name);
         assert_eq!(cfg.model, "claude-opus-5-5");
-        assert_eq!(cfg.api_key.as_deref(), Some("key-a"));
-        s.llm_provider = "openrouter".into();
-        s.cloud_model = "google/gemini-3.8-flash".into();
-        let cfg = llm_config(&s, &keys);
-        assert_eq!(cfg.base_url, "https://openrouter.ai/api/v1");
-        assert_eq!(cfg.model, "google/gemini-3.8-flash");
-        assert!(cfg.api_key.is_none());
     }
-}
-
-/// Asks Ollama to load the model in the background, with the same context
-/// size the requests use (a different `num_ctx` would load it again).
-fn warm_up_llm(settings: &MeetingSettings, keys: &HashMap<String, String>) {
-    let cfg = llm_config(settings, keys);
-    if cfg.backend != meeting_core::summary::Backend::Ollama {
-        return;
-    }
-    let url = format!("{}/api/generate", cfg.base_url.trim_end_matches('/'));
-    let body = serde_json::json!({
-        "model": cfg.model,
-        "keep_alive": cfg.keep_alive.clone().unwrap_or_else(|| "1m".into()),
-        "options": { "num_ctx": cfg.context_tokens },
-    });
-    std::thread::spawn(move || {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(120)))
-            .build()
-            .into();
-        match agent.post(&url).send_json(&body) {
-            Ok(_) => log::info!("Language model loaded in advance"),
-            Err(e) => log::warn!("Loading the language model in advance failed: {e}"),
-        }
-    });
 }

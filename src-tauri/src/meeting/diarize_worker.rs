@@ -20,6 +20,19 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 pub const FLAG: &str = "--diarize-worker";
+/// Starts the worker's own error line on stderr; everything before it is
+/// ggml's start-up logging.
+const ERROR_PREFIX: &str = "diarize worker: ";
+
+/// What the worker hands back.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct WorkerOutput {
+    pub turns: Vec<SpeakerTurn>,
+    /// Set when the voice-embedding model could not be loaded: speakers
+    /// were told apart, but known voices can't be recognised.
+    #[serde(default)]
+    pub embedder_error: Option<String>,
+}
 const TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_BYTES: u64 = 6 * 1024 * 1024 * 1024;
 
@@ -35,7 +48,7 @@ pub fn run() -> i32 {
     match run_inner(&args) {
         Ok(()) => 0,
         Err(e) => {
-            eprintln!("diarize worker: {e:#}");
+            eprintln!("{ERROR_PREFIX}{e:#}");
             1
         }
     }
@@ -55,20 +68,35 @@ fn run_inner(args: &[String]) -> Result<()> {
     let diarizer =
         diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(PathBuf::from(models)))?;
     let turns = meeting_core::Diarizer::diarize(&diarizer, &samples)?;
+    let out = WorkerOutput {
+        turns,
+        embedder_error: diarizer.embedder_error().map(str::to_string),
+    };
     drop(diarizer);
     let tmp = format!("{output}.tmp");
-    std::fs::write(&tmp, serde_json::to_vec(&turns)?)?;
+    std::fs::write(&tmp, serde_json::to_vec(&out)?)?;
     std::fs::rename(&tmp, output)?;
     Ok(())
 }
 
-/// Runs the worker on `samples` and returns its turns. `scratch` is a
+/// The worker's own error from its stderr, without ggml's start-up logging
+/// (which comes first and can run to dozens of lines).
+fn worker_error(stderr: &str) -> &str {
+    stderr
+        .lines()
+        .rev()
+        .find_map(|l| l.strip_prefix(ERROR_PREFIX))
+        .unwrap_or("no error message")
+        .trim()
+}
+
+/// Runs the worker on `samples` and returns what it found. `scratch` is a
 /// directory for the two exchange files (removed afterwards).
 pub fn diarize_in_child(
     samples: &[f32],
     models_dir: &Path,
     scratch: &Path,
-) -> Result<Vec<SpeakerTurn>> {
+) -> Result<WorkerOutput> {
     std::fs::create_dir_all(scratch)?;
     let stamp = format!(
         "{}-{}",
@@ -83,7 +111,7 @@ pub fn diarize_in_child(
     }
     std::fs::write(&input, &buf)?;
     drop(buf);
-    let result = (|| -> Result<Vec<SpeakerTurn>> {
+    let result = (|| -> Result<WorkerOutput> {
         let exe = std::env::current_exe()?;
         let mut child = Command::new(exe)
             .arg(FLAG)
@@ -125,7 +153,11 @@ pub fn diarize_in_child(
                 use std::io::Read;
                 let _ = e.read_to_string(&mut err);
             }
-            bail!("diarization worker failed ({status}): {}", err.trim());
+            log::warn!("Diarization worker output:\n{}", err.trim());
+            bail!(
+                "diarization worker failed ({status}): {}",
+                worker_error(&err)
+            );
         }
         log::info!(
             "Diarized {:.0}s of audio on the GPU in {:.1}s (worker peak {:.0} MB)",
@@ -133,10 +165,28 @@ pub fn diarize_in_child(
             started.elapsed().as_secs_f64(),
             peak as f64 / 1e6
         );
-        let turns: Vec<SpeakerTurn> = serde_json::from_slice(&std::fs::read(&output)?)?;
-        Ok(turns)
+        Ok(serde_json::from_slice(&std::fs::read(&output)?)?)
     })();
     let _ = std::fs::remove_file(&input);
     let _ = std::fs::remove_file(&output);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_error_line_is_found_under_ggml_logging() {
+        let stderr = "ggml_metal_device_init: tensor API disabled for pre-M5 and pre-A19 devices
+ggml_metal_library_init: using embedded metal library
+ggml_metal_library_compile_all: compiled 'fa_aux' library in 0.002 sec
+diarize worker: no space left on device
+";
+        assert_eq!(worker_error(stderr), "no space left on device");
+        assert_eq!(
+            worker_error("ggml_metal_device_init: x\n"),
+            "no error message"
+        );
+    }
 }

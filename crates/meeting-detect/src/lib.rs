@@ -2,7 +2,7 @@
 //! *offer* to record. This crate never records anything and never starts a
 //! recording on its own; it only reports what it sees.
 //!
-//! # How it works
+//! # How it works on macOS
 //!
 //! macOS 14+ exposes every Core Audio client process as an audio object
 //! (`kAudioHardwarePropertyProcessObjectList`). Each one says whether it is
@@ -16,6 +16,26 @@
 //! two seconds and turns the result into debounced
 //! [`MeetingEvent::Started`] / [`MeetingEvent::Ended`] events.
 //!
+//! # How it works on Linux
+//!
+//! PipeWire shows every stream that captures from a microphone as a node
+//! with `media.class` `Stream/Input/Audio`, carrying the client's
+//! `application.process.id`, `application.name` and
+//! `application.process.binary` (Pulse clients on the node, native
+//! PipeWire clients on their client object). `PwMonitor` follows
+//! `pw-dump --monitor` and pushes the list of those clients whenever it
+//! changes; the executable comes from `/proc/<pid>/exe`. Streams with
+//! `stream.capture.sink` record what a speaker plays (our own recorder
+//! does that), so they are left out. [`classify`] then matches by
+//! executable name, as Linux has no bundle ids. The watcher is
+//! event-driven: an idle machine costs no wakeups and spawns no processes.
+//!
+//! A meeting in a browser only shows as "Google Chrome" or "Firefox". On
+//! Hyprland the watcher then asks for the window list (`j/clients`) and
+//! takes the call service from the browser's windows: a web app's class
+//! (`chrome-meet.google.com__-Default`) or a tab title (`Meet – …`). See
+//! [`MeetingApp::call`] and [`MeetingApp::label`].
+//!
 //! # Credit
 //!
 //! The approach (Core Audio process objects, bundle-id prefixes plus a path
@@ -26,18 +46,30 @@
 //!
 //! # Platforms
 //!
-//! macOS only. On other platforms [`audio_input_clients`] returns an empty
-//! list, so the watcher compiles and runs but never reports a meeting.
+//! - **macOS 14+:** Core Audio, polled every two seconds.
+//! - **Linux:** PipeWire through `pw-dump` (needs `pw-dump` on `PATH`),
+//!   event-driven; browser calls are named on Hyprland only.
+//! - **Elsewhere:** [`audio_input_clients`] returns an empty list, so the
+//!   watcher compiles and runs but never reports a meeting.
+//!
+//! The `pw-dump` and Hyprland parsers ([`pipewire`], [`hyprland`]) are
+//! pure and compiled on every OS, so their tests run everywhere.
 
 mod apps;
+pub mod hyprland;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+pub mod pipewire;
 mod watcher;
 
 pub use apps::{classify, classify_all, known_apps, AppKind, MatchedBy, MeetingApp};
+#[cfg(target_os = "linux")]
+pub use linux::{hyprland_windows, PwMonitor, PwMonitorGuard};
 pub use watcher::{
-    ClientSource, Clock, Detector, DetectorState, MeetingEvent, SystemClock, SystemSource, Watcher,
-    WatcherConfig,
+    ClientSink, ClientSource, Clock, Detector, DetectorState, EventSource, MeetingEvent,
+    SystemClock, SystemSource, Watcher, WatcherConfig,
 };
 
 use std::fmt;
@@ -47,12 +79,16 @@ use std::fmt;
 pub struct AudioClient {
     pub pid: u32,
     /// Bundle id as Core Audio reports it. Often `None` for helper processes
-    /// (browser renderers, XPC services, command-line tools).
+    /// (browser renderers, XPC services, command-line tools). Always `None`
+    /// on Linux.
     pub bundle_id: Option<String>,
-    /// Executable path from `proc_pidpath`, if the process still exists.
+    /// Executable path from `proc_pidpath` (macOS) or `/proc/<pid>/exe`
+    /// (Linux), if the process still exists. On Linux, when the link can't
+    /// be read, PipeWire's `application.process.binary` (a bare name).
     pub exe_path: Option<String>,
-    /// Human-readable name: the outermost `*.app` in the path, else the
-    /// executable name, else the bundle id, else `pid N`.
+    /// Human-readable name. macOS: the outermost `*.app` in the path, else
+    /// the executable name, else the bundle id, else `pid N`. Linux:
+    /// PipeWire's `application.name`, else the executable name.
     pub name: String,
     /// The process macOS holds responsible for this one (the app that owns
     /// an XPC service or helper), when it differs from `pid`. This is what
@@ -61,6 +97,11 @@ pub struct AudioClient {
     pub responsible_pid: Option<u32>,
     /// Executable path of `responsible_pid`.
     pub responsible_path: Option<String>,
+    /// Linux: the program name PipeWire reports
+    /// (`application.process.binary`). A second chance when `exe_path` names
+    /// a wrapper or translator instead of the app (seen: Rosetta in an x86
+    /// container, a shared Electron).
+    pub binary: Option<String>,
 }
 
 impl AudioClient {
@@ -77,6 +118,7 @@ impl AudioClient {
             name,
             responsible_pid: None,
             responsible_path: None,
+            binary: None,
         }
     }
 
@@ -115,6 +157,8 @@ pub enum Error {
     Unsupported,
     /// A Core Audio call returned a non-zero `OSStatus`.
     CoreAudio { call: &'static str, status: i32 },
+    /// `pw-dump` could not be run or its output not read.
+    PipeWire(String),
 }
 
 impl fmt::Display for Error {
@@ -136,6 +180,7 @@ impl fmt::Display for Error {
                     write!(f, "Core Audio {call} failed: OSStatus {status}")
                 }
             }
+            Error::PipeWire(reason) => write!(f, "pw-dump failed: {reason}"),
         }
     }
 }
@@ -153,8 +198,16 @@ pub fn audio_input_clients() -> Result<Vec<AudioClient>> {
     macos::audio_input_clients()
 }
 
-/// Non-macOS stub: nothing is ever detected.
-#[cfg(not(target_os = "macos"))]
+/// Every process currently capturing from a microphone, from a one-shot
+/// `pw-dump` (for the CLI and diagnostics; the watcher follows
+/// `pw-dump --monitor` instead). Streams recording a speaker are left out.
+#[cfg(target_os = "linux")]
+pub fn audio_input_clients() -> Result<Vec<AudioClient>> {
+    linux::audio_input_clients()
+}
+
+/// Stub for other platforms: nothing is ever detected.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn audio_input_clients() -> Result<Vec<AudioClient>> {
     Ok(Vec::new())
 }

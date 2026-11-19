@@ -128,7 +128,7 @@ without touching the other settings.
   shows "Applied settings edited outside the app".
 - Keys and values must match the tables below; enum values are listed
   exactly as stored.
-- "Your data" choices and remembered voices are separate
+- "Your data" choices, remembered voices and phone pairing are separate
   files; see "Other files" at the end.
 
 Most useful keys:
@@ -153,8 +153,9 @@ These sit in the same folder but are not part of `settings_store.json`.
 
 | File | What | Editing |
 |---|---|---|
-| `voice-data/config.json` | "Your data": `improve` (Help improve Sokki) and `support` (Support Sokki & Open Source), both `true`/`false`. Read each time it is used, so an edit applies on the next use. | These two are the user's consent to share data: change them only when the user asks for exactly that. Leave every other field (`install_id`, counters, dates) alone. |
+| `voice-data/config.json` | "Your data": `improve` (Help improve Sokki), `buyers` (Ask me when there's a buyer) and `support` (Share all my recordings), each `true`/`false`. Read each time it is used, so an edit applies on the next use. | These three are the user's consent to share data: change them only when the user asks for exactly that. Leave every other field (`install_id`, counters, dates) alone. |
 | `voice-profiles.json` | Remembered voices: `profiles[].name` with `embeddings`. Read when a meeting is processed. | Removing a profile forgets that voice. Embeddings come only from the app. |
+| `phone_link.json` | This Mac's key, the pairing code and paired phones. | Don't edit; pair and remove phones in the app. |
 | `history.db` | Dictation history (SQLite). | Read only. |
 | `meetings/` | `index.json` (every meeting) and each meeting's audio. | Read only; delete meetings in the app. |
 """

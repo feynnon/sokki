@@ -49,9 +49,13 @@ struct Config {
     /// "Help improve Sokki".
     #[serde(default)]
     improve: bool,
-    /// "Support Sokki & Open Source" (was `donate`).
+    /// "Share all my recordings" (was "Support Sokki & Open Source", and
+    /// before that `donate`).
     #[serde(default, alias = "donate")]
     support: bool,
+    /// "Ask me when there's a buyer": buyer messages are shown.
+    #[serde(default)]
+    buyers: bool,
     /// "Tell me about paid recording tasks": interest only; nothing is
     /// recorded for it.
     #[serde(default)]
@@ -138,10 +142,10 @@ pub struct BuyerRequest {
 pub struct VoiceDataStats {
     /// "Help improve Sokki" is on.
     pub improve: bool,
-    /// "Support Sokki & Open Source" is on.
+    /// "Share all my recordings" is on.
     pub support: bool,
-    /// "Tell me about paid recording tasks" is on.
-    pub tasks: bool,
+    /// "Ask me when there's a buyer" is on.
+    pub buyers: bool,
     /// The counter holds something of this install ("Delete what was shared").
     pub shared: bool,
     pub clips: u32,
@@ -152,14 +156,12 @@ pub struct VoiceDataStats {
     pub seconds_by_source: BTreeMap<String, f64>,
     pub bytes: u64,
     pub folder: String,
-    /// The latest buyer message that matched (not for supporters).
+    /// The latest buyer message that matched (only with "Ask me when
+    /// there's a buyer", and not while sharing everything).
     pub buyer: Option<BuyerRequest>,
-    /// "Support": recordings uploaded so far, and their length.
+    /// Recordings uploaded so far, and their length.
     pub donated_clips: u32,
     pub donated_seconds: f64,
-    /// "Support": recordings kept on this Mac because their text has a name,
-    /// a number or contact details.
-    pub withheld_clips: u32,
 }
 
 /// The total over all counted installs, from the counter service.
@@ -222,20 +224,20 @@ fn new_install_id() -> String {
 
 /// Sets the three choices. Turning the first two off takes this install out of the count;
 /// what was shared stays until [`forget`].
-/// Paused 2026-11-19: the paid-tasks tick and buyer messages. Their code stays
-/// so they can come back; while paused the app shows neither, takes back a
-/// tick sent before, and ignores buyer messages.
+/// Paused 2026-11-19: the paid-tasks tick. Its code stays so it can come
+/// back; while paused the app doesn't show it and takes back a tick sent
+/// before.
 const PAID_TASKS: bool = false;
-const BUYER_MESSAGES: bool = false;
 
-pub fn set_choices(app: &AppHandle, improve: bool, support: bool, tasks: bool) -> Result<()> {
+pub fn set_choices(app: &AppHandle, improve: bool, support: bool, buyers: bool) -> Result<()> {
     let d = dir(app)?;
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut c = read_config(&d);
     let improve_turned_on = improve && !c.improve;
     c.improve = improve;
     c.support = support;
-    c.tasks = tasks && PAID_TASKS;
+    c.buyers = buyers;
+    c.tasks = false;
     if c.install_id.is_empty() {
         c.install_id = new_install_id();
     }
@@ -438,9 +440,9 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
     let mut s = VoiceDataStats {
         improve: config.improve,
         support: config.support,
-        tasks: config.tasks,
+        buyers: config.buyers,
         shared: config.shared,
-        buyer: if config.support || !BUYER_MESSAGES {
+        buyer: if config.support || !config.buyers {
             None
         } else {
             config.buyer
@@ -461,13 +463,9 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
     }
     let donated = read_donated(dir);
     for c in &clips {
-        match donated.get(&c.file).map(String::as_str) {
-            Some("sent") => {
-                s.donated_clips += 1;
-                s.donated_seconds += c.seconds;
-            }
-            Some(_) => s.withheld_clips += 1,
-            None => {}
+        if donated.get(&c.file).is_some_and(|s| s == "sent") {
+            s.donated_clips += 1;
+            s.donated_seconds += c.seconds;
         }
     }
     s
@@ -589,7 +587,7 @@ fn sync_in_background(app: AppHandle, force: bool) {
             }
         }
         if config.support {
-            donate_pending(&app, &d);
+            donate_pending(&d);
         }
     });
 }
@@ -743,621 +741,15 @@ fn pow_for(dir: &Path, id: &str) -> String {
     pow
 }
 
-// ----- "Support Sokki & Open Source": uploading the user's own recordings -----
+// ----- "Share all my recordings": uploading the user's own recordings -----
 
-/// Which recordings were uploaded ("sent") or kept back ("kept:<reason>").
+/// Which recordings were uploaded ("sent") or can't be read
+/// ("kept:unreadable"). Older versions also kept some back for a name or a
+/// number ("kept:name", …); those go out now.
 const DONATED: &str = "donated.jsonl";
 
 /// One upload at a time.
 static DONATING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Common first names (German and English), lower case. A recording whose
-/// text holds one stays on the Mac. Together with the speaker names Sokki
-/// knows, so it errs on the side of keeping too much back.
-const FIRST_NAMES: &[&str] = &[
-    "aaron",
-    "adam",
-    "adrian",
-    "alex",
-    "alexander",
-    "alexandra",
-    "ali",
-    "alice",
-    "alina",
-    "amelie",
-    "amy",
-    "andi",
-    "andre",
-    "andrea",
-    "andreas",
-    "andrew",
-    "angela",
-    "angelika",
-    "anja",
-    "anke",
-    "ann",
-    "anna",
-    "anne",
-    "annika",
-    "anton",
-    "antonia",
-    "ben",
-    "benedikt",
-    "benjamin",
-    "bernd",
-    "bettina",
-    "birgit",
-    "bob",
-    "brian",
-    "carina",
-    "carl",
-    "carla",
-    "carolin",
-    "caroline",
-    "charlie",
-    "charlotte",
-    "chris",
-    "christian",
-    "christina",
-    "christine",
-    "christoph",
-    "claudia",
-    "clara",
-    "daniel",
-    "daniela",
-    "david",
-    "dennis",
-    "diana",
-    "dieter",
-    "dirk",
-    "dominik",
-    "doris",
-    "elena",
-    "elias",
-    "elisabeth",
-    "ella",
-    "emil",
-    "emily",
-    "emma",
-    "eric",
-    "erik",
-    "eva",
-    "fabian",
-    "felix",
-    "finn",
-    "florian",
-    "frank",
-    "franziska",
-    "frederik",
-    "friedrich",
-    "gabi",
-    "gabriele",
-    "georg",
-    "george",
-    "gerhard",
-    "hannah",
-    "hannes",
-    "hans",
-    "harald",
-    "harry",
-    "heike",
-    "heinz",
-    "helen",
-    "helena",
-    "helga",
-    "helmut",
-    "henrik",
-    "henry",
-    "ingrid",
-    "isabel",
-    "jack",
-    "jacob",
-    "jakob",
-    "james",
-    "jan",
-    "jana",
-    "jane",
-    "janina",
-    "jannik",
-    "jasmin",
-    "jason",
-    "jennifer",
-    "jens",
-    "jessica",
-    "jochen",
-    "johann",
-    "johanna",
-    "johannes",
-    "john",
-    "jonas",
-    "jonathan",
-    "jordan",
-    "josef",
-    "joseph",
-    "josh",
-    "julia",
-    "julian",
-    "juliane",
-    "justin",
-    "jürgen",
-    "karin",
-    "karl",
-    "kai",
-    "katharina",
-    "kathrin",
-    "katja",
-    "katrin",
-    "kerstin",
-    "kevin",
-    "kim",
-    "klaus",
-    "kristina",
-    "lara",
-    "laura",
-    "lea",
-    "leah",
-    "lena",
-    "leni",
-    "leo",
-    "leon",
-    "lina",
-    "linda",
-    "lisa",
-    "lucas",
-    "luca",
-    "lukas",
-    "luis",
-    "luise",
-    "lena",
-    "manfred",
-    "manuel",
-    "manuela",
-    "marc",
-    "marcel",
-    "marco",
-    "maria",
-    "marie",
-    "marina",
-    "mario",
-    "mark",
-    "markus",
-    "marlene",
-    "martin",
-    "martina",
-    "mary",
-    "matthias",
-    "max",
-    "maximilian",
-    "melanie",
-    "mia",
-    "michael",
-    "michaela",
-    "michelle",
-    "mike",
-    "mila",
-    "miriam",
-    "monika",
-    "moritz",
-    "nadine",
-    "natalie",
-    "nicole",
-    "niklas",
-    "nico",
-    "nils",
-    "nina",
-    "noah",
-    "nora",
-    "oliver",
-    "olivia",
-    "oskar",
-    "pascal",
-    "patrick",
-    "paul",
-    "paula",
-    "peter",
-    "petra",
-    "philipp",
-    "rainer",
-    "ralf",
-    "rebecca",
-    "renate",
-    "richard",
-    "robert",
-    "robin",
-    "rolf",
-    "ronja",
-    "rosa",
-    "ruth",
-    "sabine",
-    "sam",
-    "samuel",
-    "sandra",
-    "sarah",
-    "sascha",
-    "sebastian",
-    "simon",
-    "simone",
-    "sofia",
-    "sophia",
-    "sophie",
-    "stefan",
-    "stefanie",
-    "stephan",
-    "steffen",
-    "susanne",
-    "sven",
-    "svenja",
-    "tanja",
-    "theo",
-    "thomas",
-    "tim",
-    "timo",
-    "tina",
-    "tobias",
-    "tom",
-    "torsten",
-    "ulrich",
-    "ulrike",
-    "ursula",
-    "uwe",
-    "valentin",
-    "vanessa",
-    "vera",
-    "victoria",
-    "viktor",
-    "walter",
-    "werner",
-    "william",
-    "wolfgang",
-    "yannick",
-    "yvonne",
-    "zoe",
-    // Nicknames and names Apple's recogniser and dictionary let through.
-    "basti",
-    "benni",
-    "bjarne",
-    "chrissi",
-    "conny",
-    "dani",
-    "fabi",
-    "fiona",
-    "flo",
-    "franzi",
-    "frieda",
-    "greta",
-    "ida",
-    "jojo",
-    "jonny",
-    "johnny",
-    "jule",
-    "juli",
-    "kalle",
-    "kathi",
-    "lasse",
-    "lisi",
-    "lotta",
-    "lotte",
-    "lou",
-    "luisa",
-    "malte",
-    "manu",
-    "marlon",
-    "mats",
-    "matze",
-    "maxi",
-    "merle",
-    "micha",
-    "mira",
-    "nele",
-    "nick",
-    "nici",
-    "nik",
-    "norman",
-    "ole",
-    "olli",
-    "ralle",
-    "sammy",
-    "sandy",
-    "sepp",
-    "steffi",
-    "susi",
-    "till",
-    "tilman",
-    "tobi",
-    "toni",
-    "uli",
-    "vroni",
-];
-
-/// Spoken numbers (German and English). A recording that says one stays on
-/// the Mac, like one with digits: numbers can be phone numbers, prices,
-/// account numbers. Not "one" or "ein": they are mostly not numbers ("this
-/// one", "ein Meeting"), and would keep back nearly everything.
-const NUMBER_WORDS: &[&str] = &[
-    "null",
-    "eins",
-    "zwei",
-    "drei",
-    "vier",
-    "fünf",
-    "sechs",
-    "sieben",
-    "acht",
-    "neun",
-    "zehn",
-    "elf",
-    "zwölf",
-    "dreizehn",
-    "vierzehn",
-    "fünfzehn",
-    "sechzehn",
-    "siebzehn",
-    "achtzehn",
-    "neunzehn",
-    "zwanzig",
-    "dreißig",
-    "vierzig",
-    "fünfzig",
-    "sechzig",
-    "siebzig",
-    "achtzig",
-    "neunzig",
-    "hundert",
-    "tausend",
-    "million",
-    "millionen",
-    "milliarde",
-    "zero",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-    "eleven",
-    "twelve",
-    "thirteen",
-    "fourteen",
-    "fifteen",
-    "sixteen",
-    "seventeen",
-    "eighteen",
-    "nineteen",
-    "twenty",
-    "thirty",
-    "forty",
-    "fifty",
-    "sixty",
-    "seventy",
-    "eighty",
-    "ninety",
-    "hundred",
-    "thousand",
-    "billion",
-];
-
-/// Why a recording's text must stay on this Mac, if it must: "number",
-/// "contact" or "name". `names` are lower case.
-fn withheld_reason(
-    text: &str,
-    language: &str,
-    names: &std::collections::HashSet<String>,
-) -> Option<&'static str> {
-    if text.chars().any(|c| c.is_numeric()) {
-        return Some("number");
-    }
-    let lower = text.to_lowercase();
-    if lower.contains('@') || lower.contains("http") || lower.contains("www.") {
-        return Some("contact");
-    }
-    let mut sentence_start = true;
-    let mut word = String::new();
-    let mut words: Vec<(String, bool)> = Vec::new();
-    for c in text.chars().chain(std::iter::once(' ')) {
-        if c.is_alphabetic() || c == '\'' || c == '’' {
-            word.push(c);
-            continue;
-        }
-        if !word.is_empty() {
-            words.push((std::mem::take(&mut word), sentence_start));
-            sentence_start = false;
-        }
-        if matches!(c, '.' | '!' | '?' | '\n' | ':') {
-            sentence_start = true;
-        }
-    }
-    for (w, at_start) in &words {
-        let l = w.to_lowercase();
-        let base = l.split(['\'', '’']).next().unwrap_or(&l);
-        if NUMBER_WORDS.contains(&base) {
-            return Some("number");
-        }
-        if names.contains(base) || FIRST_NAMES.contains(&base) {
-            return Some("name");
-        }
-        // Abbreviations in capitals are mostly company, product or customer
-        // names ("EWTO", "MCP").
-        if w.chars().filter(|c| c.is_alphabetic()).count() >= 2
-            && w.chars()
-                .filter(|c| c.is_alphabetic())
-                .all(char::is_uppercase)
-        {
-            return Some("name");
-        }
-        // English writes only names (and "I") with a capital inside a
-        // sentence; German capitalises every noun, so this check is English only.
-        if language == "en"
-            && !at_start
-            && w.chars().next().is_some_and(char::is_uppercase)
-            && base != "i"
-        {
-            return Some("name");
-        }
-    }
-    apple_name_check(text, language)
-}
-
-/// macOS's own language tools: Apple's name recogniser (people, places,
-/// organisations) and the spell checker, for capitalised words its
-/// dictionary doesn't know (company and product names, rarer names).
-#[cfg(target_os = "macos")]
-#[allow(deprecated)] // NSLinguisticTagger: works, and needs no extra crate.
-fn apple_name_check(text: &str, language: &str) -> Option<&'static str> {
-    use objc2::AnyThread;
-    use objc2_app_kit::NSSpellChecker;
-    use objc2_foundation::{
-        NSArray, NSLinguisticTagOrganizationName, NSLinguisticTagPersonalName,
-        NSLinguisticTagPlaceName, NSLinguisticTagSchemeNameType, NSLinguisticTagger,
-        NSLinguisticTaggerUnit, NSNotFound, NSRange, NSString,
-    };
-    objc2::rc::autoreleasepool(|_| {
-        let s = NSString::from_str(text);
-        let len = s.length();
-        let scheme = unsafe { NSLinguisticTagSchemeNameType };
-        let schemes = NSArray::from_slice(&[scheme]);
-        let tagger = unsafe {
-            NSLinguisticTagger::initWithTagSchemes_options(NSLinguisticTagger::alloc(), &schemes, 0)
-        };
-        tagger.setString(Some(&s));
-        let named = unsafe {
-            [
-                NSLinguisticTagPersonalName,
-                NSLinguisticTagPlaceName,
-                NSLinguisticTagOrganizationName,
-            ]
-        };
-        let mut i = 0;
-        while i < len {
-            let mut r = NSRange::new(0, 0);
-            let tag = unsafe {
-                tagger.tagAtIndex_unit_scheme_tokenRange(
-                    i,
-                    NSLinguisticTaggerUnit::Word,
-                    scheme,
-                    &mut r,
-                )
-            };
-            if tag.is_some_and(|t| named.iter().any(|n| &*t == *n)) {
-                return Some("name");
-            }
-            i = if r.length > 0 {
-                r.location + r.length
-            } else {
-                i + 1
-            };
-        }
-        let checker = NSSpellChecker::sharedSpellChecker();
-        let lang = match language {
-            "de" | "en" => Some(NSString::from_str(language)),
-            _ => None,
-        };
-        let mut start: isize = 0;
-        while (start as usize) < len {
-            let r = unsafe {
-                checker.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount(
-                    &s,
-                    start,
-                    lang.as_deref(),
-                    false,
-                    0,
-                    std::ptr::null_mut(),
-                )
-            };
-            if r.location == NSNotFound as usize || r.length == 0 {
-                break;
-            }
-            let word = s.substringWithRange(r).to_string();
-            if word.chars().next().is_some_and(char::is_uppercase) {
-                return Some("name");
-            }
-            start = (r.location + r.length) as isize;
-        }
-        // Each capitalised word once more on its own, in a plain sentence:
-        // in context the recogniser misses some names ("der Ast-Top ist
-        // ja…") that it knows alone.
-        for w in capitalised_words(text) {
-            let probe = if language == "en" {
-                format!("This is {w} here.")
-            } else {
-                format!("Das ist {w} hier.")
-            };
-            let p = NSString::from_str(&probe);
-            tagger.setString(Some(&p));
-            let at = probe
-                .find(&w)
-                .map(|b| probe[..b].encode_utf16().count())
-                .unwrap_or(0);
-            let tag = unsafe {
-                tagger.tagAtIndex_unit_scheme_tokenRange(
-                    at,
-                    NSLinguisticTaggerUnit::Word,
-                    scheme,
-                    std::ptr::null_mut(),
-                )
-            };
-            if tag.is_some_and(|t| named.iter().any(|n| &*t == *n)) {
-                return Some("name");
-            }
-        }
-        None
-    })
-}
-
-/// Words starting with a capital, hyphenated parts kept together ("Ast-Top").
-fn capitalised_words(text: &str) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for raw in text.split(|c: char| !(c.is_alphabetic() || c == '-')) {
-        let w = raw.trim_matches('-');
-        if w.chars().next().is_some_and(char::is_uppercase) && !out.iter().any(|o| o == w) {
-            out.push(w.to_string());
-        }
-    }
-    out
-}
-
-#[cfg(not(target_os = "macos"))]
-fn apple_name_check(_text: &str, _language: &str) -> Option<&'static str> {
-    None
-}
-
-/// Names Sokki knows: remembered voices, meeting speakers, the user's name.
-fn known_names(app: &AppHandle) -> std::collections::HashSet<String> {
-    let mut raw: Vec<String> = Vec::new();
-    if let Ok(dir) = crate::portable::app_data_dir(app) {
-        if let Ok(text) = std::fs::read_to_string(dir.join("voice-profiles.json")) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                for p in v["profiles"].as_array().into_iter().flatten() {
-                    if let Some(n) = p["name"].as_str() {
-                        raw.push(n.to_string());
-                    }
-                }
-            }
-        }
-    }
-    raw.push(crate::settings::get_settings(app).meetings.user_name);
-    #[cfg(target_os = "macos")]
-    {
-        use tauri::Manager;
-        if let Some(store) = app.try_state::<std::sync::Arc<crate::meeting::store::MeetingStore>>()
-        {
-            for m in store.list() {
-                raw.extend(m.speakers);
-            }
-        }
-    }
-    // Placeholders like "Sprecher 2", "Speaker 1" or "Ich" are not names.
-    const NOT_NAMES: &[&str] = &[
-        "sprecher", "speaker", "person", "ich", "me", "i", "du", "you",
-    ];
-    raw.iter()
-        .flat_map(|n| n.split_whitespace())
-        .map(|w| w.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase())
-        .filter(|w| w.chars().count() >= 2 && !NOT_NAMES.contains(&w.as_str()))
-        .collect()
-}
 
 fn read_donated(dir: &Path) -> std::collections::HashMap<String, String> {
     std::fs::read_to_string(dir.join(DONATED))
@@ -1417,108 +809,22 @@ fn flac_bytes(wav: &Path) -> Result<Vec<u8>> {
     Ok(bytes?)
 }
 
-/// Uploads the recordings not sent yet, one after another, while "Support"
-/// stays on. Recordings whose text has a name, a number or contact details
-/// stay on this Mac (marked, so they aren't checked again).
-/// The language model on this Mac (Ollama), if the user set one up for
-/// notes. A cloud model is never used: the text must not leave the Mac
-/// before the check.
-struct LocalModel {
-    base: String,
-    model: String,
-}
-
-fn local_model(app: &AppHandle) -> Option<LocalModel> {
-    let m = crate::settings::get_settings(app).meetings;
-    let base = m.llm_base_url.trim_end_matches('/').to_string();
-    (m.llm_provider == "local"
-        && on_this_mac(&base)
-        && !base.ends_with("/v1")
-        && !m.llm_model.is_empty())
-    .then(|| LocalModel {
-        base,
-        model: m.llm_model,
-    })
-}
-
-/// Ollama's address points at this Mac (a "local" server could be another
-/// machine, and the text must not leave this one).
-fn on_this_mac(base: &str) -> bool {
-    let host = base
-        .split("://")
-        .nth(1)
-        .unwrap_or(base)
-        .split('/')
-        .next()
-        .unwrap_or_default();
-    let host = host.rsplit_once(':').map_or(host, |(h, port)| {
-        if port.chars().all(|c| c.is_ascii_digit()) {
-            h
-        } else {
-            host
-        }
-    });
-    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
-}
-
-const NAME_CHECK_PROMPT: &str = "You check transcripts before they are shared anonymously. Does the text name a specific person, company, brand, product, shop, organisation, street, town or other place, even if misspelled or misheard? Generic words, job titles and common software like Excel, WhatsApp or Google don't count. Answer with JSON: {\"names\": [the names you found]}.";
-
-/// Asks the local model whether `text` names anyone or anything. Catches
-/// what word rules can't: misheard names that are real words ("Nomen") and
-/// German compounds ("Schwabenhaus"). Any answer other than an empty list
-/// counts as a name.
-fn model_finds_names(m: &LocalModel, text: &str) -> Result<bool> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        // The first call may load the model.
-        .timeout_global(Some(std::time::Duration::from_secs(180)))
-        .build()
-        .into();
-    let body = serde_json::json!({
-        "model": m.model,
-        "stream": false,
-        "think": false,
-        "messages": [
-            { "role": "system", "content": NAME_CHECK_PROMPT },
-            { "role": "user", "content": text },
-        ],
-    });
-    let reply: serde_json::Value = agent
-        .post(&format!("{}/api/chat", m.base))
-        .send_json(body)
-        .context("local model")?
-        .body_mut()
-        .read_json()
-        .context("local model's answer")?;
-    let content = reply["message"]["content"].as_str().unwrap_or_default();
-    Ok(names_in_answer(content))
-}
-
-/// True unless the answer holds `{"names": []}`.
-fn names_in_answer(content: &str) -> bool {
-    let json = content
-        .find('{')
-        .zip(content.rfind('}'))
-        .and_then(|(a, b)| (a < b).then(|| &content[a..=b]))
-        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
-    match json.as_ref().and_then(|v| v["names"].as_array()) {
-        Some(names) => names
-            .iter()
-            .any(|n| n.as_str().is_some_and(|s| !s.trim().is_empty())),
-        None => true,
-    }
-}
-
-fn donate_pending(app: &AppHandle, dir: &Path) {
+/// Uploads the recordings not sent yet, one after another, while "Share
+/// all my recordings" stays on.
+fn donate_pending(dir: &Path) {
     use std::sync::atomic::Ordering;
     if DONATING.swap(true, Ordering::SeqCst) {
         return;
     }
-    let names = known_names(app);
-    let model = local_model(app);
+    // Recordings the old name and number check kept back go out now too;
+    // only unreadable ones are skipped.
     let done = read_donated(dir);
-    let (mut sent, mut kept) = (0, 0);
+    let mut sent = 0;
     for clip in read_clips(dir) {
-        if done.contains_key(&clip.file) {
+        if done
+            .get(&clip.file)
+            .is_some_and(|s| s == "sent" || s == "kept:unreadable")
+        {
             continue;
         }
         let config = read_config(dir);
@@ -1526,26 +832,6 @@ fn donate_pending(app: &AppHandle, dir: &Path) {
             break;
         }
         let language = normalize_language(clip.language.as_deref());
-        if let Some(reason) = withheld_reason(&clip.text, &language, &names) {
-            mark_donated(dir, &clip.file, &format!("kept:{reason}"));
-            kept += 1;
-            continue;
-        }
-        if let Some(m) = &model {
-            match model_finds_names(m, &clip.text) {
-                Ok(true) => {
-                    mark_donated(dir, &clip.file, "kept:name-model");
-                    kept += 1;
-                    continue;
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    // Not checked, so not sent: the next sync tries again.
-                    log::warn!("Your data: name check not available, uploads wait: {e:#}");
-                    break;
-                }
-            }
-        }
         let audio = match flac_bytes(&dir.join(&clip.file)) {
             Ok(a) => a,
             Err(e) => {
@@ -1587,8 +873,8 @@ fn donate_pending(app: &AppHandle, dir: &Path) {
     if sent > 0 {
         update_config(dir, |c| c.shared = true);
     }
-    if sent + kept > 0 {
-        log::info!("Your data: uploaded {sent} recordings, kept {kept} back");
+    if sent > 0 {
+        log::info!("Your data: uploaded {sent} recordings");
     }
     DONATING.store(false, Ordering::SeqCst);
 }
@@ -1866,7 +1152,7 @@ fn buyer_message(language: &str, hours: u32, german: bool) -> (String, String) {
         (true, one) => (
             format!("Jemand möchte Daten auf {name}"),
             format!(
-                "{hours} {} deiner anonymisierten Daten {}. Du bekämst einen Anteil am Gewinn.",
+                "{hours} {} deiner Aufnahmen {}. Du bekämst einen Anteil am Gewinn.",
                 if one { "Stunde" } else { "Stunden" },
                 if one { "passt" } else { "passen" },
             ),
@@ -1874,7 +1160,7 @@ fn buyer_message(language: &str, hours: u32, german: bool) -> (String, String) {
         (false, one) => (
             format!("Someone wants {name} data"),
             format!(
-                "{hours} {} of your anonymised data {}. You'd get a share of the profit.",
+                "{hours} {} of your recordings {}. You'd get a share of the profit.",
                 if one { "hour" } else { "hours" },
                 if one { "fits" } else { "fit" },
             ),
@@ -1900,7 +1186,7 @@ fn check_notice(app: &AppHandle) {
         .starts_with("de");
     let (title, body) = match serde_json::from_str::<BuyerNotice>(&text) {
         Ok(notice) => {
-            if config.support || !BUYER_MESSAGES {
+            if config.support || !config.buyers {
                 return;
             }
             let lang = normalize_language(Some(&notice.language));
@@ -2006,7 +1292,7 @@ mod tests {
             buyer_message("de", 12, false),
             (
                 "Someone wants German data".to_string(),
-                "12 hours of your anonymised data fit. You'd get a share of the profit."
+                "12 hours of your recordings fit. You'd get a share of the profit."
                     .to_string()
             )
         );
@@ -2017,29 +1303,6 @@ mod tests {
         assert!(buyer_message("en", 1, true)
             .1
             .starts_with("1 Stunde deiner"));
-    }
-
-    #[test]
-    fn names_numbers_and_contacts_stay_on_the_mac() {
-        let names: std::collections::HashSet<String> = ["anouk".to_string()].into();
-        let r = |t: &str, l: &str| withheld_reason(t, l, &names);
-        assert_eq!(r("Ich rufe dich morgen an.", "de"), None);
-        assert_eq!(r("Das kostet 30 Euro.", "de"), Some("number"));
-        assert_eq!(r("Das kostet dreißig Euro.", "de"), Some("number"));
-        assert_eq!(r("Schreib an a@b.de", "de"), Some("contact"));
-        assert_eq!(r("Frag mal Anouk danach.", "de"), Some("name"));
-        assert_eq!(r("Ich habe mit Thomas gesprochen.", "de"), Some("name"));
-        // German nouns are capitalised; that alone isn't a name.
-        assert_eq!(r("Das Meeting war gut.", "de"), None);
-        assert_eq!(r("Sounds good. I think so.", "en"), None);
-        assert_eq!(r("Then we ask Kowalski about it.", "en"), Some("name"));
-        // What got through the first version, from real meetings.
-        assert_eq!(r("Frag mal Fiona und Maxi.", "de"), Some("name"));
-        assert_eq!(r("Das läuft über EWTO.", "de"), Some("name"));
-        assert_eq!(r("Kalasar baut die Seite.", "de"), Some("name"));
-        assert_eq!(r("Die Kunden von Lumicare warten.", "de"), Some("name"));
-        assert_eq!(r("Dann hat Norman gesagt, es passt.", "de"), Some("name"));
-        assert_eq!(r("Ich glaube, die Idee ist gut.", "de"), None);
     }
 
     #[test]
@@ -2079,33 +1342,6 @@ mod tests {
     }
 
     #[test]
-    fn model_answers_count_as_names_unless_empty() {
-        assert!(!names_in_answer(r#"{"names": []}"#));
-        assert!(!names_in_answer("Sure.\n```json\n{\"names\": []}\n```"));
-        assert!(names_in_answer(r#"{"names": ["Schwabenhaus"]}"#));
-        // Anything unreadable is treated as a name: not sent.
-        assert!(names_in_answer("I can't tell."));
-        assert!(names_in_answer(""));
-    }
-
-    #[test]
-    fn the_name_check_only_asks_this_mac() {
-        assert!(on_this_mac("http://localhost:11434"));
-        assert!(on_this_mac("http://127.0.0.1:11434/"));
-        assert!(on_this_mac("http://[::1]:11434"));
-        assert!(!on_this_mac("http://192.168.2.10:11434"));
-        assert!(!on_this_mac("https://ollama.example.com"));
-    }
-
-    #[test]
-    fn capitalised_words_keep_hyphenated_names() {
-        assert_eq!(
-            capitalised_words("Und der Ast-Top ist ja fast eine Ein-Mann-Show, oder?"),
-            vec!["Und", "Ast-Top", "Ein-Mann-Show"]
-        );
-    }
-
-    #[test]
     fn dictations_set_to_auto_get_their_language_from_the_text() {
         assert_eq!(language_of(Some("de-DE"), "whatever"), "de");
         assert_eq!(
@@ -2121,43 +1357,6 @@ mod tests {
                 "Ich glaube, das ist halt immer so der Winkel von mir."
             ),
             "de"
-        );
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn names_alone_are_caught_even_when_missed_in_context() {
-        assert_eq!(
-            apple_name_check(
-                "Und der Ast-Top ist ja auch fast eine Ein-Mann-Show mit seiner Frau.",
-                "de"
-            ),
-            Some("name")
-        );
-        assert_eq!(
-            apple_name_check("Wir sollten den Verkaufsprozess nochmal anschauen.", "de"),
-            None
-        );
-    }
-
-    /// Needs Ollama with qwen3.5:9b: `cargo test --lib model_check_live -- --ignored`.
-    #[test]
-    #[ignore]
-    fn model_check_live() {
-        let m = LocalModel {
-            base: "http://localhost:11434".into(),
-            model: "qwen3.5:9b".into(),
-        };
-        assert!(model_finds_names(
-            &m,
-            "Oder auch wie Schwabenhaus, die das auch selber machen."
-        )
-        .unwrap());
-        assert!(
-            model_finds_names(&m, "Ich war gestern bei Lumicare, Norman übernimmt das.").unwrap()
-        );
-        assert!(
-            !model_finds_names(&m, "Wir sollten den Verkaufsprozess nochmal anschauen.").unwrap()
         );
     }
 }

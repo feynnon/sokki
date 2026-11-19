@@ -1017,6 +1017,7 @@
     "untitled": "Meeting ohne Titel",
     "openNote": "Notiz öffnen",
     "reprocess": "Neu verarbeiten",
+    "tryAgain": "Erneut versuchen",
     "delete": "Meeting und Audio löschen",
     "stage": {
       "waiting": "Wartet auf Verarbeitung…",
@@ -1096,9 +1097,34 @@
     "details": {
       "summary": "Zusammenfassung",
       "copyTranscript": "Transkript kopieren",
+      "copySummary": "Zusammenfassung kopieren",
+      "savePage": "Als Webseite speichern",
+      "savePageHint": "Titel, Datum und Zusammenfassung in einer Datei, die jeder Browser öffnet. Ohne Transkript.",
+      "saved": "Gespeichert",
       "copied": "Kopiert",
       "transcript": "Transkript",
       "noSummary": "Dieses Meeting hat keine Zusammenfassung."
+    },
+    "phone": {
+      "title": "Telefon",
+      "description": "Nimm mit der Sokki-App auf dem Telefon auf; dieser Mac macht daraus eine Notiz.",
+      "enable": "Aufnahmen vom Telefon annehmen",
+      "enableDescription": "Direkt und verschlüsselt, aus jedem Netz. Nichts wird dazwischen gespeichert: Ist dieser Mac aus, bleibt die Aufnahme auf dem Telefon, bis du sie erneut sendest.",
+      "pair": "Telefon koppeln",
+      "pairDescription": "Scanne diesen Code in der Sokki-App auf deinem Telefon. Oder kopiere ihn und füge ihn dort ein.",
+      "copy": "Code kopieren",
+      "copied": "Kopiert",
+      "code": "Kopplungscode",
+      "codeDescription": "Ein neuer Code verhindert, dass neue Telefone sich mit dem alten koppeln. Gekoppelte Telefone funktionieren weiter.",
+      "renew": "Neuer Code",
+      "phones": "Gekoppelte Telefone",
+      "noPhones": "Noch kein Telefon gekoppelt.",
+      "phone": "Telefon",
+      "pairedOn": "gekoppelt {{date}}",
+      "remove": "Entfernen",
+      "invite": "Telefon einrichten",
+      "inviteDescription": "Öffnet dein Mail-Programm mit der Anleitung für dein Telefon und andere Geräte. Schick sie dir selbst.",
+      "inviteButton": "Anleitung per Mail"
     }
   },
   "sokki": {
@@ -1107,7 +1133,8 @@
       "vocabulary": "Wörterbuch",
       "settings": "Einstellungen",
       "sound": "Ton",
-      "voice": "Deine Daten"
+      "voice": "Deine Daten",
+      "sponsor": "Spenden"
     },
     "keep": {
       "title": "Aufnahmen behalten",
@@ -1146,7 +1173,9 @@
       "textInput": "Texteingabe",
       "transcription": "Transkription",
       "basedOn": "basiert auf Handy",
-      "version": "Sokki {{version}}"
+      "version": "Sokki {{version}}",
+      "sharing": "Teilen",
+      "sharers": "{{people}}+ Personen teilen ihre Aufnahmen."
     },
     "sound": {
       "title": "Ton",
@@ -1174,9 +1203,13 @@
         "text": "Fehler und Nutzung teilen, unter einer zufälligen ID.",
         "link": "Was geteilt wird"
       },
+      "buyers": {
+        "title": "Frag mich, wenn es einen Käufer gibt",
+        "text": "Deine Aufnahmen bleiben auf diesem Mac. Will eine Firma Aufnahmen wie deine kaufen, fragt Sokki dich zuerst, und du bekämst einen Anteil am Gewinn."
+      },
       "support": {
-        "title": "Unterstütze Sokki & Open Source",
-        "text": "Teile deine anonymisierten Audiodaten und Transkripte.",
+        "title": "Alle meine Aufnahmen teilen",
+        "text": "Deine Stimme und alles, was du sagst, als Audio und Text, auch Namen und Zahlen.",
         "link": "Was das bedeutet"
       },
       "sharedSheet": {
@@ -1188,8 +1221,16 @@
         "footer": "Nie, was du gesagt hast, keine Aufnahmen, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit unter „Deine Daten“ abschaltbar."
       },
       "supportSheet": {
-        "text": "Sokki prüft jede Aufnahme auf diesem Mac. Geteilt werden nur die ohne Namen, Zahlen oder Kontaktdaten. Sokki darf sie frei nutzen: um Sokki zu verbessern, für offene Spracherkennungsmodelle und um sie weiterzugeben oder zu verkaufen. Du wirst nicht noch einmal gefragt und bekommst keinen Anteil an einem Verkauf.",
-        "footer": "Nur deine eigenen Aufnahmen. Du kannst jederzeit aufhören; bereits genutzte Daten lassen sich nicht zurückholen."
+        "text": "Jede neue Aufnahme geht mit ihrem Transkript unverändert an Sokki. Sokki darf sie nutzen, um Sokki zu verbessern, für Open-Source-Sprachmodelle, und sie weitergeben oder verkaufen. Am Verkauf bist du nicht beteiligt.",
+        "footer": "Nur die Stellen, an denen du sprichst, nicht die anderen im Meeting. Du kannst jederzeit aufhören; schon Genutztes lässt sich nicht zurückholen."
+      },
+      "buyer": {
+        "title": "Jemand möchte Daten auf {{language}}",
+        "text_one": "{{count}} Stunde deiner Aufnahmen passt. Du bekämst einen Anteil am Gewinn.",
+        "text_other": "{{count}} Stunden deiner Aufnahmen passen. Du bekämst einen Anteil am Gewinn.",
+        "interested": "Ich bin interessiert",
+        "no": "Kein Interesse",
+        "thanks": "Danke. Bevor etwas verkauft wird, siehst du genau was und für wie viel, und entscheidest dann."
       },
       "ok": "OK",
       "onThisMac": "Auf diesem Mac: {{duration}} deiner Aufnahmen · {{size}}",
@@ -1200,10 +1241,7 @@
       "fromMeetings": "Meetings (dein Mikrofon)",
       "otherLanguage": "Andere",
       "notice": "Nachricht von Sokki",
-      "community_one": "{{count}} Person hilft, Sokki zu verbessern.",
-      "community_other": "{{count}} Personen helfen, Sokki zu verbessern.",
-      "communityDonors_one": "{{count}} Person hilft, Sokki zu verbessern; {{donors}} unterstützen Sokki & Open Source.",
-      "communityDonors_other": "{{count}} Personen helfen, Sokki zu verbessern; {{donors}} davon unterstützen Sokki & Open Source.",
+      "community": "{{people}}+ Personen helfen, Sokki zu verbessern.",
       "showFolder": "Ordner zeigen",
       "deleteRecordings": "Meine Aufnahmen löschen",
       "deleteRecordingsAsk": "{{duration}} deiner Aufnahmen endgültig löschen?",
@@ -1213,9 +1251,28 @@
       "delete": "Löschen",
       "cancel": "Abbrechen",
       "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal.",
-      "donated": "Bisher geteilt: {{duration}}.",
-      "withheld_one": "{{count}} Aufnahme bleibt auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthält.",
-      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten."
+      "donated": "Bisher geteilt: {{duration}}."
+    },
+    "milestone": {
+      "title": "{{hours}} Stunden mit Sokki",
+      "body": "So viel hat Sokki für dich mitgeschrieben, alles auf diesem Mac. Sokki bleibt kostenlos. Ist dir das 5 € wert, unterstütze es.",
+      "sponsor": "Spenden",
+      "save": "Bild speichern",
+      "saved": "Gespeichert",
+      "notNow": "Nicht jetzt",
+      "pictureHours": "{{hours}} Stunden",
+      "pictureLine": "auf meinem Mac transkribiert, mit Sokki"
+    },
+    "phoneCard": {
+      "title": "Sokki auch auf dem Handy",
+      "body": "Nimm Gespräche im Raum auf und diktiere in jeder App. Die Notizen landen hier auf deinem Mac.",
+      "scan": "Mit der Handykamera scannen",
+      "copy": "Link kopieren",
+      "copied": "Kopiert",
+      "email": "Per Mail an mich",
+      "notNow": "Nicht jetzt",
+      "mailSubject": "Sokki fürs Handy",
+      "mailBody": "Öffne das auf deinem Handy, um Sokki zu bekommen:"
     }
   }
 }

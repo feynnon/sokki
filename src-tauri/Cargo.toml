@@ -56,6 +56,7 @@ rtrb = "0.4"
 flacenc = "0.5.1"
 # Meeting notes (this fork): pipeline, Markdown notes, summaries.
 meeting-core = { path = "../crates/meeting-core" }
+sokki-engine = { path = "../crates/sokki-engine" }
 # Speaker separation (Sortformer via transcribe-cpp) and voice profiles (sherpa-onnx).
 diarize = { path = "../crates/diarize" }
 # Checking the summary model server from the settings page (same as meeting-core).
@@ -91,6 +92,10 @@ regex = "1"
 whatlang = "0.16"
 isolang = "2"
 chrono = "0.4"
+# Phone link: the phone app sends recordings to this Mac (meeting/phone_link.rs).
+# Phone link: direct, end-to-end encrypted connection to the phone app.
+sokki-link = { path = "../crates/sokki-link" }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.10"
 base64 = "0.22"

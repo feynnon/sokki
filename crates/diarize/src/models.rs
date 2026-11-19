@@ -31,7 +31,7 @@ pub struct ModelFile {
 /// pyannote segmentation 3.0, ONNX export by sherpa-onnx (MIT).
 pub const PYANNOTE_SEGMENTATION: ModelFile = ModelFile {
     path: "sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
-    url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx",
+    url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/model.onnx",
     sha256: "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
     size: 5_992_913,
 };
@@ -86,8 +86,12 @@ impl EmbeddingModel {
             ($name:literal, $sha:literal, $size:literal) => {
                 ModelFile {
                     path: $name,
+                    // A fixed Hugging Face revision: sherpa-onnx replaced
+                    // these files in their GitHub release on 2026-11-19 (new
+                    // exports, new hashes), which broke every fresh download.
+                    // A pinned revision cannot change under us.
                     url: concat!(
-                        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/",
+                        "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/0743f301363dec56491a490f6d6cbc9d67f9a3bf/",
                         $name
                     ),
                     sha256: $sha,
@@ -145,8 +149,41 @@ pub fn ensure(dir: &Path, file: &ModelFile, allow_download: bool) -> Result<Path
             file.url
         );
     }
-    download(file, &dest)?;
+    // One more try after a failed download: a dropped connection or a
+    // corrupt transfer is usually gone the second time. A file that is
+    // wrong both times (the source replaced it) fails with the real reason.
+    if let Err(first) = download(file, &dest) {
+        log::warn!("Model download failed, trying once more: {first:#}");
+        download(file, &dest)?;
+    }
     Ok(dest)
+}
+
+/// Like [`ensure`], then loads the file with `load`. When a cached file does
+/// not load (damaged on disk although its size is right), it is deleted and
+/// downloaded once more before giving up, so a bad file cannot break
+/// loading for good.
+#[cfg(feature = "download")]
+pub fn ensure_and_load<T>(
+    dir: &Path,
+    file: &ModelFile,
+    allow_download: bool,
+    load: impl Fn(&Path) -> Result<T>,
+) -> Result<T> {
+    let path = ensure(dir, file, allow_download)?;
+    match load(&path) {
+        Ok(v) => Ok(v),
+        Err(e) if allow_download => {
+            log::warn!(
+                "Model {} did not load ({e:#}); downloading it again",
+                path.display()
+            );
+            let _ = fs::remove_file(&path);
+            let path = ensure(dir, file, allow_download)?;
+            load(&path)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(feature = "download")]
@@ -215,6 +252,91 @@ mod tests {
             assert_eq!(m.file().sha256.len(), 64);
             assert_eq!(EmbeddingModel::from_id(m.id()), Some(m));
         }
+    }
+
+    /// A local HTTP server that answers the n-th request with `bodies[n]`
+    /// (the last one repeats). Returns the URL.
+    #[cfg(feature = "download")]
+    fn serve(bodies: Vec<&'static [u8]>) -> &'static str {
+        use std::io::{BufRead, BufReader};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/model.bin", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for (n, stream) in listener.incoming().enumerate() {
+                let mut stream = stream.unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                while reader.read_line(&mut line).unwrap_or(0) > 2 {
+                    line.clear();
+                }
+                let body = bodies[n.min(bodies.len() - 1)];
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(body);
+            }
+        });
+        Box::leak(url.into_boxed_str())
+    }
+
+    #[cfg(feature = "download")]
+    fn test_file(url: &'static str, content: &[u8], path: &'static str) -> ModelFile {
+        ModelFile {
+            path,
+            url,
+            sha256: Box::leak(hex(&Sha256::digest(content)).into_boxed_str()),
+            size: content.len() as u64,
+        }
+    }
+
+    #[cfg(feature = "download")]
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("diarize-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[cfg(feature = "download")]
+    #[test]
+    fn a_corrupt_download_is_tried_once_more() {
+        let url = serve(vec![b"garbage!", b"the model"]);
+        let file = test_file(url, b"the model", "retry.bin");
+        let dir = temp_dir("retry");
+        let path = ensure(&dir, &file, true).unwrap();
+        assert_eq!(fs::read(path).unwrap(), b"the model");
+    }
+
+    #[cfg(feature = "download")]
+    #[test]
+    fn a_replaced_upstream_file_fails_with_the_checksum() {
+        let url = serve(vec![b"new export"]);
+        let file = test_file(url, b"the model", "replaced.bin");
+        let dir = temp_dir("replaced");
+        let err = ensure(&dir, &file, true).unwrap_err();
+        assert!(err.to_string().contains("checksum mismatch"), "{err}");
+        assert!(!dir.join("replaced.bin").exists());
+    }
+
+    #[cfg(feature = "download")]
+    #[test]
+    fn a_damaged_cached_file_is_downloaded_again() {
+        let url = serve(vec![b"the model"]);
+        let file = test_file(url, b"the model", "damaged.bin");
+        let dir = temp_dir("damaged");
+        fs::create_dir_all(&dir).unwrap();
+        // Right size, wrong content: `ensure` alone would trust it.
+        fs::write(dir.join("damaged.bin"), b"the m0del").unwrap();
+        let loaded = ensure_and_load(&dir, &file, true, |p| {
+            let bytes = fs::read(p)?;
+            if bytes != b"the model" {
+                bail!("bad model");
+            }
+            Ok(bytes)
+        })
+        .unwrap();
+        assert_eq!(loaded, b"the model");
     }
 
     #[cfg(feature = "download")]

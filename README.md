@@ -96,4 +96,5 @@ Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais, whic
 
 ## License
 
-[MIT](LICENSE) © 2025 CJ Pais, © 2026 Robin Dehde.
+- **Mac app and shared code** (everything outside `mobile/`): [MIT](LICENSE) © 2025 CJ Pais, © 2026 Robin Dehde.
+- **Android app** (`mobile/`): [GPL-3.0](mobile/LICENSE), because its keyboard is built on [HeliBoard](https://github.com/HeliBorg/HeliBoard). The shared Rust crates it uses (`crates/`) stay MIT.

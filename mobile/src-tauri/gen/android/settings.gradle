@@ -1,0 +1,6 @@
+include ':app'
+// The Sokki keyboard (HeliBoard, GPL-3.0): mobile/keyboard
+include ':keyboard'
+project(':keyboard').projectDir = new File(settingsDir, '../../../keyboard')
+
+apply from: 'tauri.settings.gradle'

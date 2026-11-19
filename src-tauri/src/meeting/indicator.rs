@@ -5,7 +5,14 @@
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "meeting_indicator";
-const WIDTH: f64 = 174.0;
+/// Sokki's pill also has the heads-up button.
+fn width() -> f64 {
+    if crate::brand::is_sokki() {
+        204.0
+    } else {
+        174.0
+    }
+}
 const HEIGHT: f64 = 36.0;
 
 pub fn show(app: &AppHandle) {
@@ -22,7 +29,7 @@ pub fn show(app: &AppHandle) {
             WebviewUrl::App("src/meeting-indicator/index.html".into()),
         )
         .title("Meeting Recording")
-        .inner_size(WIDTH, HEIGHT)
+        .inner_size(width(), HEIGHT)
         .position(x, y)
         .decorations(false)
         .transparent(true)
@@ -60,7 +67,7 @@ fn position(app: &AppHandle) -> (f64, f64) {
             let scale = m.scale_factor();
             let pos = m.position().to_logical::<f64>(scale);
             let size = m.size().to_logical::<f64>(scale);
-            (pos.x + (size.width - WIDTH) / 2.0, pos.y + 34.0)
+            (pos.x + (size.width - width()) / 2.0, pos.y + 34.0)
         }
         None => (600.0, 34.0),
     }

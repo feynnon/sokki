@@ -1,0 +1,13 @@
+#!/bin/bash
+# Starts the "Try Omarchy" VM (Apple Silicon Mac) with SSH on localhost:2222
+# and <repo>/vm-share shared as ~/vm-share in the guest. Runs until the VM
+# shuts down; start it in the background.
+REPO=$(cd "$(dirname "$0")/../../.." && pwd)
+mkdir -p "$REPO/vm-share"
+# 4 GB: more, next to Docker and Rust builds, froze a 32 GB Mac (2026-11-19).
+# Shut the VM down right after a test: ./stop-vm
+cd /tmp && OMARCHY_QEMU_GPU_MEMORY_MIB="${OMARCHY_QEMU_GPU_MEMORY_MIB:-4096}" \
+  OMARCHY_QEMU_GPU_PORT_FORWARDS="tcp:2222:22" \
+  OMARCHY_QEMU_GPU_SHARED_FOLDER="$REPO/vm-share" \
+  OMARCHY_QEMU_GPU_IMMERSIVE=0 \
+  exec bash "/Applications/Try Omarchy.app/Contents/Resources/scripts/run-qemu-gpu.sh"

@@ -194,7 +194,9 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
     }
 
     // Initialize shortcuts
-    crate::shortcut::init_shortcuts(&app);
+    if !crate::shortcut::init_shortcuts(&app) {
+        return Err("Shortcuts wait for Accessibility".into());
+    }
 
     // Mark as initialized before reconciling the macOS Secure Input fallback.
     app.manage(ShortcutsInitialized);

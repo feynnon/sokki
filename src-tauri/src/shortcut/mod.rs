@@ -31,12 +31,13 @@ use crate::tray;
 
 // Note: Commands are accessed via shortcut::handy_keys:: in lib.rs
 
-/// Initialize shortcuts using the configured implementation
-pub fn init_shortcuts(app: &AppHandle) {
+/// Initialize shortcuts using the configured implementation. Returns false
+/// when they have to wait for Accessibility (the keyboard hook needs it).
+pub fn init_shortcuts(app: &AppHandle) -> bool {
     // Test mode is driven from outside; no keyboard hook, no shortcuts.
     if crate::test_mic::active() {
         log::info!("Test mode: no keyboard shortcuts");
-        return;
+        return true;
     }
     let user_settings = settings::load_or_create_app_settings(app);
 
@@ -46,6 +47,12 @@ pub fn init_shortcuts(app: &AppHandle) {
             tauri_impl::init_shortcuts(app);
         }
         KeyboardImplementation::HandyKeys => {
+            // Without the permission, creating the hook would show macOS's
+            // permission window; the Accessibility watch starts it later.
+            if !crate::accessibility::trusted() {
+                info!("Shortcuts wait for Accessibility");
+                return false;
+            }
             if let Err(e) = handy_keys::init_shortcuts(app) {
                 error!("Failed to initialize handy-keys shortcuts: {}", e);
                 // Fall back to Tauri implementation and persist this fallback
@@ -63,6 +70,7 @@ pub fn init_shortcuts(app: &AppHandle) {
             info!("Built-in keyboard shortcuts disabled; use CLI flags or signals");
         }
     }
+    true
 }
 
 /// Whether the recording lifecycle currently wants the cancel shortcut.

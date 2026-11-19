@@ -622,6 +622,9 @@ mod imp {
     /// individual events is logged or returned.
     pub async fn run_diagnostic(duration_secs: u32) -> Result<KeyboardDiagnosticReport, String> {
         tauri::async_runtime::spawn_blocking(move || {
+            if !crate::accessibility::trusted() {
+                return Err("Accessibility is not granted".to_string());
+            }
             let listener = handy_keys::KeyboardListener::new()
                 .map_err(|e| format!("Failed to create keyboard listener: {e}"))?;
 

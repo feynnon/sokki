@@ -88,18 +88,7 @@ pub struct FrontendKeyEvent {
 impl HandyKeysState {
     /// Create a new HandyKeysState
     pub fn new(app: AppHandle) -> Result<Self, String> {
-        let (cmd_tx, cmd_rx) = mpsc::channel::<ManagerCommand>();
-
-        // Start the manager thread
-        let app_clone = app.clone();
-        // Create the manager here rather than inside the thread so a startup
-        // failure (e.g. missing Accessibility permission) reaches the caller,
-        // which can then fall back to the Tauri implementation.
-        let manager = HotkeyManager::new_with_blocking()
-            .map_err(|e| format!("Failed to create HotkeyManager: {e}"))?;
-        let thread_handle = thread::spawn(move || {
-            Self::manager_thread(cmd_rx, app_clone, manager);
-        });
+        let (cmd_tx, thread_handle) = Self::spawn_manager(&app)?;
 
         Ok(Self {
             command_sender: Mutex::new(cmd_tx),
@@ -109,6 +98,60 @@ impl HandyKeysState {
             recording_binding_id: Mutex::new(None),
             recording_running: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    /// Creates the keyboard hook and the thread that owns it. Refuses without
+    /// Accessibility: creating the hook then makes macOS show its permission
+    /// window (see `crate::accessibility`).
+    fn spawn_manager(app: &AppHandle) -> Result<(Sender<ManagerCommand>, JoinHandle<()>), String> {
+        if !crate::accessibility::trusted() {
+            return Err("Accessibility is not granted".into());
+        }
+        let (cmd_tx, cmd_rx) = mpsc::channel::<ManagerCommand>();
+        let app_clone = app.clone();
+        // Create the manager here rather than inside the thread so a startup
+        // failure reaches the caller.
+        let manager = HotkeyManager::new_with_blocking()
+            .map_err(|e| format!("Failed to create HotkeyManager: {e}"))?;
+        let thread_handle = thread::spawn(move || {
+            Self::manager_thread(cmd_rx, app_clone, manager);
+        });
+        Ok((cmd_tx, thread_handle))
+    }
+
+    /// Removes the keyboard hook (and a running shortcut capture) but keeps
+    /// this state, so `resume` can bring the hook back.
+    fn suspend(&self) {
+        let _ = self.stop_recording();
+        if let Ok(sender) = self.command_sender.lock() {
+            let _ = sender.send(ManagerCommand::Shutdown);
+        }
+        if let Ok(mut handle) = self.thread_handle.lock() {
+            if let Some(h) = handle.take() {
+                let _ = h.join();
+            }
+        }
+    }
+
+    /// Recreates the keyboard hook after `suspend` and registers the bindings
+    /// again. Does nothing while the hook is running.
+    fn resume(&self, app: &AppHandle) -> Result<(), String> {
+        let mut handle = self
+            .thread_handle
+            .lock()
+            .map_err(|_| "Failed to lock thread_handle")?;
+        if handle.is_some() {
+            return Ok(());
+        }
+        let (cmd_tx, thread_handle) = Self::spawn_manager(app)?;
+        *self
+            .command_sender
+            .lock()
+            .map_err(|_| "Failed to lock command_sender")? = cmd_tx;
+        *handle = Some(thread_handle);
+        drop(handle);
+        register_all(app, self);
+        Ok(())
     }
 
     /// The main manager thread - owns the HotkeyManager and processes commands
@@ -261,6 +304,9 @@ impl HandyKeysState {
             return Err("Already recording".into());
         }
 
+        if !crate::accessibility::trusted() {
+            return Err("Accessibility is not granted".into());
+        }
         // Create a new keyboard listener for recording
         let listener = KeyboardListener::new()
             .map_err(|e| format!("Failed to create keyboard listener: {}", e))?;
@@ -420,7 +466,32 @@ pub fn validate_shortcut(raw: &str) -> Result<(), String> {
 /// Initialize handy-keys shortcuts
 pub fn init_shortcuts(app: &AppHandle) -> Result<(), String> {
     let state = HandyKeysState::new(app.clone())?;
+    register_all(app, &state);
+    app.manage(state);
+    info!("handy-keys shortcuts initialized");
+    Ok(())
+}
 
+/// Removes the keyboard hook, e.g. when Accessibility is switched off.
+pub fn suspend_hook(app: &AppHandle) {
+    if let Some(state) = app.try_state::<HandyKeysState>() {
+        state.suspend();
+        info!("handy-keys hook removed");
+    }
+}
+
+/// Brings the keyboard hook back after `suspend_hook`.
+pub fn resume_hook(app: &AppHandle) {
+    if let Some(state) = app.try_state::<HandyKeysState>() {
+        match state.resume(app) {
+            Ok(()) => info!("handy-keys hook running"),
+            Err(e) => error!("Could not bring the handy-keys hook back: {e}"),
+        }
+    }
+}
+
+/// Registers every binding from settings (cancel is registered per recording).
+fn register_all(app: &AppHandle, state: &HandyKeysState) {
     let default_bindings = settings::get_default_settings().bindings;
     let user_settings = settings::load_or_create_app_settings(app);
 
@@ -447,10 +518,6 @@ pub fn init_shortcuts(app: &AppHandle) -> Result<(), String> {
             );
         }
     }
-
-    app.manage(state);
-    info!("handy-keys shortcuts initialized");
-    Ok(())
 }
 
 /// Register a shortcut

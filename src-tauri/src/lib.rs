@@ -1,3 +1,4 @@
+mod accessibility;
 mod actions;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod apple_intelligence;
@@ -1067,6 +1068,13 @@ pub fn run(cli_args: CliArgs) {
         .manage(cli_args.clone())
         .manage(notices::NoticeStore::default())
         .setup(move |app| {
+            // The test copy only ever runs in test mode: started normally it
+            // would show setup and macOS's permission windows on the
+            // developer's screen.
+            if app.config().identifier == "dev.handymeetings.test" && !test_mic::active() {
+                log::warn!("Sokki Test starts only in test mode (SOKKI_TEST_MIC); quitting");
+                std::process::exit(0);
+            }
             #[cfg(target_os = "windows")]
             log::info!(
                 "Vulkan layer policy: VK_LOADER_LAYERS_DISABLE={:?}, HANDY_KEEP_VULKAN_IMPLICIT_LAYERS={}",
@@ -1230,6 +1238,10 @@ pub fn run(cli_args: CliArgs) {
             // silently blocks keyed shortcuts, warns the user, and activates
             // the Carbon fallback. See secure_input.rs and issue #1578.
             secure_input::init(&app_handle);
+
+            // Keeps the keyboard hook in step with the Accessibility switch:
+            // a hook left running while the switch goes off freezes all input.
+            accessibility::start_watch(&app_handle);
 
             // Populate the overlay-enabled cache from initial settings so the
             // audio path (overlay::emit_levels, called ~24 Hz during recording)

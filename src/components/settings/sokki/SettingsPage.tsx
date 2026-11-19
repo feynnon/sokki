@@ -21,6 +21,7 @@ import { TranslateToEnglish } from "../TranslateToEnglish";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { LogDirectory } from "../debug/LogDirectory";
 import { KeepRecordings } from "./KeepRecordings";
+import { SoundGroup } from "./SoundPage";
 import { Page, PageHeader, Segmented } from "./parts";
 
 /** Classic / Mini / None, as Superwhisper calls it. */
@@ -196,6 +197,7 @@ export const SokkiSettingsPage: React.FC = () => {
           description={t("sokki.settings.startMeetingDescription")}
         />
       </SettingsGroup>
+      <SoundGroup />
       <SettingsGroup title={t("sokki.settings.application")}>
         <AutostartToggle descriptionMode="inline" grouped />
         <KeepRecordings />

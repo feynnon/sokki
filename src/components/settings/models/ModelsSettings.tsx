@@ -152,7 +152,13 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
           grades are for. */}
       <div className="mb-[16px] flex flex-none items-center justify-between gap-[12px] px-[12px]">
         <div className="flex items-center gap-[16px]">
-          <h1 className="text-xl font-semibold">
+          <h1
+            className={
+              IS_SOKKI
+                ? "text-[22px] font-semibold tracking-[-0.01em]"
+                : "text-xl font-semibold"
+            }
+          >
             {t("settings.models.title")}
           </h1>
           <div

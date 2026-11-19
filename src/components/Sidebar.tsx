@@ -40,7 +40,8 @@ export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 /** Sokki's sidebar: what you use, then how the app behaves (debug last). */
 const SOKKI_ORDER: SidebarSection[][] = [
   ["history", "meetings", "vocabulary", "voice"],
-  ["settings", "sound", "models"],
+  // Sound lives on the Settings page; Models keeps its own place.
+  ["settings", "models"],
   ["debug"],
 ];
 

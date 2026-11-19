@@ -34,7 +34,7 @@ Most useful keys:
 
 | What | Key |
 |---|---|
-| Notes folder | `meetings.notes_dir` (string path, `null` = `~/Documents/Handy Meetings`) |
+| Notes folder | `meetings.notes_dir` (string path, `null` = `~/Documents/Sokki`; existing installs keep `~/Documents/Handy Meetings`) |
 | Your name in transcripts | `meetings.user_name` |
 | Language model | `meetings.llm_provider` (`local`, `anthropic`, `openai`, `openrouter`), `meetings.llm_model` (local), `meetings.cloud_model` |
 | Keep audio | `meetings.keep_audio_days` |
@@ -48,7 +48,7 @@ Most useful keys:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `meetings.notes_dir` | `Option<String>` | `null` | Folder the Markdown notes are written to. `None`: ~/Documents/Handy Meetings. |
+| `meetings.notes_dir` | `Option<String>` | `null` | Folder the Markdown notes are written to. `None`: ~/Documents/Sokki (~/Documents/Handy Meetings in the Handy build). |
 | `meetings.user_name` | `String` | `"Ich"` | How the user is named in transcripts (the main voice on the microphone). |
 | `meetings.diarization_enabled` | `bool` | `true` | Separate speakers within each track. |
 | `meetings.correction_enabled` | `bool` | `true` | Fix misheard dictionary words (`glossary`) in the transcript with the language model before the summary. Only words that sound like a dictionary entry are changed; every change is listed at the end of the note. Without dictionary entries nothing is corrected. |

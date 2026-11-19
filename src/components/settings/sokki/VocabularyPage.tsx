@@ -85,7 +85,6 @@ export const SokkiVocabularyPage: React.FC = () => {
           </ul>
         )}
       </div>
-      <p className="px-1 text-xs text-ink-3">{t("sokki.vocabulary.note")}</p>
     </Page>
   );
 };

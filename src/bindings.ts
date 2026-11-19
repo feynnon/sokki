@@ -1599,7 +1599,8 @@ online?: boolean | null }
  */
 export type MeetingSettings = { 
 /**
- * Folder the Markdown notes are written to. `None`: ~/Documents/Handy Meetings.
+ * Folder the Markdown notes are written to. `None`: ~/Documents/Sokki
+ * (~/Documents/Handy Meetings in the Handy build).
  */
 notes_dir: string | null; 
 /**

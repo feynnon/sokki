@@ -32,7 +32,7 @@ import {
   useTranscriptionJobsStore,
   type ActiveJobStatus,
 } from "@/stores/transcriptionJobsStore";
-import { formatDateTime } from "@/utils/dateFormat";
+import { formatDateTime, formatShortDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
 import { copyToClipboard } from "./clipboard";
@@ -460,7 +460,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
-  const formattedDate = formatDateTime(String(entry.timestamp), i18n.language);
+  const formattedDate = (IS_SOKKI ? formatShortDateTime : formatDateTime)(
+    String(entry.timestamp),
+    i18n.language,
+  );
 
   let progressText = t("settings.history.transcribing");
   if (job?.state === "queued") {
@@ -472,10 +475,27 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   }
 
   return (
-    <div className="px-4 py-2 pb-5 flex flex-col gap-3">
+    <div className="group px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <p className="text-sm font-medium shrink-0">{formattedDate}</p>
+          <p
+            className={
+              IS_SOKKI
+                ? "text-[13px] text-ink-3 shrink-0"
+                : "text-sm font-medium shrink-0"
+            }
+          >
+            {formattedDate}
+          </p>
+          {IS_SOKKI && entry.saved && (
+            <Star
+              width={12}
+              height={12}
+              fill="currentColor"
+              className="shrink-0 text-ink-3"
+              aria-label={t("settings.history.unsave")}
+            />
+          )}
           {entry.source_name && (
             <span
               className="flex items-center gap-1 min-w-0 text-sm text-ink-3"
@@ -486,7 +506,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center shrink-0">
+        {/* Sokki: the entry's actions show on hover or keyboard focus. */}
+        <div
+          className={`flex items-center shrink-0 ${IS_SOKKI ? "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100" : ""}`}
+        >
           <IconButton
             onClick={handleCopyText}
             disabled={!hasTranscription || retrying}
@@ -544,7 +567,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       <div className="flex flex-col items-start gap-1 pb-2">
         <p
           ref={textRef}
-          className={`italic text-sm w-full ${
+          className={`${IS_SOKKI ? "text-[15px] leading-[24px]" : "italic text-sm"} w-full ${
             retrying
               ? ""
               : hasTranscription

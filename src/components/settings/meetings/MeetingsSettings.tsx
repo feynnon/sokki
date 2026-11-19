@@ -26,7 +26,7 @@ import {
   type MeetingSettings as MeetingSettingsType,
 } from "@/bindings";
 import { useSettings } from "../../../hooks/useSettings";
-import { formatDateTime } from "@/utils/dateFormat";
+import { formatDateTime, formatShortDateTime } from "@/utils/dateFormat";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
@@ -268,7 +268,9 @@ const MeetingSettingsView: React.FC<{
   onBack: () => void;
 }> = ({ meetingSettings, save, onBack }) => {
   const { t } = useTranslation();
-  const notesDir = meetingSettings.notes_dir || "~/Documents/Handy Meetings";
+  const notesDir =
+    meetingSettings.notes_dir ||
+    (IS_SOKKI ? "~/Documents/Sokki" : "~/Documents/Handy Meetings");
   const chooseFolder = async () => {
     const dir = await openDialog({ directory: true, multiple: false });
     if (typeof dir === "string" && dir) await save({ notes_dir: dir });
@@ -321,6 +323,11 @@ const MeetingSettingsView: React.FC<{
         >
           <SavedInput
             value={meetingSettings.user_name}
+            className={
+              IS_SOKKI
+                ? "w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
+                : undefined
+            }
             onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
           />
         </SettingContainer>
@@ -513,24 +520,28 @@ export const MeetingsSettings: React.FC = () => {
           </div>
         )}
         {meetings.map((m) => (
-          <div key={m.id} className="px-4 py-3 space-y-1">
+          <div key={m.id} className="group px-4 py-3 space-y-1">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">
                   {m.title ?? t("meetings.untitled")}
                 </div>
                 <div className="text-xs text-ink-3">
-                  {formatDateTime(
+                  {(IS_SOKKI ? formatShortDateTime : formatDateTime)(
                     String(Date.parse(m.started_at) / 1000),
                     i18n.language,
                   )}{" "}
                   · {formatDuration(m.duration_s)}
                   {m.source_app && ` · ${m.source_app}`}
-                  {m.online != null &&
+                  {!IS_SOKKI &&
+                    m.online != null &&
                     ` · ${m.online ? t("meetings.online") : t("meetings.singleMic")}`}
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Sokki: the row's actions show on hover or keyboard focus. */}
+              <div
+                className={`flex items-center gap-1 shrink-0 ${IS_SOKKI ? "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100" : ""}`}
+              >
                 {m.note_path && (
                   <Button
                     variant="ghost"
@@ -553,8 +564,9 @@ export const MeetingsSettings: React.FC = () => {
                     </Button>
                   )}
                 <Button
-                  variant="danger-ghost"
+                  variant={IS_SOKKI ? "ghost" : "danger-ghost"}
                   size="sm"
+                  className={IS_SOKKI ? "hover:text-error" : undefined}
                   onClick={() =>
                     void commands.deleteMeeting(m.id).then(() => reload())
                   }

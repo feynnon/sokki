@@ -581,7 +581,8 @@ pub struct AppSettings {
 #[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[serde(default)]
 pub struct MeetingSettings {
-    /// Folder the Markdown notes are written to. `None`: ~/Documents/Handy Meetings.
+    /// Folder the Markdown notes are written to. `None`: ~/Documents/Sokki
+    /// (~/Documents/Handy Meetings in the Handy build).
     pub notes_dir: Option<String>,
     /// How the user is named in transcripts (the main voice on the microphone).
     pub user_name: String,
@@ -651,8 +652,35 @@ impl MeetingSettings {
     pub fn notes_dir_path(&self) -> std::path::PathBuf {
         match self.notes_dir.as_deref().map(str::trim) {
             Some(dir) if !dir.is_empty() => std::path::PathBuf::from(dir),
-            _ => dirs_home().join("Documents").join("Handy Meetings"),
+            _ => default_notes_dir(),
         }
+    }
+}
+
+/// ~/Documents/Sokki, or ~/Documents/Handy Meetings in the Handy build.
+pub fn default_notes_dir() -> std::path::PathBuf {
+    let name = if crate::brand::is_sokki() {
+        "Sokki"
+    } else {
+        "Handy Meetings"
+    };
+    dirs_home().join("Documents").join(name)
+}
+
+/// Before schema 5 every Sokki install wrote notes to ~/Documents/Handy
+/// Meetings by default. If that folder exists and no folder was chosen,
+/// pin it, so changing the default never moves anyone's notes.
+fn keep_old_notes_folder(meetings: &mut MeetingSettings, old: &std::path::Path) -> bool {
+    let unset = meetings
+        .notes_dir
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(str::is_empty);
+    if unset && old.is_dir() {
+        meetings.notes_dir = Some(old.to_string_lossy().into_owned());
+        true
+    } else {
+        false
     }
 }
 
@@ -666,7 +694,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 4;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 5;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -1467,6 +1495,12 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 5 {
+        let old = dirs_home().join("Documents").join("Handy Meetings");
+        keep_old_notes_folder(&mut settings.meetings, &old);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -1948,6 +1982,29 @@ mod tests {
     fn default_overlay_style_is_live_when_overlay_defaults_on() {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Live);
+    }
+
+    #[test]
+    fn an_existing_notes_folder_is_kept() {
+        let dir = std::env::temp_dir().join(format!("sokki-notes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut m = MeetingSettings::default();
+        assert!(keep_old_notes_folder(&mut m, &dir));
+        assert_eq!(m.notes_dir.as_deref(), Some(dir.to_string_lossy().as_ref()));
+
+        // A chosen folder stays.
+        let mut m = MeetingSettings {
+            notes_dir: Some("/x/y".into()),
+            ..Default::default()
+        };
+        assert!(!keep_old_notes_folder(&mut m, &dir));
+        assert_eq!(m.notes_dir.as_deref(), Some("/x/y"));
+
+        // No old folder: the new default applies.
+        let mut m = MeetingSettings::default();
+        assert!(!keep_old_notes_folder(&mut m, &dir.join("missing")));
+        assert_eq!(m.notes_dir, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

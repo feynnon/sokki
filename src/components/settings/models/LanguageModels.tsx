@@ -52,7 +52,7 @@ export const LANGUAGE_MODELS: {
   },
   {
     value: "openrouter|anthropic/claude-sonnet-5.5",
-    name: "Claude Sonnet 5.5",
+    name: "Claude Sonnet 5.5 via OpenRouter",
     lineKey: "meetings.lm.openrouter",
     right: "OpenRouter",
   },

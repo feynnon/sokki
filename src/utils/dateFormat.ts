@@ -125,3 +125,50 @@ export const formatRelativeTime = (
     return formatDateTime(timestamp, locale); // Fallback to absolute time
   }
 };
+
+/**
+ * Short date and time for lists: "Today, 09:25", "Yesterday, 17:08",
+ * "18 Nov, 17:08", "18 Nov 2025, 17:08". Words in the app's language; the
+ * clock (12 or 24 hours) follows the system.
+ * @param timestamp - Unix timestamp in seconds (as string)
+ */
+export const formatShortDateTime = (
+  timestamp: string,
+  locale: string,
+): string => {
+  const date = new Date(parseInt(timestamp, 10) * 1000);
+  if (isNaN(date.getTime())) return timestamp;
+  try {
+    const hourCycle = new Intl.DateTimeFormat(
+      typeof navigator !== "undefined" ? navigator.language : locale,
+      { hour: "numeric" },
+    ).resolvedOptions().hourCycle;
+    const time = new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle,
+    }).format(date);
+    const startOf = (d: Date) =>
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((startOf(new Date()) - startOf(date)) / 86_400_000);
+    let day: string;
+    if (days === 0 || days === 1) {
+      const rel = new Intl.RelativeTimeFormat(locale, {
+        numeric: "auto",
+      }).format(-days, "day");
+      day = rel.charAt(0).toLocaleUpperCase(locale) + rel.slice(1);
+    } else {
+      day = new Intl.DateTimeFormat(locale, {
+        day: "numeric",
+        month: "short",
+        year:
+          date.getFullYear() === new Date().getFullYear()
+            ? undefined
+            : "numeric",
+      }).format(date);
+    }
+    return `${day}, ${time}`;
+  } catch {
+    return formatDateTime(timestamp, locale);
+  }
+};

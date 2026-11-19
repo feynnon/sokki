@@ -46,16 +46,18 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
         </div>
       );
     }
+    // Every control sits in a right column at least --vb-control-w wide, so
+    // dropdowns, pickers and keys share one right edge and one height.
     return (
       <div
-        className={`flex items-center justify-between gap-6 min-h-[56px] px-4 py-2.5 ${grouped ? "" : "vb-card"}`}
+        className={`flex items-center justify-between gap-8 min-h-[60px] px-4 py-3 ${grouped ? "" : "vb-card"}`}
       >
         <div className="min-w-0 flex-1">{label}</div>
         <div
           className={
             grow
               ? "relative flex min-w-0 flex-1 justify-end"
-              : "relative shrink-0"
+              : "relative flex shrink-0 justify-end min-w-[var(--vb-control-w)]"
           }
         >
           {children}

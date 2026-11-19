@@ -339,20 +339,20 @@
         "pressKeys": "Tasten drücken...",
         "bindings": {
           "transcribe": {
-            "name": "Transkriptions-Tastenkürzel",
-            "description": "Das Tastenkürzel zum Aufnehmen und Transkribieren deiner Stimme."
+            "name": "Diktat",
+            "description": "Sprich, und der Text landet am Cursor."
           },
           "cancel": {
-            "name": "Abbrechen-Tastenkürzel",
-            "description": "Das Tastenkürzel zum Abbrechen der aktuellen Aufnahme."
+            "name": "Abbrechen",
+            "description": "Beendet eine Aufnahme und verwirft sie."
           },
           "transcribe_with_post_process": {
             "name": "Nachbearbeitungs-Tastenkürzel",
             "description": "Optional: Ein dediziertes Tastenkürzel, das immer die KI-Nachbearbeitung auf deine Transkription anwendet."
           },
           "meeting": {
-            "name": "Meeting-Tastenkürzel",
-            "description": "Startet oder beendet die Aufnahme eines Meetings."
+            "name": "Meeting",
+            "description": "Startet oder beendet ein Meeting."
           }
         },
         "errors": {
@@ -382,8 +382,8 @@
         "weak": "Noch kein Modell erkennt {{languages}} gut."
       },
       "shortcutActivation": {
-        "title": "Verhalten der Tastenkombination",
-        "description": "Wähle aus, wie das Transkriptions-Tastenkürzel die Aufnahme startet und beendet.",
+        "title": "Verhalten der Taste",
+        "description": "Wie die Diktat-Taste startet und stoppt.",
         "options": {
           "holdOrToggle": "Automatisch",
           "pushToTalk": "Halten",
@@ -504,8 +504,8 @@
         "description": "In den Systembereich starten, ohne das Fenster zu öffnen."
       },
       "autostart": {
-        "label": "Beim Start ausführen",
-        "description": "Handy automatisch beim Anmelden starten."
+        "label": "Beim Anmelden öffnen",
+        "description": "Startet Handy, wenn du dich anmeldest."
       },
       "showTrayIcon": {
         "label": "Taskleistensymbol anzeigen",
@@ -977,12 +977,12 @@
     "errorsAndWarnings": "{{errors}}, {{warnings}}"
   },
   "appLanguage": {
-    "title": "Anwendungssprache",
-    "description": "Sprache der Handy-Oberfläche ändern"
+    "title": "Sprache",
+    "description": "Für Menüs und Einstellungen."
   },
   "theme": {
-    "title": "Anwendungsdesign",
-    "description": "Wählen Sie, ob Handy dem Systemthema folgt oder hell bzw. dunkel bleibt",
+    "title": "Design",
+    "description": "Wie das System, oder immer hell oder dunkel.",
     "options": {
       "system": "System",
       "light": "Hell",
@@ -1110,7 +1110,7 @@
     },
     "keep": {
       "title": "Aufnahmen behalten",
-      "description": "Ältere Diktate und Meeting-Audios werden gelöscht. Notizen und Transkripte bleiben.",
+      "description": "Ältere Audios werden gelöscht. Text bleibt.",
       "days3": "3 Tage",
       "weeks2": "2 Wochen",
       "months3": "3 Monate",

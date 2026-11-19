@@ -13,20 +13,27 @@
   --color-background-ui: #3567cc;
 }
 
-/* Surfaces: the page, a slightly lighter card, a darker sidebar. */
+/* Surfaces: the page, a slightly lighter card, a darker sidebar, and the
+   chosen segment of a picker (lighter than its track). */
 :root[data-brand="sokki"] {
   --vb-card: color-mix(in srgb, var(--color-text) 4%, var(--color-background));
   --vb-sidebar: color-mix(in srgb, black 18%, var(--color-background));
+  --vb-segment: color-mix(in srgb, var(--color-text) 16%, var(--color-background));
+  /* One size for every settings control. */
+  --vb-control-w: 232px;
+  --vb-control-h: 30px;
 }
 @media (prefers-color-scheme: light) {
   :root[data-brand="sokki"]:not([data-theme="dark"]) {
     --vb-card: #ffffff;
     --vb-sidebar: #eceef1;
+    --vb-segment: #ffffff;
   }
 }
 :root[data-brand="sokki"][data-theme="light"] {
   --vb-card: #ffffff;
   --vb-sidebar: #eceef1;
+  --vb-segment: #ffffff;
 }
 .vb-card {
   background: var(--vb-card);

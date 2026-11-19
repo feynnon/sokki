@@ -7,6 +7,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { useOsType } from "../../hooks/useOsType";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
 import { usePressAway } from "../../hooks/usePressAway";
+import { IS_SOKKI } from "@/lib/brand";
 
 interface ShortcutInputProps {
   descriptionMode?: "inline" | "tooltip";
@@ -105,30 +106,63 @@ export const ShortcutInput: React.FC<ShortcutInputProps> = ({
       disabled={disabled}
       layout="horizontal"
     >
-      <div className="flex items-center space-x-1">
-        {capturing ? (
-          <div
-            ref={shortcutRef}
-            className="px-2 py-1 text-sm font-semibold border border-logo-primary bg-logo-primary/20 rounded-md"
-          >
-            {partial
-              ? formatKeyCombination(partial, osType)
-              : t("settings.general.shortcut.pressKeys")}
-          </div>
-        ) : (
-          <div
-            className="px-2 py-1 text-sm font-semibold bg-wash border border-line-strong hover:bg-logo-primary/10 rounded-md cursor-pointer hover:border-logo-primary"
-            onClick={start}
-          >
-            {formatKeyCombination(binding.current_binding, osType)}
-          </div>
-        )}
-        <ResetButton
-          ariaLabel={t("common.resetSetting", { setting: translatedName })}
-          onClick={() => resetBinding(shortcutId)}
-          disabled={isUpdating(`binding_${shortcutId}`)}
-        />
-      </div>
+      {IS_SOKKI ? (
+        // The key itself, at the control height, right-aligned with the
+        // other controls; reset shows only once the shortcut was changed.
+        <div className="flex items-center gap-1.5">
+          {binding.current_binding !== binding.default_binding && (
+            <ResetButton
+              ariaLabel={t("common.resetSetting", { setting: translatedName })}
+              onClick={() => resetBinding(shortcutId)}
+              disabled={isUpdating(`binding_${shortcutId}`)}
+              className="text-ink-3"
+            />
+          )}
+          {capturing ? (
+            <div
+              ref={shortcutRef}
+              className="inline-flex h-[var(--vb-control-h)] items-center rounded-[8px] border border-logo-primary bg-logo-primary/15 px-3 text-[13px] font-medium"
+            >
+              {partial
+                ? formatKeyCombination(partial, osType)
+                : t("settings.general.shortcut.pressKeys")}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="inline-flex h-[var(--vb-control-h)] cursor-pointer items-center rounded-[8px] border border-line bg-wash px-3 text-[13px] font-medium transition-colors duration-150 hover:border-logo-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+              onClick={start}
+            >
+              {formatKeyCombination(binding.current_binding, osType)}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center space-x-1">
+          {capturing ? (
+            <div
+              ref={shortcutRef}
+              className="px-2 py-1 text-sm font-semibold border border-logo-primary bg-logo-primary/20 rounded-md"
+            >
+              {partial
+                ? formatKeyCombination(partial, osType)
+                : t("settings.general.shortcut.pressKeys")}
+            </div>
+          ) : (
+            <div
+              className="px-2 py-1 text-sm font-semibold bg-wash border border-line-strong hover:bg-logo-primary/10 rounded-md cursor-pointer hover:border-logo-primary"
+              onClick={start}
+            >
+              {formatKeyCombination(binding.current_binding, osType)}
+            </div>
+          )}
+          <ResetButton
+            ariaLabel={t("common.resetSetting", { setting: translatedName })}
+            onClick={() => resetBinding(shortcutId)}
+            disabled={isUpdating(`binding_${shortcutId}`)}
+          />
+        </div>
+      )}
     </SettingContainer>
   );
 };

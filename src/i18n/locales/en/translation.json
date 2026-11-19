@@ -339,20 +339,20 @@
         "pressKeys": "Press keys...",
         "bindings": {
           "transcribe": {
-            "name": "Transcribe Shortcut",
-            "description": "The keyboard shortcut to record and transcribe your voice."
+            "name": "Dictation",
+            "description": "Speak, and the text lands at your cursor."
           },
           "cancel": {
-            "name": "Cancel Shortcut",
-            "description": "The keyboard shortcut to cancel the current recording."
+            "name": "Cancel",
+            "description": "Stops a recording and discards it."
           },
           "transcribe_with_post_process": {
             "name": "Post-Processing Hotkey",
             "description": "Optional: A dedicated hotkey that always applies AI post-processing to your transcription."
           },
           "meeting": {
-            "name": "Meeting Shortcut",
-            "description": "Starts or stops recording a meeting."
+            "name": "Meeting",
+            "description": "Starts or stops a meeting."
           }
         },
         "errors": {
@@ -382,8 +382,8 @@
         "weak": "No model recognizes {{languages}} well yet."
       },
       "shortcutActivation": {
-        "title": "Shortcut Behavior",
-        "description": "Choose how the transcribe shortcut starts and stops recording.",
+        "title": "Shortcut behavior",
+        "description": "How the dictation shortcut starts and stops.",
         "options": {
           "holdOrToggle": "Auto",
           "pushToTalk": "Hold",
@@ -504,8 +504,8 @@
         "description": "Launch to system tray without opening the window."
       },
       "autostart": {
-        "label": "Launch on Startup",
-        "description": "Automatically start Handy when you log in to your computer."
+        "label": "Open at login",
+        "description": "Starts Handy when you log in."
       },
       "showTrayIcon": {
         "label": "Show Tray Icon",
@@ -977,12 +977,12 @@
     "errorsAndWarnings": "{{errors}}, {{warnings}}"
   },
   "appLanguage": {
-    "title": "Application Language",
-    "description": "Change the language of the Handy interface"
+    "title": "Language",
+    "description": "For menus and settings."
   },
   "theme": {
-    "title": "Application Theme",
-    "description": "Choose whether Handy follows your system theme or stays light or dark",
+    "title": "Theme",
+    "description": "Follow the system, or stay light or dark.",
     "options": {
       "system": "System",
       "light": "Light",
@@ -1110,7 +1110,7 @@
     },
     "keep": {
       "title": "Keep recordings for",
-      "description": "Dictations and meeting audio older than this are deleted. Notes and transcripts stay.",
+      "description": "Older audio is deleted. Text stays.",
       "days3": "3 days",
       "weeks2": "2 weeks",
       "months3": "3 months",

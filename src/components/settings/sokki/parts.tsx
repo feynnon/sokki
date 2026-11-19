@@ -32,10 +32,12 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
+    // Same height and minimum width as a dropdown; equal segments; the chosen
+    // one is raised above the track, never sunk into it.
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex rounded-[9px] bg-wash p-[2px] text-[13px] font-medium"
+      className="grid grid-flow-col auto-cols-fr h-[var(--vb-control-h)] min-w-[var(--vb-control-w)] rounded-[8px] border border-line bg-wash p-[2px] text-[13px] font-medium"
     >
       {options.map((o) => (
         <button
@@ -44,9 +46,9 @@ export function Segmented<T extends string>({
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`h-[28px] cursor-pointer rounded-[7px] px-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${
+          className={`h-full cursor-pointer whitespace-nowrap rounded-[6px] px-3 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${
             value === o.value
-              ? "bg-background text-text shadow-sm"
+              ? "bg-[var(--vb-segment)] text-text shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
               : "text-ink-2 hover:text-text"
           }`}
         >

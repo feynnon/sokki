@@ -54,6 +54,7 @@ Status: open unless marked.
 | X5 | Meeting detection: several bundle IDs unverified; voice messages / browser voice search can trigger a prompt; uses a private API | real tests, cooldown |
 | X6 | Apple Intelligence is a stub (Command Line Tools only) | install Xcode if wanted |
 | X7 | Processing starts only after the meeting ends (21-min call: ready ~3 min after stopping) | live transcription measured and rejected, see F3 |
+| X8 | **Fixed 2026-11-19:** keyboard and mouse froze Mac-wide (13:3x, forced restart; 15:02, 5 min). Onboarding ran `tccutil reset` before asking for a permission. A second copy (started from a shell, or a test copy with a fresh data folder) reads "not granted" and resets while the running Sokki holds an active keyboard event tap; revoking that grant hangs all input (Apple FB24619068, developer.apple.com/forums/thread/844416) | reset removed (onboarding only asks; a stale grant after a signature change is fixed by the user in System Settings). Still open: a listen-only tap when no shortcut needs blocking |
 
 ## Found in the first real call (2026-11-17)
 

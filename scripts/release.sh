@@ -52,6 +52,7 @@ security find-identity -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\"" \
   || { echo "no \"$IDENTITY\" signing certificate" >&2; exit 1; }
 export APPLE_SIGNING_IDENTITY="$IDENTITY"
 
+[[ -d "$REPO/node_modules" ]] || (cd "$REPO" && bun install --frozen-lockfile)
 (cd "$REPO" && bun run tauri build --bundles app --config "src-tauri/brands/sokki/tauri.conf.json")
 
 rm -rf "$OUT" && mkdir -p "$OUT"

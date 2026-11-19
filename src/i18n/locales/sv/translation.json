@@ -1039,6 +1039,8 @@
       "dictionaryDescription": "Names and words the transcript should spell correctly, separated by commas: customers, colleagues, products.",
       "detection": "Notice meetings",
       "detectionDescription": "Offer to record when Zoom, Teams, Meet or another call app starts using the microphone. Never records on its own.",
+      "footer": "Sidfot",
+      "footerDescription": "Avslutar varje anteckning och sammanfattning med “Transcribed on my Mac with sokki.org”.",
       "keepAudio": "Keep recordings",
       "keepAudioDescription": "The audio is kept so a meeting can be processed again.",
       "keepAudioNone": "Delete after the note is written",

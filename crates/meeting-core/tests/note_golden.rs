@@ -196,9 +196,9 @@ fn write_note_creates_dir_and_never_overwrites() {
             ..de_summary()
         }),
     };
-    let p1 = write_note(&dir, &note).unwrap();
-    let p2 = write_note(&dir, &note).unwrap();
-    let p3 = write_note(&dir, &note).unwrap();
+    let p1 = write_note(&dir, &note, &Default::default()).unwrap();
+    let p2 = write_note(&dir, &note, &Default::default()).unwrap();
+    let p3 = write_note(&dir, &note, &Default::default()).unwrap();
     let names: Vec<String> = [&p1, &p2, &p3]
         .iter()
         .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
@@ -226,7 +226,7 @@ fn write_note_without_summary_uses_meeting_as_name() {
         transcript: short_transcript(),
         summary: None,
     };
-    let p = write_note(&dir, &note).unwrap();
+    let p = write_note(&dir, &note, &Default::default()).unwrap();
     assert_eq!(p.file_name().unwrap(), "2026-11-17 1403 Meeting.md");
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -242,7 +242,7 @@ fn write_note_keeps_umlauts_in_file_name() {
             ..de_summary()
         }),
     };
-    let p = write_note(&dir, &note).unwrap();
+    let p = write_note(&dir, &note, &Default::default()).unwrap();
     assert_eq!(
         p.file_name().unwrap(),
         "2026-11-17 1403 Übergabe Größenplanung.md"

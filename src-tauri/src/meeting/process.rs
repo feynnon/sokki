@@ -249,16 +249,14 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
             let _ = std::fs::remove_file(&old);
         }
     }
-    let note_path = meeting_core::note::write_note(&notes_dir, &note)?;
-    if !corrections.is_empty() {
-        use std::io::Write;
-        let german =
-            meeting_core::note::note_language(&note) == meeting_core::lang::Language::German;
-        let section = meeting_core::note::corrections_section(&corrections, german);
-        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&note_path) {
-            let _ = f.write_all(section.as_bytes());
-        }
-    }
+    let note_path = meeting_core::note::write_note(
+        &notes_dir,
+        &note,
+        &meeting_core::note::NoteOptions {
+            footer: settings.footer_enabled,
+            corrections: &corrections,
+        },
+    )?;
     let title = meeting_core::note::note_title(&note);
 
     // "Your data": only the user's own microphone segments

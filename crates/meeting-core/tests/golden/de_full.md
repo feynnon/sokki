@@ -41,3 +41,5 @@ tags: [meeting]
 **[00:16] Speaker 2:** Die Kosten pro Lead liegen bei achtzehn Euro. Unser Ziel waren fünfzehn Euro.
 
 **[1:02:05] Speaker 3:** Über eine Stunde später: Größe, Maß, Übermaß.
+
+Transkribiert auf meinem Mac mit sokki.org

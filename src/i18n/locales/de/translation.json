@@ -1039,6 +1039,8 @@
       "dictionaryDescription": "Namen und Wörter, die im Transkript richtig geschrieben sein sollen, durch Kommas getrennt: Kunden, Kollegen, Produkte.",
       "detection": "Meetings erkennen",
       "detectionDescription": "Bietet eine Aufnahme an, wenn Zoom, Teams, Meet oder eine andere Call-App das Mikrofon nutzt. Nimmt nie von selbst auf.",
+      "footer": "Fußzeile",
+      "footerDescription": "Beendet jede Notiz und Zusammenfassung mit „Transkribiert auf meinem Mac mit sokki.org“.",
       "keepAudio": "Aufnahmen behalten",
       "keepAudioDescription": "Das Audio bleibt, damit ein Meeting neu verarbeitet werden kann.",
       "keepAudioNone": "Löschen, sobald die Notiz steht",

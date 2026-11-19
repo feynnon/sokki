@@ -183,7 +183,7 @@ fn oracle_pipeline_on_all_fixtures() {
             transcript: result.transcript.clone(),
             summary,
         };
-        let path = meeting_core::note::write_note(&out_dir(), &note).unwrap();
+        let path = meeting_core::note::write_note(&out_dir(), &note, &Default::default()).unwrap();
         let md = std::fs::read_to_string(&path).unwrap();
         if !md.starts_with("---\n") || !md.contains("type: meeting") {
             failures.push(format!("{scenario}: note frontmatter missing"));
@@ -317,7 +317,7 @@ fn real_pipeline_on_all_fixtures() {
             transcript: result.transcript.clone(),
             summary,
         };
-        let path = meeting_core::note::write_note(&out_dir().join("real"), &note).unwrap();
+        let path = meeting_core::note::write_note(&out_dir().join("real"), &note, &Default::default()).unwrap();
         table.push(format!("   note: {}", path.display()));
     }
     eprintln!("\n{}", table.join("\n"));

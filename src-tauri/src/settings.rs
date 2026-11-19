@@ -464,7 +464,7 @@ pub struct AppSettings {
     pub debug_mode: bool,
     #[serde(default = "default_log_level")]
     pub log_level: LogLevel,
-    #[serde(default)]
+    #[serde(default = "default_custom_words")]
     pub custom_words: Vec<String>,
     #[serde(default)]
     pub model_unload_timeout: ModelUnloadTimeout,
@@ -602,6 +602,9 @@ pub struct MeetingSettings {
     pub glossary: Vec<String>,
     /// Write a summary, decisions and action items with a language model.
     pub summary_enabled: bool,
+    /// End every note, and the summary shown in the app and on the phone,
+    /// with "Transcribed on my Mac with sokki.org".
+    pub footer_enabled: bool,
     /// Which language model corrects and summarises: "local" (the server
     /// at `llm_base_url`, normally Ollama; nothing leaves the computer),
     /// or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
@@ -632,6 +635,7 @@ impl Default for MeetingSettings {
             correction_enabled: true,
             glossary: Vec::new(),
             summary_enabled: true,
+            footer_enabled: true,
             llm_provider: "local".to_string(),
             cloud_model: String::new(),
             llm_base_url: "http://localhost:11434".to_string(),
@@ -662,7 +666,11 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 3;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 4;
+
+fn default_custom_words() -> Vec<String> {
+    vec!["Sokki".to_string()]
+}
 
 fn default_settings_schema_version() -> u32 {
     CURRENT_SETTINGS_SCHEMA_VERSION
@@ -1136,7 +1144,7 @@ pub fn get_default_settings() -> AppSettings {
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),
-        custom_words: Vec::new(),
+        custom_words: default_custom_words(),
         model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
@@ -1442,6 +1450,19 @@ fn apply_settings_migrations(
             )
         {
             settings.paste_delay_after_ms = default_paste_delay_after_ms();
+        }
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
+    if stored_schema_version < 4 {
+        // Every install spells the app's own name right: add "Sokki" once.
+        // Someone who removes it later keeps it removed.
+        if !settings
+            .custom_words
+            .iter()
+            .any(|w| w.trim().eq_ignore_ascii_case("sokki"))
+        {
+            settings.custom_words.insert(0, "Sokki".to_string());
         }
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
@@ -1927,6 +1948,31 @@ mod tests {
     fn default_overlay_style_is_live_when_overlay_defaults_on() {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Live);
+    }
+
+    #[test]
+    fn sokki_is_added_to_the_dictionary_once() {
+        let mut settings = get_default_settings();
+        assert_eq!(settings.custom_words, vec!["Sokki".to_string()]);
+
+        settings.custom_words = vec!["Kalasar".into()];
+        settings.settings_schema_version = 3;
+        let raw = serde_json::to_value(&settings).unwrap();
+        assert!(apply_settings_migrations(&mut settings, &raw));
+        assert_eq!(settings.custom_words, vec!["Sokki", "Kalasar"]);
+
+        // Already there in any case: nothing is added.
+        settings.custom_words = vec!["sokki".into()];
+        settings.settings_schema_version = 3;
+        let raw = serde_json::to_value(&settings).unwrap();
+        apply_settings_migrations(&mut settings, &raw);
+        assert_eq!(settings.custom_words, vec!["sokki"]);
+
+        // Removed after the migration: it stays removed.
+        settings.custom_words.clear();
+        let raw = serde_json::to_value(&settings).unwrap();
+        apply_settings_migrations(&mut settings, &raw);
+        assert!(settings.custom_words.is_empty());
     }
 
     #[test]

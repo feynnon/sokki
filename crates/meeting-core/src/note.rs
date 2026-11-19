@@ -18,10 +18,13 @@
 //! # Title
 //!
 //! ## Zusammenfassung / ## Entscheidungen / ## Aufgaben / ## Transkript
+//!
+//! Transkribiert auf meinem Mac mit sokki.org
 //! ```
 //!
 //! Headings are German unless the summary is in English. Empty sections are
-//! left out.
+//! left out. The footer is the note's last line; [`split_note`] puts it at the
+//! end of the summary too, so a shared summary carries it.
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -39,6 +42,7 @@ struct Labels {
     transcript: &'static str,
     no_summary: &'static str,
     no_speech: &'static str,
+    footer: &'static str,
 }
 
 const DE: Labels = Labels {
@@ -48,6 +52,7 @@ const DE: Labels = Labels {
     transcript: "Transkript",
     no_summary: "_Keine Zusammenfassung erstellt._",
     no_speech: "_Keine Sprache erkannt._",
+    footer: "Transkribiert auf meinem Mac mit sokki.org",
 };
 
 const EN: Labels = Labels {
@@ -57,6 +62,7 @@ const EN: Labels = Labels {
     transcript: "Transcript",
     no_summary: "_No summary was created._",
     no_speech: "_No speech detected._",
+    footer: "Transcribed on my Mac with sokki.org",
 };
 
 /// Language of the note's headings: the summary's language, German by
@@ -156,8 +162,31 @@ fn yaml_scalar(v: &str) -> String {
     }
 }
 
-/// Renders the whole note.
+/// What goes into a note besides the meeting itself.
+#[derive(Debug, Clone, Copy)]
+pub struct NoteOptions<'a> {
+    /// End with "Transcribed on my Mac with sokki.org".
+    pub footer: bool,
+    /// Automatic transcript corrections, listed after the transcript.
+    pub corrections: &'a [crate::correct::Correction],
+}
+
+impl Default for NoteOptions<'_> {
+    fn default() -> Self {
+        Self {
+            footer: true,
+            corrections: &[],
+        }
+    }
+}
+
+/// Renders the whole note with the footer and no corrections.
 pub fn render_markdown(note: &MeetingNote) -> String {
+    render_note(note, &NoteOptions::default())
+}
+
+/// Renders the whole note.
+pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
     let lang = note_language(note);
     let l = match lang {
         Language::German => &DE,
@@ -206,7 +235,20 @@ pub fn render_markdown(note: &MeetingNote) -> String {
 
     out.push_str(&format!("## {}\n\n", l.transcript));
     out.push_str(&render_transcript(&note.transcript, l));
+    out.push_str(&corrections_section(
+        opts.corrections,
+        lang == Language::German,
+    ));
+    if opts.footer {
+        out.push_str(&format!("\n{}\n", l.footer));
+    }
     out
+}
+
+/// Whether a line is the note footer, in any language.
+fn is_footer(line: &str) -> bool {
+    let t = line.trim();
+    t == DE.footer || t == EN.footer
 }
 
 fn one_line(s: &str) -> String {
@@ -308,7 +350,12 @@ pub fn split_note(md: &str) -> NoteParts {
     let mut summary = Vec::new();
     let mut transcript = Vec::new();
     let mut in_transcript = false;
+    let mut footer = None;
     for line in body.lines() {
+        if is_footer(line) {
+            footer = Some(line.trim());
+            continue;
+        }
         if is_transcript_heading(line) {
             in_transcript = true;
             continue;
@@ -333,8 +380,16 @@ pub fn split_note(md: &str) -> NoteParts {
             summary.push(line);
         }
     }
+    let mut summary = summary.join("\n").trim().to_string();
+    // The footer closes the summary too, so it travels when the summary is
+    // shared. Not under an empty summary or the "no summary" line.
+    let no_summary = summary.is_empty() || summary == DE.no_summary || summary == EN.no_summary;
+    if let Some(f) = footer.filter(|_| !no_summary) {
+        summary.push_str("\n\n");
+        summary.push_str(f);
+    }
     NoteParts {
-        summary: summary.join("\n").trim().to_string(),
+        summary,
         transcript: transcript.join("\n"),
     }
 }
@@ -372,10 +427,10 @@ pub fn note_file_stem(note: &MeetingNote) -> String {
 
 /// Writes the note into `dir` (created if missing) and returns its path.
 /// Never overwrites: if the name is taken, " 2", " 3", … is appended.
-pub fn write_note(dir: &Path, note: &MeetingNote) -> Result<PathBuf> {
+pub fn write_note(dir: &Path, note: &MeetingNote, opts: &NoteOptions) -> Result<PathBuf> {
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     let stem = note_file_stem(note);
-    let content = render_markdown(note);
+    let content = render_note(note, opts);
     for n in 1..10_000 {
         let name = if n == 1 {
             format!("{stem}.md")
@@ -529,6 +584,50 @@ mod tests {
         assert!(!md.contains("date:"));
         assert!(md.contains("# Meeting\n"));
         assert_eq!(note_file_stem(&n), "Meeting");
+    }
+
+    #[test]
+    fn footer_ends_the_note_and_the_summary() {
+        let n = note(Some(MeetingSummary {
+            title: "Launch".into(),
+            summary: "We move the launch.".into(),
+            ..Default::default()
+        }));
+        let corrections = [crate::correct::Correction {
+            segment: 0,
+            from: "Lied".into(),
+            to: "Lead".into(),
+        }];
+        let md = render_note(
+            &n,
+            &NoteOptions {
+                footer: true,
+                corrections: &corrections,
+            },
+        );
+        // After the corrections callout, as the very last line.
+        assert!(md.ends_with("> - „Lied“ → „Lead“\n\nTranscribed on my Mac with sokki.org\n"));
+        let p = split_note(&md);
+        assert!(p
+            .summary
+            .ends_with("We move the launch.\n\nTranscribed on my Mac with sokki.org"));
+        assert!(!p.transcript.contains("sokki.org"));
+
+        // Off: no footer anywhere.
+        let md = render_note(
+            &n,
+            &NoteOptions {
+                footer: false,
+                corrections: &[],
+            },
+        );
+        assert!(!md.contains("sokki.org"));
+
+        // No summary: the file still ends with the footer, the summary
+        // part is only the "no summary" line.
+        let md = render_markdown(&note(None));
+        assert!(md.ends_with("\nTranskribiert auf meinem Mac mit sokki.org\n"));
+        assert_eq!(split_note(&md).summary, "_Keine Zusammenfassung erstellt._");
     }
 }
 

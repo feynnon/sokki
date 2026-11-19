@@ -353,6 +353,13 @@ const MeetingSettingsView: React.FC<{
           description={t("meetings.settings.detectionDescription")}
           grouped
         />
+        <ToggleSwitch
+          checked={meetingSettings.footer_enabled}
+          onChange={(v) => void save({ footer_enabled: v })}
+          label={t("meetings.settings.footer")}
+          description={t("meetings.settings.footerDescription")}
+          grouped
+        />
         {!IS_SOKKI && (
           <SettingContainer
             title={t("meetings.settings.keepAudio")}

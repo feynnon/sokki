@@ -93,7 +93,7 @@ fn report(name: &str, t: &Transcript, s: &MeetingSummary, stats: &SummaryStats, 
         transcript: t.clone(),
         summary: Some(s.clone()),
     };
-    match write_note(&dir, &note) {
+    match write_note(&dir, &note, &Default::default()) {
         Ok(p) => eprintln!("note: {}", p.display()),
         Err(e) => eprintln!("could not write note: {e:#}"),
     }

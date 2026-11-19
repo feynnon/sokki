@@ -82,3 +82,5 @@ tags: [meeting]
 **[02:32] Speaker 2:** Perfect. Thanks everyone, talk to you on Tuesday.
 
 **[02:36] Ich:** Danke, bis Dienstag.
+
+Transcribed on my Mac with sokki.org

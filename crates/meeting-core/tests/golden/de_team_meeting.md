@@ -129,3 +129,5 @@ tags: [meeting]
 **[04:51] Speaker 2:** Passt für mich auch.
 
 **[04:53] Ich:** Danke euch, bis nächste Woche.
+
+Transkribiert auf meinem Mac mit sokki.org

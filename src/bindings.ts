@@ -1627,6 +1627,11 @@ glossary: string[];
  */
 summary_enabled: boolean; 
 /**
+ * End every note, and the summary shown in the app and on the phone,
+ * with "Transcribed on my Mac with sokki.org".
+ */
+footer_enabled: boolean; 
+/**
  * Which language model corrects and summarises: "local" (the server
  * at `llm_base_url`, normally Ollama; nothing leaves the computer),
  * or a cloud provider: "anthropic", "openai" or "openrouter". A cloud

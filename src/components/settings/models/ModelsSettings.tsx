@@ -155,7 +155,7 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
           <h1
             className={
               IS_SOKKI
-                ? "text-[22px] font-semibold tracking-[-0.01em]"
+                ? "font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]"
                 : "text-xl font-semibold"
             }
           >

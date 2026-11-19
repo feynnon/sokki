@@ -353,7 +353,7 @@ export const HistorySettings: React.FC = () => {
         <div className="px-4 flex items-center justify-between">
           <div>
             {IS_SOKKI ? (
-              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
+              <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
                 {t("sokki.nav.home")}
               </h1>
             ) : (

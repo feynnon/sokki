@@ -472,10 +472,10 @@ export const MeetingsSettings: React.FC = () => {
       >
         {IS_SOKKI ? (
           <div className="min-w-0">
-            <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
+            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
               {t("meetings.title")}
             </h1>
-            <p className="text-[13px] text-ink-3 mt-1 max-w-[60ch]">
+            <p className="mt-1 max-w-[60ch] text-body text-ink-2">
               {t("meetings.description")}
             </p>
           </div>

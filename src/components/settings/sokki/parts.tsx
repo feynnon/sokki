@@ -8,11 +8,11 @@ export const PageHeader: React.FC<{
 }> = ({ title, description, children }) => (
   <header className="flex items-start justify-between gap-4 px-1">
     <div className="min-w-0">
-      <h1 className="text-[22px] font-semibold tracking-[-0.01em]">{title}</h1>
+      <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
+        {title}
+      </h1>
       {description && (
-        <p className="text-[13px] text-ink-3 mt-1 max-w-[60ch]">
-          {description}
-        </p>
+        <p className="mt-1 max-w-[60ch] text-body text-ink-2">{description}</p>
       )}
     </div>
     {children}

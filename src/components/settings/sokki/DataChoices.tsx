@@ -8,10 +8,9 @@ import { Switch } from "@/components/ui/Switch";
 export interface DataChoiceValues {
   improve: boolean;
   support: boolean;
-  tasks: boolean;
 }
 
-type Sheet = "shared" | "support" | null;
+type Sheet = "shared" | "support";
 
 const SHARED_ITEMS = [
   "mistakes",
@@ -23,7 +22,7 @@ const SHARED_ITEMS = [
 ] as const;
 
 /** "What's shared" and "What this means", opened from the choices' links. */
-const Sheets: React.FC<{ sheet: Sheet; onClose: () => void }> = ({
+const Sheets: React.FC<{ sheet: Sheet | null; onClose: () => void }> = ({
   sheet,
   onClose,
 }) => {
@@ -43,13 +42,15 @@ const Sheets: React.FC<{ sheet: Sheet; onClose: () => void }> = ({
         closeLabel={t("common.close")}
         onOpenChange={(open) => !open && onClose()}
       >
-        <div className="flex flex-col gap-3 text-[13.5px] leading-[20px]">
+        <div className="flex flex-col gap-3 text-body leading-[1.5]">
           <ul className="flex flex-col gap-1.5 list-disc ps-5">
             {SHARED_ITEMS.map((k) => (
               <li key={k}>{t(`sokki.voice.sharedSheet.${k}`)}</li>
             ))}
           </ul>
-          <p className="text-ink-3">{t("sokki.voice.sharedSheet.footer")}</p>
+          <p className="text-small leading-[1.45] text-ink-2">
+            {t("sokki.voice.sharedSheet.footer")}
+          </p>
           {ok}
         </div>
       </Dialog>
@@ -59,9 +60,11 @@ const Sheets: React.FC<{ sheet: Sheet; onClose: () => void }> = ({
         closeLabel={t("common.close")}
         onOpenChange={(open) => !open && onClose()}
       >
-        <div className="flex flex-col gap-3 text-[13.5px] leading-[20px]">
+        <div className="flex flex-col gap-3 text-body leading-[1.5]">
           <p>{t("sokki.voice.supportSheet.text")}</p>
-          <p className="text-ink-3">{t("sokki.voice.supportSheet.footer")}</p>
+          <p className="text-small leading-[1.45] text-ink-2">
+            {t("sokki.voice.supportSheet.footer")}
+          </p>
           {ok}
         </div>
       </Dialog>
@@ -69,84 +72,62 @@ const Sheets: React.FC<{ sheet: Sheet; onClose: () => void }> = ({
   );
 };
 
-/** The two things a user can agree to share, and interest in paid tasks. First start shows them as
- * checkboxes with the full text, Settings as switches with a short one. */
+/** The two things a user can agree to share. First start shows them as
+ * checkboxes, Settings as switches; both as rows split by a hairline: a
+ * rounded row title over small text, the sheet's link at its end. */
 export const DataChoices: React.FC<{
   value: DataChoiceValues;
   onChange: (value: DataChoiceValues) => void;
   variant: "checkbox" | "switch";
 }> = ({ value, onChange, variant }) => {
   const { t } = useTranslation();
-  const [sheet, setSheet] = useState<Sheet>(null);
-  const rows: {
-    key: keyof DataChoiceValues;
-    title: string;
-    text: string;
-    link?: string;
-    sheet?: "shared" | "support";
-  }[] = [
-    {
-      key: "improve" as const,
-      title: t("sokki.voice.improve.title"),
-      text: t(
-        variant === "checkbox"
-          ? "sokki.voice.improve.text"
-          : "sokki.voice.improve.short",
-      ),
-      link: t("sokki.voice.improve.link"),
-      sheet: "shared" as const,
-    },
-    {
-      key: "support" as const,
-      title: t("sokki.voice.support.title"),
-      text: t("sokki.voice.support.text"),
-      link: t("sokki.voice.support.link"),
-      sheet: "support" as const,
-    },
-    {
-      key: "tasks" as const,
-      title: t("sokki.voice.tasks.title"),
-      text: t("sokki.voice.tasks.text"),
-    },
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const rows: { key: keyof DataChoiceValues; sheet: Sheet }[] = [
+    { key: "improve", sheet: "shared" },
+    { key: "support", sheet: "support" },
   ];
   const set = (key: keyof DataChoiceValues, on: boolean) =>
     onChange({ ...value, [key]: on });
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         {rows.map((r) => {
           const on = value[r.key];
           const labelId = `data-choice-${r.key}`;
-          const linkButton = r.link && r.sheet && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSheet(r.sheet ?? null);
-              }}
-              // Enter and Space open the sheet, not tick the box around it.
-              onKeyDown={(e) => e.stopPropagation()}
-              className="self-start text-[12.5px] text-logo-primary hover:underline cursor-pointer"
-            >
-              {r.link}
-            </button>
+          const text = (
+            <span className="block">
+              <b
+                id={labelId}
+                className="block font-display text-row font-[650] leading-[1.3]"
+              >
+                {t(`sokki.voice.${r.key}.title`)}
+              </b>
+              <span className="mt-[2px] block text-small leading-[1.45] text-ink-2 text-pretty">
+                {t(`sokki.voice.${r.key}.text`)}{" "}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSheet(r.sheet);
+                  }}
+                  // Enter and Space open the sheet, not tick the box around it.
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="cursor-pointer text-logo-primary hover:underline focus:outline-none focus-visible:underline"
+                >
+                  {t(`sokki.voice.${r.key}.link`)}
+                </button>
+              </span>
+            </span>
           );
+          const rowClass = "py-4 [&+&]:border-t [&+&]:border-line";
           if (variant === "switch") {
             return (
               <div
                 key={r.key}
-                className="flex items-center gap-4 rounded-xl border border-line px-4 py-3"
+                className={`flex items-center gap-4 text-start ${rowClass}`}
               >
-                <span className="flex grow flex-col gap-0.5">
-                  <span id={labelId} className="text-[14px] font-medium">
-                    {r.title}
-                  </span>
-                  <span className="text-[12.5px] leading-[18px] text-ink-3">
-                    {r.text}
-                  </span>
-                  {linkButton}
-                </span>
+                <span className="grow">{text}</span>
                 <Switch
                   checked={on}
                   onChange={(c) => set(r.key, c)}
@@ -169,15 +150,11 @@ export const DataChoices: React.FC<{
                   set(r.key, !on);
                 }
               }}
-              className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-start cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${
-                on
-                  ? "border-logo-primary bg-logo-primary/10"
-                  : "border-line hover:bg-wash"
-              }`}
+              className={`grid cursor-pointer grid-cols-[18px_1fr] items-start gap-[14px] text-start focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary rounded-[4px] ${rowClass}`}
             >
               <span
                 aria-hidden="true"
-                className={`mt-[2px] grid size-[18px] shrink-0 place-items-center rounded-[5px] border ${
+                className={`mt-[3px] grid size-[18px] place-items-center rounded-[5px] border ${
                   on
                     ? "border-logo-primary bg-logo-primary text-white"
                     : "border-line-strong"
@@ -185,15 +162,7 @@ export const DataChoices: React.FC<{
               >
                 {on && <Check width={13} height={13} strokeWidth={3} />}
               </span>
-              <span className="flex flex-col gap-0.5">
-                <span id={labelId} className="text-[14px] font-medium">
-                  {r.title}
-                </span>
-                <span className="text-[12.5px] leading-[18px] text-ink-3">
-                  {r.text}
-                </span>
-                {linkButton}
-              </span>
+              {text}
             </div>
           );
         })}

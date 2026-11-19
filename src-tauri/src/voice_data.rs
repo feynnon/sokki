@@ -222,6 +222,12 @@ fn new_install_id() -> String {
 
 /// Sets the three choices. Turning the first two off takes this install out of the count;
 /// what was shared stays until [`forget`].
+/// Paused 2026-11-19: the paid-tasks tick and buyer messages. Their code stays
+/// so they can come back; while paused the app shows neither, takes back a
+/// tick sent before, and ignores buyer messages.
+const PAID_TASKS: bool = false;
+const BUYER_MESSAGES: bool = false;
+
 pub fn set_choices(app: &AppHandle, improve: bool, support: bool, tasks: bool) -> Result<()> {
     let d = dir(app)?;
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -229,7 +235,7 @@ pub fn set_choices(app: &AppHandle, improve: bool, support: bool, tasks: bool) -
     let improve_turned_on = improve && !c.improve;
     c.improve = improve;
     c.support = support;
-    c.tasks = tasks;
+    c.tasks = tasks && PAID_TASKS;
     if c.install_id.is_empty() {
         c.install_id = new_install_id();
     }
@@ -392,7 +398,7 @@ fn stats_in(dir: &Path) -> VoiceDataStats {
         support: config.support,
         tasks: config.tasks,
         shared: config.shared,
-        buyer: if config.support { None } else { config.buyer },
+        buyer: if config.support || !BUYER_MESSAGES { None } else { config.buyer },
         clips: clips.len() as u32,
         folder: dir.to_string_lossy().into_owned(),
         ..Default::default()
@@ -516,19 +522,20 @@ fn sync_in_background(app: AppHandle, force: bool) {
                 Err(e) => log::warn!("Your data: daily report not sent: {e:#}"),
             }
         }
-        if config.tasks != config.tasks_reported {
+        let tasks = config.tasks && PAID_TASKS;
+        if tasks != config.tasks_reported {
             // Only the tick, the random id and the languages of the user's
             // own data (so tasks can be offered in them); turning it off
             // removes the tick.
             let body = serde_json::json!({
                 "id": config.install_id,
-                "on": config.tasks,
+                "on": tasks,
                 "languages": task_languages(&app, &d),
             });
             match post(&d, "tasks", body) {
                 Ok(()) => update_config(&d, |c| {
-                    c.tasks_reported = config.tasks;
-                    if config.tasks {
+                    c.tasks_reported = tasks;
+                    if tasks {
                         c.shared = true;
                     }
                 }),
@@ -1701,7 +1708,7 @@ fn check_notice(app: &AppHandle) {
         .starts_with("de");
     let (title, body) = match serde_json::from_str::<BuyerNotice>(&text) {
         Ok(notice) => {
-            if config.support {
+            if config.support || !BUYER_MESSAGES {
                 return;
             }
             let lang = normalize_language(Some(&notice.language));

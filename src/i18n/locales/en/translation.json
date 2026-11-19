@@ -1165,17 +1165,17 @@
     },
     "voice": {
       "title": "Your data",
-      "intro": "Your recordings stay on this Mac until you delete them. If someone wants to buy data like yours, we'll let you know.",
-      "onboardingHint": "You can change this any time under Your data.",
+      "intro": "Your recordings stay on this Mac until you delete them.",
+      "onboardingIntro": "Your recordings stay on this Mac.",
+      "onboardingHint": "Change this any time under Your data.",
       "improve": {
         "title": "Help improve Sokki",
-        "text": "Share the mistakes Sokki makes and how you use it. Under a random ID, never your name.",
-        "short": "Share mistakes and usage under a random ID.",
+        "text": "Share mistakes and usage under a random ID.",
         "link": "What's shared"
       },
       "support": {
         "title": "Support Sokki & Open Source",
-        "text": "Share your anonymised audio and transcripts to help improve AI models and support Sokki.",
+        "text": "Share your anonymised audio and transcripts.",
         "link": "What this means"
       },
       "sharedSheet": {
@@ -1200,14 +1200,6 @@
       "fromDictation": "Dictation",
       "fromMeetings": "Meetings (your microphone)",
       "otherLanguage": "Other",
-      "buyer": {
-        "title": "Someone wants {{language}} data",
-        "text_one": "{{count}} hour of your anonymised data fits. You'd get a share of the profit.",
-        "text_other": "{{count}} hours of your anonymised data fit. You'd get a share of the profit.",
-        "interested": "I'm interested",
-        "no": "Not interested",
-        "thanks": "Thanks. Before anything is sold, you'll see exactly what and for how much, and decide then."
-      },
       "notice": "Message from Sokki",
       "community_one": "{{count}} Sokki user helps improve Sokki.",
       "community_other": "{{count}} Sokki users help improve Sokki.",
@@ -1224,11 +1216,7 @@
       "failed": "Couldn't reach Sokki. Try again later.",
       "donated": "Shared so far: {{duration}}.",
       "withheld_one": "{{count}} recording stays on this Mac because it has a name, a number or contact details in it.",
-      "withheld_other": "{{count}} recordings stay on this Mac because they have a name, a number or contact details in them.",
-      "tasks": {
-        "title": "Tell me about paid recording tasks",
-        "text": "Sokki may later offer small paid tasks, like reading a short text aloud. You'll hear about them first."
-      }
+      "withheld_other": "{{count}} recordings stay on this Mac because they have a name, a number or contact details in them."
     }
   }
 }

@@ -46,11 +46,11 @@ const Breakdown: React.FC<{
     .sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...rows.map(([, v]) => v));
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-[10px]">
       {rows.map(([k, v]) => (
         <li
           key={k}
-          className="grid grid-cols-[96px_1fr_88px] items-center gap-3 text-[13px]"
+          className="grid grid-cols-[200px_1fr_56px] items-center gap-3 text-small leading-[24px]"
         >
           <span className="truncate text-ink-2">{label(k)}</span>
           <span className="h-2 rounded-full bg-wash overflow-hidden">
@@ -70,8 +70,8 @@ const Breakdown: React.FC<{
 
 type Asking = "recordings" | "shared" | null;
 
-/** "Your data": the user's own recordings on this Mac, the two choices,
- * buyer messages and the delete buttons. */
+/** "Your data": the user's own recordings on this Mac, the two choices and
+ * the delete buttons. Buyer messages and paid tasks are paused. */
 export const SokkiVoicePage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<VoiceDataStats | null>(null);
@@ -102,19 +102,12 @@ export const SokkiVoicePage: React.FC = () => {
     k === "meeting"
       ? t("sokki.voice.fromMeetings")
       : t("sokki.voice.fromDictation");
-  const buyer = stats.buyer;
-  // A plain-text message from Sokki (a buyer message is JSON and shows as
-  // the buyer card instead).
+  // A plain-text message from Sokki (a buyer message is JSON; buyer
+  // messages are paused, so it isn't shown).
   const plainNotice =
     community?.notice && !community.notice.trim().startsWith("{")
       ? community.notice
       : null;
-
-  const answerBuyer = async (answer: "interested" | "no") => {
-    const r = await commands.voiceDataAnswerBuyer(answer);
-    setStatus(r.status === "ok" ? null : t("sokki.voice.failed"));
-    void load();
-  };
 
   const forget = async () => {
     const r = await commands.voiceDataForget();
@@ -134,48 +127,8 @@ export const SokkiVoicePage: React.FC = () => {
         description={t("sokki.voice.intro")}
       />
 
-      {buyer && (
-        <section className="vb-card p-4 flex flex-col gap-2 border-logo-primary">
-          <h2 className="text-[14px] font-semibold">
-            {t("sokki.voice.buyer.title", {
-              language: languageName(buyer.language, i18n.language, ""),
-            })}
-          </h2>
-          <p className="text-[13.5px]">
-            {t("sokki.voice.buyer.text", { count: buyer.hours })}
-          </p>
-          {buyer.text && (
-            <p className="text-[13px] text-ink-2 select-text whitespace-pre-line">
-              {buyer.text}
-            </p>
-          )}
-          {buyer.answer === "interested" ? (
-            <p className="text-[13px] text-ink-2">
-              {t("sokki.voice.buyer.thanks")}
-            </p>
-          ) : buyer.answer === "no" ? null : (
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void answerBuyer("interested")}
-              >
-                {t("sokki.voice.buyer.interested")}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void answerBuyer("no")}
-              >
-                {t("sokki.voice.buyer.no")}
-              </Button>
-            </div>
-          )}
-        </section>
-      )}
-
       <section className="vb-card p-5 flex flex-col gap-5">
-        <p className="text-[14px]">
+        <p className="text-body">
           {stats.clips > 0
             ? t("sokki.voice.onThisMac", {
                 duration: duration(stats.total_seconds),
@@ -184,15 +137,15 @@ export const SokkiVoicePage: React.FC = () => {
             : t("sokki.voice.empty")}
         </p>
         {stats.total_seconds > 0 && (
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-              <h2 className="text-[12px] font-semibold uppercase tracking-wide text-ink-3">
+              <h2 className="text-small font-semibold text-ink-2">
                 {t("sokki.voice.byLanguage")}
               </h2>
               <Breakdown values={stats.seconds_by_language} label={lang} />
             </div>
             <div className="flex flex-col gap-2">
-              <h2 className="text-[12px] font-semibold uppercase tracking-wide text-ink-3">
+              <h2 className="text-small font-semibold text-ink-2">
                 {t("sokki.voice.bySource")}
               </h2>
               <Breakdown values={stats.seconds_by_source} label={source} />
@@ -201,23 +154,22 @@ export const SokkiVoicePage: React.FC = () => {
         )}
       </section>
 
-      <section className="vb-card p-4">
+      <section className="vb-card px-5">
         <DataChoices
           value={{
             improve: stats.improve,
             support: stats.support,
-            tasks: stats.tasks,
           }}
           onChange={(v) =>
             void commands
-              .voiceDataSetChoices(v.improve, v.support, v.tasks)
+              .voiceDataSetChoices(v.improve, v.support, false)
               .then(() => load())
           }
           variant="switch"
         />
         {stats.support &&
           (stats.donated_clips > 0 || stats.withheld_clips > 0) && (
-            <p className="px-1 pt-3 text-[12.5px] leading-[18px] text-ink-3">
+            <p className="border-t border-line py-4 text-small leading-[1.45] text-ink-2">
               {t("sokki.voice.donated", {
                 duration: duration(stats.donated_seconds),
               })}
@@ -229,10 +181,10 @@ export const SokkiVoicePage: React.FC = () => {
 
       {plainNotice && (
         <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
-          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-logo-primary">
+          <h2 className="text-small font-semibold text-logo-primary">
             {t("sokki.voice.notice")}
           </h2>
-          <p className="text-[13.5px] select-text whitespace-pre-line">
+          <p className="text-body select-text whitespace-pre-line">
             {plainNotice}
           </p>
         </section>
@@ -245,7 +197,7 @@ export const SokkiVoicePage: React.FC = () => {
             height={18}
             className="text-logo-primary shrink-0"
           />
-          <p className="text-[13.5px]">
+          <p className="text-small text-ink-2">
             {t(
               community.donors > 0
                 ? "sokki.voice.communityDonors"
@@ -259,7 +211,7 @@ export const SokkiVoicePage: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 px-1">
         {asking ? (
           <>
-            <span className="text-[12.5px] text-ink-2">
+            <span className="text-small text-ink-2">
               {asking === "recordings"
                 ? t("sokki.voice.deleteRecordingsAsk", {
                     duration: duration(stats.total_seconds),
@@ -330,7 +282,7 @@ export const SokkiVoicePage: React.FC = () => {
           </>
         )}
         {status && (
-          <span className="text-[12.5px] text-ink-2" role="status">
+          <span className="text-small text-ink-2" role="status">
             {status}
           </span>
         )}

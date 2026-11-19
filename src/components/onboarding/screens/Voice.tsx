@@ -16,7 +16,7 @@ interface VoiceProps {
 }
 
 /** Sokki: "Your data". Both boxes start unticked; nothing is sent before
- * Continue. */
+ * Continue. Paid tasks are paused, so they stay off. */
 export const Voice: React.FC<VoiceProps> = ({
   progress,
   onBack,
@@ -27,14 +27,13 @@ export const Voice: React.FC<VoiceProps> = ({
   const [choices, setChoices] = useState<DataChoiceValues>({
     improve: false,
     support: false,
-    tasks: false,
   });
   const next = async () => {
     if (!preview) {
       await commands.voiceDataSetChoices(
         choices.improve,
         choices.support,
-        choices.tasks,
+        false,
       );
     }
     onContinue();
@@ -54,11 +53,11 @@ export const Voice: React.FC<VoiceProps> = ({
         header={
           <ScreenHeader
             title={t("sokki.voice.title")}
-            sub={t("sokki.voice.intro")}
+            sub={t("sokki.voice.onboardingIntro")}
           />
         }
       >
-        <div className="flex w-full flex-col text-start">
+        <div className="mx-auto flex w-full max-w-[480px] flex-col text-start">
           <DataChoices
             value={choices}
             onChange={setChoices}

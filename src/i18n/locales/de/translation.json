@@ -1165,17 +1165,17 @@
     },
     "voice": {
       "title": "Deine Daten",
-      "intro": "Deine Aufnahmen bleiben auf diesem Mac, bis du sie löschst. Wenn jemand Daten wie deine kaufen möchte, sagen wir dir Bescheid.",
-      "onboardingHint": "Du kannst das jederzeit unter „Deine Daten“ ändern.",
+      "intro": "Deine Aufnahmen bleiben auf diesem Mac, bis du sie löschst.",
+      "onboardingIntro": "Deine Aufnahmen bleiben auf diesem Mac.",
+      "onboardingHint": "Jederzeit änderbar unter „Deine Daten“.",
       "improve": {
         "title": "Hilf, Sokki zu verbessern",
-        "text": "Teile die Fehler, die Sokki macht, und wie du es nutzt. Unter einer zufälligen ID, nie mit deinem Namen.",
-        "short": "Fehler und Nutzung teilen, unter einer zufälligen ID.",
+        "text": "Fehler und Nutzung teilen, unter einer zufälligen ID.",
         "link": "Was geteilt wird"
       },
       "support": {
         "title": "Unterstütze Sokki & Open Source",
-        "text": "Teile deine anonymisierten Audiodaten und Transkripte, um KI-Modelle zu verbessern und Sokki zu unterstützen.",
+        "text": "Teile deine anonymisierten Audiodaten und Transkripte.",
         "link": "Was das bedeutet"
       },
       "sharedSheet": {
@@ -1200,14 +1200,6 @@
       "fromDictation": "Diktat",
       "fromMeetings": "Meetings (dein Mikrofon)",
       "otherLanguage": "Andere",
-      "buyer": {
-        "title": "Jemand möchte Daten auf {{language}}",
-        "text_one": "{{count}} Stunde deiner anonymisierten Daten passt. Du bekämst einen Anteil am Gewinn.",
-        "text_other": "{{count}} Stunden deiner anonymisierten Daten passen. Du bekämst einen Anteil am Gewinn.",
-        "interested": "Ich bin interessiert",
-        "no": "Kein Interesse",
-        "thanks": "Danke. Bevor etwas verkauft wird, siehst du genau was und für wie viel, und entscheidest dann."
-      },
       "notice": "Nachricht von Sokki",
       "community_one": "{{count}} Person hilft, Sokki zu verbessern.",
       "community_other": "{{count}} Personen helfen, Sokki zu verbessern.",
@@ -1224,11 +1216,7 @@
       "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal.",
       "donated": "Bisher geteilt: {{duration}}.",
       "withheld_one": "{{count}} Aufnahme bleibt auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthält.",
-      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten.",
-      "tasks": {
-        "title": "Sag mir Bescheid bei bezahlten Aufnahme-Aufgaben",
-        "text": "Sokki bietet vielleicht später kleine bezahlte Aufgaben an, etwa einen kurzen Text vorzulesen. Du erfährst zuerst davon."
-      }
+      "withheld_other": "{{count}} Aufnahmen bleiben auf diesem Mac, weil sie einen Namen, eine Zahl oder Kontaktdaten enthalten."
     }
   }
 }

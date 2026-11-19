@@ -344,7 +344,7 @@ function atLeast(n) {
 }
 
 // sokki.org pages that count their views, and the link tags they accept.
-const PAGES = new Set(["/", "/get/", "/p/", "/privacy/", "/impressum/", "/changelog/"]);
+const PAGES = new Set(["/", "/get/", "/p/", "/privacy/", "/impressum/", "/changelog/", "/sponsor/"]);
 const SOURCE = /^[a-z0-9-]{1,24}$/;
 
 /** One page view per call: day, page, link tag. Always 204, even if not counted. */

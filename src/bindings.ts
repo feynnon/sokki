@@ -884,17 +884,6 @@ async savePicture(path: string, pngBase64: string) : Promise<Result<null, string
 }
 },
 /**
- * Puts the heads-up line for the call chat on the clipboard.
- */
-async copyHeadsUp() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("copy_heads_up") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
  * A QR code (SVG) for a link the app hands out, e.g. sokki.org/get.
  */
 async qrCodeSvg(text: string) : Promise<Result<string, string>> {
@@ -991,6 +980,129 @@ async voiceDataDelete() : Promise<Result<null, string>> {
 async voiceDataCommunity() : Promise<Result<CommunityTotal | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("voice_data_community") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Displays, cameras and whether each may be recorded. Never asks.
+ */
+async videoSources() : Promise<Result<VideoSources, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_sources") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Asks macOS for "screen" or "camera". True when allowed.
+ */
+async videoRequestAccess(kind: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_request_access", { kind }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts recording the screen and/or camera with the meeting audio. Stops
+ * with the meeting (the recording pill or `stop_meeting_recording`).
+ */
+async videoStart(options: VideoStartOptions) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_start", { options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * All videos, newest first.
+ */
+async videoList() : Promise<Result<VideoMeta[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Changes a video's look and renders it again.
+ */
+async videoSetLook(folder: string, look: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_set_look", { folder, look }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Moves a video's folder to the Trash.
+ */
+async videoDelete(folder: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_delete", { folder }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Shows a video in Finder: the rendered file when there is one, else the
+ * folder.
+ */
+async videoReveal(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_reveal", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Opens the recording bar (pick what to record, then Record).
+ */
+async videoBarShow() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_bar_show") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Closes the recording bar without recording.
+ */
+async videoBarHide() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_bar_hide") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Shows or hides the live camera bubble (only when the camera is allowed).
+ */
+async videoBubble(show: boolean, camera: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("video_bubble", { show, camera }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sets the video settings.
+ */
+async setVideoSettings(settings: VideoSettings) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_video_settings", { settings }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1407,7 +1519,8 @@ recordingStateEvent: RecordingStateEvent,
 streamPhaseEvent: StreamPhaseEvent,
 streamTextEvent: StreamTextEvent,
 transcriptionCompleteEvent: TranscriptionCompleteEvent,
-transcriptionJob: TranscriptionJob
+transcriptionJob: TranscriptionJob,
+videoChanged: VideoChanged
 }>({
 historyUpdatePayload: "history-update-payload",
 meetingChanged: "meeting-changed",
@@ -1416,7 +1529,8 @@ recordingStateEvent: "recording-state-event",
 streamPhaseEvent: "stream-phase-event",
 streamTextEvent: "stream-text-event",
 transcriptionCompleteEvent: "transcription-complete-event",
-transcriptionJob: "transcription-job"
+transcriptionJob: "transcription-job",
+videoChanged: "video-changed"
 })
 
 /** user-defined constants **/
@@ -1518,7 +1632,12 @@ overlay_style?: OverlayStyle;
 /**
  * Meeting notes (this fork): recording, speakers, summary and the notes folder.
  */
-meetings?: MeetingSettings }
+meetings?: MeetingSettings; 
+/**
+ * Screen and camera recording (`video/`): on or off, and the choices
+ * from the last recording.
+ */
+videos?: VideoSettings }
 /**
  * What the footer shows: the new version and how long Sokki will be away.
  */
@@ -2155,6 +2274,96 @@ export type TranscriptionOutcome =
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type VadBackend = "silero" | "earshot"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
+
+export type VideoCamera = { id: string; name: string }
+/**
+ * Sent whenever a video changes (recording, rendering, ready, failed).
+ */
+export type VideoChanged = { folder: string }
+export type VideoDisplay = { id: number; name: string; width: number; height: number; main?: boolean }
+/**
+ * A video, as kept in its folder's `video.json`.
+ */
+export type VideoMeta = { folder: string; meeting_id: string; kind: string; started_at: string; duration_s: number; look: string; screen: VideoTrack | null; camera: VideoTrack | null; audio?: VideoTrack[]; 
+/**
+ * The rendered file's name, once there is one.
+ */
+rendered: string | null; 
+/**
+ * "recording", "rendering", "ready" or "failed".
+ */
+status: string; error: string | null }
+/**
+ * Screen and camera recording. Every field falls back to its default when
+ * missing, so older stores load unchanged.
+ */
+export type VideoSettings = { 
+/**
+ * Off hides recording the screen and camera everywhere: the Videos page,
+ * "Meeting with screen" and the screen option when a call is detected.
+ */
+enabled: boolean; 
+/**
+ * What the last recording used: "both", "screen" or "camera".
+ */
+mode: string; 
+/**
+ * How the finished video looks: "bubble", "side", "vertical" or "files"
+ * (screen and camera only as separate files).
+ */
+look: string; 
+/**
+ * Display to record (Core Graphics display id). `None`: the main display.
+ */
+display: number | null; 
+/**
+ * Camera to record (AVFoundation unique id). `None`: the default camera.
+ */
+camera: string | null }
+/**
+ * Displays and cameras, and whether each may be recorded.
+ */
+export type VideoSources = { 
+/**
+ * "allowed" or "not_allowed".
+ */
+screen: string; 
+/**
+ * "allowed", "denied", "not_asked" or "restricted".
+ */
+camera: string; displays: VideoDisplay[]; cameras: VideoCamera[] }
+/**
+ * What to record, from the recording bar or "Meeting with screen".
+ */
+export type VideoStartOptions = { 
+/**
+ * "video" (the Videos page) or "meeting" (a meeting with its screen).
+ */
+kind: string; 
+/**
+ * "both", "screen" or "camera".
+ */
+mode: string; display: number | null; camera: string | null; 
+/**
+ * "bubble", "side", "vertical" or "files".
+ */
+look: string; 
+/**
+ * The meeting app, when started from call detection.
+ */
+source_app: string | null }
+/**
+ * One recorded track in the video's folder.
+ */
+export type VideoTrack = { 
+/**
+ * File name inside the folder.
+ */
+file: string; 
+/**
+ * Wall-clock microseconds of the first frame or sample.
+ */
+first_us: number }
 
 /** tauri-specta globals **/
 

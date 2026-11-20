@@ -14,7 +14,16 @@ export const ReturningPermissions: React.FC<{ onComplete: () => void }> = ({
   onComplete,
 }) => {
   const permissions = usePermissions(false);
-  if (!permissions.checked) return null;
+  // Everything allowed (the switch was on after all): go on without a
+  // click, once.
+  const done = useRef(false);
+  useEffect(() => {
+    if (permissions.checked && permissions.allGranted && !done.current) {
+      done.current = true;
+      onComplete();
+    }
+  }, [permissions.checked, permissions.allGranted, onComplete]);
+  if (!permissions.checked || permissions.allGranted) return null;
   return <Permissions permissions={permissions} onContinue={onComplete} />;
 };
 

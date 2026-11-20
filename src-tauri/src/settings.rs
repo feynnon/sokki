@@ -574,6 +574,41 @@ pub struct AppSettings {
     /// Meeting notes (this fork): recording, speakers, summary and the notes folder.
     #[serde(default)]
     pub meetings: MeetingSettings,
+    /// Screen and camera recording (`video/`): on or off, and the choices
+    /// from the last recording.
+    #[serde(default)]
+    pub videos: VideoSettings,
+}
+
+/// Screen and camera recording. Every field falls back to its default when
+/// missing, so older stores load unchanged.
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[serde(default)]
+pub struct VideoSettings {
+    /// Off hides recording the screen and camera everywhere: the Videos page,
+    /// "Meeting with screen" and the screen option when a call is detected.
+    pub enabled: bool,
+    /// What the last recording used: "both", "screen" or "camera".
+    pub mode: String,
+    /// How the finished video looks: "bubble", "side", "vertical" or "files"
+    /// (screen and camera only as separate files).
+    pub look: String,
+    /// Display to record (Core Graphics display id). `None`: the main display.
+    pub display: Option<u32>,
+    /// Camera to record (AVFoundation unique id). `None`: the default camera.
+    pub camera: Option<String>,
+}
+
+impl Default for VideoSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            mode: "both".into(),
+            look: "bubble".into(),
+            display: None,
+            camera: None,
+        }
+    }
 }
 
 /// Settings for meeting notes. Every field falls back to its default when
@@ -600,9 +635,11 @@ pub struct MeetingSettings {
     /// End every note, and the summary shown in the app and on the phone,
     /// with "Transcribed on my Mac with sokki.org".
     pub footer_enabled: bool,
-    /// Which language model summarises: "local" (the server
-    /// at `llm_base_url`, normally Ollama; nothing leaves the computer),
-    /// or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
+    /// Which language model summarises: "builtin" (Qwen 3.5
+    /// 9B run by llama.cpp inside Sokki, on Macs with Apple silicon),
+    /// "local" (the server at `llm_base_url`, normally Ollama; nothing
+    /// leaves the computer either way), or a cloud provider: "anthropic",
+    /// "openai" or "openrouter". A cloud
     /// provider gets the transcript; its API key is the one stored for
     /// that provider under `post_process_api_keys`.
     pub llm_provider: String,
@@ -633,7 +670,7 @@ impl Default for MeetingSettings {
             glossary: Vec::new(),
             summary_enabled: true,
             footer_enabled: true,
-            llm_provider: "local".to_string(),
+            llm_provider: sokki_engine::llm::DEFAULT_PROVIDER.to_string(),
             cloud_model: String::new(),
             llm_base_url: "http://localhost:11434".to_string(),
             llm_model: "qwen3.5:9b".to_string(),
@@ -691,7 +728,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 5;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 6;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -1212,6 +1249,7 @@ pub fn get_default_settings() -> AppSettings {
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
         meetings: MeetingSettings::default(),
+        videos: VideoSettings::default(),
     }
 }
 
@@ -1347,6 +1385,18 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
         warn!("Failed to reassemble salvaged settings ({e}); falling back to defaults");
         get_default_settings()
     })
+}
+
+/// Sokki runs its default language model itself now. Whoever still has the
+/// old default (Qwen 3.5 9B through Ollama) moves to the same model built
+/// in; a different Ollama model or server stays as it is.
+fn move_default_ollama_to_builtin(m: &mut MeetingSettings) {
+    let old_default = m.llm_provider == "local"
+        && m.llm_model == "qwen3.5:9b"
+        && m.llm_base_url.trim().trim_end_matches('/') == "http://localhost:11434";
+    if old_default && sokki_engine::llm::DEFAULT_PROVIDER == sokki_engine::llm::BUILTIN {
+        m.llm_provider = sokki_engine::llm::BUILTIN.to_string();
+    }
 }
 
 fn apply_settings_migrations(
@@ -1495,6 +1545,11 @@ fn apply_settings_migrations(
     if stored_schema_version < 5 {
         let old = dirs_home().join("Documents").join("Handy Meetings");
         keep_old_notes_folder(&mut settings.meetings, &old);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
+    if stored_schema_version < 6 {
+        move_default_ollama_to_builtin(&mut settings.meetings);
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
@@ -1994,6 +2049,33 @@ mod tests {
     fn default_overlay_style_is_live_when_overlay_defaults_on() {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Live);
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn the_old_ollama_default_moves_to_the_built_in_model() {
+        let ollama = MeetingSettings {
+            llm_provider: "local".into(),
+            ..Default::default()
+        };
+        let mut m = ollama.clone();
+        move_default_ollama_to_builtin(&mut m);
+        assert_eq!(m.llm_provider, "builtin");
+
+        // Another Ollama model, or a cloud provider, stays.
+        let mut m = MeetingSettings {
+            llm_model: "gemma4:12b".into(),
+            ..ollama.clone()
+        };
+        move_default_ollama_to_builtin(&mut m);
+        assert_eq!(m.llm_provider, "local");
+        let mut m = MeetingSettings {
+            llm_provider: "anthropic".into(),
+            ..Default::default()
+        };
+        move_default_ollama_to_builtin(&mut m);
+        assert_eq!(m.llm_provider, "anthropic");
+        assert_eq!(MeetingSettings::default().llm_provider, "builtin");
     }
 
     #[test]

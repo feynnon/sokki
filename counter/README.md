@@ -2,7 +2,7 @@
 
 A tiny Cloudflare Worker behind Sokki's **Your data** page:
 
-- Installs with **Help improve Sokki** or **Support Sokki & Open Source** on
+- Installs with **Help improve Sokki** or **Share all my recordings** on
   report a random id and how many seconds of their own data they keep per
   language (`POST /report`); anyone can read the total (`GET /total`), with the
   number of installs rounded down to 1000, 10000, … (0 below 1000).
@@ -13,10 +13,10 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   region. Never names, audio or anyone's words. One row per install and day.
 - "I'm interested" on a buyer message sends the id, the message's id, the
   language and the matching hours (`POST /interest`).
-- Supporters upload their own recordings (`POST /donate`): FLAC audio into
+- With **Share all my recordings** on, an install uploads every recording of
+  the user's (`POST /donate`): FLAC audio into
   Workers KV (`<id>/<clip>.flac`), the transcript and length into D1
-  (`donations`). The app only sends recordings whose text has no name, number
-  or contact details. The store stops taking uploads at 900 MB (KV's free
+  (`donations`), unchanged, names and numbers included. The store stops taking uploads at 900 MB (KV's free
   1 GB; beyond it Cloudflare returns errors, never a bill).
 - **Tell me about paid recording tasks** sends the id and the languages of the
   user's own recordings (`POST /tasks`); unticking removes it. See who ticked it:
@@ -41,7 +41,7 @@ What keeps fakes expensive and harmless:
   approximate: bursts get cut off, a slow trickle doesn't.
 - **Plausibility.** Hours can't grow faster than time passes; at most 2,000
   hours per install; daily reports up to 32 KB.
-- **Uploads** only from installs whose count says "support", FLAC only, clip
+- **Uploads** only from installs whose count says "share", FLAC only, clip
   names in the app's format, 5 MB each, 900 MB in all.
 - At a sale, the buyer gets real audio, which can be checked; fake counts can
   only inflate the public total.
@@ -77,10 +77,9 @@ hours; it includes the current message, if any. A new message (its id is the
 time it was set) is handled once.
 
 A **buyer message** is JSON with a language. Each install compares it with
-the hours of its own data in that language and, if at least an hour fits and
-the user doesn't support Sokki & Open Source, sends the notification
-"Someone wants German data · 12 hours of your anonymised data fit. You'd get
-a share of the profit." and shows a card on the Your data page with
+the hours of its own data in that language and, if at least an hour fits, the user
+turned on **Ask me when there's a buyer** and doesn't share all recordings,
+sends a notification (text in `buyer_message` in `voice_data.rs`) and shows a card on the Your data page with
 "I'm interested" and "Not interested". `text` is optional and shown on the
 card:
 

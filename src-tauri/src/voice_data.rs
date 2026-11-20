@@ -1,24 +1,25 @@
-//! "Your data": the user's own recordings, kept on this Mac, and the two
-//! things a user can agree to share.
+//! "Your data": the user's own recordings, kept on this Mac, and the three
+//! choices about them.
 //!
 //! Kept for everyone, until the user deletes them: the user's own voice with
-//! its text (dictations, and in meetings only the microphone segments
-//! labelled with the user's name) in `<app data>/voice-data/`
+//! its text (dictations, and in meetings and videos only the microphone
+//! segments labelled with the user's name) in `<app data>/voice-data/`
 //! (`clips/*.wav` and `manifest.jsonl`), apart from the recordings'
-//! retention. Nothing of it is uploaded.
+//! retention. Screen and camera video never go in here.
 //!
-//! Two choices, both off until the user turns them on:
+//! Three choices, all off until the user turns them on:
 //! - **Help improve Sokki**: once a day, under a random id, a report of
 //!   how Sokki is used, problems it hit, how much data of which kind the
 //!   user has, and the Mac's model and macOS version (never the Mac's name
 //!   or serial number, never anyone's words).
-//! - **Support Sokki & Open Source**: the user's anonymised data may be
-//!   used freely (to improve Sokki, for open-source speech models, shared
-//!   or sold), without a share. Supporters get no buyer messages.
-//!
-//! Buyer messages need no choice: Sokki reads a message from the counter
-//! (a plain download) and matches it against the hours kept here; nothing
-//! leaves the Mac unless the user answers "I'm interested".
+//! - **Ask me when there's a buyer**: Sokki reads a message from the counter
+//!   (a plain download) and matches it against the hours kept here; nothing
+//!   leaves the Mac unless the user answers "I'm interested".
+//! - **Share all my recordings**: every recording kept here, those from
+//!   before the switch too, goes to the counter unchanged with its
+//!   transcript. Sokki may use them to improve Sokki, for open-source speech
+//!   models, and share or sell them; the user gets no share of a sale.
+//!   Sharers get no buyer messages. "Delete what was shared" turns it off.
 //!
 //! The counter service is set at build time (`SOKKI_COUNTER_URL`).
 
@@ -170,7 +171,7 @@ pub struct CommunityTotal {
     pub installs: u32,
     pub total_seconds: f64,
     pub seconds_by_language: BTreeMap<String, f64>,
-    /// How many of the installs support Sokki & Open Source.
+    /// How many of the installs share all their recordings.
     #[serde(default)]
     pub donors: u32,
     /// A message from Sokki. Plain text, or JSON for a buyer:
@@ -246,7 +247,7 @@ pub fn set_choices(app: &AppHandle, improve: bool, support: bool, buyers: bool) 
         c.last_usage = 0;
     }
     if support {
-        // Supporters get no buyer messages.
+        // Sharers get no buyer messages.
         c.buyer = None;
     }
     write_config(&d, &c)?;
@@ -623,9 +624,10 @@ pub fn forget(app: &AppHandle) -> Result<()> {
         c.last_report = 0;
         c.last_usage = 0;
         c.tasks_reported = false;
+        // Otherwise the new id would upload everything again.
+        c.support = false;
     });
-    // The counter deleted the uploads too; a supporter's new id sends them
-    // again.
+    // The counter deleted the uploads too.
     let _ = std::fs::remove_file(d.join(DONATED));
     // With a choice still on, the new id starts reporting again.
     sync_in_background(app.clone(), true);

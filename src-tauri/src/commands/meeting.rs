@@ -35,13 +35,6 @@ pub fn qr_code_svg(text: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Puts the heads-up line for the call chat on the clipboard.
-#[tauri::command]
-#[specta::specta]
-pub fn copy_heads_up(app: AppHandle) -> Result<(), String> {
-    crate::meeting::heads_up::copy(&app)
-}
-
 /// Phone link pairing details for the settings page.
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -76,21 +69,27 @@ pub struct MeetingChanged {
 #[cfg(target_os = "macos")]
 use tauri::{Manager, State};
 
+/// Off the main thread, like the shortcut's path: opening and closing the
+/// captures must never freeze the window or the recording pill.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
-pub fn start_meeting_recording(app: AppHandle) -> Result<String, String> {
+pub async fn start_meeting_recording(app: AppHandle) -> Result<String, String> {
     log::info!("Meeting start via the Sokki window");
-    meeting::start_meeting(&app, None)
+    tokio::task::spawn_blocking(move || meeting::start_meeting(&app, None))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Stops the meeting and starts turning it into a note. Returns its id.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
-pub fn stop_meeting_recording(app: AppHandle) -> Result<String, String> {
+pub async fn stop_meeting_recording(app: AppHandle) -> Result<String, String> {
     log::info!("Meeting stop via the recording pill or the Sokki window");
-    meeting::stop_meeting(&app)
+    tokio::task::spawn_blocking(move || meeting::stop_meeting(&app))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[cfg(target_os = "macos")]

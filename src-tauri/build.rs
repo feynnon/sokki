@@ -4,6 +4,7 @@ fn main() {
 
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         build_system_audio_bridge();
+        build_video_bridge();
     }
 
     generate_tray_translations();
@@ -694,4 +695,97 @@ fn is_command_line_tools_only() -> bool {
         .and_then(|out| String::from_utf8(out.stdout).ok())
         .map(|path| path.trim().ends_with("CommandLineTools"))
         .unwrap_or(false)
+}
+
+/// Compiles `swift/video_capture.swift` (screen recording with
+/// ScreenCaptureKit, camera with AVFoundation, rendering a look) into a static
+/// library and links it. ScreenCaptureKit is weak-linked: the Swift code uses
+/// it only behind `@available(macOS 12.3, *)`.
+fn build_video_bridge() {
+    use std::env;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    const SWIFT_FILE: &str = "swift/video_capture.swift";
+    const BRIDGE_HEADER: &str = "swift/video_capture.h";
+    println!("cargo:rerun-if-changed={SWIFT_FILE}");
+    println!("cargo:rerun-if-changed={BRIDGE_HEADER}");
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
+    let object_path = out_dir.join("video_capture.o");
+    let static_lib_path = out_dir.join("libvideo_capture.a");
+    let sdk_path = env::var("SDKROOT").unwrap_or_else(|_| {
+        String::from_utf8(
+            Command::new("xcrun")
+                .args(["--sdk", "macosx", "--show-sdk-path"])
+                .output()
+                .expect("Failed to locate macOS SDK")
+                .stdout,
+        )
+        .expect("SDK path is not valid UTF-8")
+        .trim()
+        .to_string()
+    });
+    let swift_arch = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+        Ok("aarch64") => "arm64",
+        Ok("x86_64") => "x86_64",
+        other => panic!("Unsupported macOS architecture for video bridge: {other:?}"),
+    };
+    let swiftc_path = env::var("SWIFTC").unwrap_or_else(|_| {
+        String::from_utf8(
+            Command::new("xcrun")
+                .args(["--find", "swiftc"])
+                .output()
+                .expect("Failed to locate swiftc")
+                .stdout,
+        )
+        .expect("swiftc path is not valid UTF-8")
+        .trim()
+        .to_string()
+    });
+    // 12.0: Swift concurrency (async/await) is part of the OS from there on.
+    let target = format!("{swift_arch}-apple-macosx12.0");
+    let status = Command::new(&swiftc_path)
+        .args([
+            "-parse-as-library",
+            "-target",
+            &target,
+            "-sdk",
+            &sdk_path,
+            "-O",
+            "-import-objc-header",
+            BRIDGE_HEADER,
+            "-c",
+            SWIFT_FILE,
+            "-o",
+            object_path.to_str().expect("object path"),
+        ])
+        .status()
+        .expect("Failed to invoke swiftc for video bridge");
+    if !status.success() {
+        panic!("swiftc failed to compile {SWIFT_FILE}");
+    }
+    let status = Command::new("libtool")
+        .args([
+            "-static",
+            "-o",
+            static_lib_path.to_str().expect("lib path"),
+            object_path.to_str().expect("object path"),
+        ])
+        .status()
+        .expect("Failed to create static library for video bridge");
+    if !status.success() {
+        panic!("libtool failed for video bridge");
+    }
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        Path::new(&sdk_path).join("usr/lib/swift").display()
+    );
+    println!("cargo:rustc-link-search=native=/usr/lib/swift");
+    println!("cargo:rustc-link-lib=static=video_capture");
+    for framework in ["AVFoundation", "CoreMedia", "CoreVideo", "CoreImage", "CoreGraphics"] {
+        println!("cargo:rustc-link-lib=framework={framework}");
+    }
+    println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");
 }

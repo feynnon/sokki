@@ -15,9 +15,14 @@ import { Input } from "@/components/ui/Input";
 import { Tag } from "@/components/shared/Tag";
 import { CODE_CLASS } from "@/components/shared/modelTable/columns";
 
+/** The built-in model's value ("builtin|…"): one model, set by Sokki
+ * (`BUILTIN_MODEL` in crates/sokki-engine/src/llm.rs). */
+export const BUILTIN_MODEL = "builtin|qwen3.5-9b";
+
 /** The language models offered for meeting notes ("provider|model"). The
- * local one is the model measured in KNOWN_ISSUES.md; the cloud ones are each
- * provider's current models. Other models can be set in the config file. */
+ * local ones are the model measured in KNOWN_ISSUES.md, built in or through
+ * Ollama; the cloud ones are each provider's current models. Other models
+ * can be set in the config file. */
 export const LANGUAGE_MODELS: {
   value: string;
   name: string;
@@ -26,11 +31,17 @@ export const LANGUAGE_MODELS: {
   tagKey?: string;
 }[] = [
   {
-    value: "local|qwen3.5:9b",
+    value: BUILTIN_MODEL,
     name: "Qwen 3.5 9B",
     lineKey: "meetings.lm.qwen",
-    right: "7.6 GB",
+    right: "5.7 GB",
     tagKey: "meetings.lm.recommended",
+  },
+  {
+    value: "local|qwen3.5:9b",
+    name: "Qwen 3.5 9B via Ollama",
+    lineKey: "meetings.lm.ollama",
+    right: "Ollama",
   },
   {
     value: "anthropic|claude-sonnet-5-5",
@@ -76,6 +87,7 @@ const CLOUD_DEFAULT_MODEL: Record<string, string> = {
 export function selectedLanguageModel(m: MeetingSettingsType): string {
   if (!m.summary_enabled) return "off";
   const provider = m.llm_provider || "local";
+  if (provider === "builtin") return BUILTIN_MODEL;
   if (provider === "local") return `local|${m.llm_model}`;
   return `${provider}|${m.cloud_model || CLOUD_DEFAULT_MODEL[provider] || ""}`;
 }
@@ -90,7 +102,7 @@ export function languageModelName(value: string, offLabel: string): string {
 
 /** Status of the selected model, and what to do to make it work. */
 const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { settings, refreshSettings } = useSettings();
   const [status, setStatus] = useState<LlmStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,6 +114,7 @@ const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
   >;
   const [key, setKey] = useState(apiKeys[provider] ?? "");
   const providerName = PROVIDER_NAMES[provider] ?? provider;
+  const cloud = provider in PROVIDER_NAMES;
 
   const refresh = useCallback(async (probe = false) => {
     const r = await commands.meetingLlmStatus(probe);
@@ -156,7 +169,7 @@ const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
   );
   return (
     <div className="ms-[40px] me-[14px] mb-[10px] mt-[2px] space-y-2 text-small">
-      {provider !== "local" && (
+      {cloud && (
         <div className="flex items-center gap-2">
           <Input
             type="password"
@@ -177,7 +190,7 @@ const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
         {state === "ready" && (
           <span className="flex items-center gap-2 text-emerald-600">
             <CheckCircle2 width={15} height={15} />
-            {provider === "local"
+            {!cloud
               ? t("meetings.lm.readyLocal")
               : t("meetings.lm.readyCloud", { provider: providerName })}
           </span>
@@ -228,7 +241,11 @@ const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
             <span className="flex-1 text-ink-2 tabular-nums">
               {busy
                 ? t("meetings.lm.downloading", { pct: pull ?? 0 })
-                : t("meetings.lm.modelMissing")}
+                : t("meetings.lm.modelMissing", {
+                    size: `${new Intl.NumberFormat(i18n.language).format(
+                      provider === "builtin" ? 5.7 : 7.6,
+                    )} GB`,
+                  })}
             </span>
             <Button
               size="sm"
@@ -315,17 +332,22 @@ export const LanguageModels: React.FC = () => {
       const [p, ...rest] = value.split("|");
       const model = rest.join("|");
       patch =
-        p === "local"
+        p === "builtin"
           ? {
               summary_enabled: true,
-              llm_provider: "local",
-              llm_model: model,
+              llm_provider: "builtin",
             }
-          : {
-              summary_enabled: true,
-              llm_provider: p,
-              cloud_model: model,
-            };
+          : p === "local"
+            ? {
+                summary_enabled: true,
+                llm_provider: "local",
+                llm_model: model,
+              }
+            : {
+                summary_enabled: true,
+                llm_provider: p,
+                cloud_model: model,
+              };
     }
     await commands.setMeetingSettings({ ...m, ...patch });
     await refreshSettings();
@@ -364,7 +386,9 @@ export const LanguageModels: React.FC = () => {
       </p>
       {section(
         t("meetings.lm.onThisMac"),
-        LANGUAGE_MODELS.filter((o) => o.value.startsWith("local|")).map((o) =>
+        LANGUAGE_MODELS.filter(
+          (o) => !(o.value.split("|")[0] in PROVIDER_NAMES),
+        ).map((o) =>
           row(o.value, {
             name: o.name,
             line: t(o.lineKey),
@@ -375,7 +399,9 @@ export const LanguageModels: React.FC = () => {
       )}
       {section(
         t("meetings.lm.cloud"),
-        LANGUAGE_MODELS.filter((o) => !o.value.startsWith("local|")).map((o) =>
+        LANGUAGE_MODELS.filter(
+          (o) => o.value.split("|")[0] in PROVIDER_NAMES,
+        ).map((o) =>
           row(o.value, {
             name: o.name,
             line: t(o.lineKey),

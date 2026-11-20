@@ -1,7 +1,14 @@
-//! Language-model settings, status, starting Ollama and downloading a model.
+//! Language-model settings, status, the built-in model, Ollama, and
+//! downloading a model.
 //!
-//! The model itself is called by `meeting_core::summary`; this module turns the person's settings into that config and
-//! answers "is it ready?".
+//! The model itself is called by `meeting_core::summary`; this module
+//! turns the person's settings into that config, answers "is it ready?",
+//! and runs the built-in model ([`open`]).
+//!
+//! The built-in model ("builtin") is one GGUF file from [`BUILTIN_MODEL`],
+//! run by llama.cpp's `llama-server` on the GPU (Metal) in its own process:
+//! a crash or hang there can't take the app down. It runs only while a
+//! summary is written and quits right after, which frees its memory.
 
 use anyhow::{bail, Context, Result};
 use meeting_core::summary::{Backend, LlmConfig};
@@ -14,7 +21,8 @@ use std::time::Duration;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LlmSettings {
-    /// "local", or a cloud provider from [`CLOUD_PROVIDERS`].
+    /// "builtin" (llama.cpp inside Sokki), "local" (Ollama or another
+    /// server at `base_url`), or a cloud provider from [`CLOUD_PROVIDERS`].
     pub provider: String,
     /// Cloud model; empty means [`default_cloud_model`].
     pub cloud_model: String,
@@ -30,13 +38,99 @@ pub struct LlmSettings {
 impl Default for LlmSettings {
     fn default() -> Self {
         LlmSettings {
-            provider: "local".into(),
+            provider: DEFAULT_PROVIDER.into(),
             cloud_model: String::new(),
             base_url: "http://localhost:11434".into(),
             model: "qwen3.5:9b".into(),
             keys: HashMap::new(),
         }
     }
+}
+
+/// The built-in model where llama.cpp is shipped (Macs with Apple
+/// silicon); Ollama elsewhere.
+pub const DEFAULT_PROVIDER: &str = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    BUILTIN
+} else {
+    "local"
+};
+
+/// Provider id of the built-in model.
+pub const BUILTIN: &str = "builtin";
+
+/// A model file the built-in engine can run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuiltinModel {
+    /// Model name in requests and logs.
+    pub id: &'static str,
+    /// File name under the models directory's `llm/` folder.
+    pub file: &'static str,
+    /// Pinned to one revision, so the checksum stays valid.
+    pub url: &'static str,
+    pub sha256: &'static str,
+    pub size: u64,
+    /// The model's own sampling defaults, as its publisher gives them, for
+    /// llama-server. Needed because the GGUF carries none and llama.cpp's
+    /// fallback (temperature 0.8, top-k 40, min-p 0.05) is not the model's.
+    /// Requests still send no sampling values.
+    pub sampling: &'static [&'static str],
+}
+
+/// Qwen 3.5 9B, Q4_K_M: the same model as Ollama's `qwen3.5:9b` (there
+/// NVFP4, also about 4.5 bits per weight). Apache-2.0.
+pub const BUILTIN_MODEL: BuiltinModel = BuiltinModel {
+    id: "qwen3.5-9b-q4_k_m",
+    file: "Qwen3.5-9B-Q4_K_M.gguf",
+    url: "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf",
+    sha256: "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8",
+    size: 5_680_522_464,
+    // Qwen's values, the same Ollama ships with qwen3.5:9b (Robin,
+    // 2026-11-20: "Nimm Qwens Werte").
+    sampling: &[
+        "--temp", "1.0", "--top-k", "20", "--top-p", "0.95", "--min-p", "0",
+        "--presence-penalty", "1.5", "--repeat-penalty", "1.0",
+    ],
+};
+
+/// Context the built-in model runs with: the same as Ollama's (`num_ctx`).
+const BUILTIN_CONTEXT: usize = 16_384;
+
+/// Where the built-in engine and its model live; set once by the host.
+#[derive(Debug, Clone, Default)]
+pub struct BuiltinPaths {
+    /// The `llama-server` executable.
+    pub server: Option<PathBuf>,
+    /// Directory for model files (the model goes into its `llm/` folder).
+    pub models_dir: Option<PathBuf>,
+}
+
+static BUILTIN_PATHS: std::sync::OnceLock<BuiltinPaths> = std::sync::OnceLock::new();
+
+/// Tells the engine where the built-in model's server and files are. Call
+/// once at startup; later calls are ignored. `SOKKI_LLAMA_SERVER` overrides
+/// the server path (for tests and measurements).
+pub fn set_builtin_paths(paths: BuiltinPaths) {
+    let _ = BUILTIN_PATHS.set(paths);
+}
+
+fn builtin_server() -> Option<PathBuf> {
+    std::env::var_os("SOKKI_LLAMA_SERVER")
+        .map(PathBuf::from)
+        .or_else(|| BUILTIN_PATHS.get().and_then(|p| p.server.clone()))
+}
+
+/// Where the built-in model file belongs, whether or not it is there yet.
+pub fn builtin_model_path() -> Option<PathBuf> {
+    BUILTIN_PATHS
+        .get()
+        .and_then(|p| p.models_dir.as_ref())
+        .map(|d| d.join("llm").join(BUILTIN_MODEL.file))
+}
+
+fn builtin_model_present() -> bool {
+    builtin_model_path()
+        .and_then(|p| std::fs::metadata(p).ok())
+        .is_some_and(|m| m.len() == BUILTIN_MODEL.size)
 }
 
 /// Provider ids that can summarise in the cloud, as in Handy's provider list.
@@ -80,6 +174,14 @@ pub fn config(s: &LlmSettings, user_name: &str) -> LlmConfig {
         cfg.user_name = Some(user_name.to_string());
         return cfg;
     }
+    if provider == BUILTIN {
+        // The address and key are filled in by [`open`] once the server runs.
+        let mut cfg = LlmConfig::openai_compatible("", BUILTIN_MODEL.id, None);
+        cfg.context_tokens = BUILTIN_CONTEXT;
+        cfg.keep_alive = None;
+        cfg.user_name = Some(user_name.to_string());
+        return cfg;
+    }
     let base = s.base_url.trim().trim_end_matches('/').to_string();
     let mut cfg = if is_ollama(&base) {
         LlmConfig {
@@ -102,7 +204,7 @@ pub fn is_ollama(base: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Status {
     /// "ready", "no_key", "no_ollama", "not_running", "model_missing" or
-    /// "error".
+    /// "error". The built-in model is "ready", "model_missing" or "error".
     pub state: String,
     /// Model name, or the error text for "error".
     pub detail: String,
@@ -232,6 +334,21 @@ fn check_with(s: &LlmSettings, user_name: &str, probe: bool, patience: Duration)
             Err(e) => status("error", format!("{e:#}")),
         };
     }
+    if provider == BUILTIN {
+        return match builtin_server() {
+            Some(server) if server.exists() => {
+                if builtin_model_present() {
+                    status("ready", BUILTIN_MODEL.id)
+                } else {
+                    status("model_missing", BUILTIN_MODEL.id)
+                }
+            }
+            _ => status(
+                "error",
+                "This build of Sokki has no built-in language model.",
+            ),
+        };
+    }
     let base = cfg.base_url.trim_end_matches('/').to_string();
     if cfg.backend != Backend::Ollama {
         // A custom OpenAI-compatible local server (set in the config file).
@@ -313,8 +430,13 @@ pub struct PullProgress {
     pub total: u64,
 }
 
-/// Downloads the local model through Ollama, reporting progress.
+/// Downloads the local model (the built-in one, or through Ollama),
+/// reporting progress.
 pub fn pull_model(s: &LlmSettings, mut progress: impl FnMut(PullProgress)) -> Result<()> {
+    if s.provider.trim() == BUILTIN {
+        let dest = builtin_model_path().context("No folder for the model")?;
+        return download_builtin(&dest, &mut progress);
+    }
     let base = s.base_url.trim().trim_end_matches('/');
     let model = s.model.trim();
     let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -378,20 +500,16 @@ pub fn ollama_on_gpu(s: &LlmSettings) -> Option<bool> {
     Some(entry["size_vram"].as_u64().unwrap_or(0) > 0)
 }
 
-/// Gets the language model going for a meeting, in the background: starts
-/// Ollama when it is installed but not running (the person chose it for
-/// summaries, so a meeting that needs it may start it), then loads the
-/// model. Join the handle before asking whether the model is ready.
+/// Gets the language model going for a meeting, in the background: loads
+/// Ollama's model when Ollama runs. It never starts Ollama (only the person
+/// does, in Settings), and the built-in model loads only for the summary
+/// ([`open`]). Join the handle before asking whether the model is ready.
 pub fn prepare(s: &LlmSettings, user_name: &str) -> std::thread::JoinHandle<()> {
     let (s, user_name) = (s.clone(), user_name.to_string());
     std::thread::spawn(move || {
-        if check(&s, &user_name, false).state == "not_running" {
-            match start_ollama(&s) {
-                Ok(()) => log::info!("Started Ollama for the meeting (it was not running)"),
-                Err(e) => log::warn!("Could not start Ollama: {e:#}"),
-            }
+        if s.provider.trim() != BUILTIN {
+            warm_up(&s, &user_name);
         }
-        warm_up(&s, &user_name);
     })
 }
 
@@ -430,6 +548,281 @@ pub fn warm_up(s: &LlmSettings, user_name: &str) {
     });
 }
 
+/// The language model for one job (a summary): its request config, and for
+/// the built-in model the running server. Dropping it stops the server,
+/// which frees the model's memory.
+pub struct Llm {
+    cfg: LlmConfig,
+    _server: Option<Server>,
+}
+
+impl Llm {
+    /// The request config, pointing at the running server.
+    pub fn config(&self) -> LlmConfig {
+        self.cfg.clone()
+    }
+}
+
+/// Gets the language model ready for one job. The built-in model starts its
+/// server and loads (a few seconds); every other provider is used as set.
+pub fn open(s: &LlmSettings, user_name: &str) -> Result<Llm> {
+    let mut cfg = config(s, user_name);
+    if s.provider.trim() != BUILTIN {
+        return Ok(Llm { cfg, _server: None });
+    }
+    let bin = builtin_server().context("This build of Sokki has no built-in language model")?;
+    let model = builtin_model_path()
+        .filter(|_| builtin_model_present())
+        .context("The language model is not downloaded")?;
+    let server = Server::start(&bin, &model, cfg.context_tokens)?;
+    cfg.base_url = format!("http://127.0.0.1:{}/v1", server.port);
+    cfg.api_key = Some(server.key.clone());
+    Ok(Llm {
+        cfg,
+        _server: Some(server),
+    })
+}
+
+/// How long loading the built-in model may take.
+const SERVER_START_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// Starts the server and stops it with the parent: when Sokki's end of
+/// stdin closes (Sokki exits, crashes, or drops [`Server`]), the shell
+/// stops llama-server, so no model is left holding memory.
+const WATCHDOG: &str = r#"exec 3<&0
+"$@" </dev/null 3<&- &
+pid=$!
+(read _ <&3; kill $pid 2>/dev/null) &
+w=$!
+wait $pid
+s=$?
+kill $w 2>/dev/null
+exit $s"#;
+
+/// A running llama-server with the built-in model.
+struct Server {
+    child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    port: u16,
+    key: String,
+}
+
+impl Server {
+    fn start(bin: &std::path::Path, model: &std::path::Path, context: usize) -> Result<Server> {
+        use std::process::{Command, Stdio};
+        let port = std::net::TcpListener::bind("127.0.0.1:0")?
+            .local_addr()?
+            .port();
+        let key = random_key();
+        let t0 = std::time::Instant::now();
+        let mut cmd = Command::new("/bin/sh");
+        cmd.arg("-c")
+            .arg(WATCHDOG)
+            .arg("sokki-llm")
+            .arg(bin)
+            .arg("--model")
+            .arg(model)
+            .args(["--host", "127.0.0.1", "--port", &port.to_string()])
+            .args(["--api-key", &key])
+            // One request at a time, with the context Ollama used.
+            .args(["--ctx-size", &context.to_string(), "--parallel", "1"])
+            // The summary asks for JSON directly; Qwen 3.5 would think first.
+            .args(["--jinja", "--reasoning", "off"])
+            // The model's own sampling defaults (see `BuiltinModel::sampling`).
+            .args(BUILTIN_MODEL.sampling)
+            // No prompt cache in RAM (default 8 GB), no chat page.
+            .args(["--cache-ram", "0", "--no-ui"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("starting {}", bin.display()))?;
+        let stdin = child.stdin.take();
+        let tail = std::sync::Arc::new(std::sync::Mutex::new(std::collections::VecDeque::new()));
+        if let Some(err) = child.stderr.take() {
+            let tail = tail.clone();
+            std::thread::spawn(move || {
+                use std::io::BufRead;
+                for line in std::io::BufReader::new(err).lines().map_while(|l| l.ok()) {
+                    log::debug!("llama-server: {line}");
+                    let mut t = tail.lock().unwrap_or_else(|e| e.into_inner());
+                    if t.len() == 20 {
+                        t.pop_front();
+                    }
+                    t.push_back(line);
+                }
+            });
+        }
+        let mut server = Server {
+            child,
+            stdin,
+            port,
+            key,
+        };
+        let health = format!("http://127.0.0.1:{port}/health");
+        let agent = quick_agent(2);
+        loop {
+            if let Ok(Some(st)) = server.child.try_wait() {
+                std::thread::sleep(Duration::from_millis(200));
+                let t = tail.lock().unwrap_or_else(|e| e.into_inner());
+                let log = t.iter().cloned().collect::<Vec<_>>().join("\n");
+                bail!("The language model stopped while loading ({st}):\n{log}");
+            }
+            if let Ok(r) = agent.get(&health).call() {
+                if r.status().as_u16() == 200 {
+                    break;
+                }
+            }
+            if t0.elapsed() > SERVER_START_TIMEOUT {
+                bail!(
+                    "The language model did not load within {} s",
+                    SERVER_START_TIMEOUT.as_secs()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        log::info!(
+            "Built-in language model loaded in {:.1} s",
+            t0.elapsed().as_secs_f64()
+        );
+        Ok(server)
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        // Closing stdin makes the watchdog stop llama-server.
+        drop(self.stdin.take());
+        for _ in 0..50 {
+            if matches!(self.child.try_wait(), Ok(Some(_))) {
+                log::info!("Built-in language model stopped");
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        // Still there after 5 s: kill the whole group.
+        let _ = std::process::Command::new("/bin/kill")
+            .args(["-KILL", "--", &format!("-{}", self.child.id())])
+            .status();
+        let _ = self.child.wait();
+        log::warn!("Built-in language model killed after it did not stop");
+    }
+}
+
+/// A key only Sokki knows, so no other program on this computer can use
+/// the server while it runs.
+fn random_key() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    (0..2)
+        .map(|i| {
+            let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+            h.write_u64(i);
+            h.write_u128(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos(),
+            );
+            format!("{:016x}", h.finish())
+        })
+        .collect()
+}
+
+/// Downloads the built-in model to `dest`, resuming a partial download and
+/// checking its SHA-256 before it is used.
+fn download_builtin(dest: &std::path::Path, progress: &mut dyn FnMut(PullProgress)) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use std::io::{Read, Write};
+    let m = BUILTIN_MODEL;
+    if std::fs::metadata(dest).is_ok_and(|d| d.len() == m.size) {
+        return Ok(());
+    }
+    if let Some(dir) = dest.parent() {
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    }
+    let part = dest.with_extension("gguf.part");
+    let have = std::fs::metadata(&part).map(|d| d.len()).unwrap_or(0);
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(30)))
+        .timeout_recv_body(Some(Duration::from_secs(60)))
+        .build()
+        .into();
+    let mut req = agent.get(m.url);
+    if have > 0 && have < m.size {
+        req = req.header("Range", &format!("bytes={have}-"));
+    }
+    let mut resp = req
+        .call()
+        .with_context(|| format!("downloading {}", m.url))?;
+    let resumed = resp.status().as_u16() == 206;
+    let mut out = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(resumed)
+        .truncate(!resumed)
+        .open(&part)
+        .with_context(|| format!("creating {}", part.display()))?;
+    let mut done = if resumed { have } else { 0 };
+    let mut reader = resp.body_mut().with_config().limit(m.size).reader();
+    let mut buf = vec![0u8; 1 << 20];
+    let mut last = std::time::Instant::now();
+    loop {
+        let n = reader.read(&mut buf).context("downloading the model")?;
+        if n == 0 {
+            break;
+        }
+        out.write_all(&buf[..n])
+            .with_context(|| format!("writing {}", part.display()))?;
+        done += n as u64;
+        if last.elapsed() >= Duration::from_millis(300) {
+            last = std::time::Instant::now();
+            progress(PullProgress {
+                status: "downloading".into(),
+                completed: done,
+                total: m.size,
+            });
+        }
+    }
+    out.flush()?;
+    drop(out);
+    if done != m.size {
+        bail!("The download ended early");
+    }
+    progress(PullProgress {
+        status: "verifying".into(),
+        completed: done,
+        total: m.size,
+    });
+    let mut f = std::fs::File::open(&part)?;
+    let mut hasher = Sha256::new();
+    loop {
+        let n = f.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let got: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    if got != m.sha256 {
+        let _ = std::fs::remove_file(&part);
+        bail!("The downloaded model is damaged; please download it again");
+    }
+    std::fs::rename(&part, dest).with_context(|| format!("saving {}", dest.display()))?;
+    progress(PullProgress {
+        status: "success".into(),
+        completed: m.size,
+        total: m.size,
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,6 +832,7 @@ mod tests {
         assert!(is_ollama("http://localhost:11434"));
         assert!(!is_ollama("http://localhost:1234/v1"));
         let s = LlmSettings {
+            provider: "local".into(),
             base_url: "http://localhost:11434/".into(),
             ..Default::default()
         };
@@ -465,6 +859,7 @@ mod tests {
         let port = l.local_addr().unwrap().port();
         // Connections wait in the listen queue: accepted, never answered.
         let s = LlmSettings {
+            provider: "local".into(),
             base_url: format!("http://127.0.0.1:{port}"),
             ..Default::default()
         };
@@ -479,6 +874,7 @@ mod tests {
         let port = l.local_addr().unwrap().port();
         drop(l);
         let s = LlmSettings {
+            provider: "local".into(),
             base_url: format!("http://127.0.0.1:{port}"),
             ..Default::default()
         };
@@ -490,8 +886,95 @@ mod tests {
     }
 
     #[test]
+    fn builtin_model_is_called_like_an_openai_server_without_temperature() {
+        let s = LlmSettings {
+            provider: BUILTIN.into(),
+            ..Default::default()
+        };
+        let cfg = config(&s, "Robin");
+        assert_eq!(cfg.backend, Backend::OpenAiCompatible);
+        assert_eq!(cfg.model, BUILTIN_MODEL.id);
+        assert_eq!(cfg.context_tokens, 16_384);
+        assert_eq!(cfg.temperature, None);
+        assert_eq!(cfg.user_name.as_deref(), Some("Robin"));
+        assert!(BUILTIN_MODEL.url.contains(BUILTIN_MODEL.file));
+        assert_eq!(BUILTIN_MODEL.sha256.len(), 64);
+        // Qwen's own defaults, as in Ollama: temperature 1.0, top-k 20.
+        let arg = |name: &str| {
+            let i = BUILTIN_MODEL
+                .sampling
+                .iter()
+                .position(|a| *a == name)
+                .unwrap();
+            BUILTIN_MODEL.sampling[i + 1]
+        };
+        assert_eq!(arg("--temp"), "1.0");
+        assert_eq!(arg("--top-k"), "20");
+        assert_eq!(arg("--presence-penalty"), "1.5");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn watchdog_stops_the_server_when_sokki_lets_go() {
+        use std::process::{Command, Stdio};
+        let dir = std::env::temp_dir().join(format!("sokki-watchdog-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let pidfile = dir.join("pid");
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(WATCHDOG)
+            .arg("sokki-llm")
+            .arg("/bin/sh")
+            .arg("-c")
+            .arg(format!("echo $$ > '{}'; exec sleep 100", pidfile.display()))
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut pid = String::new();
+        for _ in 0..50 {
+            pid = std::fs::read_to_string(&pidfile).unwrap_or_default();
+            if !pid.trim().is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let pid = pid.trim().to_string();
+        assert!(!pid.is_empty(), "the server did not start");
+        let alive = |pid: &str| {
+            Command::new("/bin/kill")
+                .args(["-0", pid])
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        };
+        assert!(alive(&pid));
+        assert!(child.try_wait().unwrap().is_none());
+        // Sokki exits or drops the server: its end of stdin closes.
+        drop(child.stdin.take());
+        let mut stopped = false;
+        for _ in 0..60 {
+            if !alive(&pid) && child.try_wait().unwrap().is_some() {
+                stopped = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(stopped, "the server kept running");
+    }
+
+    #[test]
+    fn random_keys_differ() {
+        let (a, b) = (random_key(), random_key());
+        assert_eq!(a.len(), 32);
+        assert_ne!(a, b);
+    }
+
+    #[test]
     fn cloud_provider_uses_its_key_and_default_model() {
         let mut s = LlmSettings {
+            provider: "local".into(),
             keys: [("anthropic".to_string(), " key-a ".to_string())].into(),
             ..Default::default()
         };

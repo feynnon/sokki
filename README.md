@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bas
 
 Run it again to update. Settings and meetings stay. macOS 14.2 or later, Apple silicon.
 
-For summaries on your Mac, add [Ollama](https://ollama.com/download), free. Sokki downloads the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
+Summaries run on your Mac, free. Sokki downloads the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
 
 ## Speak anywhere.
 
@@ -63,18 +63,18 @@ A 20 min call is ready about 3 min after you hang up, on an M-series Mac.
 | Echo removal | WebRTC echo cancellation | — |
 | Speakers | NVIDIA Sortformer, GPU | Remembered voices |
 | Speech recognition | NVIDIA Parakeet, 25 languages | Whisper, Canary, Qwen-ASR and more |
-| Summary | Qwen 3.5 9B via Ollama, on your Mac | Claude, GPT or OpenRouter with your key |
+| Summary | Qwen 3.5 9B, built in, on your Mac | Ollama; Claude, GPT or OpenRouter with your key |
 
 Models download once, then run offline. Measurements behind these choices: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ## Stays on your Mac.
 
 - Audio, transcripts and notes stay on your Mac. Meeting audio is deleted after the period you choose.
-- Leaves only: model downloads, the transcript if you pick a cloud model, and a small counter message a few times a day.
-- No account, no update checks, no usage reports unless you turn them on.
+- Leaves only: model downloads, an update check, the transcript if you pick a cloud model, and a small counter message a few times a day.
+- No account, no usage reports unless you turn them on.
 - Recording people needs their consent. Tell everyone on the call.
 
-**Your data.** Your own recordings stay on your Mac until you delete them. Two choices, both off: **Help improve Sokki** sends a daily usage report under a random ID; **Support Sokki & Open Source** uploads your own recordings for open speech models. If someone wants data like yours, Sokki tells you, and nothing is sent unless you answer. Details: [sokki.org/privacy](https://sokki.org/privacy/) and [`counter/`](counter/).
+**Your data.** Your own recordings stay on your Mac until you delete them. Three choices, all off: **Help improve Sokki** sends a daily usage report under a random ID; **Ask me when there's a buyer** tells you when someone wants data like yours, and nothing is sent unless you answer; **Share all my recordings** uploads your recordings and their transcripts unchanged, for Sokki to use, share or sell. Details: [sokki.org/privacy](https://sokki.org/privacy/) and [`counter/`](counter/).
 
 ## Build from source
 
@@ -92,7 +92,7 @@ BRAND=handy scripts/build-and-install.sh  # the same app with Handy's look
 
 ## Credits
 
-Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais, which does the dictation and the model management. Meeting recording comes from [Mandy](https://github.com/yuri-research-ai/Mandy), meeting detection follows [Lark](https://github.com/bkoleo/lark). Models by NVIDIA (Parakeet, Sortformer) and Alibaba (Qwen), run with [ggml](https://github.com/ggml-org/ggml) and [Ollama](https://ollama.com). Details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais, which does the dictation and the model management. Meeting recording comes from [Mandy](https://github.com/yuri-research-ai/Mandy), meeting detection follows [Lark](https://github.com/bkoleo/lark). Models by NVIDIA (Parakeet, Sortformer) and Alibaba (Qwen), run with [ggml](https://github.com/ggml-org/ggml) and [llama.cpp](https://github.com/ggml-org/llama.cpp). Details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

@@ -69,9 +69,10 @@ replaces the other in /Applications. Icons are drawn as SVG in
    5. text dedup, merge ghost speakers, names: on an online call the mic
       voice is you; on a single mic nobody is named; remembered voices by
       their embedding;
-   6. summary, decisions, tasks with the local LLM (Ollama, `qwen3.5:9b`,
-      ~50 s; the model is loaded during step 2 and unloaded 1 min after);
-      the dictionary is in its prompt, so names come out spelled right. The
+   6. summary, decisions, tasks with the local LLM (Qwen 3.5 9B built in:
+      llama.cpp's `llama-server` on the GPU, ~70–90 s for a 41-min meeting
+      on an M1 Pro; started for the summary, stopped right after); the
+      dictionary is in its prompt, so names come out spelled right. The
       transcript stays as recognised: a separate correction pass cost a
       whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
    7. Markdown note in the notes folder.
@@ -79,8 +80,8 @@ replaces the other in /Applications. Icons are drawn as SVG in
    voice is recognised in later meetings (sherpa-onnx embeddings).
 7. **Language model** – summary (4.6). Chosen under
    Models → *Language model*, a list like the speech models: Qwen 3.5 9B on
-   this Mac (needs Ollama; the page offers to install, start it and download
-   the model), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
+   this Mac, built in (the page downloads the model, 5.7 GB, checksum
+   verified) or through Ollama (started only by hand), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
    an API key (the transcript then goes to that provider; the key is shared
    with dictation post-processing). No temperature is sent: every model runs
    at its own default. Other models can be set in the config file
@@ -91,11 +92,34 @@ replaces the other in /Applications. Icons are drawn as SVG in
    processed (`meeting/memguard.rs`); recordings are closed at quit and
    processed at the next launch.
 
+## Videos (screen and camera)
+
+A video is a meeting recording (microphone and system sound, so it gets a
+transcript and note like any meeting) plus a full screen video and/or a full
+camera video, recorded with ScreenCaptureKit and AVFoundation
+(`src-tauri/swift/video_capture.swift`, Rust side `src-tauri/src/video/`).
+Sokki's own windows (the camera bubble, the recording bar, the pill) are left
+out of the screen video. After Stop, Sokki renders the chosen look into one
+`.mp4` with sound: bubble, side by side or vertical (9:16); "two files"
+renders nothing. The look can be changed later on the Videos page. Files go to
+`~/Movies/Sokki/<date time>/`.
+
+Starts: "New video" on the Videos page opens the recording bar
+(`src/video-bar/`); "Meeting with screen" on the Meetings page and "Mit
+Bildschirm" in the call-detected dialog record a meeting with its screen.
+`videos.enabled` off hides all of it.
+
+Tests: `SOKKI_VIDEO_FIXTURES=<dir with screen.mov, camera.mov, mic.flac>
+cargo test --lib video::` renders every look from sample files. Capture
+itself needs Screen Recording and Camera permission, so it is not tested
+automatically yet (`SOKKI_TEST_SCREEN` / `SOKKI_TEST_CAMERA` skip capture and
+copy those files in at Stop, but meetings have no test mode for the audio).
+
 ## Layout
 
 | Path | What |
 |---|---|
-| `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, Ollama |
+| `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, the built-in model server, Ollama |
 | `crates/sokki` | The Linux/Omarchy host: `sokki daemon` (PipeWire recording, call detection, dictation), the CLI and the processing worker. See ARCHITECTURE.md |
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |

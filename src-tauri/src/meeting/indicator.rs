@@ -4,13 +4,23 @@
 //! macOS its background is the frosted HUD material under a dark veil (the
 //! page): Liquid Glass was tried and dropped, white bars and time vanished
 //! on light backgrounds (Robin, 2026-11-20: "man sieht gar nichts").
+//!
+//! The page sizes the window to the pill and, for the stop button's tooltip,
+//! briefly taller; the glass covers only the pill's 40 px at the top. Hover
+//! on the stop button comes from here, not the page: Sokki is usually not the
+//! active app, and macOS sends a background app's web view neither hover nor
+//! cursor changes (Robin: "Wenn ich auf dem Stop button hovere, macht der
+//! cursor keine Veränderung").
 
-use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "meeting_indicator";
-const WIDTH: f64 = 160.0;
+/// A first guess; the page sets the width to fit the pill.
+const WIDTH: f64 = 140.0;
 const HEIGHT: f64 = 40.0;
+/// The stop button: this wide, this far in from the pill's right edge.
+const STOP: f64 = 28.0;
+const STOP_INSET: f64 = 6.0;
 
 pub fn show(app: &AppHandle) {
     let handle = app.clone();
@@ -30,14 +40,6 @@ pub fn show(app: &AppHandle) {
         .position(x, y)
         .decorations(false)
         .transparent(true)
-        // Frosted glass behind the page, rounded like the pill.
-        .effects(
-            EffectsBuilder::new()
-                .effect(Effect::HudWindow)
-                .state(EffectState::Active)
-                .radius(HEIGHT / 2.0)
-                .build(),
-        )
         .shadow(true)
         .resizable(false)
         .always_on_top(true)
@@ -48,8 +50,12 @@ pub fn show(app: &AppHandle) {
         // is in front; without this macOS only activates Sokki with it.
         .accept_first_mouse(true)
         .build();
-        if let Err(e) = built {
-            log::warn!("Recording indicator could not be shown: {e}");
+        match built {
+            #[cfg(target_os = "macos")]
+            Ok(window) => add_glass(&window),
+            #[cfg(not(target_os = "macos"))]
+            Ok(_) => {}
+            Err(e) => log::warn!("Recording indicator could not be shown: {e}"),
         }
     });
 }
@@ -105,6 +111,8 @@ pub fn start_ticker(app: &AppHandle) {
             let mic = f32::from_bits(super::MIC_LEVEL.swap(0, Ordering::Relaxed));
             let system = f32::from_bits(super::SYSTEM_LEVEL.swap(0, Ordering::Relaxed));
             let _ = handle.emit_to(LABEL, "meeting-level", Levels { mic, system });
+            #[cfg(target_os = "macos")]
+            track_hover(&handle);
             let secs = started.elapsed().as_secs();
             let title = format!("🔴 {}:{:02}", secs / 60, secs % 60);
             if title != last_title {
@@ -140,6 +148,93 @@ pub fn flash_menu_bar_status(app: &AppHandle, text: &str) {
             .is_recording();
         if !recording {
             set_menu_bar_status(&handle, None);
+        }
+    });
+}
+
+/// Frosted HUD glass behind the pill: the top 40 px of the window, rounded,
+/// staying at the top when the window grows for the tooltip. Main thread.
+#[cfg(target_os = "macos")]
+fn add_glass(window: &tauri::WebviewWindow) {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, MainThreadMarker};
+    use objc2_app_kit::{
+        NSAutoresizingMaskOptions, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
+        NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowOrderingMode,
+    };
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    let (Some(mtm), Ok(ptr)) = (MainThreadMarker::new(), window.ns_window()) else {
+        return;
+    };
+    // SAFETY: `ns_window` is the live NSWindow behind `window`, and this runs
+    // on the main thread.
+    let ns_window = unsafe { &*(ptr as *const NSWindow) };
+    let Some(content) = ns_window.contentView() else {
+        return;
+    };
+    let bounds = content.bounds();
+    let frame = NSRect::new(
+        NSPoint::new(0.0, bounds.size.height - HEIGHT),
+        NSSize::new(bounds.size.width, HEIGHT),
+    );
+    let glass = NSVisualEffectView::initWithFrame(mtm.alloc(), frame);
+    glass.setMaterial(NSVisualEffectMaterial::HUDWindow);
+    glass.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+    glass.setState(NSVisualEffectState::Active);
+    glass.setAutoresizingMask(
+        NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewMinYMargin,
+    );
+    glass.setWantsLayer(true);
+    // SAFETY: a layer-backed view has a CALayer; both setters exist on it.
+    unsafe {
+        let layer: *mut AnyObject = msg_send![&*glass, layer];
+        if !layer.is_null() {
+            let _: () = msg_send![layer, setCornerRadius: HEIGHT / 2.0];
+            let _: () = msg_send![layer, setMasksToBounds: true];
+        }
+    }
+    content.addSubview_positioned_relativeTo(&glass, NSWindowOrderingMode::Below, None);
+}
+
+/// Whether the mouse is over the stop button: tells the page (it shows the
+/// hover look and the tooltip) and shows the pointing hand. Called by the
+/// ticker while the meeting records.
+#[cfg(target_os = "macos")]
+fn track_hover(app: &AppHandle) {
+    use objc2_app_kit::{NSCursor, NSEvent, NSWindow};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tauri::Emitter;
+    static OVER: AtomicBool = AtomicBool::new(false);
+
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window(LABEL) else {
+            OVER.store(false, Ordering::Relaxed);
+            return;
+        };
+        let Ok(ptr) = window.ns_window() else {
+            return;
+        };
+        // SAFETY: as in `add_glass`; this closure runs on the main thread.
+        let ns_window = unsafe { &*(ptr as *const NSWindow) };
+        let frame = ns_window.frame();
+        let mouse = NSEvent::mouseLocation();
+        // Screen coordinates grow upwards; the pill is the window's top 40 px.
+        let top = frame.origin.y + frame.size.height;
+        let right = frame.origin.x + frame.size.width;
+        let over = mouse.x >= right - STOP_INSET - STOP
+            && mouse.x <= right - STOP_INSET
+            && mouse.y <= top - (HEIGHT - STOP) / 2.0
+            && mouse.y >= top - (HEIGHT + STOP) / 2.0;
+        if over {
+            NSCursor::pointingHandCursor().set();
+        }
+        if OVER.swap(over, Ordering::Relaxed) != over {
+            if !over {
+                NSCursor::arrowCursor().set();
+            }
+            let _ = handle.emit_to(LABEL, "meeting-indicator-hover", over);
         }
     });
 }

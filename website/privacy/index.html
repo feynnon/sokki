@@ -28,23 +28,26 @@ Sokki</a>
 <div class="row"><span>Meeting audio</span><span>on your Mac, deleted after the period you choose</span></div>
 <div class="row"><span>Transcripts and notes</span><span>on your Mac, in the folder you choose</span></div>
 <div class="row"><span>Your own recordings</span><span>on your Mac until you delete them</span></div>
+<div class="row"><span>Screen and camera video</span><span>on your Mac, in ~/Movies/Sokki</span></div>
 <div class="row"><span>Voices you named</span><span>on your Mac</span></div>
 </div>
 
 <h2 class="title">Every request that leaves</h2>
 <div class="rows" style="margin-top: 24px">
 <div class="row"><span>Model downloads</span><span>once per model, then offline</span></div>
+<div class="row"><span>Update check</span><span>at start: asks GitHub whether there is a new version</span></div>
 <div class="row"><span>Cloud summary</span><span>only if you pick Claude, GPT or OpenRouter: the transcript goes to that provider</span></div>
 <div class="row"><span>Counter message</span><span>a few times a day, downloads one message, sends nothing</span></div>
 <div class="row"><span>Help improve Sokki</span><span>off by default; once a day: usage counts, problems, hours per language, Mac model, macOS version</span></div>
-<div class="row"><span>Support Sokki &amp; Open Source</span><span>off by default; uploads your own recordings with their transcripts</span></div>
+<div class="row"><span>Ask me when there’s a buyer</span><span>off by default; nothing leaves until you answer a buyer message</span></div>
 <div class="row"><span>“I’m interested”</span><span>only when you answer a buyer message: a random ID, language, hours</span></div>
+<div class="row"><span>Share all my recordings</span><span>off by default; uploads every recording of you on this Mac with its transcript, unchanged</span></div>
 </div>
-<p>Never sent: other people’s voices or words, your name, your Mac’s name. No account, no update checks. Recordings with a name, a number or contact details in their text stay on your Mac.</p>
+<p>Never sent: your name, your Mac’s name, screen and camera video. No account. With <strong>Share all my recordings</strong> on, your recordings can contain names, numbers and what people near you said.</p>
 <p>Check it: watch Sokki with a network monitor such as LuLu. The code is on <a href="https://github.com/feynnon/sokki">GitHub</a>.</p>
 
 <h2 class="title">Delete everything</h2>
-<p>On the <strong>Your data</strong> page: delete your recordings, and <strong>Delete what was shared</strong> to remove everything the counter holds of your Mac. Meeting notes are plain files: delete them like any file.</p>
+<p>On the <strong>Your data</strong> page: delete your recordings, and <strong>Delete what was shared</strong> to remove everything the counter holds of your Mac; this also turns sharing off. Meeting notes are plain files: delete them like any file.</p>
 
 <h2 class="title">Permissions</h2>
 <div class="rows" style="margin-top: 24px">
@@ -59,6 +62,9 @@ Sokki</a>
 <h2 class="title">This website</h2>
 <p>No cookies, no fonts from other servers. Each page view adds one to a count: the page, the tag of the link that led there (like <code>?s=note</code>) and the day. Nothing about you; the counter stores no IP addresses.</p>
 <p>It’s hosted on GitHub Pages; GitHub may log visitors’ IP addresses for security. See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>.</p>
+
+<h2 class="title">Who and why</h2>
+<p>Sharing is based on your consent (Art. 6(1)(a) GDPR); turn the switch off to withdraw it. Shared data is stored with Cloudflare (Workers KV and D1) until you delete it with <strong>Delete what was shared</strong>. You can ask what is stored under your Mac’s random ID, have it corrected or deleted, and complain to a data protection authority.</p>
 
 <h2 class="title">Questions</h2>
 <p><a href="mailto:hello@sokki.org">hello@sokki.org</a></p>

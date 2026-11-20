@@ -21,6 +21,10 @@ mod languages;
 mod llm_client;
 mod managers;
 pub mod meeting;
+#[cfg(target_os = "macos")]
+pub mod video;
+#[cfg(target_os = "macos")]
+mod video_bar;
 mod memory;
 mod milestones;
 mod notices;
@@ -118,6 +122,13 @@ fn build_console_filter() -> env_filter::Filter {
 }
 
 fn show_main_window(app: &AppHandle) {
+    // Test mode (SOKKI_TEST_MIC) runs without a window: nothing of it may
+    // appear on Robin's screen, a permissions screen included (2026-11-20:
+    // a Sokki Test without Accessibility kept showing one).
+    if test_mic::active() {
+        log::info!("Test mode: the main window stays hidden");
+        return;
+    }
     if let Some(main_window) = app.get_webview_window("main") {
         if let Err(e) = main_window.unminimize() {
             log::error!("Failed to unminimize webview window: {}", e);
@@ -174,6 +185,11 @@ fn apply_startup_activation_policy(app: &mut tauri::App, headless_mode: bool) {
     let should_hide = settings.start_hidden || cli_args.start_hidden;
     let tray_available = settings.show_tray_icon && !cli_args.no_tray;
 
+    // Test mode shows nothing, not even a Dock icon.
+    if test_mic::active() {
+        app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        return;
+    }
     if should_hide && tray_available {
         log::info!("Starting hidden with tray available: launching as Accessory (no Dock icon)");
         app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -254,6 +270,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
         }
         app_handle.manage(Arc::new(meeting::detect::DetectState::default()));
+        app_handle.manage(Arc::new(video::VideoManager::default()));
     }
     app_handle.manage(tray::TrayState::new());
     app_handle.manage(TranscriptionJobManager::new(app_handle));
@@ -266,7 +283,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     {
         meeting::detect::sync_with_settings(app_handle);
         meeting::process::apply_retention(app_handle);
+        meeting::process::set_builtin_llm_paths(app_handle);
         meeting::resume_interrupted(app_handle);
+        video::resume(app_handle);
         meeting::process::retry_summaries(app_handle);
         meeting::phone_link::start_if_enabled(app_handle);
     }
@@ -282,6 +301,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     #[cfg(unix)]
     signal_handle::setup_signal_handler(app_handle.clone());
     test_mic::drive(app_handle);
+    #[cfg(target_os = "macos")]
+    utils::log_accessibility_at_launch();
 
     // The macOS activation policy for a start-hidden launch is applied before
     // the event loop runs (see `apply_startup_activation_policy`), not here:
@@ -856,6 +877,17 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
             commands::meeting::get_meeting_note,
+            commands::video::video_sources,
+            commands::video::video_request_access,
+            commands::video::video_start,
+            commands::video::video_list,
+            commands::video::video_set_look,
+            commands::video::video_delete,
+            commands::video::video_reveal,
+            commands::video::video_bar_show,
+            commands::video::video_bar_hide,
+            commands::video::video_bubble,
+            commands::video::set_video_settings,
             commands::voice::voice_data_stats,
             commands::voice::voice_data_set_choices,
             commands::voice::voice_data_forget,
@@ -864,7 +896,6 @@ pub fn run(cli_args: CliArgs) {
             commands::voice::voice_data_community,
             commands::voice::voice_data_open_folder,
             commands::meeting::qr_code_svg,
-            commands::meeting::copy_heads_up,
             commands::milestone::get_milestone,
             commands::milestone::close_milestone,
             commands::milestone::save_picture,
@@ -920,6 +951,7 @@ pub fn run(cli_args: CliArgs) {
             actions::TranscriptionCompleteEvent,
             notices::NoticesChanged,
             commands::meeting::MeetingChanged,
+            commands::video::VideoChanged,
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds

@@ -38,6 +38,39 @@ pub fn measure_title_bar(window: &tauri::WebviewWindow) -> f64 {
     (ns_window.frame().size.height - ns_window.contentLayoutRect().size.height).max(0.0)
 }
 
+/// Logs macOS's first Accessibility answer after launch and, when it starts
+/// as "no", how long until it turns "yes". Right after an install macOS can
+/// answer "no" for a moment though the switch is on, which once showed the
+/// permissions screen needlessly (Robin, 2026-11-20). Asks only; never
+/// prompts.
+#[cfg(target_os = "macos")]
+pub fn log_accessibility_at_launch() {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    std::thread::spawn(|| {
+        let started = std::time::Instant::now();
+        // SAFETY: AXIsProcessTrusted takes no arguments and only reads state.
+        let first = unsafe { AXIsProcessTrusted() };
+        if first {
+            log::info!("Accessibility at launch: allowed");
+            return;
+        }
+        while started.elapsed() < std::time::Duration::from_secs(5) {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if unsafe { AXIsProcessTrusted() } {
+                log::info!(
+                    "Accessibility at launch: not allowed at first, allowed after {} ms",
+                    started.elapsed().as_millis()
+                );
+                return;
+            }
+        }
+        log::info!("Accessibility at launch: not allowed (still after 5 s)");
+    });
+}
+
 #[cfg(any(test, all(target_os = "windows", target_arch = "x86_64")))]
 const IMAGE_FILE_MACHINE_ARM64: u16 = 0xaa64;
 

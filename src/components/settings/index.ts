@@ -11,6 +11,7 @@ export { SokkiSettingsPage } from "./sokki/SettingsPage";
 export { SokkiSoundPage } from "./sokki/SoundPage";
 export { SokkiVocabularyPage } from "./sokki/VocabularyPage";
 export { SokkiVoicePage } from "./sokki/VoicePage";
+export { VideosPage } from "./videos/VideosPage";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

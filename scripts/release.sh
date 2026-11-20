@@ -54,6 +54,7 @@ export APPLE_SIGNING_IDENTITY="$IDENTITY"
 
 source "$REPO/scripts/build-lock.sh"
 build_lock_acquire
+"$REPO/scripts/build-llama-server.sh"  # the built-in language model
 [[ -d "$REPO/node_modules" ]] || (cd "$REPO" && bun install --frozen-lockfile)
 (cd "$REPO" && bun run tauri build --bundles app --config "src-tauri/brands/sokki/tauri.conf.json")
 build_lock_release

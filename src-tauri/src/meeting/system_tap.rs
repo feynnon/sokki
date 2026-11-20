@@ -87,8 +87,12 @@ fn write_loop(
             break *rate;
         }
         if stop.load(Ordering::Acquire) {
-            // The tap ran but never called back: usually the system audio permission.
-            log::warn!("System audio: no audio callbacks before stop; no track written");
+            // The tap calls back only while some app plays sound on this Mac
+            // (Core Audio waits for a writer), so a meeting with nothing
+            // playing gets no callbacks. A denied permission looks the same.
+            log::warn!(
+                "System audio: no audio callbacks before stop (nothing played on this Mac, or the system audio permission is missing); no track written"
+            );
             return Ok(None);
         }
         thread::sleep(Duration::from_millis(10));

@@ -54,3 +54,4 @@ testdata/real/
 vm-share/
 crates/*/target/
 vm-tools/
+.gstack/

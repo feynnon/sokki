@@ -15,7 +15,7 @@ Status: open unless marked.
 | A6 | Parakeet has no vocabulary biasing (checked: neither v3 nor Ultra supports `Feature::Vocabulary`) | – | correction after ASR is the only lever, or a model that supports vocabulary |
 | A7 | Test metric counts digit formatting as errors ("18" vs "achtzehn") | inflates WER by a few points | normalise numbers in the metric |
 
-## Summary (Qwen 3.5 9B via Ollama)
+## Summary (Qwen 3.5 9B)
 
 | # | Problem | Example | Fix idea |
 |---|---|---|---|
@@ -25,6 +25,7 @@ Status: open unless marked.
 | S4 | Missed facts | mixed call: "49 € per seat" missing | prompt tuning, evaluation set |
 | S5 | Misattributed action items (seen once, fixed by a prompt rule) | agency confirmation credited to the wrong speaker | keep the live test |
 | S6 | Ollama's MLX runner rejects structured output (HTTP 501) | JSON comes from the prompt only | retry logic exists; watch failure rate |
+| S7 | Built-in model: the GGUF carries no sampling settings, so llama-server would use its own (temperature 0.8, top-k 40, min-p 0.05) | Ollama's model uses Qwen's: 1.0, top-k 20, top-p 0.95, presence penalty 1.5 | fixed 2026-11-20: llama-server starts with Qwen's values (`BuiltinModel::sampling`, Robin: "Nimm Qwens Werte"); requests still send none |
 
 ## Speakers
 
@@ -91,6 +92,25 @@ Status: open unless marked.
 | F5 | Correction speed | sound pre-filter (45 % of lines sent, 22/23 dictionary errors kept): ~3× faster; batches of 16 + compact answers: faster but 13–14 instead of 18; temperature 0 ~14, 0.2 18, 0.7 9, model default (qwen3.5: 1.0) 15 and 13 (plus „Nixon“ → „Nuxa“ on the Ultra transcript, correct per Robin, not in the labels) and one unparsable answer (raw control character; now tolerated); one runaway answer at 0 (3072 tokens, 133 s) → output cap 400. Since 2026-11-18 no temperature is sent (Robin: always the model's default) |
 | F6 | Speaker detection GPU vs CPU | identical turns (same speaker on 100 % of speech), 19 s vs 41 s per 21-min track; both tracks in parallel: no gain (36 vs 37 s) |
 | F7 | Ollama memory (MLX runner) | grows to 13–16 GB during correction + summary; freed 1 min after (keep_alive) |
+| F8 | Built-in llama.cpp vs Ollama (2026-11-20, M1 Pro 32 GB, the 41-min 14:20 call, ~8,800 prompt tokens, one request, both cold, two runs each, GPU otherwise idle) | built-in 92.6 s and 70.6 s (load 1.3 s; 7.4 s with a cold disk cache), peak 6.2 GB RSS, 0 GB right after; Ollama 86.6 s and 81.3 s, peak 5.8–6.5 GB RSS (`ollama ps`: 8.1 GB), 3.2–4.6 GB still held 2 s after. Built-in: prompt 138 tok/s, output 12 tok/s at that context; the JSON schema costs nothing. Another app on the GPU at the same time doubled the time |
+
+## Videos (2026-11-20, first version)
+
+- Real screen and camera capture, the camera bubble and the recording bar
+  have not run on a Mac yet: they need Screen Recording and Camera
+  permission, which no session may trigger. Rendering is tested on sample
+  files.
+- The recording bar has no microphone picker and no settings cog (system
+  sound is always recorded, as in meetings); the look menu is a plain menu
+  without the pictures from the design; the screen picker lists displays, not
+  windows.
+- The call-detected dialog is still macOS's own dialog: "Mit Bildschirm" is a
+  third button, not a switch in a Sokki window as designed. Its text is German
+  only, also in an English app.
+- After Screen Recording is allowed, macOS asks to quit and reopen Sokki; the
+  bar then says so, but there is no "welcome back" line yet.
+- A recording cut by a quit is rendered at the next launch without its first
+  frame time, so screen and camera may be slightly out of step with the sound.
 
 ## Planned
 

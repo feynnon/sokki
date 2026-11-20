@@ -19,6 +19,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Ollama status, start and model download (local HTTP).
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+# Checks the built-in model download.
+sha2 = "0.10"
 
 [target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 transcribe-cpp = { version = "0.4.2", default-features = false, features = ["metal"], optional = true }

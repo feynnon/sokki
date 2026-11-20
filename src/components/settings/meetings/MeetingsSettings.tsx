@@ -3,9 +3,12 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ArrowLeft,
+  ChevronDown,
   FileText,
   FolderOpen,
   Loader2,
+  Mic,
+  Monitor,
   RotateCcw,
   Settings2,
   Trash2,
@@ -484,7 +487,33 @@ export const MeetingsSettings: React.FC = () => {
     await refreshSettings();
   };
 
+  const videos = settings?.videos;
+  const [startMenu, setStartMenu] = useState(false);
+  const [screenHint, setScreenHint] = useState(false);
+
+  /** "Meeting with screen": the meeting plus a full video of the screen. */
+  const startWithScreen = async () => {
+    setStartMenu(false);
+    setBusy(true);
+    try {
+      const result = await commands.videoStart({
+        kind: "meeting",
+        mode: "screen",
+        display: videos?.display ?? null,
+        camera: null,
+        look: "bubble",
+        source_app: null,
+      });
+      setScreenHint(result.status === "error" && result.error === "screen_not_allowed");
+      if (result.status === "error") console.error(result.error);
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggleRecording = async () => {
+    setStartMenu(false);
     setBusy(true);
     try {
       const result = recording
@@ -536,14 +565,55 @@ export const MeetingsSettings: React.FC = () => {
           <p className="text-sm text-ink-3">{t("meetings.description")}</p>
         )}
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            variant={recording ? "danger" : "primary"}
-            size="md"
-            onClick={toggleRecording}
-            disabled={busy}
-          >
-            {recording ? t("meetings.stop") : t("meetings.start")}
-          </Button>
+          <div className="relative flex">
+            <Button
+              variant={recording ? "danger" : "primary"}
+              size="md"
+              onClick={toggleRecording}
+              disabled={busy}
+              className={!recording && videos?.enabled ? "rounded-e-none" : undefined}
+            >
+              {recording ? t("meetings.stop") : t("meetings.start")}
+            </Button>
+            {!recording && videos?.enabled && (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setStartMenu((open) => !open)}
+                disabled={busy}
+                aria-haspopup="menu"
+                aria-expanded={startMenu}
+                className="rounded-s-none border-s border-white/25 px-2"
+              >
+                <ChevronDown width={16} height={16} />
+              </Button>
+            )}
+            {startMenu && (
+              <div
+                role="menu"
+                className="absolute end-0 top-full z-20 mt-1 w-56 rounded-xl border border-line bg-background p-1 shadow-lg"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={toggleRecording}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-start hover:bg-wash"
+                >
+                  <Mic width={16} height={16} className="text-ink-2" />
+                  {t("meetings.startPlain")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void startWithScreen()}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-start hover:bg-wash"
+                >
+                  <Monitor width={16} height={16} className="text-ink-2" />
+                  {t("meetings.startWithScreen")}
+                </button>
+              </div>
+            )}
+          </div>
           <Button
             variant="secondary"
             size="md"
@@ -554,6 +624,13 @@ export const MeetingsSettings: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {screenHint && (
+        <div className="mx-4 flex items-center gap-2 text-sm text-amber-600">
+          <AlertTriangle width={14} height={14} className="shrink-0" />
+          {t("video.bar.screenNotAllowed")}
+        </div>
+      )}
 
       {needsSetup === "not_running" && (
         <div className="mx-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-600">

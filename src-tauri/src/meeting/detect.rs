@@ -56,20 +56,40 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             let (id, name) = (meeting.id.to_string(), meeting.name.to_string());
             std::thread::spawn(move || {
                 let question = format!("{name}-Meeting erkannt. Aufnehmen?\n\nSag allen Beteiligten, dass du aufnimmst.");
-                // Sokki also offers the heads-up line for the call chat.
+                // With Videos on, the screen can be recorded too.
+                let videos = crate::settings::get_settings(&handle).videos;
                 let mut buttons = vec!["Nicht jetzt", "Aufnehmen"];
-                if crate::brand::is_sokki() {
-                    buttons.push(COPY_AND_RECORD);
+                if cfg!(target_os = "macos") && videos.enabled {
+                    buttons.push(WITH_SCREEN);
                 }
                 let answer = choose(&question, &buttons, "Aufnehmen", 45);
-                if answer.as_deref() == Some(COPY_AND_RECORD) {
-                    if let Err(e) = super::heads_up::copy(&handle) {
-                        log::warn!("Copying the heads-up failed: {e}");
+                let started = match answer.as_deref() {
+                    Some("Aufnehmen") => {
+                        log::info!("Meeting start via call detection ({name})");
+                        Some(super::start_meeting(&handle, Some(name)))
                     }
-                }
-                if matches!(answer.as_deref(), Some("Aufnehmen" | COPY_AND_RECORD)) {
-                    log::info!("Meeting start via call detection ({name})");
-                    match super::start_meeting(&handle, Some(name)) {
+                    #[cfg(target_os = "macos")]
+                    Some(WITH_SCREEN) => {
+                        log::info!("Meeting start with screen via call detection ({name})");
+                        let options = crate::video::VideoStartOptions {
+                            kind: "meeting".into(),
+                            mode: "screen".into(),
+                            display: videos.display,
+                            camera: None,
+                            look: "bubble".into(),
+                            source_app: Some(name.clone()),
+                        };
+                        // Without Screen Recording yet (macOS was just asked),
+                        // the meeting is still recorded, without the screen.
+                        Some(crate::video::start(&handle, options).or_else(|e| {
+                            log::warn!("Meeting with screen: {e}; recording the meeting without it");
+                            super::start_meeting(&handle, Some(name))
+                        }))
+                    }
+                    _ => None,
+                };
+                if let Some(started) = started {
+                    match started {
                         Ok(meeting_id) => {
                             let state = handle.state::<Arc<DetectState>>();
                             *state.started.lock().unwrap_or_else(|e| e.into_inner()) =
@@ -121,8 +141,8 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
     }
 }
 
-/// The third button on the "meeting detected" dialog in Sokki.
-const COPY_AND_RECORD: &str = "Aufnehmen + Hinweis kopieren";
+/// Third button on the "meeting detected" dialog, when Videos is on.
+const WITH_SCREEN: &str = "Mit Bildschirm";
 
 /// Shows a dialog with two buttons. `Some(true)` for `yes`, `Some(false)` for
 /// `no`, `None` when it timed out or failed.

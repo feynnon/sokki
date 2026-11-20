@@ -53,7 +53,7 @@ A meeting, on any platform:
 | `crates/meeting-core` | The platform-independent pipeline. Defines the ports `Diarizer`, `Transcriber`, `Summarizer`, `SpeakerNamer`. No I/O except the language-model HTTP client in `summary.rs`. |
 | `crates/diarize` | `Diarizer` implementations (Sortformer via transcribe.cpp; sherpa-onnx), voice embeddings, `VoiceProfiles`, model downloads. |
 | `crates/meeting-detect` | Mic-client sources (`macos.rs`, `linux.rs`), the app table (`apps.rs`), the pure debounce `Detector` and the `Watcher` thread. |
-| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, Ollama start and model download. |
+| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in model (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. |
 | `crates/sokki` | The Linux host. One binary: `sokki daemon` (systemd user service), the CLI (`sokki meeting …`, `sokki dictation …`, `sokki events`), and `sokki process` (the model worker). |
 | `crates/sokki-link` | Phone ↔ computer link over iroh: pairing, sending a recording, getting the note back. |
 | `crates/meeting-e2e` | Headless harness: real speech recognition on synthetic fixtures (`testdata/audio`), with word error rate and speaker metrics. |
@@ -82,7 +82,9 @@ These hold everywhere; a change that breaks one is a bug.
 - **As few rules as possible.** A threshold or heuristic is added only when
   a real recording needs it. Code for a rule not yet proven stays in,
   switched off, with a note (`DiarizeConfig::merge_similarity`).
-- **The language model's default temperature.** Sokki never sets one.
+- **The language model's default temperature.** Sokki never sets one in a
+  request. The built-in model gets its publisher's defaults (Qwen's, as in
+  Ollama) when its server starts, because its GGUF file carries none.
 
 ## Platforms
 
@@ -144,6 +146,16 @@ Short records of choices that are not obvious from the code.
 - **Models in a worker process.** Processing a meeting runs in
   `sokki process`, a child of the service, so a crash or memory spike in a
   model never stops a recording or dictation.
+- **The language model built in, not Ollama.** Ollama is a separate app:
+  on 2026-11-20 it was off when a meeting needed it, and its model stays
+  loaded after a summary (keep_alive). Sokki now ships llama.cpp's
+  `llama-server` (one static binary, Metal, `scripts/build-llama-server.sh`)
+  and runs it in its own process for exactly one summary (`llm::open`);
+  dropping the handle stops it, and a shell watchdog stops it when Sokki
+  dies. A server process instead of linking llama.cpp: the app already
+  links ggml through transcribe.cpp, and two ggml copies in one binary
+  clash. Same model (Qwen 3.5 9B, Q4_K_M), same prompts, measured as fast
+  as Ollama (KNOWN_ISSUES.md F8). Ollama and cloud providers stay options.
 - **Echo cancellation, not voice merging.** WebRTC AEC3 on the mic track
   (with the call track as reference) removed the extra "speaker" the call
   audio created on the mic. Merging similar voices exists but is off until a

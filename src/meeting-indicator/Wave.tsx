@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from "react";
 
 /** Seven bars like Sokki's mark, the middle one tallest. */
-const SHAPE = [0.45, 0.7, 0.9, 1, 0.9, 0.7, 0.45];
+const SHAPE = [0.62, 0.8, 0.93, 1, 0.93, 0.8, 0.62];
+/** Fast attack, slower release (time constants). */
+const ATTACK_MS = 30;
+const RELEASE_MS = 200;
 const BAR_W = 2.5;
 const GAP = 2;
 const WIDTH = SHAPE.length * BAR_W + (SHAPE.length - 1) * GAP;
@@ -14,12 +17,16 @@ const MIN_H = 3; // silence: short bars, still there
  * so speech moves them and silence leaves short, still bars. Drawn on a
  * canvas at display refresh rate.
  *
- * `levelRef` holds the latest input level (0..1, on a loudness scale).
+ * `levelRef` holds the latest input level (0..1, on a loudness scale);
+ * `dim` (while stopping) lets the bars settle and fade.
  */
-export const Wave: React.FC<{ levelRef: React.RefObject<number> }> = ({
-  levelRef,
-}) => {
+export const Wave: React.FC<{
+  levelRef: React.RefObject<number>;
+  dim?: boolean;
+}> = ({ levelRef, dim = false }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dimRef = useRef(dim);
+  dimRef.current = dim;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -38,15 +45,25 @@ export const Wave: React.FC<{ levelRef: React.RefObject<number> }> = ({
 
     let env = 0; // smoothed level
     let frame = 0;
+    let last = performance.now();
 
     const draw = (now: number) => {
-      const level = Math.max(0, Math.min(1, levelRef.current ?? 0));
-      // Fast attack, slow release.
-      env += (level - env) * (level > env ? 0.5 : 0.12);
+      const dt = Math.min(100, now - last);
+      last = now;
+      const level = dimRef.current
+        ? 0
+        : Math.max(0, Math.min(1, levelRef.current ?? 0));
+      const tau = level > env ? ATTACK_MS : RELEASE_MS;
+      env += (level - env) * (1 - Math.exp(-dt / tau));
       ctx.clearRect(0, 0, WIDTH, HEIGHT);
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillStyle = dimRef.current
+        ? "rgba(255,255,255,0.4)"
+        : "rgba(255,255,255,0.92)";
       for (let i = 0; i < SHAPE.length; i++) {
-        const sway = reduced ? 1 : 0.7 + 0.3 * Math.sin(now / 180 + i * 1.7);
+        // Each bar its own share and pace, so the pill looks alive.
+        const sway = reduced
+          ? 1
+          : 0.82 + 0.18 * Math.sin(now / (140 + i * 23) + i * 1.7);
         const h = Math.max(MIN_H, env * HEIGHT * SHAPE[i] * sway);
         ctx.beginPath();
         ctx.roundRect(i * (BAR_W + GAP), (HEIGHT - h) / 2, BAR_W, h, BAR_W / 2);

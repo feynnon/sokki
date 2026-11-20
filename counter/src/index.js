@@ -1,12 +1,11 @@
 // Sokki's counter.
 //
-// Installs where "Help improve Sokki" or "Support Sokki & Open Source" is on
+// Installs where "Help improve Sokki" or "Share all my recordings" is on
 // report a random id and how many seconds of their own data they keep per
 // language; anyone can read the total. With "Help improve" on, an install
 // also sends one daily report (usage counts, problems, the Mac's model and
-// macOS version; never names, audio or anyone's words). Supporters upload
-// their own recordings (FLAC + transcript), only ones without names or
-// numbers. A user who answers a buyer message with "I'm interested" sends
+// macOS version; never names, audio or anyone's words). Sharers upload
+// every recording of theirs (FLAC + transcript), unchanged. A user who answers a buyer message with "I'm interested" sends
 // the id, language and hours. Nothing here stores IP addresses.
 //
 //   POST /report    {"id", "pow", "clips": 12, "seconds": {"de": 3600}, "donate": false}
@@ -30,7 +29,7 @@
 // - writes are rate limited per IP address (counted in memory by Cloudflare,
 //   never stored);
 // - hours can only grow as fast as real time passes;
-// - uploads only for supporters, FLAC only, and the audio store has a cap.
+// - uploads only for sharers, FLAC only, and the audio store has a cap.
 
 const ID = /^[0-9a-f]{32}$/;
 const POW = /^[0-9a-f]{1,16}$/;
@@ -263,7 +262,7 @@ async function donate(req, env) {
   ) {
     return json({ error: "bad audio" }, 400);
   }
-  // Only installs that said "Support" (their count says donate = 1).
+  // Only installs that share all recordings (their count says donate = 1).
   const donor = await env.DB.prepare("SELECT donate FROM installs WHERE id = ?1").bind(id).first();
   if (!donor || donor.donate !== 1) return json({ error: "not a supporter" }, 403);
   const stored = await env.DB.prepare("SELECT COALESCE(SUM(bytes), 0) AS b FROM donations").first();

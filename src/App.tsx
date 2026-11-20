@@ -205,11 +205,22 @@ function App() {
 
         if (currentPlatform === "macos") {
           try {
-            const [hasAccessibility, hasMicrophone] = await Promise.all([
-              checkAccessibilityPermission(),
-              checkMicrophonePermission(),
-            ]);
-            if (!hasAccessibility || !hasMicrophone) {
+            const granted = async () => {
+              const [accessibility, microphone] = await Promise.all([
+                checkAccessibilityPermission(),
+                checkMicrophonePermission(),
+              ]);
+              return accessibility && microphone;
+            };
+            // Right after an install macOS can answer "not allowed" for a
+            // moment, though the switch is on (Robin, 2026-11-20). Ask again
+            // for up to 3 s before showing the permissions screen.
+            let allowed = await granted();
+            for (let i = 0; !allowed && i < 6; i++) {
+              await new Promise((r) => setTimeout(r, 500));
+              allowed = await granted();
+            }
+            if (!allowed) {
               await revealMainWindowForPermissions();
               setOnboardingStep("permissions");
               return;

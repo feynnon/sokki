@@ -1,14 +1,20 @@
 /* Floating recording pill: level bars · time · stop. Its window's background
-   is macOS's frosted glass (meeting/indicator.rs); this page adds a dark
-   veil, so the white bars and time stay readable on light backgrounds, and
-   the glass edge. After the Sokki design system's RecordingPill. */
+   is macOS's frosted glass behind the pill (meeting/indicator.rs); this page
+   adds a dark veil, so the white bars and time stay readable on light
+   backgrounds, and the glass edge. The window is as wide as the pill. After
+   the approved pill design (2026-11-20): 12 px between bars, time and stop. */
+.frame {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 .pill {
   box-sizing: border-box;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  height: 100%;
+  height: 40px;
   padding: 0 6px 0 16px;
   border-radius: 999px;
   background: rgba(28, 29, 33, 0.35);
@@ -27,17 +33,25 @@
 }
 
 .time {
-  flex: 1;
+  flex: none;
   font:
     500 13px/1 ui-monospace,
     "SF Mono",
     Menlo,
     monospace;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   color: rgba(255, 255, 255, 0.82);
+  transition: color 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Always visible: a red square on a red disc. */
+.is-stopping .time {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Stop: a red square on a red disc. Hover and pressed come as classes from
+   the app (a background app's page gets no :hover), and from the page itself
+   when Sokki is active. */
 .stop {
   flex: none;
   display: grid;
@@ -47,27 +61,99 @@
   border: 0;
   padding: 0;
   border-radius: 50%;
-  background: rgba(255, 69, 58, 0.18);
+  background: rgba(255, 69, 58, 0.22);
   cursor: pointer;
-  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.stop:hover {
-  background: rgba(255, 69, 58, 0.32);
+.stop:hover,
+.stop.is-hover {
+  background: rgba(255, 69, 58, 0.42);
+  box-shadow: 0 0 0 3px rgba(255, 69, 58, 0.28);
+}
+
+.stop:active,
+.stop.is-down {
+  transform: scale(0.9);
+  background: rgba(255, 69, 58, 0.58);
+  transition: none;
 }
 
 .stop:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.6);
-  outline-offset: 1px;
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
 }
 
 .stop:disabled {
-  opacity: 0.5;
+  cursor: default;
 }
 
 .square {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 2.5px;
   background: #ff453a;
+  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stop:hover .square,
+.stop.is-hover .square {
+  background: #ff6a60;
+}
+
+/* Until the recording is saved. */
+.spin {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 69, 58, 0.35);
+  border-top-color: #ff453a;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Below the pill, its right edge under the stop button's. */
+.tip {
+  margin-top: 6px;
+  white-space: nowrap;
+  font:
+    500 12px/1.3 -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    sans-serif;
+  color: #ecedef;
+  background: #1d1f23;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  animation: tip-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stop,
+  .square,
+  .time {
+    transition-duration: 1ms;
+  }
+  .spin {
+    animation-duration: 2.4s;
+  }
+  .tip {
+    animation: none;
+  }
 }

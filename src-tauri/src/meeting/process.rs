@@ -554,6 +554,21 @@ impl Transcriber for EngineTranscriber {
 
 // --------------------------------------------- diarizer, profiles, summary
 
+/// Tells the engine where the built-in language model's server (bundled
+/// with the app) and its model file (downloaded next to the speaker models)
+/// are.
+pub fn set_builtin_llm_paths(app: &AppHandle) {
+    let server = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|d| d.join("resources").join("llm").join("llama-server"));
+    sokki_engine::llm::set_builtin_paths(sokki_engine::llm::BuiltinPaths {
+        server,
+        models_dir: Some(models_dir(app)),
+    });
+}
+
 fn models_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
@@ -696,7 +711,8 @@ pub fn start_ollama(settings: &MeetingSettings) -> Result<()> {
     sokki_engine::llm::start_ollama(&llm_settings(settings, &HashMap::new()))
 }
 
-/// Downloads the local model through Ollama, reporting progress.
+/// Downloads the local model (the built-in one, or through Ollama),
+/// reporting progress.
 pub fn pull_model(settings: &MeetingSettings, progress: impl FnMut(PullProgress)) -> Result<()> {
     sokki_engine::llm::pull_model(&llm_settings(settings, &HashMap::new()), progress)
 }

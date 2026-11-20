@@ -4,6 +4,7 @@ pub mod meeting;
 pub mod milestone;
 pub mod models;
 pub mod transcription;
+pub mod video;
 pub mod voice;
 
 use crate::settings::{

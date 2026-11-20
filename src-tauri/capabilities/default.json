@@ -2,10 +2,12 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capabilities for the app",
-  "windows": ["main", "recording_overlay", "meeting_indicator"],
+  "windows": ["main", "recording_overlay", "meeting_indicator", "video_bar"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
     "opener:default",
     "store:default",
     "updater:default",

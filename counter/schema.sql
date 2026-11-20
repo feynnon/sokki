@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS interest (
   PRIMARY KEY (id, notice)
 );
 
--- "Support Sokki & Open Source": one row per uploaded recording; the audio
+-- "Share all my recordings": one row per uploaded recording; the audio
 -- itself is in Workers KV under <id>/<clip>.flac.
 CREATE TABLE IF NOT EXISTS donations (
   id TEXT NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS donations (
   source TEXT NOT NULL,    -- "dictation" or "meeting"
   seconds REAL NOT NULL,
   bytes INTEGER NOT NULL,  -- FLAC size
-  text TEXT NOT NULL,      -- the transcript (no names or numbers)
+  text TEXT NOT NULL,      -- the transcript, unchanged
   received INTEGER NOT NULL,
   PRIMARY KEY (id, clip)
 );

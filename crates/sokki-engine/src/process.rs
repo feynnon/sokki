@@ -230,8 +230,14 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     let summary = if settings.summary && !transcript.segments.is_empty() {
         if llm_ready {
             (deps.progress)(Stage::Summarizing, None);
-            let result =
-                summarize_logged(&LlmSummarizer::new(summary_config(settings)), &transcript);
+            // The built-in model loads here (part of the "summary" step)
+            // and is freed when `model` is dropped, right after it.
+            let result = llm::open(&settings.llm, &settings.user_name).and_then(|model| {
+                summarize_logged(
+                    &LlmSummarizer::new(summary_config(settings, &model)),
+                    &transcript,
+                )
+            });
             clock.step("summary");
             match result {
                 Ok(s) => Some(s),
@@ -320,8 +326,10 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
     if transcript.segments.is_empty() {
         bail!("the note has no transcript to summarize");
     }
+    let model = llm::open(&settings.llm, &settings.user_name)?;
     let summary =
-        summarize_logged(&LlmSummarizer::new(summary_config(settings)), &transcript)?;
+        summarize_logged(&LlmSummarizer::new(summary_config(settings, &model)), &transcript)?;
+    drop(model);
     let new_md =
         meeting_core::note::add_summary(&md, &summary).context("the note has a summary already")?;
     let title = Some(summary.title.trim().to_string()).filter(|t| !t.is_empty());
@@ -372,10 +380,10 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
 
 /// The language model config for summaries: the person's dictionary goes
 /// into the prompt, so names come out spelled right.
-fn summary_config(settings: &Settings) -> LlmConfig {
+fn summary_config(settings: &Settings, model: &llm::Llm) -> LlmConfig {
     LlmConfig {
         glossary: settings.glossary.clone(),
-        ..llm::config(&settings.llm, &settings.user_name)
+        ..model.config()
     }
 }
 

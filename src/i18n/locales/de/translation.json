@@ -1061,6 +1061,7 @@
       "other": "Sonstiges",
       "recommended": "Empfohlen",
       "qwen": "Privat und kostenlos. Auf diesem Mac, etwa eine Minute pro Meeting.",
+      "ollama": "Dasselbe Modell in Ollama, einer eigenen App.",
       "sonnet": "Schnell und genau. Schickt das Transkript an Anthropic.",
       "opus": "Am genauesten. Schickt das Transkript an Anthropic.",
       "gpt": "Schickt das Transkript an OpenAI.",
@@ -1077,7 +1078,7 @@
       "recheck": "Erneut prüfen",
       "notRunning": "Ollama ist installiert, läuft aber nicht.",
       "startOllama": "Ollama starten",
-      "modelMissing": "Noch nicht heruntergeladen (7,6 GB).",
+      "modelMissing": "Noch nicht heruntergeladen ({{size}}).",
       "download": "Herunterladen",
       "downloading": "Lädt… {{pct}} %"
     },
@@ -1124,7 +1125,9 @@
       "invite": "Telefon einrichten",
       "inviteDescription": "Öffnet dein Mail-Programm mit der Anleitung für dein Telefon und andere Geräte. Schick sie dir selbst.",
       "inviteButton": "Anleitung per Mail"
-    }
+    },
+    "startPlain": "Meeting",
+    "startWithScreen": "Meeting mit Bildschirm"
   },
   "sokki": {
     "nav": {
@@ -1133,7 +1136,8 @@
       "settings": "Einstellungen",
       "sound": "Ton",
       "voice": "Deine Daten",
-      "sponsor": "Spenden"
+      "sponsor": "Spenden",
+      "videos": "Videos"
     },
     "keep": {
       "title": "Aufnahmen behalten",
@@ -1220,8 +1224,8 @@
         "footer": "Nie, was du gesagt hast, keine Aufnahmen, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit unter „Deine Daten“ abschaltbar."
       },
       "supportSheet": {
-        "text": "Jede neue Aufnahme geht mit ihrem Transkript unverändert an Sokki. Sokki darf sie nutzen, um Sokki zu verbessern, für Open-Source-Sprachmodelle, und sie weitergeben oder verkaufen. Am Verkauf bist du nicht beteiligt.",
-        "footer": "Nur die Stellen, an denen du sprichst, nicht die anderen im Meeting. Du kannst jederzeit aufhören; schon Genutztes lässt sich nicht zurückholen."
+        "text": "Jede Aufnahme auf diesem Mac geht mit ihrem Transkript unverändert an Sokki, auch jede neue. Sokki darf sie nutzen, um Sokki zu verbessern, für Open-Source-Sprachmodelle, und sie weitergeben oder verkaufen. Am Verkauf bist du nicht beteiligt.",
+        "footer": "In Meetings nur die Stellen, die dir zugeordnet sind; wer neben dir spricht, kann darin vorkommen. Bildschirm- und Kameravideos bleiben auf deinem Mac. Du kannst jederzeit aufhören; schon Genutztes lässt sich nicht zurückholen."
       },
       "buyer": {
         "title": "Jemand möchte Daten auf {{language}}",
@@ -1272,6 +1276,39 @@
       "notNow": "Nicht jetzt",
       "mailSubject": "Sokki fürs Handy",
       "mailBody": "Öffne das auf deinem Handy, um Sokki zu bekommen:"
+    }
+  },
+  "video": {
+    "bar": {
+      "title": "Neue Aufnahme",
+      "modeBoth": "Bildschirm und Kamera",
+      "modeScreen": "Nur Bildschirm",
+      "modeCamera": "Nur Kamera",
+      "lookBubble": "Blase",
+      "lookSide": "Nebeneinander",
+      "lookVertical": "Hochkant",
+      "lookFiles": "Zwei Dateien",
+      "record": "Aufnehmen",
+      "close": "Schließen",
+      "screenNotAllowed": "Erlaube Sokki die Bildschirmaufnahme in den Systemeinstellungen und öffne Sokki dann neu.",
+      "cameraNotAllowed": "Erlaube Sokki die Kamera in den Systemeinstellungen."
+    },
+    "page": {
+      "title": "Videos",
+      "description": "Nimm deinen Bildschirm und dich selbst auf. Sokki schreibt mit, was du sagst.",
+      "new": "Neues Video",
+      "empty": "Noch keine Videos.",
+      "recording": "Aufnahme läuft",
+      "rendering": "Video wird erstellt …",
+      "failed": "Video konnte nicht erstellt werden",
+      "show": "Im Finder zeigen",
+      "delete": "In den Papierkorb",
+      "transcript": "Transkript",
+      "look": "Aussehen"
+    },
+    "settings": {
+      "title": "Videos",
+      "description": "Nimm deinen Bildschirm und dich selbst auf. Aus blendet es überall aus."
     }
   }
 }

@@ -1060,7 +1060,8 @@
       "cloud": "In the cloud · needs an API key",
       "other": "Other",
       "recommended": "Recommended",
-      "qwen": "Private and free. Runs on this Mac with Ollama, about a minute per meeting.",
+      "qwen": "Private and free. On this Mac, about a minute per meeting.",
+      "ollama": "The same model in Ollama, a separate app.",
       "sonnet": "Fast and accurate. Sends the transcript to Anthropic.",
       "opus": "Most accurate. Sends the transcript to Anthropic.",
       "gpt": "Sends the transcript to OpenAI.",
@@ -1077,7 +1078,7 @@
       "recheck": "Check again",
       "notRunning": "Ollama is installed but not running.",
       "startOllama": "Start Ollama",
-      "modelMissing": "Not downloaded yet (7.6 GB).",
+      "modelMissing": "Not downloaded yet ({{size}}).",
       "download": "Download",
       "downloading": "Downloading… {{pct}}%"
     },
@@ -1215,8 +1216,8 @@
         "footer": "Never what you said, your recordings, your name or your Mac's name. Sent once a day under a random ID. Turn it off any time under Your data."
       },
       "supportSheet": {
-        "text": "Each new recording and its transcript goes to Sokki unchanged. Sokki may use them to improve Sokki, for open-source speech models, and to share or sell them. You get no share of a sale.",
-        "footer": "Only the parts where you speak, not the other people in a meeting. You can stop any time; data already used can't be called back."
+        "text": "Every recording on this Mac and its transcript goes to Sokki unchanged, and each new one after it. Sokki may use them to improve Sokki, for open-source speech models, and to share or sell them. You get no share of a sale.",
+        "footer": "In meetings, only the parts labelled as you; someone talking near you can be in them. Screen and camera video never leave your Mac. You can stop any time; data already used can't be called back."
       },
       "buyer": {
         "title": "Someone wants {{language}} data",

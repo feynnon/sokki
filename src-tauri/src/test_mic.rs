@@ -2,7 +2,8 @@
 //! speaking: with `SOKKI_TEST_MIC=<WAV>` set, the microphone plays that file
 //! in real time from the start of each recording (then silence), the text
 //! is logged instead of pasted, and there are no shortcuts and no permission
-//! resets. Run it only in the separate test app (`scripts/test-dictation.sh`),
+//! resets. `SOKKI_TEST_LLM=1` also starts the built-in language model once
+//! and logs its answer. Run it only in the separate test app (`scripts/test-dictation.sh`),
 //! never in Robin's Sokki.
 
 use std::path::PathBuf;
@@ -133,6 +134,9 @@ pub fn drive(app: &tauri::AppHandle) {
         .ok()
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(length + 1.0);
+    if std::env::var_os("SOKKI_TEST_LLM").is_some() {
+        std::thread::spawn(test_builtin_llm);
+    }
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(3));
@@ -141,4 +145,32 @@ pub fn drive(app: &tauri::AppHandle) {
         std::thread::sleep(Duration::from_secs_f64(hold));
         crate::signal_handle::send_transcription_input(&app, "transcribe", "test");
     });
+}
+
+/// With `SOKKI_TEST_LLM` set: starts the built-in language model the way a
+/// summary does (the server bundled with this app, the model in its data
+/// folder), asks it one short question, stops it, and logs each step.
+fn test_builtin_llm() {
+    let settings = sokki_engine::llm::LlmSettings {
+        provider: sokki_engine::llm::BUILTIN.into(),
+        ..Default::default()
+    };
+    let t0 = Instant::now();
+    let model = match sokki_engine::llm::open(&settings, "Ich") {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("Test mode: built-in language model did not start: {e:#}");
+            return;
+        }
+    };
+    let llm = meeting_core::summary::LlmSummarizer::new(model.config());
+    match llm.chat_plain("Answer with the single word OK.", "Ping") {
+        Ok(reply) => info!(
+            "Test mode: built-in language model answered {reply:?} after {:.1}s",
+            t0.elapsed().as_secs_f64()
+        ),
+        Err(e) => warn!("Test mode: built-in language model failed: {e:#}"),
+    }
+    drop(model);
+    info!("Test mode: built-in language model done");
 }

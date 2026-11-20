@@ -15,7 +15,6 @@
 pub mod detect;
 pub mod diarize_worker;
 pub mod flac;
-pub mod heads_up;
 pub mod indicator;
 pub mod keep_awake;
 pub mod memguard;
@@ -247,10 +246,13 @@ pub fn start_meeting(
 
 /// Stops the meeting and starts processing it in the background.
 pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
+    let begun = std::time::Instant::now();
     let meetings = app.state::<Arc<MeetingManager>>();
     let store = app.state::<Arc<MeetingStore>>();
+    // The pill shows a spinner until the files are saved, then goes.
+    let stopped = meetings.stop();
     indicator::hide(app);
-    let (meeting_id, duration, recording) = match meetings.stop() {
+    let (meeting_id, duration, recording) = match stopped {
         Ok(r) => r,
         Err(e) => return Err(raise_failure(app, NoticeCode::MeetingStopFailed, &e)),
     };
@@ -262,6 +264,9 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     if let Ok(text) = serde_json::to_string(&timing) {
         let _ = std::fs::write(store.audio_dir(&meeting_id).join(TIMING_FILE), text);
     }
+    // A video recorded with this meeting: finish its files, start its render.
+    #[cfg(target_os = "macos")]
+    crate::video::on_meeting_stopped(app, &meeting_id, duration);
     let mut tracks = Vec::new();
     if recording.mic.frames > 0 {
         tracks.push(MIC_FILE.to_string());
@@ -320,12 +325,18 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     if !tracks.is_empty() {
         process::spawn(app.clone(), meeting_id.clone());
     }
+    log::info!(
+        "Meeting {meeting_id} stopped in {} ms",
+        begun.elapsed().as_millis()
+    );
     Ok(meeting_id)
 }
 
 /// At quit: closes a running recording so its FLAC files are complete and
 /// marks it for processing at the next launch (`resume_interrupted`).
 pub fn finalize_on_exit(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    crate::video::finalize_on_exit(app);
     let meetings = app.state::<Arc<MeetingManager>>();
     if !meetings.is_recording() {
         return;
@@ -459,7 +470,10 @@ mod resume_tests {
 /// recording that starts or stops unexpectedly can be traced.
 pub fn toggle_meeting(app: &AppHandle, via: &str) {
     let active = app.state::<Arc<MeetingManager>>().is_recording();
-    log::info!("Meeting {} via {via}", if active { "stop" } else { "start" });
+    log::info!(
+        "Meeting {} via {via}",
+        if active { "stop" } else { "start" }
+    );
     let result = if active {
         stop_meeting(app)
     } else {

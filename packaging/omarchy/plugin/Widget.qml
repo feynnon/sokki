@@ -8,7 +8,8 @@ import "Model.js" as Model
 
 // Sokki in the bar. Hidden while nothing happens. A call that starts asks
 // whether to record (the icon pulses and the panel opens by itself, without
-// taking the keyboard); a recording shows a dot and the time; a note being
+// taking the keyboard or the next click; on a shell that can't do that, a
+// notification asks instead); a recording shows a dot and the time; a note being
 // written shows how far it is. Clicking opens the panel: the question, the
 // recording's Stop, progress, and the last few notes.
 //
@@ -180,6 +181,9 @@ Panel {
     cursorActive = opened && phase === "asking" && !quiet
   }
   onQuietChanged: if (opened && !quiet && phase === "asking") cursorActive = true
+  // Whether this shell's panels can open without taking the next click.
+  onServiceChanged: if (service) service.quietPanelSupported = ("yielding" in panel)
+  Component.onCompleted: if (service) service.quietPanelSupported = ("yielding" in panel)
   onTargetsChanged: if (cursor >= targets.length) cursor = Math.max(0, targets.length - 1)
 
   Item {

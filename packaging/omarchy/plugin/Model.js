@@ -24,7 +24,7 @@ var GLYPH = {
 // md-circle_slice_1 … md-circle_slice_8: a pie that fills with progress.
 var SLICES = [0xf0a9e, 0xf0a9f, 0xf0aa0, 0xf0aa1, 0xf0aa2, 0xf0aa3, 0xf0aa4, 0xf0aa5]
 
-var STAGES = ["preparing", "diarizing", "transcribing", "correcting", "summarizing", "writing"]
+var STAGES = ["preparing", "diarizing", "transcribing", "summarizing", "writing"]
 var NOTE_STATUSES = ["recording", "queued", "processing", "done", "failed"]
 
 function text(value) {

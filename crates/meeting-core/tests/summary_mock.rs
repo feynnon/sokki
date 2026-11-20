@@ -265,6 +265,7 @@ fn timeout_is_respected() {
     );
     let cfg = LlmConfig {
         timeout: Duration::from_millis(500),
+        prompt_ms_per_token: 0,
         ..ollama_cfg(&server)
     };
     let started = Instant::now();
@@ -420,4 +421,49 @@ fn default_budget_single_pass_for_5min_map_reduce_for_60min() {
         .unwrap();
     assert!(!stats.map_reduce);
     assert_eq!(stats.chunks, 0);
+}
+
+/// A 40-minute meeting (~10k tokens) fits the default 16k context.
+fn forty_minutes() -> meeting_core::Transcript {
+    let mut t = load_fixture("long_meeting_60min.txt");
+    t.segments.truncate(t.segments.len() * 2 / 3);
+    let tokens = meeting_core::lang::estimate_tokens(&t.to_plain_text());
+    assert!((9_000..12_000).contains(&tokens), "{tokens} tokens");
+    t
+}
+
+#[test]
+fn a_40_minute_meeting_goes_to_a_local_model_in_one_request() {
+    // Measured 20.11.2026: one request 147 s, two parts plus merging 282 s.
+    let server = MockServer::start(map_reduce_responder(10));
+    let (_, stats) = LlmSummarizer::new(ollama_cfg(&server))
+        .summarize_with_stats(&forty_minutes())
+        .unwrap();
+    assert!(!stats.map_reduce, "{stats:?}");
+    assert_eq!(server.requests().len(), 1);
+}
+
+#[test]
+fn a_single_pass_limit_splits_into_parts_of_equal_size() {
+    let server = MockServer::start(map_reduce_responder(10));
+    let cfg = LlmConfig {
+        single_pass_tokens: 6_000,
+        ..ollama_cfg(&server)
+    };
+    let (sum, stats) = LlmSummarizer::new(cfg)
+        .summarize_with_stats(&forty_minutes())
+        .unwrap();
+    assert!(stats.map_reduce);
+    assert_eq!(stats.chunks, 2, "{stats:?}");
+    assert_eq!(sum.title, "Herbstkampagne und Budget");
+    // Two parts of about the same size, not 6k + a short remainder.
+    let parts: Vec<usize> = server
+        .requests()
+        .iter()
+        .filter(|r| r.system().contains("one part of a long meeting"))
+        .map(|r| r.user().len())
+        .collect();
+    assert_eq!(parts.len(), 2);
+    let (a, b) = (parts[0] as f64, parts[1] as f64);
+    assert!((a / b - 1.0).abs() < 0.25, "part sizes {parts:?}");
 }

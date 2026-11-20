@@ -68,6 +68,7 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                     }
                 }
                 if matches!(answer.as_deref(), Some("Aufnehmen" | COPY_AND_RECORD)) {
+                    log::info!("Meeting start via call detection ({name})");
                     match super::start_meeting(&handle, Some(name)) {
                         Ok(meeting_id) => {
                             let state = handle.state::<Arc<DetectState>>();
@@ -107,6 +108,7 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                     let still_ours = handle.state::<Arc<MeetingManager>>().active_id().as_deref()
                         == Some(meeting_id.as_str());
                     if still_ours {
+                        log::info!("Meeting stop via call detection: the {name} call ended");
                         if let Err(e) = super::stop_meeting(&handle) {
                             log::warn!("Stopping the detected meeting failed: {e}");
                         }

@@ -80,6 +80,7 @@ use tauri::{Manager, State};
 #[tauri::command]
 #[specta::specta]
 pub fn start_meeting_recording(app: AppHandle) -> Result<String, String> {
+    log::info!("Meeting start via the Sokki window");
     meeting::start_meeting(&app, None)
 }
 
@@ -88,6 +89,7 @@ pub fn start_meeting_recording(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn stop_meeting_recording(app: AppHandle) -> Result<String, String> {
+    log::info!("Meeting stop via the recording pill or the Sokki window");
     meeting::stop_meeting(&app)
 }
 

@@ -72,6 +72,12 @@ const EN: Labels = Labels {
 /// Language of the note's headings: the summary's language, German by
 /// default.
 pub fn note_language(note: &MeetingNote) -> Language {
+    note_language_or(note, Language::German)
+}
+
+/// Like [`note_language`], with `fallback` for a meeting with nothing to go
+/// by (no summary and no words spoken): the person's own language.
+pub fn note_language_or(note: &MeetingNote, fallback: Language) -> Language {
     note.summary
         .as_ref()
         .and_then(|s| {
@@ -97,7 +103,7 @@ pub fn note_language(note: &MeetingNote) -> Language {
                 .collect();
             detect_language(&spoken.join(" "))
         })
-        .unwrap_or(Language::German)
+        .unwrap_or(fallback)
 }
 
 /// Date ("YYYY-MM-DD") and time ("HH:MM") from an RFC 3339 timestamp like
@@ -179,30 +185,31 @@ fn yaml_scalar(v: &str) -> String {
 
 /// What goes into a note besides the meeting itself.
 #[derive(Debug, Clone, Copy)]
-pub struct NoteOptions<'a> {
+pub struct NoteOptions {
     /// End with "Transcribed on my Mac with sokki.org".
     pub footer: bool,
-    /// Automatic transcript corrections, listed after the transcript.
-    pub corrections: &'a [crate::correct::Correction],
+    /// The person's own language, for the headings of a note with no words
+    /// to go by (nothing was said). None: German.
+    pub language: Option<Language>,
 }
 
-impl Default for NoteOptions<'_> {
+impl Default for NoteOptions {
     fn default() -> Self {
         Self {
             footer: true,
-            corrections: &[],
+            language: None,
         }
     }
 }
 
-/// Renders the whole note with the footer and no corrections.
+/// Renders the whole note with the footer.
 pub fn render_markdown(note: &MeetingNote) -> String {
     render_note(note, &NoteOptions::default())
 }
 
 /// Renders the whole note.
 pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
-    let lang = note_language(note);
+    let lang = note_language_or(note, opts.language.unwrap_or(Language::German));
     let l = match lang {
         Language::German => &DE,
         Language::English => &EN,
@@ -250,10 +257,6 @@ pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
 
     out.push_str(&format!("## {}\n\n", l.transcript));
     out.push_str(&render_transcript(&note.transcript, l));
-    out.push_str(&corrections_section(
-        opts.corrections,
-        lang == Language::German,
-    ));
     if opts.footer {
         let footer = if cfg!(target_os = "macos") {
             l.footer
@@ -381,7 +384,7 @@ pub fn split_note(md: &str) -> NoteParts {
             continue;
         }
         if in_transcript {
-            // The corrections callout ends the transcript.
+            // The corrections callout of older notes ends the transcript.
             if line.starts_with("> [!info]") {
                 in_transcript = false;
                 continue;
@@ -616,6 +619,22 @@ mod tests {
     }
 
     #[test]
+    fn a_note_without_words_is_in_the_persons_language() {
+        let mut n = note(None);
+        n.transcript.segments.clear();
+        assert_eq!(note_language(&n), Language::German);
+        assert_eq!(note_language_or(&n, Language::English), Language::English);
+        let md = render_note(
+            &n,
+            &NoteOptions {
+                language: Some(Language::English),
+                ..Default::default()
+            },
+        );
+        assert!(md.contains("## Transcript"), "{md}");
+    }
+
+    #[test]
     fn sanitizes_file_names() {
         assert_eq!(
             sanitize_filename("Q4: Budget / Plan?", 80),
@@ -788,20 +807,15 @@ mod tests {
             summary: "We move the launch.".into(),
             ..Default::default()
         }));
-        let corrections = [crate::correct::Correction {
-            segment: 0,
-            from: "Lied".into(),
-            to: "Lead".into(),
-        }];
         let md = render_note(
             &n,
             &NoteOptions {
                 footer: true,
-                corrections: &corrections,
+                language: None,
             },
         );
-        // After the corrections callout, as the very last line.
-        assert!(md.ends_with("> - „Lied“ → „Lead“\n\nTranscribed on my Mac with sokki.org\n"));
+        // The very last line.
+        assert!(md.ends_with("\n\nTranscribed on my Mac with sokki.org\n"));
         let p = split_note(&md);
         assert!(p
             .summary
@@ -813,7 +827,7 @@ mod tests {
             &n,
             &NoteOptions {
                 footer: false,
-                corrections: &[],
+                language: None,
             },
         );
         assert!(!md.contains("sokki.org"));
@@ -933,50 +947,5 @@ mod rename_tests {
         assert!(out.contains("**[00:00] Robin:**"));
         // Running text keeps the German word.
         assert!(out.contains("Ich frage nach."));
-    }
-}
-
-/// A folded Obsidian callout listing the automatic transcript corrections,
-/// appended at the end of a note. Empty when there were none.
-pub fn corrections_section(corrections: &[crate::correct::Correction], german: bool) -> String {
-    if corrections.is_empty() {
-        return String::new();
-    }
-    let title = if german {
-        "Automatisch korrigiert"
-    } else {
-        "Corrected automatically"
-    };
-    let mut s = format!("\n> [!info]- {title} ({})\n", corrections.len());
-    for c in corrections {
-        s.push_str(&format!(
-            "> - „{}“ → „{}“\n",
-            c.from.replace('\n', " "),
-            c.to.replace('\n', " ")
-        ));
-    }
-    s
-}
-
-#[cfg(test)]
-mod corrections_tests {
-    use super::corrections_section;
-    use crate::correct::Correction;
-
-    #[test]
-    fn lists_corrections_in_a_folded_callout() {
-        assert_eq!(corrections_section(&[], true), "");
-        let s = corrections_section(
-            &[Correction {
-                segment: 3,
-                from: "Lied".into(),
-                to: "Lead".into(),
-            }],
-            true,
-        );
-        assert_eq!(
-            s,
-            "\n> [!info]- Automatisch korrigiert (1)\n> - „Lied“ → „Lead“\n"
-        );
     }
 }

@@ -588,25 +588,19 @@ pub struct MeetingSettings {
     pub user_name: String,
     /// Separate speakers within each track.
     pub diarization_enabled: bool,
-    /// Fix misheard dictionary words (`glossary`) in the transcript with the
-    /// language model before the summary. Only words that sound like a
-    /// dictionary entry are changed; every change is listed at the end of
-    /// the note. Without dictionary entries nothing is corrected.
-    pub correction_enabled: bool,
     /// Your dictionary: correctly spelled company names, customers,
     /// colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude
-    /// Code", "Patird", "Nuxa"]. Misheard forms are fixed ("Cloud Code" →
-    /// "Claude Code"), and entries are never changed themselves, so add
-    /// names that must stay as they are. Keep it short: very short or
-    /// everyday-sounding words (e.g. "Lead") match more often. The dictation
-    /// `custom_words` are added automatically.
+    /// Code"]. The summary prompt lists them, so the summary spells them
+    /// right where the transcript has a misheard form ("Cloud Code"). The
+    /// transcript itself stays as recognised. The dictation `custom_words`
+    /// are added automatically.
     pub glossary: Vec<String>,
     /// Write a summary, decisions and action items with a language model.
     pub summary_enabled: bool,
     /// End every note, and the summary shown in the app and on the phone,
     /// with "Transcribed on my Mac with sokki.org".
     pub footer_enabled: bool,
-    /// Which language model corrects and summarises: "local" (the server
+    /// Which language model summarises: "local" (the server
     /// at `llm_base_url`, normally Ollama; nothing leaves the computer),
     /// or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
     /// provider gets the transcript; its API key is the one stored for
@@ -636,7 +630,6 @@ impl Default for MeetingSettings {
             notes_dir: None,
             user_name: "Ich".to_string(),
             diarization_enabled: true,
-            correction_enabled: true,
             glossary: Vec::new(),
             summary_enabled: true,
             footer_enabled: true,
@@ -1686,6 +1679,18 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn meeting_settings_from_before_the_correction_was_removed_load() {
+        let m: MeetingSettings = serde_json::from_value(serde_json::json!({
+            "correction_enabled": true,
+            "summary_enabled": false,
+            "glossary": ["Kelasur"],
+        }))
+        .unwrap();
+        assert!(!m.summary_enabled);
+        assert_eq!(m.glossary, vec!["Kelasur".to_string()]);
+    }
 
     #[test]
     fn stored_binding_returns_the_requested_binding() {

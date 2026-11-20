@@ -21,7 +21,7 @@ detail is [MEETINGS.md](MEETINGS.md).
    meeting lifecycle as a pure state machine, language-model plumbing
  ──────────────────────────────────────────────────────────────────────────────────────
  Pure core (no platform code)
-   meeting-core: echo cancellation, pipeline, dedup, correction, summary, note
+   meeting-core: echo cancellation, pipeline, dedup, summary, note
    diarize: Sortformer speakers, voice embeddings, voice profiles
    meeting-detect: which app holds the mic, debounced into Started / Ended
  ──────────────────────────────────────────────────────────────────────────────────────
@@ -43,8 +43,8 @@ A meeting, on any platform:
 4. **End.** The call app lets go of the microphone; after a grace period the
    recording stops by itself.
 5. **Process** (`sokki_engine::process`): align tracks → echo cancellation →
-   speakers per track → transcribe each turn → dedup and naming → correction
-   and summary by a language model → Markdown note.
+   speakers per track → transcribe each turn → dedup and naming → summary by
+   a language model → Markdown note.
 
 ## Code map
 

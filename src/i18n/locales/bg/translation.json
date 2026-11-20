@@ -1024,8 +1024,7 @@
       "diarizing": "Finding speakers…",
       "transcribing": "Transcribing…",
       "summarizing": "Writing summary…",
-      "writing": "Saving note…",
-      "correcting": "Correcting transcript…"
+      "writing": "Saving note…"
     },
     "back": "Meetings",
     "setupHint": "The language model for summaries isn't ready yet. Set it up under Models → Language model.",
@@ -1038,7 +1037,7 @@
       "userName": "Your name",
       "userNameDescription": "The main voice on the microphone is labelled with this name.",
       "dictionary": "Dictionary",
-      "dictionaryDescription": "Names and words the transcript should spell correctly, separated by commas: customers, colleagues, products.",
+      "dictionaryDescription": "Names and words the summary should spell correctly, separated by commas: customers, colleagues, products.",
       "detection": "Notice meetings",
       "detectionDescription": "Offer to record when Zoom, Teams, Meet or another call app starts using the microphone. Never records on its own.",
       "footer": "Долен колонтитул",
@@ -1048,7 +1047,7 @@
       "keepAudioNone": "Delete after the note is written",
       "keepAudioDays": "For {{count}} days",
       "aiTitle": "Summary",
-      "aiDescription": "A language model fixes misheard dictionary words and writes the summary, decisions and tasks.",
+      "aiDescription": "Writes summary, decisions and tasks.",
       "model": "Language model",
       "modelDescription": "Chosen under Models → Language model.",
       "change": "Change"
@@ -1056,7 +1055,7 @@
     "lm": {
       "tabSpeech": "Speech",
       "tabLanguage": "Language model",
-      "intro": "Corrects misheard dictionary words in meeting transcripts and writes the summary, decisions and tasks.",
+      "intro": "Writes summary, decisions and tasks.",
       "onThisMac": "On this computer",
       "cloud": "In the cloud · needs an API key",
       "other": "Other",
@@ -1068,7 +1067,7 @@
       "openrouter": "One key for many providers. Sends the transcript to OpenRouter.",
       "custom": "Set in the config file",
       "off": "No summary",
-      "offLine": "Transcript only: no correction, no summary.",
+      "offLine": "Transcript only, no summary.",
       "apiKeyPlaceholder": "{{provider}} API key",
       "readyLocal": "Ready. Nothing leaves this Mac.",
       "readyCloud": "Ready. Transcripts are sent to {{provider}}.",
@@ -1181,7 +1180,7 @@
     },
     "vocabulary": {
       "title": "Vocabulary",
-      "description": "Names and terms from your work: customers, colleagues, products. Misheard versions are corrected in meeting transcripts.",
+      "description": "Names and terms from your work, spelled right in meeting summaries.",
       "placeholder": "Add a word, or several separated by commas",
       "add": "Add words",
       "empty": "No words yet. Add the names that the transcript gets wrong.",

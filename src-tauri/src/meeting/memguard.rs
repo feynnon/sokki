@@ -52,6 +52,46 @@ pub fn footprint_of(pid: i32) -> Option<u64> {
     }
 }
 
+/// The Mac has memory to spare for the language model: macOS reports
+/// normal memory pressure and at least [`MIN_FREE_PERCENT`] free. Background
+/// work that loads the model waits for this; on 20.11.2026 a summary on a
+/// swapping Mac stalled for minutes and timed out, twice. Always true where
+/// it can't be measured.
+pub fn memory_to_spare() -> bool {
+    match (
+        sysctl_int(c"kern.memorystatus_vm_pressure_level"),
+        sysctl_int(c"kern.memorystatus_level"),
+    ) {
+        (Some(level), Some(free)) => level <= 1 && free >= MIN_FREE_PERCENT,
+        (Some(level), None) => level <= 1,
+        _ => true,
+    }
+}
+
+/// Free memory, in percent, below which background model work waits.
+pub const MIN_FREE_PERCENT: i64 = 25;
+
+fn sysctl_int(name: &std::ffi::CStr) -> Option<i64> {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        let mut v: libc::c_int = 0;
+        let mut size = std::mem::size_of::<libc::c_int>();
+        let r = libc::sysctlbyname(
+            name.as_ptr(),
+            &mut v as *mut libc::c_int as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        );
+        (r == 0).then_some(v as i64)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = name;
+        None
+    }
+}
+
 /// Text stored as the failed meeting's error.
 pub fn failure_text(gb: f64, stage: &str) -> String {
     format!(
@@ -116,8 +156,16 @@ mod tests {
     }
 
     #[test]
+    fn memory_pressure_is_read() {
+        let level = sysctl_int(c"kern.memorystatus_vm_pressure_level").expect("level on macOS");
+        assert!([1, 2, 4].contains(&level), "{level}");
+        let free = sysctl_int(c"kern.memorystatus_level").expect("free share on macOS");
+        assert!((0..=100).contains(&free), "{free}");
+    }
+
+    #[test]
     fn a_memory_stop_is_not_resumed_at_launch() {
-        let e = failure_text(7.2, "correcting");
+        let e = failure_text(7.2, "summarizing");
         assert!(!e.starts_with("Interrupted:"));
         assert_ne!(e, super::super::RESUME_MARKER);
     }

@@ -100,12 +100,12 @@ pub fn engine_settings(
     }
     sokki_engine::Settings {
         user_name: m.user_name.clone(),
-        correction: m.correction_enabled,
         summary: m.summary_enabled,
         glossary,
         footer: m.footer_enabled,
         notes_dir: m.notes_dir_path(),
         llm: llm_settings(m, &all.post_process_api_keys),
+        language: None,
     }
 }
 
@@ -254,10 +254,40 @@ pub fn spawn_summarize(app: AppHandle, id: String, by_hand: bool) {
         .spawn(move || {
             let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
             let store = app.state::<Arc<MeetingStore>>().inner().clone();
-            summarize(&app, &store, &id, by_hand);
-            emit_changed(&app, &id);
+            summarize_safely(&app, &store, &id, by_hand);
         })
         .expect("spawn summary thread");
+}
+
+/// [`summarize`], and whatever happens in it (a panic included), the
+/// meeting ends up done: with its summary, or with the summary missing.
+/// Never left "processing", since the note is complete either way.
+fn summarize_safely(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        summarize(app, store, id, by_hand)
+    }));
+    if let Err(p) = result {
+        log::error!(
+            "Meeting {id}: adding the summary panicked: {}",
+            crate::managers::transcription::panic_payload_message(p.as_ref())
+        );
+        super::indicator::set_menu_bar_status(app, None);
+    }
+    let _ = store.update(id, end_summary_attempt);
+    emit_changed(app, id);
+}
+
+/// A summary attempt is over: a meeting still marked as summarizing is done,
+/// with the summary missing.
+fn end_summary_attempt(r: &mut super::store::MeetingRecord) {
+    if matches!(&r.status, MeetingStatus::Processing { stage, .. } if stage == "summarizing")
+        && r.note_path.is_some()
+    {
+        r.status = MeetingStatus::Done;
+        if r.summary_missing.is_none() {
+            set_summary_missing(r, SummaryMissing::Failed);
+        }
+    }
 }
 
 fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
@@ -323,40 +353,106 @@ fn set_summary_missing(r: &mut super::store::MeetingRecord, m: SummaryMissing) {
 /// How often the background retry looks for summaries to add.
 const SUMMARY_RETRY_EVERY: Duration = Duration::from_secs(60);
 
-/// Background retry: once a minute, while some note waits for its summary
-/// and the language model is ready, adds the summaries. It never starts
-/// Ollama itself (that happens when a meeting needs it, or by hand).
+/// When a failed summary is tried again by itself, counted from when it
+/// failed (or from the app's start): three tries, then only by hand.
+const FAILED_RETRY_AFTER: [Duration; 3] = [
+    Duration::from_secs(10 * 60),
+    Duration::from_secs(30 * 60),
+    Duration::from_secs(2 * 3600),
+];
+
+/// Automatic tries of failed summaries: per meeting, how many so far and
+/// since when it waits for the next.
+#[derive(Default)]
+struct FailedTries(HashMap<String, (usize, std::time::Instant)>);
+
+impl FailedTries {
+    /// Whether the background retry should try `id`'s summary now.
+    fn due(&mut self, id: &str, missing: SummaryMissing, now: std::time::Instant) -> bool {
+        match missing {
+            SummaryMissing::Waiting => true,
+            SummaryMissing::Failed => {
+                let (tries, since) = *self.0.entry(id.to_string()).or_insert((0, now));
+                FAILED_RETRY_AFTER
+                    .get(tries)
+                    .is_some_and(|wait| now.duration_since(since) >= *wait)
+            }
+        }
+    }
+
+    /// A background try of `id` is over; `failed`: the summary is still
+    /// missing because the model failed (not because it wasn't ready).
+    fn tried(&mut self, id: &str, failed: bool, now: std::time::Instant) {
+        if failed {
+            let e = self.0.entry(id.to_string()).or_insert((0, now));
+            *e = (e.0 + 1, now);
+        } else {
+            self.0.remove(id);
+        }
+    }
+}
+
+/// Background retry: once a minute, adds summaries that wait for the
+/// language model (as soon as it is ready) or that failed (after
+/// [`FAILED_RETRY_AFTER`]). Only while the Mac has memory to spare, nothing
+/// is recorded and no meeting is processed, so a summary never competes
+/// with a meeting. It never starts Ollama itself (that happens when a
+/// meeting needs it, or by hand).
 pub fn retry_summaries(app: &AppHandle) {
     let app = app.clone();
     let _ = std::thread::Builder::new()
         .name("summary-retry".into())
-        .spawn(move || loop {
-            std::thread::sleep(SUMMARY_RETRY_EVERY);
-            let store = app.state::<Arc<MeetingStore>>().inner().clone();
-            let waiting: Vec<String> = store
-                .list()
-                .into_iter()
-                .filter(|r| {
-                    r.status == MeetingStatus::Done
-                        && r.summary_missing == Some(SummaryMissing::Waiting)
-                })
-                .map(|r| r.id)
-                .collect();
-            if waiting.is_empty() {
-                continue;
-            }
-            let engine = engine_settings(&crate::settings::get_settings(&app));
-            if !engine.summary
-                || sokki_engine::llm::check(&engine.llm, &engine.user_name, false).state != "ready"
-            {
-                continue;
-            }
-            for id in waiting {
-                let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
-                summarize(&app, &store, &id, false);
-                emit_changed(&app, &id);
+        .spawn(move || {
+            let mut tries = FailedTries::default();
+            loop {
+                std::thread::sleep(SUMMARY_RETRY_EVERY);
+                retry_summaries_once(&app, &mut tries);
             }
         });
+}
+
+fn retry_summaries_once(app: &AppHandle, tries: &mut FailedTries) {
+    let store = app.state::<Arc<MeetingStore>>().inner().clone();
+    let records = store.list();
+    if records.iter().any(|r| r.status == MeetingStatus::Recording) {
+        return;
+    }
+    let now = std::time::Instant::now();
+    let due: Vec<String> = records
+        .into_iter()
+        .filter(|r| r.status == MeetingStatus::Done && r.note_path.is_some())
+        .filter_map(|r| {
+            let missing = r.summary_missing?;
+            tries.due(&r.id, missing, now).then_some(r.id)
+        })
+        .collect();
+    if due.is_empty() {
+        return;
+    }
+    let engine = engine_settings(&crate::settings::get_settings(app));
+    if !engine.summary || !super::memguard::memory_to_spare() {
+        return;
+    }
+    if sokki_engine::llm::check(&engine.llm, &engine.user_name, false).state != "ready" {
+        return;
+    }
+    for id in due {
+        // A meeting being processed (or a summary by hand) goes first.
+        let _turn = match PROCESSING.try_lock() {
+            Ok(turn) => turn,
+            Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return,
+        };
+        if !super::memguard::memory_to_spare() {
+            return;
+        }
+        log::info!("Meeting {id}: adding the missing summary in the background");
+        summarize_safely(app, &store, &id, false);
+        let failed = store
+            .get(&id)
+            .is_some_and(|r| r.summary_missing == Some(SummaryMissing::Failed));
+        tries.tried(&id, failed, std::time::Instant::now());
+    }
 }
 
 /// Deletes audio older than the retention period (called at startup).
@@ -581,7 +677,7 @@ pub fn llm_status(
     keys: &HashMap<String, String>,
     probe: bool,
 ) -> LlmStatus {
-    if !settings.summary_enabled && !settings.correction_enabled {
+    if !settings.summary_enabled {
         return LlmStatus {
             state: "off".into(),
             detail: String::new(),
@@ -608,6 +704,78 @@ pub fn pull_model(settings: &MeetingSettings, progress: impl FnMut(PullProgress)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn record(status: MeetingStatus) -> super::super::store::MeetingRecord {
+        super::super::store::MeetingRecord {
+            id: "m".into(),
+            started_at: "2026-11-20T14:20:00+01:00".into(),
+            duration_s: 2450.0,
+            status,
+            tracks: vec!["mic.flac".into()],
+            source_app: None,
+            title: None,
+            note_path: Some("/notes/2026-11-20 1420 Meeting.md".into()),
+            speakers: Vec::new(),
+            warnings: Vec::new(),
+            summary_missing: None,
+            audio_deleted: false,
+            online: None,
+        }
+    }
+
+    /// 20.11.2026: the summary of a 41-minute meeting failed; "Try again"
+    /// showed the meeting as summarizing for minutes. However an attempt
+    /// ends, the meeting is done afterwards.
+    #[test]
+    fn an_ended_summary_attempt_leaves_the_meeting_done() {
+        let mut r = record(MeetingStatus::Processing {
+            stage: "summarizing".into(),
+            progress: None,
+        });
+        end_summary_attempt(&mut r);
+        assert_eq!(r.status, MeetingStatus::Done);
+        assert_eq!(r.summary_missing, Some(SummaryMissing::Failed));
+        assert_eq!(r.warnings, [sokki_engine::SUMMARY_FAILED]);
+
+        // A meeting that is processed from its audio again is left alone.
+        let mut r = record(MeetingStatus::Processing {
+            stage: "transcribing".into(),
+            progress: Some(0.5),
+        });
+        end_summary_attempt(&mut r);
+        assert!(matches!(r.status, MeetingStatus::Processing { .. }));
+
+        // A summary that was added stays added.
+        let mut r = record(MeetingStatus::Done);
+        end_summary_attempt(&mut r);
+        assert_eq!(r.summary_missing, None);
+    }
+
+    #[test]
+    fn a_failed_summary_is_tried_again_three_times_then_only_by_hand() {
+        let mut t = FailedTries::default();
+        let t0 = std::time::Instant::now();
+        let min = |m: u64| t0 + Duration::from_secs(m * 60);
+        // Waiting for the model: whenever it's ready.
+        assert!(t.due("w", SummaryMissing::Waiting, t0));
+        // Failed: after 10 min, then 30 min after that try, then 2 h.
+        assert!(!t.due("f", SummaryMissing::Failed, t0));
+        assert!(!t.due("f", SummaryMissing::Failed, min(9)));
+        assert!(t.due("f", SummaryMissing::Failed, min(10)));
+        t.tried("f", true, min(10));
+        assert!(!t.due("f", SummaryMissing::Failed, min(39)));
+        assert!(t.due("f", SummaryMissing::Failed, min(40)));
+        t.tried("f", true, min(40));
+        assert!(t.due("f", SummaryMissing::Failed, min(160)));
+        t.tried("f", true, min(160));
+        assert!(!t.due("f", SummaryMissing::Failed, min(100_000)));
+        // Model not ready at a try: no try used up, counting starts again.
+        let mut t = FailedTries::default();
+        assert!(!t.due("g", SummaryMissing::Failed, t0));
+        t.tried("g", false, min(10));
+        assert!(!t.due("g", SummaryMissing::Failed, min(15)));
+        assert!(t.due("g", SummaryMissing::Failed, min(25)));
+    }
 
     #[test]
     fn engine_settings_follow_the_meeting_settings() {

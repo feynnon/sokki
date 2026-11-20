@@ -29,7 +29,7 @@ Each GitHub release that carries Linux builds attaches:
 1. Build in the Arch container (`packaging/docker`), or use `sokki-git`: `cd sokki-git && makepkg -si`.
 2. Run `sokki-omarchy-setup` as your user in the desktop. Check: `omarchy plugin list` shows `sokki.meetings` enabled, `systemctl --user status sokki` is running, `omarchy menu keybindings --print` lists both keys, `hyprctl configerrors` is clean.
 3. Without a call nothing shows in the bar. `Super + Ctrl + M` opens the panel with "Record now" and recent notes.
-4. Open Google Meet in Chromium and join a call. The microphone icon pulses beside the clock and the prompt opens without taking the keyboard. `Super + Ctrl + M` focuses it; Enter records, Esc says not now. Unanswered, it closes when the countdown ends.
+4. Open Google Meet in Chromium and join a call. The microphone icon pulses beside the clock and the prompt opens without taking the keyboard or the next click. On Omarchy 4.0, whose panels can't stay out of the way like that, a notification asks instead (Record / Not now), so the click on the browser's "Allow microphone" still lands. `Super + Ctrl + M` opens the panel; Enter records, Esc says not now. Unanswered, it closes when the countdown ends.
 5. While recording: a red dot and the time in the bar; Stop in the panel. After the call: a progress pie in the bar, then a "Meeting note ready" notification with Open.
 6. `omarchy dictation start|stop` with `sokki-omarchy-setup --dictation` set: Alt + Space and holding Right Alt dictate into the focused window.
 7. `sokki-omarchy-setup --remove` leaves `bindings.lua` and the menu file as they were before setup.

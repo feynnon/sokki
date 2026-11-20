@@ -809,7 +809,7 @@ fn llm_to_pull(cfg: &Config) -> Option<String> {
     let llm = &cfg.llm;
     let local = !sokki_engine::llm::CLOUD_PROVIDERS.contains(&llm.provider.trim())
         && sokki_engine::llm::is_ollama(llm.base_url.trim().trim_end_matches('/'));
-    if !local || !(cfg.meetings.summary || cfg.meetings.correction) {
+    if !local || !cfg.meetings.summary {
         return None;
     }
     let mut state = sokki_engine::llm::check(llm, &cfg.meetings.user_name, false).state;

@@ -1720,15 +1720,12 @@ user_name: string;
  */
 diarization_enabled: boolean; 
 /**
- * Fix misheard words in the transcript with the language model before
- * the summary (only short, similar-sounding replacements; each one is
- * listed at the end of the note).
- */
-correction_enabled: boolean; 
-/**
- * Terms likely in your meetings (names, products, jargon), e.g.
- * ["Kelasur", "Lead", "Claude Code"]. Used by the correction; the
- * dictation `custom_words` are added automatically.
+ * Your dictionary: correctly spelled company names, customers,
+ * colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude
+ * Code"]. The summary prompt lists them, so the summary spells them
+ * right where the transcript has a misheard form ("Cloud Code"). The
+ * transcript itself stays as recognised. The dictation `custom_words`
+ * are added automatically.
  */
 glossary: string[]; 
 /**
@@ -1741,7 +1738,7 @@ summary_enabled: boolean;
  */
 footer_enabled: boolean; 
 /**
- * Which language model corrects and summarises: "local" (the server
+ * Which language model summarises: "local" (the server
  * at `llm_base_url`, normally Ollama; nothing leaves the computer),
  * or a cloud provider: "anthropic", "openai" or "openrouter". A cloud
  * provider gets the transcript; its API key is the one stored for

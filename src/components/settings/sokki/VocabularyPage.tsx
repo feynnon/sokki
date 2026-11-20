@@ -6,10 +6,10 @@ import { useSettings } from "@/hooks/useSettings";
 import { Input } from "@/components/ui/Input";
 import { Page, PageHeader } from "./parts";
 
-/** One list of names and terms. It feeds the meeting correction, which only
- * swaps a word after the language model and a sound check agree. Dictation's
- * direct word swap is left out on purpose: tested with these words it turned
- * "Led" and "Lied" into "Lead" and "Mach" into "Nuxa". */
+/** One list of names and terms. The meeting summary prompt lists them, so
+ * the summary spells them right. Dictation's direct word swap is left out on
+ * purpose: tested with these words it turned "Led" and "Lied" into "Lead" and
+ * "Mach" into "Nuxa". */
 export const SokkiVocabularyPage: React.FC = () => {
   const { t } = useTranslation();
   const { settings, refreshSettings } = useSettings();

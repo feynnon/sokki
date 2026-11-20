@@ -1024,8 +1024,7 @@
       "diarizing": "Sprecher werden erkannt…",
       "transcribing": "Wird transkribiert…",
       "summarizing": "Zusammenfassung wird geschrieben…",
-      "writing": "Notiz wird gespeichert…",
-      "correcting": "Transkript wird korrigiert…"
+      "writing": "Notiz wird gespeichert…"
     },
     "back": "Meetings",
     "setupHint": "Das Sprachmodell für Zusammenfassungen ist noch nicht bereit. Einrichten unter Modelle → Sprachmodell.",
@@ -1038,7 +1037,7 @@
       "userName": "Dein Name",
       "userNameDescription": "Deine Stimme am Mikrofon bekommt diesen Namen.",
       "dictionary": "Wörterbuch",
-      "dictionaryDescription": "Namen und Wörter, die im Transkript richtig geschrieben sein sollen, durch Kommas getrennt: Kunden, Kollegen, Produkte.",
+      "dictionaryDescription": "Namen und Wörter, die die Zusammenfassung richtig schreiben soll, durch Kommas getrennt: Kunden, Kollegen, Produkte.",
       "detection": "Meetings erkennen",
       "detectionDescription": "Bietet eine Aufnahme an, wenn ein Call startet.",
       "footer": "Fußzeile",
@@ -1048,7 +1047,7 @@
       "keepAudioNone": "Löschen, sobald die Notiz steht",
       "keepAudioDays": "{{count}} Tage",
       "aiTitle": "Zusammenfassung",
-      "aiDescription": "Korrigiert falsch verstandene Wörter und schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
+      "aiDescription": "Schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
       "model": "Sprachmodell",
       "modelDescription": "",
       "change": "Ändern"
@@ -1056,7 +1055,7 @@
     "lm": {
       "tabSpeech": "Sprache",
       "tabLanguage": "Sprachmodell",
-      "intro": "Korrigiert falsch verstandene Wörter und schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
+      "intro": "Schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
       "onThisMac": "Auf diesem Computer",
       "cloud": "In der Cloud · braucht einen API-Schlüssel",
       "other": "Sonstiges",
@@ -1068,7 +1067,7 @@
       "openrouter": "Ein Schlüssel für viele Modelle. Schickt das Transkript an OpenRouter.",
       "custom": "In der Konfigurationsdatei gesetzt",
       "off": "Keine Zusammenfassung",
-      "offLine": "Nur Transkript: keine Korrektur, keine Zusammenfassung.",
+      "offLine": "Nur Transkript, keine Zusammenfassung.",
       "apiKeyPlaceholder": "{{provider}}-API-Schlüssel",
       "readyLocal": "Bereit. Nichts verlässt diesen Mac.",
       "readyCloud": "Bereit. Transkripte gehen an {{provider}}.",
@@ -1186,7 +1185,7 @@
     },
     "vocabulary": {
       "title": "Wörterbuch",
-      "description": "Namen und Begriffe aus deiner Arbeit, richtig geschrieben in Meeting-Notizen.",
+      "description": "Namen und Begriffe aus deiner Arbeit, richtig geschrieben in Meeting-Zusammenfassungen.",
       "placeholder": "Wort hinzufügen, mehrere mit Komma trennen",
       "add": "Wörter hinzufügen",
       "empty": "Noch keine Wörter. Füge die Namen hinzu, die das Transkript falsch schreibt.",

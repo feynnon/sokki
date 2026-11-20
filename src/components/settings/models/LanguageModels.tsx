@@ -74,7 +74,7 @@ const CLOUD_DEFAULT_MODEL: Record<string, string> = {
 
 /** The current choice as "provider|model", or "off". */
 export function selectedLanguageModel(m: MeetingSettingsType): string {
-  if (!m.summary_enabled && !m.correction_enabled) return "off";
+  if (!m.summary_enabled) return "off";
   const provider = m.llm_provider || "local";
   if (provider === "local") return `local|${m.llm_model}`;
   return `${provider}|${m.cloud_model || CLOUD_DEFAULT_MODEL[provider] || ""}`;
@@ -298,7 +298,7 @@ const Row: React.FC<{
   </div>
 );
 
-/** The Models page tab for the language model that corrects and summarises meetings. */
+/** The Models page tab for the language model that summarises meetings. */
 export const LanguageModels: React.FC = () => {
   const { t } = useTranslation();
   const { settings, refreshSettings } = useSettings();
@@ -310,7 +310,7 @@ export const LanguageModels: React.FC = () => {
     if (value === selected) return;
     let patch: Partial<MeetingSettingsType>;
     if (value === "off") {
-      patch = { summary_enabled: false, correction_enabled: false };
+      patch = { summary_enabled: false };
     } else {
       const [p, ...rest] = value.split("|");
       const model = rest.join("|");
@@ -318,13 +318,11 @@ export const LanguageModels: React.FC = () => {
         p === "local"
           ? {
               summary_enabled: true,
-              correction_enabled: true,
               llm_provider: "local",
               llm_model: model,
             }
           : {
               summary_enabled: true,
-              correction_enabled: true,
               llm_provider: p,
               cloud_model: model,
             };

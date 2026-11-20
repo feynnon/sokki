@@ -75,7 +75,8 @@ Status: open unless marked.
 | R14 | A meeting waiting for another one to finish showed "diarizing" for half an hour | **fixed**: shows "waiting" |
 | R15 | Ghost "Speaker 4" with seven back-channel lines ("Yeah", "Yep"), over the 8 s ghost limit | **fixed**: clusters with ≤ 20 words and < 4 % share are merged too |
 | R16 | Summaries mix up topics and owners on 20-min calls (qwen3.5:9b): a time or availability moved to another customer, a task already done listed as open, the wrong customer in a task, small talk from garbled audio stated as fact | partly: prompt rules (keep topics apart, done ≠ task, no small talk, decisions include "wait"). Still seen after the change. Measured and rejected: thinking mode (> 5 min per summary), summarising in 6–8-minute parts (more invented links). Next lever: a larger model or letting the user check tasks |
-| R12 | Without a glossary the correction rarely helps | the glossary is the lever; keep it filled (`meetings.glossary`) |
+| R17 | The correction pass cost a whole model round before the summary; in a 41-min meeting on a loaded Mac (2026-11-20) it made 2 corrections, then the summary timed out | **removed** 2026-11-20: no correction pass; the glossary goes into the summary prompt, so names in the summary are spelled right. The transcript stays as recognised |
+| R12 | Without a glossary the correction rarely helps (correction removed, see R17) | the glossary is the lever; keep it filled (`meetings.glossary`) |
 | R5 | A meeting with only silence on the mic (user listening) — check that diarization/echo do not invent a "user" | to verify with the current recording |
 
 ## Measurements (2026-11-17, two real calls, 34 hand-labelled misheard words)
@@ -93,5 +94,5 @@ Status: open unless marked.
 
 ## Planned
 
-- **D1** LLM correction pass over the transcript (context window + glossary), measured against truth.
+- **D1** LLM correction pass over the transcript (context window + glossary), measured against truth. Built, then removed on 2026-11-20 (R17).
 - **D2** Live pipeline during the recording: utterance-wise ASR and correction, so the note is ready right after the call.

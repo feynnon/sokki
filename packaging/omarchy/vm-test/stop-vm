@@ -2,6 +2,10 @@
 # Shuts the Omarchy VM down cleanly (ACPI power button through QEMU's QMP)
 # and waits until it is off. `ssh omarchy-vm systemctl poweroff` is refused
 # in an SSH session without a password.
+# The Mac's devices back for whoever uses the VM next (the vm tool turns the
+# test audio on again for the next test).
+ssh -o ConnectTimeout=3 -o BatchMode=yes "${SOKKI_VM_SSH:-omarchy-vm}" \
+  'XDG_RUNTIME_DIR=/run/user/$(id -u) bash ~/vm-share/safe-audio.sh off' >/dev/null 2>&1 || true
 python3 - <<'PY' || exit 1
 import glob, json, os, socket, sys
 socks = sorted(glob.glob("/tmp/omarchy-qemu-gpu.*/qmp.sock"), key=os.path.getmtime)

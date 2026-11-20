@@ -1,19 +1,16 @@
-//! The floating "recording" pill (red dot, elapsed time, stop button) shown
+//! The floating "recording" pill (level bars, elapsed time, stop button) shown
 //! while a meeting records, like Superwhisper's. Top centre of the screen
-//! with the cursor, above other windows and on every Space; draggable.
+//! with the cursor, above other windows and on every Space; draggable. On
+//! macOS its background is the frosted HUD material under a dark veil (the
+//! page): Liquid Glass was tried and dropped, white bars and time vanished
+//! on light backgrounds (Robin, 2026-11-20: "man sieht gar nichts").
 
+use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "meeting_indicator";
-/// Sokki's pill also has the heads-up button.
-fn width() -> f64 {
-    if crate::brand::is_sokki() {
-        204.0
-    } else {
-        174.0
-    }
-}
-const HEIGHT: f64 = 36.0;
+const WIDTH: f64 = 160.0;
+const HEIGHT: f64 = 40.0;
 
 pub fn show(app: &AppHandle) {
     let handle = app.clone();
@@ -29,16 +26,27 @@ pub fn show(app: &AppHandle) {
             WebviewUrl::App("src/meeting-indicator/index.html".into()),
         )
         .title("Meeting Recording")
-        .inner_size(width(), HEIGHT)
+        .inner_size(WIDTH, HEIGHT)
         .position(x, y)
         .decorations(false)
         .transparent(true)
-        .shadow(false)
+        // Frosted glass behind the page, rounded like the pill.
+        .effects(
+            EffectsBuilder::new()
+                .effect(Effect::HudWindow)
+                .state(EffectState::Active)
+                .radius(HEIGHT / 2.0)
+                .build(),
+        )
+        .shadow(true)
         .resizable(false)
         .always_on_top(true)
         .visible_on_all_workspaces(true)
         .skip_taskbar(true)
         .focused(false)
+        // The stop button must work on the first click while another app
+        // is in front; without this macOS only activates Sokki with it.
+        .accept_first_mouse(true)
         .build();
         if let Err(e) = built {
             log::warn!("Recording indicator could not be shown: {e}");
@@ -67,7 +75,7 @@ fn position(app: &AppHandle) -> (f64, f64) {
             let scale = m.scale_factor();
             let pos = m.position().to_logical::<f64>(scale);
             let size = m.size().to_logical::<f64>(scale);
-            (pos.x + (size.width - width()) / 2.0, pos.y + 34.0)
+            (pos.x + (size.width - WIDTH) / 2.0, pos.y + 34.0)
         }
         None => (600.0, 34.0),
     }

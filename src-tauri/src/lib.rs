@@ -360,7 +360,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             #[cfg(target_os = "macos")]
             "meeting_toggle" => {
-                meeting::toggle_meeting(app);
+                meeting::toggle_meeting(app, "the menu bar menu");
             }
             "unload_model" => {
                 let transcription_manager = app.state::<Arc<TranscriptionManager>>();
@@ -1024,15 +1024,17 @@ pub fn run(cli_args: CliArgs) {
                 crate::utils::cancel_current_operation(app);
             } else if args.iter().any(|a| a == "--toggle-meeting") {
                 #[cfg(target_os = "macos")]
-                meeting::toggle_meeting(app);
+                meeting::toggle_meeting(app, "the command line (--toggle-meeting)");
             } else if args.iter().any(|a| a == "--start-meeting") {
                 #[cfg(target_os = "macos")]
                 if !app.state::<Arc<meeting::MeetingManager>>().is_recording() {
+                    log::info!("Meeting start via the command line (--start-meeting)");
                     let _ = meeting::start_meeting(app, None);
                 }
             } else if args.iter().any(|a| a == "--stop-meeting") {
                 #[cfg(target_os = "macos")]
                 if app.state::<Arc<meeting::MeetingManager>>().is_recording() {
+                    log::info!("Meeting stop via the command line (--stop-meeting)");
                     let _ = meeting::stop_meeting(app);
                 }
             } else {

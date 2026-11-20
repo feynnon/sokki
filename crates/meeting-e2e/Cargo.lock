@@ -288,6 +288,7 @@ name = "diarize"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "log",
  "meeting-core",
  "serde",
  "serde_json",

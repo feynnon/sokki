@@ -1,6 +1,6 @@
 //! One recorded meeting in, one note out:
 //! align tracks → echo cancellation → speakers → transcribe turns → dedup
-//! and names → correction → summary → Markdown note.
+//! and names → summary → Markdown note.
 //!
 //! The host brings the platform parts (its speech recogniser, its speaker
 //! detector, known voices) and gets progress callbacks; everything else is
@@ -26,29 +26,31 @@ use crate::tracks::{align_tracks, TrackTiming};
 pub struct Settings {
     /// How the person appears in notes ("Ich", "Robin").
     pub user_name: String,
-    /// Fix misheard words with the language model.
-    pub correction: bool,
     /// Summary, decisions and tasks by the language model.
     pub summary: bool,
-    /// Words the correction should know (names, product terms).
+    /// Names and terms the summary spells right, even where speech
+    /// recognition misheard them.
     pub glossary: Vec<String>,
     /// End the note with "Transcribed on my … with sokki.org".
     pub footer: bool,
     /// Where notes are written.
     pub notes_dir: PathBuf,
     pub llm: LlmSettings,
+    /// The person's own language, for a note with no words to go by.
+    /// None: German.
+    pub language: Option<meeting_core::lang::Language>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             user_name: "Ich".into(),
-            correction: true,
             summary: true,
             glossary: Vec::new(),
             footer: true,
             notes_dir: PathBuf::from("Notes"),
             llm: LlmSettings::default(),
+            language: None,
         }
     }
 }
@@ -58,7 +60,6 @@ impl Default for Settings {
 pub enum Stage {
     Diarizing,
     Transcribing,
-    Correcting,
     Summarizing,
     Writing,
 }
@@ -68,7 +69,6 @@ impl Stage {
         match self {
             Stage::Diarizing => "diarizing",
             Stage::Transcribing => "transcribing",
-            Stage::Correcting => "correcting",
             Stage::Summarizing => "summarizing",
             Stage::Writing => "writing",
         }
@@ -159,6 +159,7 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     if tracks.is_empty() {
         bail!("The recording has no audio.");
     }
+    let mut clock = StepClock::new(&tracks);
     if let Some(t) = timing {
         if let Some(w) = align_tracks(&mut tracks, t.mic_first_us, t.system_first_us) {
             log::warn!("{w}");
@@ -166,18 +167,16 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     }
     // Remove the remote voices the mic picked up from the speakers, so they
     // are not found as an extra speaker on the mic.
-    let t0 = Instant::now();
     if meeting_core::aec::cancel_echo_in_tracks(&mut tracks) {
-        log::info!(
-            "Echo cancelled on the mic track in {:.1}s",
-            t0.elapsed().as_secs_f64()
-        );
+        clock.step("echo cancellation");
+    } else {
+        clock.skip();
     }
     let duration_s = tracks.iter().map(|t| t.duration_s()).fold(0.0, f64::max);
 
     // Load the language model while speakers are detected (saves ~6 s
     // later), starting Ollama first if it is not running.
-    let wants_llm = settings.correction || settings.summary;
+    let wants_llm = settings.summary;
     let preparing = wants_llm.then(|| llm::prepare(&settings.llm, &settings.user_name));
 
     // Speakers, transcription, dedup, names.
@@ -187,10 +186,7 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         let mut last = last_report.lock().unwrap_or_else(|e| e.into_inner());
         if last.elapsed() >= Duration::from_millis(700) || done == total {
             *last = Instant::now();
-            (deps.progress)(
-                Stage::Transcribing,
-                Some(done as f32 / total.max(1) as f32),
-            );
+            (deps.progress)(Stage::Transcribing, Some(done as f32 / total.max(1) as f32));
         }
     };
     let cfg = PipelineConfig {
@@ -210,6 +206,9 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     for d in &result.details {
         log::warn!("{d}");
     }
+    clock.add("speakers", result.speakers_s);
+    clock.add("transcription", result.transcribe_s);
+    clock.step("echo removal and names");
     warnings.extend(result.warnings.iter().cloned());
     drop(deps.diarizer);
     if let Some(notes) = &deps.diarizer_notes {
@@ -222,43 +221,19 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         let _ = p.join();
     }
     let llm_ready = wants_llm && llm::is_ready(&settings.llm, &settings.user_name);
+    clock.step("waiting for the language model");
 
-    // Correct misheard words with the language model.
-    let mut corrections = Vec::new();
-    let mut transcript = result.transcript.clone();
-    if settings.correction && llm_ready && !transcript.segments.is_empty() {
-        (deps.progress)(Stage::Correcting, None);
-        let cfg = meeting_core::correct::CorrectConfig {
-            glossary: settings.glossary.clone(),
-            ..Default::default()
-        };
-        // The model's default temperature (none is sent). Answers are a few
-        // short lines; the cap stops a runaway answer (seen: 3072 tokens,
-        // 133 s for one request).
-        let llm = LlmSummarizer::new(LlmConfig {
-            max_output_tokens: 400,
-            ..llm::config(&settings.llm, &settings.user_name)
-        });
-        let (fixed, applied, warns) =
-            meeting_core::correct::correct_transcript(&llm, &transcript, &cfg);
-        // Best effort: an uncorrected line is still the transcript.
-        for w in &warns {
-            log::warn!("Transcript correction: {w}");
-        }
-        log::info!("{} transcript corrections", applied.len());
-        transcript = fixed;
-        corrections = applied;
-    }
+    let transcript = result.transcript.clone();
 
     // Summary.
     let mut summary_missing = None;
     let summary = if settings.summary && !transcript.segments.is_empty() {
         if llm_ready {
             (deps.progress)(Stage::Summarizing, None);
-            use meeting_core::Summarizer;
-            match LlmSummarizer::new(llm::config(&settings.llm, &settings.user_name))
-                .summarize(&transcript)
-            {
+            let result =
+                summarize_logged(&LlmSummarizer::new(summary_config(settings)), &transcript);
+            clock.step("summary");
+            match result {
                 Ok(s) => Some(s),
                 Err(e) => {
                     log::warn!("No summary: {e:#}");
@@ -298,10 +273,12 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         &note,
         &meeting_core::note::NoteOptions {
             footer: settings.footer,
-            corrections: &corrections,
+            language: settings.language,
         },
     )?;
     let title = meeting_core::note::note_title(&note);
+    clock.step("writing the note");
+    clock.finish();
     let online = result
         .transcript
         .segments
@@ -337,15 +314,14 @@ pub struct Summarized {
 /// no transcript or has a summary already.
 pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarized> {
     use anyhow::Context;
-    use meeting_core::Summarizer;
     let md = std::fs::read_to_string(note_path)
         .with_context(|| format!("reading {}", note_path.display()))?;
     let transcript = meeting_core::note::transcript_from_note(&md);
     if transcript.segments.is_empty() {
         bail!("the note has no transcript to summarize");
     }
-    let summary = LlmSummarizer::new(llm::config(&settings.llm, &settings.user_name))
-        .summarize(&transcript)?;
+    let summary =
+        summarize_logged(&LlmSummarizer::new(summary_config(settings)), &transcript)?;
     let new_md =
         meeting_core::note::add_summary(&md, &summary).context("the note has a summary already")?;
     let title = Some(summary.title.trim().to_string()).filter(|t| !t.is_empty());
@@ -394,6 +370,134 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
     })
 }
 
+/// The language model config for summaries: the person's dictionary goes
+/// into the prompt, so names come out spelled right.
+fn summary_config(settings: &Settings) -> LlmConfig {
+    LlmConfig {
+        glossary: settings.glossary.clone(),
+        ..llm::config(&settings.llm, &settings.user_name)
+    }
+}
+
+/// Summarizes and logs how: size, single request or parts, time.
+fn summarize_logged(
+    llm: &LlmSummarizer,
+    transcript: &Transcript,
+) -> Result<meeting_core::MeetingSummary> {
+    let started = Instant::now();
+    let cfg = llm.config();
+    match llm.summarize_with_stats(transcript) {
+        Ok((summary, st)) => {
+            let how = if st.map_reduce {
+                format!("in {} parts", st.chunks)
+            } else {
+                "in one request".to_string()
+            };
+            log::info!(
+                "Summary by {}: ~{} tokens {how}, {} requests, {:.1} s",
+                cfg.model,
+                st.estimated_tokens,
+                st.requests,
+                st.elapsed.as_secs_f64()
+            );
+            Ok(summary)
+        }
+        Err(e) => {
+            let tokens = meeting_core::lang::estimate_tokens(&transcript.to_plain_text());
+            log::warn!(
+                "Summary by {} failed after {:.1} s (~{tokens} tokens, timeout {} s per request)",
+                cfg.model,
+                started.elapsed().as_secs_f64(),
+                llm.request_timeout(tokens).as_secs()
+            );
+            Err(e)
+        }
+    }
+}
+
+/// Times the steps of one meeting and logs each as it ends, so a slow
+/// meeting can be read from the log: "Meeting step speakers: 95.2 s".
+struct StepClock {
+    started: Instant,
+    last: Instant,
+    /// Seconds of steps measured elsewhere since `last` (see `add`).
+    inside: f64,
+    steps: Vec<(&'static str, f64)>,
+}
+
+impl StepClock {
+    fn new(tracks: &[Track]) -> Self {
+        let audio: Vec<String> = tracks
+            .iter()
+            .map(|t| {
+                let kind = match t.kind {
+                    TrackKind::Mic => "mic",
+                    TrackKind::System => "system",
+                };
+                format!("{kind} {}", minutes(t.duration_s()))
+            })
+            .collect();
+        log::info!("Meeting processing starts: {}", audio.join(", "));
+        let now = Instant::now();
+        StepClock {
+            started: now,
+            last: now,
+            inside: 0.0,
+            steps: Vec::new(),
+        }
+    }
+
+    /// The step that ends now: the time since the last step, less the
+    /// steps added with `add` meanwhile.
+    fn step(&mut self, name: &'static str) {
+        let s = (self.last.elapsed().as_secs_f64() - self.inside).max(0.0);
+        self.skip();
+        self.record(name, s);
+    }
+
+    /// Time up to now belongs to no step worth naming.
+    fn skip(&mut self) {
+        self.last = Instant::now();
+        self.inside = 0.0;
+    }
+
+    /// A step measured elsewhere, within the time up to the next `step`.
+    fn add(&mut self, name: &'static str, seconds: f64) {
+        self.inside += seconds;
+        self.record(name, seconds);
+    }
+
+    fn record(&mut self, name: &'static str, seconds: f64) {
+        log::info!("Meeting step {name}: {seconds:.1} s");
+        self.steps.push((name, seconds));
+    }
+
+    /// One line with every step.
+    fn finish(&self) {
+        let list: Vec<String> = self
+            .steps
+            .iter()
+            .map(|(n, s)| format!("{n} {s:.1} s"))
+            .collect();
+        log::info!(
+            "Meeting processed in {:.1} s: {}",
+            self.started.elapsed().as_secs_f64(),
+            list.join(", ")
+        );
+    }
+
+    #[cfg(test)]
+    fn names(&self) -> Vec<&'static str> {
+        self.steps.iter().map(|(n, _)| *n).collect()
+    }
+}
+
+/// "40:50" for 2450 s.
+fn minutes(seconds: f64) -> String {
+    let s = seconds.max(0.0).round() as u64;
+    format!("{}:{:02} min", s / 60, s % 60)
+}
+
 /// Expands a leading `~/` in a configured path.
 pub fn expand_home(path: &str) -> PathBuf {
     match path.strip_prefix("~/") {
@@ -431,7 +535,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("sokki-engine-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let settings = Settings {
-            correction: false,
             summary: false,
             notes_dir: dir.clone(),
             ..Default::default()
@@ -527,7 +630,6 @@ mod tests {
 
     fn llm_settings(base_url: &str, dir: &Path) -> Settings {
         Settings {
-            correction: false,
             summary: true,
             notes_dir: dir.to_path_buf(),
             llm: LlmSettings {
@@ -582,6 +684,22 @@ mod tests {
         // Only once.
         assert!(summarize_note(&done.note_path, &settings).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn step_clock_does_not_count_added_steps_twice() {
+        let mut c = StepClock::new(&mic_input(2.0).tracks);
+        std::thread::sleep(Duration::from_millis(50));
+        c.add("speakers", 30.0);
+        c.add("transcription", 60.0);
+        c.step("names");
+        assert_eq!(c.names(), ["speakers", "transcription", "names"]);
+        // 50 ms passed, 90 s were added: the rest is not negative.
+        assert_eq!(c.steps[2].1, 0.0);
+        std::thread::sleep(Duration::from_millis(30));
+        c.step("summary");
+        assert!(c.steps[3].1 >= 0.03 && c.steps[3].1 < 1.0, "{:?}", c.steps);
+        assert_eq!(minutes(2449.969), "40:50 min");
     }
 
     #[test]

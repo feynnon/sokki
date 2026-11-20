@@ -1132,7 +1132,7 @@ struct MeetingAction;
 impl ShortcutAction for MeetingAction {
     fn start(&self, app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {
         #[cfg(target_os = "macos")]
-        crate::meeting::toggle_meeting(app);
+        crate::meeting::toggle_meeting(app, "the meeting shortcut");
         #[cfg(not(target_os = "macos"))]
         log::info!(
             "Meeting recording is only available on macOS ({})",

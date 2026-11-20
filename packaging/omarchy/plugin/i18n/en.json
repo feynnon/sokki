@@ -16,7 +16,6 @@
   "stage.preparing": "Preparing",
   "stage.diarizing": "Finding speakers",
   "stage.transcribing": "Transcribing",
-  "stage.correcting": "Correcting",
   "stage.summarizing": "Summarizing",
   "stage.writing": "Writing the note",
   "models.downloading": "Downloading speech models",

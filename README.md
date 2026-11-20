@@ -63,7 +63,7 @@ A 20 min call is ready about 3 min after you hang up, on an M-series Mac.
 | Echo removal | WebRTC echo cancellation | — |
 | Speakers | NVIDIA Sortformer, GPU | Remembered voices |
 | Speech recognition | NVIDIA Parakeet, 25 languages | Whisper, Canary, Qwen-ASR and more |
-| Summary and correction | Qwen 3.5 9B via Ollama, on your Mac | Claude, GPT or OpenRouter with your key |
+| Summary | Qwen 3.5 9B via Ollama, on your Mac | Claude, GPT or OpenRouter with your key |
 
 Models download once, then run offline. Measurements behind these choices: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 

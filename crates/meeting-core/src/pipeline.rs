@@ -136,6 +136,11 @@ pub struct PipelineResult {
     pub dedup: DedupReport,
     /// Mic turns dropped before transcription as acoustic echo of the system track.
     pub echo_turns_dropped: usize,
+    /// Seconds spent finding speakers (all tracks, with the acoustic echo
+    /// check of mic turns), for the log.
+    pub speakers_s: f64,
+    /// Seconds spent transcribing, for the log.
+    pub transcribe_s: f64,
 }
 
 /// Shown when the diarizer failed on a track (or could not be loaded).
@@ -318,6 +323,7 @@ pub fn run_with(
     let mut embeddings: HashMap<(usize, String), Vec<f32>> = HashMap::new();
     let mut jobs: Vec<Job> = Vec::new();
     let mut echo_dropped = 0usize;
+    let started = std::time::Instant::now();
 
     for (ti, track) in tracks.iter().enumerate() {
         let dur = track.duration_s();
@@ -385,7 +391,10 @@ pub fn run_with(
         }
     }
 
+    let speakers_s = started.elapsed().as_secs_f64();
+
     // Transcribe.
+    let started = std::time::Instant::now();
     let total = jobs.len();
     let mut failures = 0usize;
     let mut raw: Vec<(Segment, usize, String)> = Vec::new();
@@ -398,6 +407,7 @@ pub fn run_with(
         &mut failures,
         &mut details,
     );
+    let transcribe_s = started.elapsed().as_secs_f64();
     for (job, text) in jobs.iter().zip(texts) {
         let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
         if text.is_empty() {
@@ -504,6 +514,8 @@ pub fn run_with(
         details,
         dedup: dedup_report,
         echo_turns_dropped: echo_dropped,
+        speakers_s,
+        transcribe_s,
     })
 }
 

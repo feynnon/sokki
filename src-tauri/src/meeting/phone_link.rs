@@ -10,14 +10,14 @@
 //! Pairing: the settings page shows a ticket (QR code) with this Mac's key
 //! and the pairing code, as a sokki.org/p link: a phone without Sokki lands
 //! on the install page. A phone that sends the right code is remembered by
-//! its own key; only remembered phones get answers. A new code stops new
-//! pairings with the old one; paired phones keep working until removed.
+//! its own key; only remembered phones get answers. Each code pairs one
+//! phone: pairing replaces it, and so does "New code". Paired phones keep
+//! working until removed.
 //!
 //! Requests (see `sokki_link::Request`): `Pair`, `Ping` → `{name, version}`,
 //! `Upload` (audio as body) → `{id}`, `Status` → `{id, status, stage,
 //! progress, error, title, summary, transcript}`.
 
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -150,11 +150,10 @@ pub fn remove_phone(app: &AppHandle, id: &str) {
 
 fn new_code() -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let mut bytes = [0u8; 12];
-    if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
-        let _ = f.read_exact(&mut bytes);
-    }
-    let chars: String = bytes
+    // Random bytes from the OS, as for the link's keys. Reading /dev/urandom
+    // by hand could fail silently and leave a code of all As.
+    let bytes = sokki_link::new_secret().to_bytes();
+    let chars: String = bytes[..12]
         .iter()
         .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
         .collect();
@@ -224,6 +223,26 @@ fn same(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |d, (x, y)| d | (x ^ y)) == 0
 }
 
+/// Pairs `peer` when `code` is the current code, then replaces the code, so
+/// each code pairs one phone: a photo of an old QR code can't pair another
+/// phone later. A phone that is already paired is accepted with any code, so
+/// it can repeat a pairing whose answer got lost.
+fn try_pair(s: &mut State, peer: &str, code: &str, device: &str) -> bool {
+    if s.phones.iter().any(|p| p.id == peer) {
+        return true;
+    }
+    if !same(&code.trim().to_uppercase(), &s.code) {
+        return false;
+    }
+    s.phones.push(PairedPhone {
+        id: peer.to_string(),
+        name: device.chars().take(60).collect(),
+        paired_at: chrono::Local::now().to_rfc3339(),
+    });
+    s.code = new_code();
+    true
+}
+
 struct MacHandler {
     app: AppHandle,
 }
@@ -238,18 +257,7 @@ impl Handler for MacHandler {
         if !enabled(&self.app) {
             return Err("The phone link is switched off on the Mac.".into());
         }
-        let ok = update(&self.app, |s| {
-            if !same(&code.trim().to_uppercase(), &s.code) {
-                return false;
-            }
-            s.phones.retain(|p| p.id != peer);
-            s.phones.push(PairedPhone {
-                id: peer.to_string(),
-                name: device.chars().take(60).collect(),
-                paired_at: chrono::Local::now().to_rfc3339(),
-            });
-            true
-        });
+        let ok = update(&self.app, |s| try_pair(s, peer, code, device));
         if !ok {
             return Err("Wrong pairing code. Scan the code on the Mac again.".into());
         }
@@ -368,6 +376,33 @@ mod tests {
         assert!(same("AB", "AB"));
         assert!(!same("AB", "AC"));
         assert!(!same("A", "AB"));
+    }
+
+    #[test]
+    fn a_code_pairs_one_phone() {
+        let mut s = State {
+            code: "ABCD-EFGH-JKLM".into(),
+            key: String::new(),
+            phones: vec![],
+        };
+        assert!(!try_pair(&mut s, "phone-a", "WRONG", "Pixel"));
+        assert!(s.phones.is_empty());
+        assert_eq!(s.code, "ABCD-EFGH-JKLM");
+
+        assert!(try_pair(&mut s, "phone-a", "abcd-efgh-jklm", "Pixel"));
+        assert_eq!(s.phones.len(), 1);
+        assert_ne!(s.code, "ABCD-EFGH-JKLM", "the used code is replaced");
+
+        // The old code no longer pairs another phone.
+        assert!(!try_pair(&mut s, "phone-b", "ABCD-EFGH-JKLM", "Galaxy"));
+        // The paired phone may repeat its pairing, without a new entry or code.
+        let code = s.code.clone();
+        assert!(try_pair(&mut s, "phone-a", "ABCD-EFGH-JKLM", "Pixel"));
+        assert_eq!(s.phones.len(), 1);
+        assert_eq!(s.code, code);
+        // The new code pairs the next phone.
+        assert!(try_pair(&mut s, "phone-b", &code, "Galaxy"));
+        assert_eq!(s.phones.len(), 2);
     }
 
     #[test]

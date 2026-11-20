@@ -22,7 +22,6 @@
 use serde::{Deserialize, Serialize};
 
 pub mod aec;
-pub mod correct;
 pub mod dedup;
 pub mod echo;
 pub mod lang;

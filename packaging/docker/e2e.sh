@@ -49,7 +49,6 @@ cat >"$HOME/.config/sokki/sokki.toml" <<'EOF'
 user_name = "Me"
 notes_dir = "/tmp/home/Notes"
 ask_seconds = 60
-correction = false
 summary = false
 EOF
 "$SOKKI" daemon &>/tmp/sokki.log &

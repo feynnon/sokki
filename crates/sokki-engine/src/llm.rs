@@ -1,7 +1,6 @@
 //! Language-model settings, status, starting Ollama and downloading a model.
 //!
-//! The model itself is called by `meeting_core::summary` (correction and
-//! summary); this module turns the person's settings into that config and
+//! The model itself is called by `meeting_core::summary`; this module turns the person's settings into that config and
 //! answers "is it ready?".
 
 use anyhow::{bail, Context, Result};
@@ -162,10 +161,58 @@ pub fn ollama_models(base: &str) -> Option<Vec<String>> {
     )
 }
 
+/// Whether something accepts connections at the server's address. Tells
+/// "not running" (refused) apart from "running but slow": on 20.11.2026
+/// Ollama took 3–5 s for `/api/tags` while the Mac was swapping, the 3 s
+/// check gave up, and Sokki "started" an Ollama that was running already.
+pub fn listening(base: &str) -> bool {
+    use std::net::{TcpStream, ToSocketAddrs};
+    let rest = base.split("://").nth(1).unwrap_or(base);
+    let host = rest.split('/').next().unwrap_or(rest);
+    let host = if host
+        .rsplit_once(':')
+        .is_some_and(|(_, p)| p.parse::<u16>().is_ok())
+    {
+        host.to_string()
+    } else if base.starts_with("https://") {
+        format!("{host}:443")
+    } else {
+        format!("{host}:80")
+    };
+    let Ok(addrs) = host.to_socket_addrs() else {
+        return false;
+    };
+    addrs
+        .into_iter()
+        .any(|a| TcpStream::connect_timeout(&a, Duration::from_secs(1)).is_ok())
+}
+
+/// How long a check waits for a running Ollama that answers slowly.
+const BUSY_PATIENCE: Duration = Duration::from_secs(30);
+
+/// Model names from a running Ollama that may be slow to answer: tries
+/// every few seconds for up to `patience`.
+fn ollama_models_patiently(base: &str, patience: Duration) -> Option<Vec<String>> {
+    let start = std::time::Instant::now();
+    loop {
+        if let Some(names) = ollama_models(base) {
+            return Some(names);
+        }
+        if start.elapsed() >= patience || !listening(base) {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
 /// The language model's state. `probe` sends a tiny real request to a cloud
 /// provider (checks key, model name and network); without it only the
 /// presence of a key is checked.
 pub fn check(s: &LlmSettings, user_name: &str, probe: bool) -> Status {
+    check_with(s, user_name, probe, BUSY_PATIENCE)
+}
+
+fn check_with(s: &LlmSettings, user_name: &str, probe: bool, patience: Duration) -> Status {
     let cfg = config(s, user_name);
     let provider = s.provider.trim();
     if CLOUD_PROVIDERS.contains(&provider) {
@@ -193,7 +240,13 @@ pub fn check(s: &LlmSettings, user_name: &str, probe: bool) -> Status {
             Err(e) => status("error", format!("{base}: {e}")),
         };
     }
-    match ollama_models(&base) {
+    let models = ollama_models(&base).or_else(|| {
+        listening(&base)
+            .then(|| ollama_models_patiently(&base, patience))
+            .flatten()
+    });
+    match models {
+        None if listening(&base) => status("error", format!("{base} is not answering")),
         None if !ollama_installed() => status("no_ollama", &cfg.model),
         None => status("not_running", &cfg.model),
         Some(names) => {
@@ -216,6 +269,13 @@ pub fn start_ollama(s: &LlmSettings) -> Result<()> {
     let base = s.base_url.trim().trim_end_matches('/').to_string();
     if ollama_models(&base).is_some() {
         return Ok(());
+    }
+    if listening(&base) {
+        // Running, only slow: a second `ollama serve` couldn't bind the port.
+        return match ollama_models_patiently(&base, BUSY_PATIENCE) {
+            Some(_) => Ok(()),
+            None => bail!("Ollama is running but not answering"),
+        };
     }
     let found = ollama_binaries().into_iter().find(|b| b.exists());
     match found {
@@ -327,7 +387,7 @@ pub fn prepare(s: &LlmSettings, user_name: &str) -> std::thread::JoinHandle<()> 
     std::thread::spawn(move || {
         if check(&s, &user_name, false).state == "not_running" {
             match start_ollama(&s) {
-                Ok(()) => log::info!("Started Ollama for the meeting"),
+                Ok(()) => log::info!("Started Ollama for the meeting (it was not running)"),
                 Err(e) => log::warn!("Could not start Ollama: {e:#}"),
             }
         }
@@ -385,6 +445,48 @@ mod tests {
         let cfg = config(&s, "Robin");
         assert_eq!(cfg.base_url, "http://localhost:11434");
         assert_eq!(cfg.user_name.as_deref(), Some("Robin"));
+    }
+
+    #[test]
+    fn a_closed_port_is_not_listening_an_open_one_is() {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        assert!(listening(&format!("http://localhost:{port}")));
+        assert!(listening(&format!("http://127.0.0.1:{port}/v1")));
+        drop(l);
+        assert!(!listening(&format!("http://127.0.0.1:{port}")));
+    }
+
+    /// 20.11.2026: Ollama ran but took >3 s to list its models; the check
+    /// said "not_running" and a second Ollama was started.
+    #[test]
+    fn a_running_but_slow_ollama_is_not_reported_as_not_running() {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        // Connections wait in the listen queue: accepted, never answered.
+        let s = LlmSettings {
+            base_url: format!("http://127.0.0.1:{port}"),
+            ..Default::default()
+        };
+        let st = check_with(&s, "Ich", false, Duration::from_secs(1));
+        assert_eq!(st.state, "error", "{st:?}");
+        drop(l);
+    }
+
+    #[test]
+    fn nothing_at_the_address_is_not_running_or_not_installed() {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        drop(l);
+        let s = LlmSettings {
+            base_url: format!("http://127.0.0.1:{port}"),
+            ..Default::default()
+        };
+        let st = check_with(&s, "Ich", false, Duration::from_secs(1));
+        assert!(
+            st.state == "not_running" || st.state == "no_ollama",
+            "{st:?}"
+        );
     }
 
     #[test]

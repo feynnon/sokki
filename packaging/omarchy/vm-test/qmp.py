@@ -61,3 +61,13 @@ elif op == "scroll":
         time.sleep(0.12)
 elif op == "type":
     for ch in sys.argv[2]: send(f, keys_for(ch))
+elif op == "click":
+    # qmp.py click X Y [W H]: left click at screen pixel X,Y (screen W x H, default 1400x1050).
+    x, y = float(sys.argv[2]), float(sys.argv[3])
+    w, h = (float(sys.argv[4]), float(sys.argv[5])) if len(sys.argv) > 5 else (1400.0, 1050.0)
+    cmd(f, "input-send-event", events=[{"type": "abs", "data": {"axis": "x", "value": int(x / w * 32767)}},
+                                       {"type": "abs", "data": {"axis": "y", "value": int(y / h * 32767)}}])
+    time.sleep(0.15)
+    cmd(f, "input-send-event", events=[{"type": "btn", "data": {"down": True, "button": "left"}}])
+    time.sleep(0.08)
+    cmd(f, "input-send-event", events=[{"type": "btn", "data": {"down": False, "button": "left"}}])

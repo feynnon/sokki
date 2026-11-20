@@ -58,6 +58,12 @@ Item {
   property bool quietPanel: false
   // The panel opened itself for the current question.
   property bool promptedThisAsk: false
+  // The shell can show a panel without it taking the keyboard and the next
+  // click (`yielding`, Omarchy 4.x after 4.0); the widget sets this. Without
+  // it, a panel that opens by itself swallows the click meant for the call
+  // (seen in the VM: the browser's "Allow microphone" needed two clicks), so
+  // the question comes as a notification instead.
+  property bool quietPanelSupported: false
 
   property var _notified: ({})
   property double _streamStartedAt: 0
@@ -188,11 +194,13 @@ Item {
       promptedThisAsk = false
       return
     }
-    if (openPanel(true)) {
+    if (quietPanelSupported && openPanel(true)) {
       promptedThisAsk = true
       return
     }
-    // No bar widget to open (a replacement bar, say): ask in a notification.
+    // No panel that can stay out of the way (an older shell, a replacement
+    // bar): ask in a notification. The bar icon still pulses, and the panel
+    // key answers too.
     var seconds = Math.max(5, Model.secondsLeft(current.expiresMs, Date.now()))
     notify(["-u", "normal", "-g", Model.GLYPH.microphone, "-t", String(seconds * 1000),
       strings.t("prompt.title"), strings.t("prompt.body").arg(current.app || strings.t("prompt.anApp")),

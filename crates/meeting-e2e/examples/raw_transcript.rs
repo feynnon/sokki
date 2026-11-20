@@ -1,5 +1,5 @@
-//! Uncorrected transcript of a real recording, as the app's pipeline makes it
-//! before LLM correction: diarize → echo filter → transcribe turns → dedup.
+//! Transcript of a real recording, as the app's pipeline makes it:
+//! diarize → echo filter → transcribe turns → dedup.
 //!   cargo run --release --example raw_transcript -- mic.wav [system.wav] out.json
 use meeting_core::pipeline::{self, PipelineConfig};
 use meeting_core::{Track, TrackKind};

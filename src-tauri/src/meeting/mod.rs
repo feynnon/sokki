@@ -454,9 +454,12 @@ mod resume_tests {
     }
 }
 
-/// Shortcut entry point: starts a meeting if none is running, else stops it.
-pub fn toggle_meeting(app: &AppHandle) {
+/// Shortcut, menu bar and command-line entry point: starts a meeting if none
+/// is running, else stops it. `via` names the entry point for the log, so a
+/// recording that starts or stops unexpectedly can be traced.
+pub fn toggle_meeting(app: &AppHandle, via: &str) {
     let active = app.state::<Arc<MeetingManager>>().is_recording();
+    log::info!("Meeting {} via {via}", if active { "stop" } else { "start" });
     let result = if active {
         stop_meeting(app)
     } else {

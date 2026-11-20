@@ -69,7 +69,7 @@ fn run(id: &str) -> Result<()> {
     // A local Ollama that is installed but not running is started, so the
     // note gets its summary (the person chose a local model; nothing else
     // needs it).
-    if cfg.meetings.summary || cfg.meetings.correction {
+    if cfg.meetings.summary {
         let status = sokki_engine::llm::check(&cfg.llm, &cfg.meetings.user_name, false);
         if status.state == "not_running" {
             match sokki_engine::llm::start_ollama(&cfg.llm) {

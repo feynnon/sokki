@@ -156,8 +156,8 @@ pub enum MeetingState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Processing {
     pub id: String,
-    /// "preparing", "diarizing", "transcribing", "correcting",
-    /// "summarizing", "writing".
+    /// "preparing", "diarizing", "transcribing", "summarizing",
+    /// "writing".
     pub stage: String,
     /// 0.0–1.0 when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]

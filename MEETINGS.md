@@ -31,8 +31,8 @@ Meetings, Vocabulary | Settings, Sound, Models; descriptions under each
 option instead of info icons; no footer bar; no menu bar icon (the meeting
 pill shows recording); first start is permissions, then the model. Options
 not shown keep their defaults and stay in the config file
-(`src/components/settings/sokki/`). The Vocabulary list feeds only the
-meeting correction: Handy's direct dictation word swap turned „Lied“ into
+(`src/components/settings/sokki/`). The Vocabulary list goes only into the
+meeting summary prompt: Handy's direct dictation word swap turned „Lied“ into
 „Lead“ and „Mach“ into „Nuxa“ with these words.
 
 Both use the same bundle identifier, settings and meetings; installing one
@@ -69,15 +69,15 @@ replaces the other in /Applications. Icons are drawn as SVG in
    5. text dedup, merge ghost speakers, names: on an online call the mic
       voice is you; on a single mic nobody is named; remembered voices by
       their embedding;
-   6. dictionary correction with the local LLM (`correct.rs`, ~70 s): only
-      lines with a word that sounds like a dictionary entry are sent; the
-      model reports misheard dictionary words; code checks each change;
-   7. summary, decisions, tasks with the local LLM (Ollama, `qwen3.5:9b`,
+   6. summary, decisions, tasks with the local LLM (Ollama, `qwen3.5:9b`,
       ~50 s; the model is loaded during step 2 and unloaded 1 min after);
-   8. Markdown note in the notes folder; corrections listed at the end.
+      the dictionary is in its prompt, so names come out spelled right. The
+      transcript stays as recognised: a separate correction pass cost a
+      whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
+   7. Markdown note in the notes folder.
 5. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
    voice is recognised in later meetings (sherpa-onnx embeddings).
-7. **Language model** – correction (4.6) and summary (4.7). Chosen under
+7. **Language model** – summary (4.6). Chosen under
    Models → *Language model*, a list like the speech models: Qwen 3.5 9B on
    this Mac (needs Ollama; the page offers to install, start it and download
    the model), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
@@ -100,10 +100,10 @@ replaces the other in /Applications. Icons are drawn as SVG in
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
 | `crates/meeting-detect` | Which processes use the mic (Core Audio), meeting-app matching, debounce watcher |
-| `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `correct_eval`, `summary_eval`, `diarize_once`) |
+| `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `summary_eval`, `diarize_once`) |
 | `testdata/generate.py` | Builds the synthetic fixtures (macOS voices + ffmpeg) into `testdata/audio/` (gitignored) |
 | `testdata/real/` | Real-call eval data (gitignored, private): uncorrected transcripts, hand labels (34 misheard words, 37 words that must stay), dictionary |
-| `scripts/correction_eval.py` | Scores correction outputs (and other speech models' transcripts) against `testdata/real` labels |
+| `scripts/correction_eval.py` | Scores speech models' transcripts (and, from the removed correction step, correction outputs) against `testdata/real` labels |
 | `src-tauri/src/meeting/` | App side: capture (`mic.rs`, `system_tap.rs`, `flac.rs`), `process.rs`, `store.rs` (meeting index), `detect.rs` |
 | `src-tauri/src/commands/meeting.rs` | Tauri commands and the `MeetingChanged` event |
 | `src/components/settings/meetings/` | Meetings page |
@@ -141,14 +141,11 @@ as 16 kHz mono WAV plus a `truth.json` (see an existing scenario) into a new
 folder under `testdata/audio/`, and add its name to the scenario lists in
 `crates/meeting-e2e/tests/pipeline_e2e.rs`.
 
-### Real-call evaluation (correction)
+### Real-call evaluation (transcripts)
 
 ```sh
-# uncorrected transcript of a recording (same pipeline as the app)
+# transcript of a recording (same pipeline as the app)
 (cd crates/meeting-e2e && cargo run --release --example raw_transcript -- mic.wav system.wav ../../testdata/real/<call>/raw.json)
-# app's correction on all calls, then score: fixed / broken / other changes
-(cd crates/meeting-e2e && cargo run --release --example correct_eval -- qwen3.5:9b)   # CORRECT_TEMP=0.2 to compare
-python3 -I scripts/correction_eval.py --score-only out_rust.json
 ```
 
 Count only first runs for timing: Ollama reuses cached prompt parts on repeats.

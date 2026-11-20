@@ -16,7 +16,6 @@
   "stage.preparing": "Vorbereiten",
   "stage.diarizing": "Sprecher erkennen",
   "stage.transcribing": "Transkribieren",
-  "stage.correcting": "Korrigieren",
   "stage.summarizing": "Zusammenfassen",
   "stage.writing": "Notiz schreiben",
   "models.downloading": "Sprachmodelle werden geladen",

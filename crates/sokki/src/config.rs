@@ -28,11 +28,9 @@ pub struct Meetings {
     pub ask_seconds: u64,
     /// Tell speakers apart.
     pub speakers: bool,
-    /// Fix misheard words with the language model.
-    pub correction: bool,
     /// Summary, decisions and tasks with the language model.
     pub summary: bool,
-    /// Names and terms the correction should know.
+    /// Names and terms the summary spells right.
     pub glossary: Vec<String>,
     /// End notes with "Transcribed on my computer with sokki.org".
     pub footer: bool,
@@ -70,9 +68,10 @@ impl Default for Meetings {
             detect_calls: true,
             ask_seconds: 60,
             speakers: true,
-            correction: true,
             summary: true,
-            glossary: Vec::new(),
+            // Words every Omarchy user says and the speech model doesn't
+            // know (the demo call came out as "Omati" without them).
+            glossary: vec!["Omarchy".into(), "Hyprland".into()],
             footer: true,
             keep_audio_days: 0,
             call_app_only: false,
@@ -133,12 +132,16 @@ impl Config {
         let m = &self.meetings;
         sokki_engine::Settings {
             user_name: m.user_name.clone(),
-            correction: m.correction,
             summary: m.summary,
             glossary: m.glossary.clone(),
             footer: m.footer,
             notes_dir: crate::paths::expand(&m.notes_dir),
             llm: self.llm.clone(),
+            language: Some(if german() {
+                meeting_core::lang::Language::German
+            } else {
+                meeting_core::lang::Language::English
+            }),
         }
     }
 }
@@ -159,6 +162,10 @@ mod tests {
         assert_eq!(cfg.meetings.user_name, "Robin");
         assert!(cfg.meetings.detect_calls);
         assert_eq!(cfg.llm.model, "qwen3.5:9b");
+        // A file from before the correction step was removed still loads.
+        std::fs::write(&path, "[meetings]\ncorrection = true\nsummary = false\n").unwrap();
+        let cfg = Config::load(&path).unwrap();
+        assert!(!cfg.meetings.summary);
         let _ = std::fs::remove_dir_all(dir);
     }
 }

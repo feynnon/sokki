@@ -15,7 +15,7 @@ use std::sync::Mutex;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MeetingStatus {
     Recording,
-    /// `stage`: "waiting" (queued), "decoding", "diarizing", "transcribing", "correcting", "summarizing" or "writing".
+    /// `stage`: "waiting" (queued), "decoding", "diarizing", "transcribing", "summarizing" or "writing".
     /// `progress`: 0..=1 within the whole job, when known.
     Processing {
         stage: String,

@@ -15,6 +15,8 @@ microphone is not silent.
 | `share/safe-audio.sh on\|check\|off` | Virtual speakers and a test microphone (with a 40 ms speaker echo, like a laptop) |
 | `share/browsercall.sh start\|play\|hangup\|cleanup` | A Meet-style call in Chromium as a web app, on the virtual devices |
 | `share/fakemeet/` | The call page (mic open, the other people's voices after a delay) |
+| `share/meetcall.sh setup\|join URL a\|b\|play\|hangup\|cleanup` | A real call over a real server: guest A (you, recorded) and guest B (the other side, on its own virtual mic and speakers that Sokki never hears) |
+| `qmp.py click X Y` | A mouse click at a screen pixel (1400x1050; see below) |
 
 Once:
 
@@ -34,9 +36,23 @@ A call: `vm 'bash ~/vm-share/browsercall.sh start 22000'`, answer with
 `vm 'bash ~/vm-share/browsercall.sh play; bash ~/vm-share/browsercall.sh hangup'`.
 The note lands in `~/Documents/Sokki` after the 20 s grace period.
 
+A real call, no accounts needed: a public Jitsi server.
+`vm 'bash ~/vm-share/meetcall.sh setup'`, set the screen to 1400x1050
+(`vm "hyprctl eval 'hl.monitor({ output = \"Virtual-1\", mode = \"1400x1050@59.98\", position = \"0x0\", scale = 1 })'"`),
+then `meetcall.sh join 'https://meet.ffmuc.net/ROOM#config.startAudioOnly=true&config.prejoinConfig.enabled=false&userInfo.displayName=%22A%22' a`
+and the same with `b`. Click "Allow" for the microphone in each window
+(`qmp.py click`, screenshots with `vmshot`) and unmute with `m`; Sokki asks,
+then `meetcall.sh play` speaks both sides and `meetcall.sh hangup` ends the call.
+
+- The VM also gets the Mac's camera (`/dev/video42`, "Mac Camera"). Never
+  allow camera access in the guest; `startAudioOnly` asks for the mic only.
+- Google Meet turns away anonymous guests from the VM ("You can't join this
+  video call"), with or without DevTools or automation flags; a Meet test
+  needs a Google sign-in in the guest browser.
+
 Not covered here: the pacman package (the VM user has no passwordless sudo),
 x86 (the VM is aarch64; `packaging/docker` builds and tests x86_64 under
-emulation), and real call apps behind a login.
+emulation), and Google Meet, Zoom or Teams behind a login.
 
 The demo video: `./demo` records a whole run in the VM (call, question,
 recording, note, naming a speaker, opening the note, dictation) with

@@ -55,8 +55,12 @@ pub struct LlmConfig {
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
-    /// Timeout for one HTTP request (connect + full response).
+    /// Timeout for one HTTP request (connect + full response). A long
+    /// prompt gets more: see [`LlmSummarizer::request_timeout`].
     pub timeout: Duration,
+    /// Time allowed per prompt token, for long prompts (0: always
+    /// `timeout`).
+    pub prompt_ms_per_token: u64,
     /// Context window to plan for, in tokens. Sent to Ollama as `num_ctx`.
     pub context_tokens: usize,
     /// Upper bound for the model's answer, in tokens (Ollama `num_predict`,
@@ -65,6 +69,13 @@ pub struct LlmConfig {
     /// Cap for one map chunk, in tokens, even when the context is larger.
     /// Smaller chunks keep more detail in the partial notes.
     pub map_chunk_tokens: usize,
+    /// A longer transcript is summarised in parts even when it would fit
+    /// the context; each part gets its own timeout. Unlimited by default:
+    /// measured 20.11.2026 with qwen3.5:9b on Ollama (MLX), a 41-minute
+    /// meeting (~10k tokens) took 147 s in one request and 282 s in two
+    /// parts plus merging, with fewer points and tasks. Prompt processing
+    /// (~80 tokens/s) dominates either way.
+    pub single_pass_tokens: usize,
 
     /// Sampling temperature. `None` (the default): not sent, so every model
     /// runs with its own default (qwen3.5's is 1.0; current Claude and
@@ -79,6 +90,10 @@ pub struct LlmConfig {
     /// `keep_alive`, e.g. "1m"). A 9–12B model holds 8–15 GB while loaded;
     /// Ollama's default is 5 minutes. `None` leaves Ollama's default.
     pub keep_alive: Option<String>,
+    /// The person's dictionary: names and terms, correctly spelled. Listed
+    /// in the prompt so the notes spell them right even where speech
+    /// recognition misheard them.
+    pub glossary: Vec<String>,
 }
 
 impl LlmConfig {
@@ -90,13 +105,16 @@ impl LlmConfig {
             model: model.into(),
             api_key: None,
             timeout: Duration::from_secs(300),
+            prompt_ms_per_token: 30,
             context_tokens: 16_384,
             max_output_tokens: 3_072,
             map_chunk_tokens: 6_000,
+            single_pass_tokens: usize::MAX,
             temperature: None,
             user_name: Some("Ich".into()),
             language: None,
             keep_alive: Some("1m".into()),
+            glossary: Vec::new(),
         }
     }
 
@@ -208,8 +226,8 @@ impl LlmSummarizer {
         }
     }
 
-    /// A client for free-form JSON answers (no summary schema), used by the
-    /// transcript corrector. Sends `system` + `user`, returns the reply text
+    /// A client for free-form answers (no summary schema), used by the
+    /// connection check. Sends `system` + `user`, returns the reply text
     /// with `<think>` blocks and code fences removed.
     pub fn chat_plain(&self, system: &str, user: &str) -> Result<String> {
         self.ollama_format.store(2, Ordering::Relaxed);
@@ -259,7 +277,7 @@ impl LlmSummarizer {
         stats.estimated_tokens = estimate_tokens(&text);
 
         let budget = self.transcript_budget();
-        let summary = if stats.estimated_tokens <= budget {
+        let summary = if stats.estimated_tokens <= budget.min(self.cfg.single_pass_tokens) {
             let msgs = vec![
                 Msg {
                     role: "system",
@@ -273,8 +291,13 @@ impl LlmSummarizer {
             self.ask_json(&msgs, &mut stats)?
         } else {
             stats.map_reduce = true;
-            let chunk_tokens = budget.min(self.cfg.map_chunk_tokens).max(500);
-            let chunks = chunk_lines(&text, chunk_tokens);
+            let chunks = chunk_lines(
+                &text,
+                part_tokens(
+                    stats.estimated_tokens,
+                    budget.min(self.cfg.map_chunk_tokens),
+                ),
+            );
             stats.chunks = chunks.len();
             let mut partials = Vec::with_capacity(chunks.len());
             for (i, chunk) in chunks.iter().enumerate() {
@@ -442,6 +465,19 @@ impl LlmSummarizer {
         if matches!(mode, Mode::Final | Mode::Map) {
             p.push_str("- The transcript comes from speech recognition and may contain misheard words. Read past obvious errors; do not quote them.\n");
         }
+        let glossary: Vec<&str> = self
+            .cfg
+            .glossary
+            .iter()
+            .map(|w| w.trim())
+            .filter(|w| !w.is_empty())
+            .collect();
+        if !glossary.is_empty() {
+            p.push_str(&format!(
+                "- Names and terms, correctly spelled: {}. Speech recognition often mishears them; where the text clearly means one of them, write it exactly as listed.\n",
+                glossary.join(", ")
+            ));
+        }
         if matches!(mode, Mode::Reduce | Mode::ReduceIntermediate) {
             p.push_str("- Merge duplicates. Keep every decision and task unless a later part explicitly changed or cancelled it; then keep only the final state.\n");
         }
@@ -526,8 +562,13 @@ impl LlmSummarizer {
                 req = req.header("anthropic-beta", "server-side-fallback-2026-07-01");
             }
         }
+        let body = serde_json::to_string(body)?;
+        let req = req
+            .config()
+            .timeout_global(Some(self.request_timeout(estimate_tokens(&body))))
+            .build();
         let mut resp = req
-            .send(serde_json::to_string(body)?)
+            .send(body)
             .with_context(|| format!("request to {url} failed"))?;
         let status = resp.status().as_u16();
         let text = resp
@@ -537,6 +578,25 @@ impl LlmSummarizer {
             .read_to_string()
             .with_context(|| format!("reading response from {url}"))?;
         Ok((status, text))
+    }
+
+    /// The timeout for one request with a prompt of `prompt_tokens`: the
+    /// configured one, or more for a long prompt. A local model processes the
+    /// prompt first: qwen3.5:9b on Ollama (MLX) did ~76 tokens/s on
+    /// 20.11.2026, so a 10k-token meeting took 2.5 minutes on a free Mac and
+    /// the fixed 5 minutes left little room. The default 30 ms per token
+    /// allows ~33 tokens/s, plus a minute for the answer.
+    pub fn request_timeout(&self, prompt_tokens: usize) -> Duration {
+        if self.cfg.prompt_ms_per_token == 0 {
+            return self.cfg.timeout;
+        }
+        let prompt = self
+            .cfg
+            .prompt_ms_per_token
+            .saturating_mul(prompt_tokens as u64);
+        self.cfg
+            .timeout
+            .max(Duration::from_secs(60) + Duration::from_millis(prompt))
     }
 
     fn chat_ollama(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<String> {
@@ -830,6 +890,16 @@ fn span_label(chunk: &str) -> String {
         (Some(a), Some(b)) => format!("{a} – {b}"),
         _ => "?".into(),
     }
+}
+
+/// Tokens per part for a transcript of `total` tokens with parts of at
+/// most `cap`: as many parts as needed, of about equal size, so the last
+/// part is not a short remainder.
+fn part_tokens(total: usize, cap: usize) -> usize {
+    let cap = cap.max(500);
+    let parts = total.div_ceil(cap).max(1);
+    // A little slack: the parts are cut on line boundaries.
+    (total.div_ceil(parts) * 11 / 10).clamp(500, cap)
 }
 
 /// Splits transcript text into chunks of at most `max_tokens` (estimated) on
@@ -1225,6 +1295,42 @@ fn clean_summary(mut s: MeetingSummary, speakers: &[String]) -> MeetingSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn glossary_goes_into_every_prompt() {
+        let llm = LlmSummarizer::new(LlmConfig {
+            glossary: vec!["Kelasur".into(), " ".into(), "Claude Code".into()],
+            ..LlmConfig::ollama("m")
+        });
+        for mode in [
+            Mode::Final,
+            Mode::Map,
+            Mode::Reduce,
+            Mode::ReduceIntermediate,
+        ] {
+            let p = llm.system_prompt(Language::German, &[], mode);
+            assert!(
+                p.contains("correctly spelled: Kelasur, Claude Code."),
+                "{p}"
+            );
+        }
+        let p = LlmSummarizer::new(LlmConfig::ollama("m")).system_prompt(
+            Language::German,
+            &[],
+            Mode::Final,
+        );
+        assert!(!p.contains("correctly spelled"), "{p}");
+    }
+
+    #[test]
+    fn a_long_prompt_gets_a_longer_timeout() {
+        let llm = LlmSummarizer::new(LlmConfig::ollama("m"));
+        assert_eq!(llm.request_timeout(500), Duration::from_secs(300));
+        // The 41-minute meeting of 20.11.2026: ~10.8k tokens.
+        assert_eq!(llm.request_timeout(10_800), Duration::from_secs(384));
+        // The largest single request with the default 16k context.
+        assert_eq!(llm.request_timeout(12_400), Duration::from_secs(432));
+    }
 
     #[test]
     fn parses_plain_json() {

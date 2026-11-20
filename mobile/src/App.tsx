@@ -56,7 +56,6 @@ const STAGE: Record<string, string> = {
   waiting: "Waiting on the Mac…",
   diarizing: "Finding speakers…",
   transcribing: "Transcribing…",
-  correcting: "Correcting words…",
   summarizing: "Writing summary…",
   writing: "Saving note…",
 };

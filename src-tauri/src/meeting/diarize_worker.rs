@@ -98,10 +98,13 @@ pub fn diarize_in_child(
     scratch: &Path,
 ) -> Result<WorkerOutput> {
     std::fs::create_dir_all(scratch)?;
+    // Unique per call: two tracks may be diarized at the same time (the
+    // last windows of a meeting), and must never share exchange files.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let stamp = format!(
         "{}-{}",
         std::process::id(),
-        Instant::now().elapsed().as_nanos()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
     let input = scratch.join(format!("diarize-{stamp}.f32"));
     let output = scratch.join(format!("diarize-{stamp}.json"));

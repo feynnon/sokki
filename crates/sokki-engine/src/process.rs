@@ -179,17 +179,29 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     // Remove the remote voices the mic picked up from the speakers, so they
     // are not found as an extra speaker on the mic. From where the system
     // track's audio starts: before it nothing played.
-    let echo_cancelled =
-        echo_from.is_some_and(|f| meeting_core::aec::cancel_echo_in_tracks(&mut tracks, f));
-    if echo_cancelled {
+    let echo_from = echo_from.filter(|f| meeting_core::aec::echo_applies(&tracks, *f));
+    // The call cleaned the mic the same way already, when it lined it up
+    // alike: take that instead of filtering it again.
+    let mut live = live;
+    let taken = live
+        .as_mut()
+        .is_some_and(|l| crate::live::take_mic(l, timing, echo_from, &mut tracks));
+    if let (Some(f), false) = (echo_from, taken) {
+        meeting_core::aec::cancel_echo_in_tracks(&mut tracks, f);
         clock.step("echo cancellation");
     } else {
         clock.skip();
     }
-    let echo_from = echo_from.filter(|_| echo_cancelled);
+    let texts = live.as_ref().map(|l| l.texts.clone());
     let (pieces, live_turns) = match live.map(|l| crate::live::usable(l, timing, echo_from)) {
         Some((p, t)) => (Some(p), Some(t)),
         None => (None, None),
+    };
+    // Turns transcribed during the call come from there, by their audio.
+    let cached = texts.as_deref().map(|c| meeting_core::live::Cached::new(deps.transcriber, c));
+    let transcriber: &dyn Transcriber = match &cached {
+        Some(c) => c,
+        None => deps.transcriber,
     };
     let duration_s = tracks.iter().map(|t| t.duration_s()).fold(0.0, f64::max);
 
@@ -215,7 +227,7 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     let result = pipeline::run_with(
         &tracks,
         deps.diarizer.as_ref(),
-        deps.transcriber,
+        transcriber,
         &cfg,
         Hooks {
             namer: deps.namer,
@@ -232,10 +244,12 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     clock.step("echo removal and names");
     if pieces.is_some() {
         log::info!(
-            "{} of {} turns taken from the live transcript; speakers of {} tracks found during the call",
+            "{} of {} turns taken from the live transcript, {} transcribed during the call; speakers of {} tracks found during the call; mic {}",
             result.jobs_from_pieces,
             result.jobs,
-            live_turns.as_ref().map_or(0, Vec::len)
+            cached.as_ref().map_or(0, |c| c.hits()),
+            live_turns.as_ref().map_or(0, Vec::len),
+            if taken { "taken from the call" } else { "filtered again" }
         );
     }
     warnings.extend(result.warnings.iter().cloned());

@@ -91,26 +91,34 @@ impl EchoCanceller {
     }
 }
 
+/// Whether [`cancel_echo_in_tracks`] would run: a mic track, and a system
+/// track with sound from sample `from` on.
+pub fn echo_applies(tracks: &[Track], from: usize) -> bool {
+    let Some(sys) = tracks.iter().find(|t| t.kind == TrackKind::System) else {
+        return false;
+    };
+    let Some(mic) = tracks.iter().find(|t| t.kind == TrackKind::Mic) else {
+        return false;
+    };
+    let sys = &sys.samples[from.min(sys.samples.len())..];
+    if sys.is_empty() || mic.samples.len() <= from {
+        return false;
+    }
+    let rms =
+        (sys.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>() / sys.len() as f64).sqrt();
+    (rms as f32) >= SILENT_SYSTEM_RMS
+}
+
 /// Cancels the echo on the mic track when there is a system track with
 /// sound, from sample `from` on: where the system track's own audio starts
 /// after the silence that lines it up (before it nothing played, so there is
 /// no echo). Returns whether it ran.
 pub fn cancel_echo_in_tracks(tracks: &mut [Track], from: usize) -> bool {
-    let Some(si) = tracks.iter().position(|t| t.kind == TrackKind::System) else {
-        return false;
-    };
-    let Some(mi) = tracks.iter().position(|t| t.kind == TrackKind::Mic) else {
-        return false;
-    };
-    let sys = &tracks[si].samples[from.min(tracks[si].samples.len())..];
-    if sys.is_empty() || tracks[mi].samples.len() <= from {
+    if !echo_applies(tracks, from) {
         return false;
     }
-    let rms =
-        (sys.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>() / sys.len() as f64).sqrt();
-    if (rms as f32) < SILENT_SYSTEM_RMS {
-        return false;
-    }
+    let si = tracks.iter().position(|t| t.kind == TrackKind::System).expect("checked");
+    let mi = tracks.iter().position(|t| t.kind == TrackKind::Mic).expect("checked");
     // Two disjoint borrows of the slice.
     let (mic, system) = if mi < si {
         let (a, b) = tracks.split_at_mut(si);

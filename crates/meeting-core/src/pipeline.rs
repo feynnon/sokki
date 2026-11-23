@@ -490,42 +490,7 @@ pub fn run_with(
                     .or_insert_with(|| e.clone());
             }
         }
-        let system = tracks.iter().find(|t| t.kind == TrackKind::System);
-        let mut skipped = true; // a new track starts a new window
-        for turn in merge_turns(turns, cfg) {
-            if turn.end_s - turn.start_s < cfg.min_turn_s {
-                continue;
-            }
-            if let (TrackKind::Mic, Some(system), Some(ecfg)) =
-                (track.kind, system, cfg.echo.as_ref())
-            {
-                let share = crate::echo::echo_share(
-                    &track.samples,
-                    &system.samples,
-                    turn.start_s,
-                    turn.end_s,
-                    ecfg,
-                );
-                if share >= ecfg.drop_share {
-                    echo_dropped += 1;
-                    skipped = true;
-                    continue;
-                }
-            }
-            let chunks = split_turn(&track.samples, turn.start_s, turn.end_s, cfg);
-            let last = chunks.len() - 1;
-            for (ci, (s, e)) in chunks.into_iter().enumerate() {
-                jobs.push(Job {
-                    track_index: ti,
-                    cluster: turn.speaker.clone(),
-                    start_s: s,
-                    end_s: e,
-                    pad_before: ci == 0,
-                    pad_after: ci == last,
-                    break_before: std::mem::take(&mut skipped),
-                });
-            }
-        }
+        jobs.extend(plan_jobs(tracks, ti, turns, cfg, &mut echo_dropped));
     }
 
     let speakers_s = started.elapsed().as_secs_f64();
@@ -663,6 +628,109 @@ pub fn run_with(
         speakers_s,
         transcribe_s,
     })
+}
+
+/// The transcription jobs of one track's turns: merged, mic echo turns
+/// dropped, long turns split (see [`run_with`]).
+fn plan_jobs(
+    tracks: &[Track],
+    ti: usize,
+    turns: Vec<SpeakerTurn>,
+    cfg: &PipelineConfig,
+    echo_dropped: &mut usize,
+) -> Vec<Job> {
+    let track = &tracks[ti];
+    let mut jobs = Vec::new();
+    let system = tracks.iter().find(|t| t.kind == TrackKind::System);
+    let mut skipped = true; // a new track starts a new window
+    for turn in merge_turns(turns, cfg) {
+        if turn.end_s - turn.start_s < cfg.min_turn_s {
+            continue;
+        }
+        if let (TrackKind::Mic, Some(system), Some(ecfg)) = (track.kind, system, cfg.echo.as_ref()) {
+            let share = crate::echo::echo_share(
+                &track.samples,
+                &system.samples,
+                turn.start_s,
+                turn.end_s,
+                ecfg,
+            );
+            if share >= ecfg.drop_share {
+                *echo_dropped += 1;
+                skipped = true;
+                continue;
+            }
+        }
+        let chunks = split_turn(&track.samples, turn.start_s, turn.end_s, cfg);
+        let last = chunks.len() - 1;
+        for (ci, (s, e)) in chunks.into_iter().enumerate() {
+            jobs.push(Job {
+                track_index: ti,
+                cluster: turn.speaker.clone(),
+                start_s: s,
+                end_s: e,
+                pad_before: ci == 0,
+                pad_after: ci == last,
+                break_before: std::mem::take(&mut skipped),
+            });
+        }
+    }
+    jobs
+}
+
+/// The audio [`run_with`] would hand the transcriber, turn by turn, for the
+/// turns that end before `until_s`, given the speakers found so far and the
+/// pieces transcribed so far: (track index, start, end) of each slice.
+/// Turns the pieces cover are left out (they take their words from them).
+/// For transcribing during the recording what the run at the end will ask
+/// for (see [`crate::live::TextCache`]); empty with `cfg.window_s`, which
+/// transcribes several turns at once.
+pub fn pending_slices(
+    tracks: &[Track],
+    turns: &[(TrackKind, Vec<SpeakerTurn>)],
+    pieces: &[crate::live::Piece],
+    cfg: &PipelineConfig,
+    until_s: f64,
+) -> Vec<(usize, f64, f64)> {
+    if cfg.window_s.is_some() {
+        return Vec::new();
+    }
+    let mut jobs = Vec::new();
+    let mut dropped = 0;
+    for (ti, track) in tracks.iter().enumerate() {
+        let Some((_, t)) = turns.iter().find(|(k, _)| *k == track.kind) else {
+            continue;
+        };
+        let t = sanitize_turns(t.clone(), track.duration_s());
+        jobs.extend(plan_jobs(tracks, ti, t, cfg, &mut dropped));
+    }
+    let covered = texts_from_pieces(tracks, &jobs, pieces, cfg);
+    let piece_end = |ti: usize, j: &Job| {
+        pieces
+            .iter()
+            .filter(|p| p.track == tracks[ti].kind && p.start_s < j.end_s && j.start_s < p.end_s)
+            .map(|p| p.end_s)
+            .fold(0.0, f64::max)
+    };
+    let mut out = Vec::new();
+    for (j, c) in jobs.iter().zip(covered) {
+        let pad_a = if j.pad_before { cfg.pad_s } else { 0.0 };
+        let pad_b = if j.pad_after { cfg.pad_s } else { 0.0 };
+        if j.end_s + pad_b >= until_s {
+            continue;
+        }
+        // Covered by pieces that won't change any more: no transcriber call.
+        if c.is_some() && piece_end(j.track_index, j) < until_s {
+            continue;
+        }
+        out.push((j.track_index, j.start_s - pad_a, j.end_s + pad_b));
+    }
+    out
+}
+
+/// The samples of `start_s..end_s`, as the pipeline slices them.
+pub fn slice_of(samples: &[f32], start_s: f64, end_s: f64) -> &[f32] {
+    slice_samples(samples, start_s, end_s)
 }
 
 fn track_label(kind: TrackKind) -> &'static str {

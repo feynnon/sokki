@@ -394,7 +394,24 @@ fn main() -> anyhow::Result<()> {
                     st.add_window(a, b, w, false);
                 }
             }
-            let a = st.last_end_s().map_or(0.0, |e| (e - sc.overlap_s).max(0.0));
+            // SPEC_EVERY: a provisional window every so many seconds (as if
+            // the call ended then); at the stop only the rest is diarized.
+            let spec_every = env_f64("SPEC_EVERY", 0.0);
+            let mut spec_end = 0.0;
+            let last_end = st.last_end_s().unwrap_or(0.0);
+            if spec_every > 0.0 {
+                let e = ((len_s - 1.0) / spec_every).floor() * spec_every;
+                if e - last_end >= spec_every {
+                    let a = (last_end - sc.overlap_s).max(0.0);
+                    let t0 = Instant::now();
+                    let w = d.diarize(slice(&t.samples, a, e))?;
+                    during += t0.elapsed().as_secs_f64();
+                    st.add_window(a, e, w, false);
+                    spec_end = e;
+                }
+            }
+            let from = if spec_end > 0.0 { spec_end } else { last_end };
+            let a = if st.last_end_s().is_some() { (from - sc.overlap_s).max(0.0) } else { 0.0 };
             let t0 = Instant::now();
             let w = d.diarize(slice(&t.samples, a, len_s))?;
             let after = t0.elapsed().as_secs_f64();

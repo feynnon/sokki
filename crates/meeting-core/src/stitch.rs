@@ -90,6 +90,11 @@ impl Stitcher {
         &self.cfg
     }
 
+    /// Turns up to here are final.
+    pub fn committed_s(&self) -> f64 {
+        self.committed_s
+    }
+
     /// Where the last window ended (`None` before the first).
     pub fn last_end_s(&self) -> Option<f64> {
         self.last_end_s

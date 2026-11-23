@@ -7,7 +7,11 @@
 //! [`crate::pipeline::Hooks::pieces`]). Only the last piece of each track is
 //! left for after the call.
 
-use crate::{TimedWord, TrackKind, SAMPLE_RATE};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+
+use crate::{TimedWord, TrackKind, Transcriber, SAMPLE_RATE};
 
 /// A stretch of one track, transcribed during the recording. Times are
 /// seconds on the track's timeline, after alignment (see the host's
@@ -106,6 +110,88 @@ pub fn place_words(words: Vec<TimedWord>, piece_start_s: f64) -> Vec<TimedWord> 
         .collect()
 }
 
+
+/// Texts transcribed during the recording, by the exact audio they came
+/// from. The run at the end asks [`Cached`] instead of its transcriber; a
+/// slice it has already heard, sample for sample, gets the same text back
+/// (the same input gives the same output), so nothing changes but the time.
+#[derive(Debug, Default)]
+pub struct TextCache {
+    texts: Mutex<HashMap<(usize, u64), String>>,
+}
+
+impl TextCache {
+    /// The key of a slice: its length and a hash of every sample's bits.
+    pub fn key(samples: &[f32]) -> (usize, u64) {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for x in samples {
+            x.to_bits().hash(&mut h);
+        }
+        (samples.len(), h.finish())
+    }
+
+    pub fn insert(&self, samples: &[f32], text: String) {
+        self.lock().insert(Self::key(samples), text);
+    }
+
+    pub fn get(&self, samples: &[f32]) -> Option<String> {
+        self.lock().get(&Self::key(samples)).cloned()
+    }
+
+    pub fn len(&self) -> usize {
+        self.lock().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<(usize, u64), String>> {
+        self.texts.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// A transcriber that answers from a [`TextCache`] where it can.
+pub struct Cached<'a> {
+    pub inner: &'a dyn Transcriber,
+    pub cache: &'a TextCache,
+    /// Slices answered from the cache.
+    pub hits: AtomicUsize,
+}
+
+impl<'a> Cached<'a> {
+    pub fn new(inner: &'a dyn Transcriber, cache: &'a TextCache) -> Self {
+        Self {
+            inner,
+            cache,
+            hits: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn hits(&self) -> usize {
+        self.hits.load(Ordering::Relaxed)
+    }
+}
+
+impl Transcriber for Cached<'_> {
+    fn transcribe(&self, samples: &[f32]) -> anyhow::Result<String> {
+        if let Some(t) = self.cache.get(samples) {
+            self.hits.fetch_add(1, Ordering::Relaxed);
+            return Ok(t);
+        }
+        self.inner.transcribe(samples)
+    }
+
+    fn transcribe_words(&self, samples: &[f32]) -> anyhow::Result<Option<Vec<TimedWord>>> {
+        self.inner.transcribe_words(samples)
+    }
+
+    fn polish(&self, text: &str) -> String {
+        self.inner.polish(text)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,6 +247,26 @@ mod tests {
         }
         b.extend(live.finish());
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn the_cache_answers_only_for_the_same_samples() {
+        struct Echo;
+        impl Transcriber for Echo {
+            fn transcribe(&self, s: &[f32]) -> anyhow::Result<String> {
+                Ok(format!("fresh {}", s.len()))
+            }
+        }
+        let cache = TextCache::default();
+        let a = vec![0.1f32; 100];
+        cache.insert(&a, "from the call".into());
+        let t = Cached::new(&Echo, &cache);
+        assert_eq!(t.transcribe(&a).unwrap(), "from the call");
+        let mut b = a.clone();
+        b[99] = 0.1000001;
+        assert_eq!(t.transcribe(&b).unwrap(), "fresh 100");
+        assert_eq!(t.transcribe(&a[..99]).unwrap(), "fresh 99");
+        assert_eq!(t.hits(), 1);
     }
 
     #[test]

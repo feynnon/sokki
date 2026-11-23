@@ -63,8 +63,21 @@ Icons are drawn as SVG in
    with, else the closest voice (cosine ≥ 0.6), else new; the last 30 s of
    each window are left to the next. Three real calls: 99.2–100 % of the
    speech has the same speaker as diarizing the whole track, 99.8–100 % of
-   transcript lines. At the stop only the last piece and the last window
-   of each track are left (41-minute call: speakers 70 s → 3.4 s).
+   transcript lines. Once a window's speakers are final, the turns its
+   pieces can't cover (a piece across a change of speaker) are transcribed
+   too, exactly as step 5.4 will ask for them: the run at the end finds
+   them by their audio (`live::TextCache`) and gets the same text. At the
+   stop the last pieces and the last speaker window of each track run side
+   by side, and the run takes over the echo-free mic instead of filtering
+   it again (`live::take_mic`). Speakers run on their own thread, so
+   pieces keep flowing while a window is diarized. Between the 5-minute
+   windows a provisional window every 2 minutes diarizes as if the call
+   ended there; at the stop only the rest is left (at most ~3 minutes of
+   audio). Measured on a simulated 13-minute call: the note 6.8 s after
+   the stop (was 22 s with live speakers, 41 s without the live part), the
+   app's CPU during the call 30 % on average (13 % without provisional
+   windows). It keeps both tracks in memory while the
+   call runs (~230 MB per hour each), as the run at the end would.
 5. **Processing** after the meeting (measured: a 21-minute call is ready
    ~3 minutes after stopping):
    1. decode, align the two tracks; remove the remote voices from the mic

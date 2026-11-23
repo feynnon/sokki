@@ -153,33 +153,44 @@ fn process(
     id: &str,
     live: Option<super::live::Live>,
 ) -> Result<()> {
-    // The last piece of each track, transcribed first.
-    let (live, transcriber) = match live {
-        Some(l) => l.finish(),
-        None => (None, Arc::new(EngineTranscriber::new(app))),
-    };
     let record = store.get(id).context("meeting record missing")?;
     let all_settings = crate::settings::get_settings(app);
     let settings = all_settings.meetings.clone();
     let engine = engine_settings(&all_settings);
     let dir = store.audio_dir(id);
 
-    // Decode the tracks to 16 kHz mono: "mic.flac" / "system.flac" from a
-    // recording here, "mic.phone" from the phone app.
-    let mut tracks = Vec::new();
-    for file in &record.tracks {
-        let kind = if file.starts_with("mic.") {
-            TrackKind::Mic
-        } else if file.starts_with("system.") {
-            TrackKind::System
-        } else {
-            continue;
-        };
-        let path = dir.join(file);
-        let samples =
-            decode_audio_file(&path).with_context(|| format!("decoding {}", path.display()))?;
-        tracks.push(Track { kind, samples });
-    }
+    // Decode the tracks to 16 kHz mono ("mic.flac" / "system.flac" from a
+    // recording here, "mic.phone" from the phone app) while the live
+    // session transcribes its last pieces and finds its last speakers.
+    let decode = || -> Result<Vec<Track>> {
+        let mut tracks = Vec::new();
+        for file in &record.tracks {
+            let kind = if file.starts_with("mic.") {
+                TrackKind::Mic
+            } else if file.starts_with("system.") {
+                TrackKind::System
+            } else {
+                continue;
+            };
+            let path = dir.join(file);
+            let samples = decode_audio_file(&path)
+                .with_context(|| format!("decoding {}", path.display()))?;
+            tracks.push(Track { kind, samples });
+        }
+        Ok(tracks)
+    };
+    let (decoded, (live, transcriber)) = std::thread::scope(|scope| {
+        let finishing = scope.spawn(move || match live {
+            Some(l) => l.finish(),
+            None => (None, Arc::new(EngineTranscriber::new(app))),
+        });
+        let decoded = decode();
+        let finished = finishing
+            .join()
+            .unwrap_or_else(|_| (None, Arc::new(EngineTranscriber::new(app))));
+        (decoded, finished)
+    });
+    let tracks = decoded?;
     let timing: Option<super::TrackTiming> = std::fs::read_to_string(dir.join(super::TIMING_FILE))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok());

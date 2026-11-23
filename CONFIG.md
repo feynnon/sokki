@@ -40,7 +40,7 @@ Most useful keys:
 | Your name in transcripts | `meetings.user_name` |
 | Language model | `meetings.llm_provider` (`local`, `anthropic`, `openai`, `openrouter`), `meetings.llm_model` (local), `meetings.cloud_model` |
 | Keep audio | `meetings.keep_audio_days` |
-| Meeting shortcut | `bindings.meeting.current_binding` (e.g. `"option+shift+m"`) |
+| Meeting shortcut | `bindings.meeting.current_binding` (e.g. `"option+m"`) |
 | Dictation shortcut | `bindings.transcribe.current_binding` |
 | Speech model | `selected_model` |
 | Custom words for dictation | `custom_words` |
@@ -151,7 +151,7 @@ Most useful keys:
 | id | Default | What |
 |---|---|---|
 | `cancel` | `escape` | Cancels the current recording. |
-| `meeting` | `option+shift+m` | Starts or stops recording a meeting (microphone and system audio as two tracks). |
+| `meeting` | `option+m` | Starts or stops recording a meeting (microphone and system audio as two tracks). |
 | `transcribe` | `option+space` | Converts your speech into text. |
 | `transcribe_with_post_process` | `option+shift+space` | Converts your speech into text and applies AI post-processing. |
 

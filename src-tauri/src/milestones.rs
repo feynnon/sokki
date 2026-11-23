@@ -20,6 +20,12 @@ struct State {
     meetings: Vec<String>,
     /// Set once the first file was written with the meetings from before.
     started: bool,
+    /// Words dictated, all time; deleting dictations doesn't subtract.
+    #[serde(default)]
+    words: u64,
+    /// Set once `words` was filled from the dictations already in History.
+    #[serde(default)]
+    words_started: bool,
 }
 
 static LOCK: Mutex<()> = Mutex::new(());
@@ -58,6 +64,24 @@ fn load(app: &AppHandle) -> State {
         state.started = true;
         save(app, &state);
     }
+    if !state.words_started {
+        // From before this counter: the dictations still in History.
+        use tauri::Manager;
+        if let Some(h) =
+            app.try_state::<std::sync::Arc<crate::managers::history::HistoryManager>>()
+        {
+            // Only once History could be read, so a start before it is
+            // ready doesn't lose the words from before.
+            match h.dictation_texts() {
+                Ok(texts) => {
+                    state.words += texts.iter().map(|t| words(t)).sum::<u64>();
+                    state.words_started = true;
+                    save(app, &state);
+                }
+                Err(e) => log::warn!("Could not count the words in History: {e:#}"),
+            }
+        }
+    }
     state
 }
 
@@ -79,6 +103,44 @@ pub fn add_dictation(app: &AppHandle, seconds: f64) {
     let mut state = load(app);
     state.seconds += seconds;
     save(app, &state);
+}
+
+/// Words in a text, as a word counter counts them.
+pub fn words(text: &str) -> u64 {
+    text.split_whitespace().count() as u64
+}
+
+/// Adds a dictation's words.
+pub fn add_words(app: &AppHandle, text: &str) {
+    let n = words(text);
+    if n == 0 {
+        return;
+    }
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut state = load(app);
+    state.words += n;
+    save(app, &state);
+}
+
+/// "Your data": everything transcribed on this Mac, all time.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, specta::Type)]
+pub struct Totals {
+    /// Dictations and finished meetings, in seconds.
+    pub seconds: f64,
+    /// Words dictated.
+    pub words: u64,
+    /// Finished meetings.
+    pub meetings: u32,
+}
+
+pub fn totals(app: &AppHandle) -> Totals {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let state = load(app);
+    Totals {
+        seconds: state.seconds,
+        words: state.words,
+        meetings: state.meetings.len() as u32,
+    }
 }
 
 /// Adds a finished meeting, once per meeting.
@@ -140,7 +202,13 @@ pub fn close(app: &AppHandle, hours: u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::pick;
+    use super::{pick, words};
+
+    #[test]
+    fn counts_words_like_a_word_counter() {
+        assert_eq!(words("Hallo  du\nda, wie geht's?"), 5);
+        assert_eq!(words("   "), 0);
+    }
 
     #[test]
     fn shows_the_highest_milestone_reached_once() {

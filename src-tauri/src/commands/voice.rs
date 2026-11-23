@@ -73,3 +73,26 @@ pub fn voice_data_open_folder(app: AppHandle) -> Result<(), String> {
         .open_path(stats.folder, None::<String>)
         .map_err(|e| e.to_string())
 }
+
+/// "Your data": hours, words dictated and meetings, all time.
+#[tauri::command]
+#[specta::specta]
+pub async fn usage_totals(app: AppHandle) -> Result<crate::milestones::Totals, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::milestones::totals(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The important message from Sokki to show in the window now, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn pending_message(app: AppHandle) -> Result<Option<voice_data::MessageView>, String> {
+    voice_data::pending_message(&app).map_err(|e| format!("{e:#}"))
+}
+
+/// Answers the message window: "later" (again in a day) or "done".
+#[tauri::command]
+#[specta::specta]
+pub fn answer_message(app: AppHandle, id: i64, answer: String) -> Result<(), String> {
+    voice_data::answer_message(&app, id, &answer).map_err(|e| format!("{e:#}"))
+}

@@ -18,7 +18,11 @@
 :root[data-brand="sokki"] {
   --vb-card: color-mix(in srgb, var(--color-text) 4%, var(--color-background));
   --vb-sidebar: color-mix(in srgb, black 18%, var(--color-background));
-  --vb-segment: color-mix(in srgb, var(--color-text) 16%, var(--color-background));
+  --vb-segment: color-mix(
+    in srgb,
+    var(--color-text) 16%,
+    var(--color-background)
+  );
   /* One size for every settings control. */
   --vb-control-w: 232px;
   --vb-control-h: 30px;
@@ -39,4 +43,57 @@
   background: var(--vb-card);
   border-radius: 12px;
   border: 1px solid var(--color-line);
+}
+
+/* Main window (design C, 2026-11-21): the recording bar, the meeting list
+   and the "Your data" overview. Dark first, light below. */
+:root[data-brand="sokki"] {
+  --vb-rec: #ff6961;
+  --vb-rec-fill: #c9271d;
+  --vb-rec-bar: #2a1817;
+  --vb-rec-line: rgba(255, 69, 58, 0.14);
+  --vb-accent-wash: rgba(138, 180, 255, 0.13);
+  --vb-glow: #1e3a6e;
+  --vb-day: #33363c;
+  --vb-flat: #4a4d54;
+  --vb-list: color-mix(in srgb, var(--color-text) 2%, var(--color-background));
+}
+@media (prefers-color-scheme: light) {
+  :root[data-brand="sokki"]:not([data-theme="dark"]) {
+    --vb-rec: #c4140b;
+    --vb-rec-bar: #fdecea;
+    --vb-rec-line: rgba(255, 59, 48, 0.1);
+    --vb-accent-wash: rgba(53, 103, 204, 0.09);
+    --vb-glow: #dce8ff;
+    --vb-day: #d5d8dd;
+    --vb-flat: #c9ccd2;
+    --vb-list: #f0f1f3;
+  }
+}
+:root[data-brand="sokki"][data-theme="light"] {
+  --vb-rec: #c4140b;
+  --vb-rec-bar: #fdecea;
+  --vb-rec-line: rgba(255, 59, 48, 0.1);
+  --vb-accent-wash: rgba(53, 103, 204, 0.09);
+  --vb-glow: #dce8ff;
+  --vb-day: #d5d8dd;
+  --vb-flat: #c9ccd2;
+  --vb-list: #f0f1f3;
+}
+@keyframes vb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.vb-pulse {
+  animation: vb-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vb-pulse {
+    animation: none;
+  }
 }

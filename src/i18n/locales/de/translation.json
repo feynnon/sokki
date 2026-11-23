@@ -336,7 +336,7 @@
         "loading": "Tastenkürzel werden geladen...",
         "none": "Keine Tastenkürzel konfiguriert",
         "notFound": "Tastenkürzel nicht gefunden",
-        "pressKeys": "Tasten drücken...",
+        "pressKeys": "Tasten drücken …",
         "bindings": {
           "transcribe": {
             "name": "Diktat",
@@ -1127,17 +1127,26 @@
       "inviteButton": "Anleitung per Mail"
     },
     "startPlain": "Meeting",
-    "startWithScreen": "Meeting mit Bildschirm"
+    "startWithScreen": "Meeting mit Bildschirm",
+    "group": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "thisWeek": "Diese Woche",
+      "earlier": "Älter",
+      "more": "Mehr",
+      "show": "Im Finder zeigen",
+      "liveHint": "Text erscheint mit bis zu 25 Sekunden Verzögerung."
+    }
   },
   "sokki": {
     "nav": {
-      "home": "Start",
       "vocabulary": "Wörterbuch",
       "settings": "Einstellungen",
       "sound": "Ton",
       "voice": "Deine Daten",
       "sponsor": "Spenden",
-      "videos": "Videos"
+      "videos": "Videos",
+      "dictations": "Diktate"
     },
     "keep": {
       "title": "Aufnahmen behalten",
@@ -1276,6 +1285,48 @@
       "notNow": "Nicht jetzt",
       "mailSubject": "Sokki fürs Smartphone",
       "mailBody": "Öffne das auf deinem Smartphone, um Sokki zu bekommen:"
+    },
+    "bar": {
+      "idle": "Nimmt nicht auf",
+      "more": "Weitere Aufnahmen",
+      "recordVideo": "Video aufnehmen",
+      "transcribeFile": "Datei transkribieren …",
+      "stop": "Beenden",
+      "mic": "Mikrofon",
+      "noSound": "Von {{app}} kommt kein Ton."
+    },
+    "dictations": {
+      "title": "Diktate",
+      "description": "Was du in anderen Apps diktiert hast.",
+      "copy": "Kopieren",
+      "show": "Im Finder zeigen",
+      "tip": "Deine Diktate findest du jetzt unter Diktate.",
+      "ok": "OK"
+    },
+    "home": {
+      "onThisMac": "Alles auf diesem Mac, {{size}}.",
+      "hoursTile": "Stunden mitgeschrieben",
+      "words": "Wörter diktiert",
+      "meetings": "Meetings",
+      "latest": "Zuletzt",
+      "sharing": "Teilen",
+      "change": "Ändern",
+      "shareImprove": "Du teilst Fehler und Nutzung, unter einer zufälligen ID. Keine Aufnahmen.",
+      "shareNothing": "Du teilst nichts.",
+      "shareAll": "Du teilst alle deine Aufnahmen.",
+      "emptyTitle": "Noch nichts mitgeschrieben.",
+      "emptyLine": "Alles, was du aufnimmst, bleibt auf diesem Mac.",
+      "twoWays": "Zwei Wege",
+      "dictateTitle": "Diktieren, in jeder App",
+      "dictateLine": "Der Text steht dort, wo du schreibst.",
+      "meetingTitle": "Meeting aufnehmen",
+      "meetingLine": "Sokki schreibt mit und fasst zusammen.",
+      "cancel": "Abbrechen",
+      "space": "Leertaste"
+    },
+    "message": {
+      "later": "Später",
+      "ok": "OK"
     }
   },
   "video": {

@@ -336,7 +336,7 @@
         "loading": "Loading shortcuts...",
         "none": "No shortcuts configured",
         "notFound": "Shortcut not found",
-        "pressKeys": "Press keys...",
+        "pressKeys": "Press keys…",
         "bindings": {
           "transcribe": {
             "name": "Dictation",
@@ -1127,17 +1127,26 @@
       "inviteButton": "Email me the setup"
     },
     "startPlain": "Meeting",
-    "startWithScreen": "Meeting with screen"
+    "startWithScreen": "Meeting with screen",
+    "group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "earlier": "Earlier",
+      "more": "More",
+      "show": "Show in Finder",
+      "liveHint": "Text appears up to 25 seconds behind."
+    }
   },
   "sokki": {
     "nav": {
-      "home": "Home",
       "vocabulary": "Vocabulary",
       "settings": "Settings",
       "sound": "Sound",
       "voice": "Your data",
       "sponsor": "Sponsor",
-      "videos": "Videos"
+      "videos": "Videos",
+      "dictations": "Dictations"
     },
     "keep": {
       "title": "Keep recordings for",
@@ -1276,6 +1285,48 @@
       "notNow": "Not now",
       "mailSubject": "Sokki for your phone",
       "mailBody": "Open this on your phone to get Sokki:"
+    },
+    "bar": {
+      "idle": "Not recording",
+      "more": "More recordings",
+      "recordVideo": "Record video",
+      "transcribeFile": "Transcribe file…",
+      "stop": "Stop",
+      "mic": "Microphone",
+      "noSound": "No sound from {{app}}."
+    },
+    "dictations": {
+      "title": "Dictations",
+      "description": "What you dictated in other apps.",
+      "copy": "Copy",
+      "show": "Show in Finder",
+      "tip": "Your dictations are now under Dictations.",
+      "ok": "OK"
+    },
+    "home": {
+      "onThisMac": "All on this Mac, {{size}}.",
+      "hoursTile": "hours transcribed",
+      "words": "words dictated",
+      "meetings": "meetings",
+      "latest": "Latest",
+      "sharing": "Sharing",
+      "change": "Change",
+      "shareImprove": "You share errors and usage under a random ID. No recordings.",
+      "shareNothing": "You share nothing.",
+      "shareAll": "You share all your recordings.",
+      "emptyTitle": "Nothing transcribed yet.",
+      "emptyLine": "Everything you record stays on this Mac.",
+      "twoWays": "Two ways",
+      "dictateTitle": "Dictate in any app",
+      "dictateLine": "The text lands where you type.",
+      "meetingTitle": "Record a meeting",
+      "meetingLine": "Sokki writes it down and sums it up.",
+      "cancel": "Cancel",
+      "space": "Space"
+    },
+    "message": {
+      "later": "Later",
+      "ok": "OK"
     }
   },
   "video": {

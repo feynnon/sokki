@@ -73,7 +73,10 @@ export const transcribeFiles = async (paths: string[]): Promise<number> => {
 };
 
 // Asks for files to transcribe. Resolves to false if nothing was picked.
-export const pickAndTranscribeFiles = async (): Promise<boolean> => {
+// `onPicked` runs as soon as files are chosen, before they are read.
+export const pickAndTranscribeFiles = async (
+  onPicked?: () => void,
+): Promise<boolean> => {
   const selected = await open({
     multiple: true,
     directory: false,
@@ -85,6 +88,7 @@ export const pickAndTranscribeFiles = async (): Promise<boolean> => {
     ],
   });
   if (!selected) return false;
+  onPicked?.();
   await transcribeFiles(Array.isArray(selected) ? selected : [selected]);
   return true;
 };

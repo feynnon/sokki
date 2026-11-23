@@ -39,7 +39,7 @@ Icons are drawn as SVG in
 ## What it does
 
 1. **Dictation** – as in upstream Handy.
-2. **Meeting recording** – shortcut ⌥⇧M, tray item, the Meetings page, or
+2. **Meeting recording** – shortcut ⌥M, tray item, the Meetings page, or
    automatically (see 3). A small pill at the top of the screen shows a
    waveform, the time and a stop button.
    - Two tracks: microphone and system audio (the remote side of a call on

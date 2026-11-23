@@ -120,6 +120,8 @@ pub fn start_ticker(app: &AppHandle) {
             let mic = f32::from_bits(super::MIC_LEVEL.swap(0, Ordering::Relaxed));
             let system = f32::from_bits(super::SYSTEM_LEVEL.swap(0, Ordering::Relaxed));
             let _ = handle.emit_to(LABEL, "meeting-level", Levels { mic, system });
+            // The main window's recording bar shows the same levels.
+            let _ = handle.emit_to("main", "meeting-level", Levels { mic, system });
             #[cfg(target_os = "macos")]
             track_hover(&handle);
             let secs = started.elapsed().as_secs();

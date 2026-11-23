@@ -3,14 +3,10 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ArrowLeft,
-  ChevronDown,
-  FileText,
   FolderOpen,
   Loader2,
-  Mic,
-  Monitor,
   RotateCcw,
-  Settings2,
+  Settings,
   Trash2,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -19,7 +15,20 @@ import {
   selectedLanguageModel,
 } from "../models/LanguageModels";
 import { useModelsTab } from "@/stores/modelsTabStore";
-import { MeetingDetails } from "./MeetingDetails";
+import {
+  ReaderToolbar,
+  SummaryView,
+  TranscriptView,
+  useMeetingNote,
+} from "./MeetingDetails";
+import {
+  dayGroup,
+  listWhen,
+  minutes,
+  readerWhen,
+  type DayGroup,
+} from "./meetingDates";
+import { useMeetingStore } from "@/stores/meetingStore";
 import { PhoneLink } from "./PhoneLink";
 import {
   commands,
@@ -29,7 +38,7 @@ import {
   type MeetingSettings as MeetingSettingsType,
 } from "@/bindings";
 import { useSettings } from "../../../hooks/useSettings";
-import { formatDateTime, formatShortDateTime } from "@/utils/dateFormat";
+import { formatDateTime } from "@/utils/dateFormat";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
@@ -42,11 +51,6 @@ function openLanguageModels() {
   window.dispatchEvent(
     new CustomEvent("sokki-open-section", { detail: "models" }),
   );
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.round(seconds / 60);
-  return m < 1 ? "<1 min" : `${m} min`;
 }
 
 /** A text field that saves when it loses focus or on Enter, not per keystroke. */
@@ -109,12 +113,12 @@ const Speakers: React.FC<{ record: MeetingRecord; onDone: () => void }> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {record.speakers.map((sp) => (
           <button
             key={sp}
             type="button"
-            className="text-xs px-2 py-0.5 rounded-full border border-line hover:bg-wash"
+            className="h-[22px] px-2 inline-flex items-center rounded-md bg-wash text-[11px] font-medium text-ink-2 hover:text-text cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
             title={t("meetings.renameSpeaker")}
             onClick={() => {
               setEditing(sp);
@@ -312,114 +316,219 @@ const MeetingSettingsView: React.FC<{
   onBack: () => void;
 }> = ({ meetingSettings, save, onBack }) => {
   const { t } = useTranslation();
-  const notesDir =
-    meetingSettings.notes_dir ||
-    "~/Documents/Sokki";
+  const notesDir = meetingSettings.notes_dir || "~/Documents/Sokki";
   const chooseFolder = async () => {
     const dir = await openDialog({ directory: true, multiple: false });
     if (typeof dir === "string" && dir) await save({ notes_dir: dir });
   };
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5"
-      >
-        <ArrowLeft width={14} height={14} />
-        {t("meetings.back")}
-      </Button>
+    <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
+      <div className="max-w-3xl w-full mx-auto space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5"
+        >
+          <ArrowLeft width={14} height={14} />
+          {t("meetings.back")}
+        </Button>
 
-      <SettingsGroup title={t("meetings.settings.notesTitle")}>
-        <SettingContainer
-          title={t("meetings.settings.notesDir")}
-          description={t("meetings.settings.notesDirDescription")}
-          grouped
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="text-sm text-ink-2 truncate max-w-56"
-              title={notesDir}
-            >
-              {notesDir.replace(/^\/Users\/[^/]+/, "~")}
-            </span>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => void chooseFolder()}
-              className="inline-flex items-center gap-1.5"
-            >
-              <FolderOpen width={14} height={14} />
-              {t("meetings.settings.choose")}
-            </Button>
-          </div>
-        </SettingContainer>
-        <SettingContainer
-          title={t("meetings.settings.userName")}
-          description={t("meetings.settings.userNameDescription")}
-          grouped
-        >
-          <SavedInput
-            value={meetingSettings.user_name}
-            className="w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
-            onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
+        <SettingsGroup title={t("meetings.settings.notesTitle")}>
+          <SettingContainer
+            title={t("meetings.settings.notesDir")}
+            description={t("meetings.settings.notesDirDescription")}
+            grouped
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className="text-sm text-ink-2 truncate max-w-56"
+                title={notesDir}
+              >
+                {notesDir.replace(/^\/Users\/[^/]+/, "~")}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void chooseFolder()}
+                className="inline-flex items-center gap-1.5"
+              >
+                <FolderOpen width={14} height={14} />
+                {t("meetings.settings.choose")}
+              </Button>
+            </div>
+          </SettingContainer>
+          <SettingContainer
+            title={t("meetings.settings.userName")}
+            description={t("meetings.settings.userNameDescription")}
+            grouped
+          >
+            <SavedInput
+              value={meetingSettings.user_name}
+              className="w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
+              onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
+            />
+          </SettingContainer>
+          <ToggleSwitch
+            checked={meetingSettings.detection_enabled}
+            onChange={(v) => void save({ detection_enabled: v })}
+            label={t("meetings.settings.detection")}
+            description={t("meetings.settings.detectionDescription")}
+            grouped
           />
-        </SettingContainer>
-        <ToggleSwitch
-          checked={meetingSettings.detection_enabled}
-          onChange={(v) => void save({ detection_enabled: v })}
-          label={t("meetings.settings.detection")}
-          description={t("meetings.settings.detectionDescription")}
-          grouped
-        />
-        <ToggleSwitch
-          checked={meetingSettings.footer_enabled}
-          onChange={(v) => void save({ footer_enabled: v })}
-          label={t("meetings.settings.footer")}
-          description={t("meetings.settings.footerDescription")}
-          grouped
-        />
-      </SettingsGroup>
+          <ToggleSwitch
+            checked={meetingSettings.footer_enabled}
+            onChange={(v) => void save({ footer_enabled: v })}
+            label={t("meetings.settings.footer")}
+            description={t("meetings.settings.footerDescription")}
+            grouped
+          />
+        </SettingsGroup>
 
-      <SettingsGroup
-        title={t("meetings.settings.aiTitle")}
-        description={t("meetings.settings.aiDescription")}
-      >
-        <ModelSetting meetingSettings={meetingSettings} />
-      </SettingsGroup>
+        <SettingsGroup
+          title={t("meetings.settings.aiTitle")}
+          description={t("meetings.settings.aiDescription")}
+        >
+          <ModelSetting meetingSettings={meetingSettings} />
+        </SettingsGroup>
 
-      <PhoneLink meetingSettings={meetingSettings} save={save} />
+        <PhoneLink meetingSettings={meetingSettings} save={save} />
 
-      <VoiceProfiles />
+        <VoiceProfiles />
+      </div>
     </div>
   );
 };
 
-export const MeetingsSettings: React.FC = () => {
+const GROUPS: DayGroup[] = ["today", "yesterday", "thisWeek", "earlier"];
+
+/** One row of the list: title and when · length · app; red while it
+ * records. */
+const ListItem: React.FC<{
+  record: MeetingRecord;
+  selected: boolean;
+  now: Date;
+  onSelect: () => void;
+}> = ({ record, selected, now, onSelect }) => {
   const { t, i18n } = useTranslation();
+  const at = new Date(Date.parse(record.started_at));
+  const rec = record.status.kind === "recording";
+  const meta = rec
+    ? [t("meetings.recording"), record.source_app].filter(Boolean).join(" · ")
+    : [
+        listWhen(at, now, i18n.language),
+        minutes(record.duration_s, i18n.language),
+        record.source_app,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  return (
+    <button
+      type="button"
+      aria-current={selected ? "true" : undefined}
+      onClick={onSelect}
+      className={`flex flex-col gap-px w-full px-2.5 py-2 rounded-lg text-start cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${selected ? "bg-line" : "hover:bg-wash"}`}
+    >
+      <span className="text-[13px] font-semibold text-text truncate">
+        {record.title ?? t("meetings.untitled")}
+      </span>
+      <span
+        className={`text-[12px] truncate ${rec ? "font-medium" : "text-ink-3"}`}
+        style={rec ? { color: "var(--vb-rec)" } : undefined}
+      >
+        {meta}
+      </span>
+    </button>
+  );
+};
+
+/** The right side: one meeting with its summary and transcript. */
+const Reader: React.FC<{
+  record: MeetingRecord;
+  hints: React.ReactNode;
+  onChanged: () => void;
+}> = ({ record, hints, onChanged }) => {
+  const { t, i18n } = useTranslation();
+  const { parts, error: noteError } = useMeetingNote(record);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setError(null), [record.id]);
+  const at = new Date(Date.parse(record.started_at));
+  const title = record.title ?? t("meetings.untitled");
+  const rec = record.status.kind === "recording";
+  const meta = [
+    readerWhen(at, new Date(), i18n.language, (g) => t(`meetings.group.${g}`)),
+    rec ? null : minutes(record.duration_s, i18n.language),
+    record.source_app,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const shown = error ?? noteError;
+
+  return (
+    <div className="flex-1 min-w-0 flex flex-col">
+      {rec ? (
+        <div className="h-[52px] shrink-0" />
+      ) : (
+        <ReaderToolbar
+          record={record}
+          title={title}
+          date={formatDateTime(String(at.getTime() / 1000), i18n.language)}
+          onDeleted={onChanged}
+          onError={setError}
+        />
+      )}
+      <div className="flex-1 min-h-0 overflow-y-auto px-12 pt-1 pb-6">
+        <div className="max-w-[720px] flex flex-col gap-3">
+          {hints}
+          <div>
+            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em] select-text">
+              {title}
+            </h1>
+            <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
+          </div>
+          <Speakers record={record} onDone={onChanged} />
+          {!rec && <StatusLine record={record} />}
+          <Warnings record={record} />
+          {shown && <p className="text-xs text-red-500 select-text">{shown}</p>}
+          {parts && (
+            <>
+              <h2 className="mt-3 text-[13px] font-semibold text-text">
+                {t("meetings.details.summary")}
+              </h2>
+              {parts.summary ? (
+                <SummaryView markdown={parts.summary} />
+              ) : (
+                <p className="text-[13px] text-ink-3">
+                  {t("meetings.details.noSummary")}
+                </p>
+              )}
+              <h2 className="mt-3 text-[13px] font-semibold text-text">
+                {t("meetings.details.transcript")}
+              </h2>
+              <TranscriptView text={parts.transcript} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** Meetings as a split view, like Mail: the list (288 px) grouped by day,
+ * and the selected meeting beside it (design C1). Start and stop live in
+ * the recording bar under every view. */
+export const MeetingsSettings: React.FC = () => {
+  const { t } = useTranslation();
   const { settings, refreshSettings } = useSettings();
-  const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
-  const [recording, setRecording] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const meetings = useMeetingStore((s) => s.meetings);
+  const loaded = useMeetingStore((s) => s.loaded);
+  const reload = useMeetingStore((s) => s.reload);
+  const selectedId = useMeetingStore((s) => s.selectedId);
+  const select = useMeetingStore((s) => s.select);
   const [view, setView] = useState<"list" | "settings">("list");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
   const meetingSettings = settings?.meetings as MeetingSettingsType | undefined;
-
-  const reload = useCallback(async () => {
-    const result = await commands.listMeetings();
-    if (result.status === "ok") setMeetings(result.data);
-    setRecording(await commands.isMeetingRecording());
-  }, []);
-
-  useEffect(() => {
-    void reload();
-    const unlisten = events.meetingChanged.listen(() => void reload());
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [reload]);
 
   useEffect(() => {
     if (view !== "list") return;
@@ -432,47 +541,6 @@ export const MeetingsSettings: React.FC = () => {
     if (!meetingSettings) return;
     await commands.setMeetingSettings({ ...meetingSettings, ...patch });
     await refreshSettings();
-  };
-
-  const videos = settings?.videos;
-  const [startMenu, setStartMenu] = useState(false);
-  const [screenHint, setScreenHint] = useState(false);
-
-  /** "Meeting with screen": the meeting plus a full video of the screen. */
-  const startWithScreen = async () => {
-    setStartMenu(false);
-    setBusy(true);
-    try {
-      const result = await commands.videoStart({
-        kind: "meeting",
-        mode: "screen",
-        display: videos?.display ?? null,
-        camera: null,
-        look: "bubble",
-        source_app: null,
-      });
-      setScreenHint(result.status === "error" && result.error === "screen_not_allowed");
-      if (result.status === "error") console.error(result.error);
-      await reload();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggleRecording = async () => {
-    setStartMenu(false);
-    setBusy(true);
-    try {
-      const result = recording
-        ? await commands.stopMeetingRecording()
-        : await commands.startMeetingRecording();
-      // Recording shows as soon as the app says so, not after the list.
-      if (result.status === "ok") setRecording(!recording);
-      else console.error(result.error);
-      await reload();
-    } finally {
-      setBusy(false);
-    }
   };
 
   if (!meetingSettings) return null;
@@ -496,89 +564,27 @@ export const MeetingsSettings: React.FC = () => {
     if (r.status === "ok") setLlm(r.data);
   };
 
-  return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <div
-        className="px-1 flex items-start justify-between gap-4"
-      >
-        <div className="min-w-0">
-          <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
-            {t("meetings.title")}
-          </h1>
-          <p className="mt-1 max-w-[60ch] text-body text-ink-2">
-            {t("meetings.description")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="relative flex">
-            <Button
-              variant={recording ? "danger" : "primary"}
-              size="md"
-              onClick={toggleRecording}
-              disabled={busy}
-              className={!recording && videos?.enabled ? "rounded-e-none" : undefined}
-            >
-              {recording ? t("meetings.stop") : t("meetings.start")}
-            </Button>
-            {!recording && videos?.enabled && (
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => setStartMenu((open) => !open)}
-                disabled={busy}
-                aria-haspopup="menu"
-                aria-expanded={startMenu}
-                className="rounded-s-none border-s border-white/25 px-2"
-              >
-                <ChevronDown width={16} height={16} />
-              </Button>
-            )}
-            {startMenu && (
-              <div
-                role="menu"
-                className="absolute end-0 top-full z-20 mt-1 w-56 rounded-xl border border-line bg-background p-1 shadow-lg"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={toggleRecording}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-start hover:bg-wash"
-                >
-                  <Mic width={16} height={16} className="text-ink-2" />
-                  {t("meetings.startPlain")}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => void startWithScreen()}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-start hover:bg-wash"
-                >
-                  <Monitor width={16} height={16} className="text-ink-2" />
-                  {t("meetings.startWithScreen")}
-                </button>
-              </div>
-            )}
-          </div>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setView("settings")}
-            title={t("meetings.settings.title")}
-          >
-            <Settings2 width={16} height={16} />
-          </Button>
-        </div>
-      </div>
+  const now = new Date();
+  // A running meeting first, then newest first.
+  const ordered = [...meetings].sort(
+    (a, b) =>
+      Number(b.status.kind === "recording") -
+        Number(a.status.kind === "recording") ||
+      Date.parse(b.started_at) - Date.parse(a.started_at),
+  );
+  const selected =
+    ordered.find((m) => m.id === selectedId) ?? ordered[0] ?? null;
+  const groups = GROUPS.map((g) => ({
+    g,
+    items: ordered.filter(
+      (m) => dayGroup(new Date(Date.parse(m.started_at)), now) === g,
+    ),
+  })).filter((x) => x.items.length > 0);
 
-      {screenHint && (
-        <div className="mx-4 flex items-center gap-2 text-sm text-amber-600">
-          <AlertTriangle width={14} height={14} className="shrink-0" />
-          {t("video.bar.screenNotAllowed")}
-        </div>
-      )}
-
+  const hints = (
+    <>
       {needsSetup === "not_running" && (
-        <div className="mx-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-600">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-600">
           <AlertTriangle width={14} height={14} className="shrink-0" />
           {t("meetings.lm.notRunning")}
           <Button
@@ -590,95 +596,73 @@ export const MeetingsSettings: React.FC = () => {
           </Button>
         </div>
       )}
-
       {needsSetup && needsSetup !== "not_running" && (
         <button
           type="button"
           onClick={openLanguageModels}
-          className="mx-4 flex items-center gap-2 text-sm text-amber-600 text-start"
+          className="flex items-center gap-2 text-sm text-amber-600 text-start"
         >
           <AlertTriangle width={14} height={14} className="shrink-0" />
           {t("meetings.setupHint")}
         </button>
       )}
+    </>
+  );
 
-      <SettingsGroup title={t("meetings.listTitle")}>
-        {meetings.length === 0 && (
-          <div className="px-4 py-3 text-sm text-ink-3">
-            {t("meetings.empty")}
-          </div>
-        )}
-        {meetings.map((m) => (
-          <div key={m.id} className="group px-4 py-3 space-y-1">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">
-                  {m.title ?? t("meetings.untitled")}
-                </div>
-                <div className="text-xs text-ink-3">
-                  {formatShortDateTime(
-                    String(Date.parse(m.started_at) / 1000),
-                    i18n.language,
-                  )}{" "}
-                  · {formatDuration(m.duration_s)}
-                  {m.source_app && ` · ${m.source_app}`}
-                </div>
-              </div>
-              {/* Sokki: the row's actions show on hover or keyboard focus. */}
-              <div
-                className="flex items-center gap-1 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
-              >
-                {m.note_path && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void commands.openMeetingNote(m.id)}
-                    title={t("meetings.openNote")}
-                  >
-                    <FileText width={14} height={14} />
-                  </Button>
-                )}
-                {!m.audio_deleted &&
-                  (m.status.kind === "done" || m.status.kind === "failed") && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void commands.reprocessMeeting(m.id)}
-                      title={t("meetings.reprocess")}
-                    >
-                      <RotateCcw width={14} height={14} />
-                    </Button>
-                  )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="hover:text-error"
-                  onClick={() =>
-                    void commands.deleteMeeting(m.id).then(() => reload())
-                  }
-                  title={t("meetings.delete")}
-                >
-                  <Trash2 width={14} height={14} />
-                </Button>
-              </div>
-            </div>
-            <StatusLine record={m} />
-            <Speakers record={m} onDone={() => void reload()} />
-            {m.status.kind === "done" && m.note_path && (
-              <MeetingDetails
-                id={m.id}
-                noteKey={`${m.title}|${m.speakers.join(",")}|${m.note_path}`}
-                title={m.title ?? t("meetings.untitled")}
-                date={formatDateTime(
-                  String(Date.parse(m.started_at) / 1000),
-                  i18n.language,
-                )}
-              />
-            )}
-            <Warnings record={m} />
-          </div>
-        ))}
-      </SettingsGroup>
+  return (
+    <div className="flex-1 min-h-0 flex">
+      <div
+        className="w-72 shrink-0 flex flex-col border-e border-line"
+        style={{ background: "var(--vb-list)" }}
+      >
+        <div className="h-[52px] shrink-0 flex items-center justify-between ps-4 pe-3">
+          <h1 className="font-display text-[17px] font-[650]">
+            {t("meetings.title")}
+          </h1>
+          <button
+            type="button"
+            onClick={() => setView("settings")}
+            title={t("meetings.settings.title")}
+            aria-label={t("meetings.settings.title")}
+            className="size-7 flex items-center justify-center rounded-lg text-ink-2 hover:bg-wash hover:text-text cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+          >
+            <Settings width={16} height={16} />
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
+          {loaded && ordered.length === 0 && (
+            <p className="px-2 py-3 text-[13px] text-ink-3">
+              {t("meetings.empty")}
+            </p>
+          )}
+          {groups.map(({ g, items }) => (
+            <section key={g} aria-label={t(`meetings.group.${g}`)}>
+              <h2 className="px-2 pt-3 pb-1 text-[12px] font-medium text-ink-3">
+                {t(`meetings.group.${g}`)}
+              </h2>
+              {items.map((m) => (
+                <ListItem
+                  key={m.id}
+                  record={m}
+                  now={now}
+                  selected={selected?.id === m.id}
+                  onSelect={() => select(m.id)}
+                />
+              ))}
+            </section>
+          ))}
+        </div>
+      </div>
+      {selected ? (
+        <Reader
+          key={selected.id}
+          record={selected}
+          hints={hints}
+          onChanged={() => void reload()}
+        />
+      ) : (
+        <div className="flex-1 min-w-0 px-12 pt-[52px]">{hints}</div>
+      )}
     </div>
   );
 };

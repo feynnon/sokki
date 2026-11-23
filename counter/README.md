@@ -88,8 +88,20 @@ wrangler d1 execute verbatim-counter --remote --command \
   "INSERT INTO cache (key, value, updated) VALUES ('notice', '{\"language\": \"de\", \"text\": \"A team building German speech recognition wants 500 hours.\"}', unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated"
 ```
 
-Any other text is shown as it is, to everyone, as a notification and on the
-page. Clear the message:
+An **important message** is JSON with `"kind": "message"`. The app shows it
+as a window the user answers (never while a meeting records, never on the
+first start); "Later" brings it back after a day, the action or "OK" ends it,
+and after `until` (last day, local date) it never shows. `de` is optional
+(other languages read `en`); `action` is optional (without it: just "OK") and
+either opens `url` or, with `"update": true`, installs the waiting update:
+
+```bash
+wrangler d1 execute verbatim-counter --remote --command \
+  "INSERT INTO cache (key, value, updated) VALUES ('notice', '{\"kind\": \"message\", \"title\": {\"de\": \"Bitte aktualisiere Sokki.\", \"en\": \"Please update Sokki.\"}, \"text\": {\"de\": \"…\", \"en\": \"…\"}, \"action\": {\"label\": {\"de\": \"Jetzt aktualisieren\", \"en\": \"Update now\"}, \"update\": true}, \"until\": \"2026-12-31\"}', unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated"
+```
+
+Plain text is no longer shown (Robin, 2026-11-23: only important messages,
+as a window). Clear the message:
 
 ```bash
 wrangler d1 execute verbatim-counter --remote --command "DELETE FROM cache WHERE key = 'notice'"

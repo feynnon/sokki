@@ -876,13 +876,20 @@ impl ShortcutAction for TranscribeAction {
                                     processed.post_process_prompt.clone(),
                                     language,
                                 ) {
-                                    // "Your data": the user's own voice, kept on this Mac.
-                                    Ok(entry) => crate::voice_data::add_dictation(
-                                        &ah,
-                                        &hm.recordings_dir().join(&entry.file_name),
-                                        &entry.transcription_text,
-                                        entry.language.as_deref(),
-                                    ),
+                                    // "Your data": the user's own recordings, kept on
+                                    // this Mac, and the words dictated so far.
+                                    Ok(entry) => {
+                                        crate::milestones::add_words(
+                                            &ah,
+                                            &entry.transcription_text,
+                                        );
+                                        crate::voice_data::add_dictation(
+                                            &ah,
+                                            &hm.recordings_dir().join(&entry.file_name),
+                                            &entry.transcription_text,
+                                            entry.language.as_deref(),
+                                        )
+                                    }
                                     Err(err) => error!("Failed to save history entry: {}", err),
                                 }
                             }

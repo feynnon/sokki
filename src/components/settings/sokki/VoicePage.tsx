@@ -4,11 +4,12 @@ import { FolderOpen, Trash2 } from "lucide-react";
 import {
   commands,
   events,
-  type CommunityTotal,
   type VoiceDataStats,
 } from "@/bindings";
 import { Button } from "@/components/ui/Button";
-import { Page, PageHeader } from "./parts";
+import { Overview } from "./Overview";
+import { SHARING_ANCHOR } from "./SharingGroup";
+import { MilestoneCard, SPONSORS_LIVE } from "./MilestoneCard";
 
 /** "3 h 12 min", "12 min", "45 s". */
 export function duration(seconds: number): string {
@@ -17,11 +18,6 @@ export function duration(seconds: number): string {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   return `${h} h ${String(m % 60).padStart(2, "0")} min`;
-}
-
-function size(bytes: number): string {
-  if (bytes < 1e9) return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
-  return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
 function languageName(code: string, locale: string, other: string): string {
@@ -35,55 +31,21 @@ function languageName(code: string, locale: string, other: string): string {
   }
 }
 
-/** Bars per key, longest first. */
-const Breakdown: React.FC<{
-  values: Partial<Record<string, number>>;
-  label: (key: string) => string;
-}> = ({ values, label }) => {
-  const rows = Object.entries(values)
-    .map(([k, v]) => [k, v ?? 0] as const)
-    .sort((a, b) => b[1] - a[1]);
-  const max = Math.max(1, ...rows.map(([, v]) => v));
-  return (
-    <ul className="flex flex-col gap-[10px]">
-      {rows.map(([k, v]) => (
-        <li
-          key={k}
-          className="grid grid-cols-[200px_1fr_56px] items-center gap-3 text-small leading-[24px]"
-        >
-          <span className="truncate text-ink-2">{label(k)}</span>
-          <span className="h-2 rounded-full bg-wash overflow-hidden">
-            <span
-              className="block h-full rounded-full bg-logo-primary"
-              style={{ width: `${Math.max(2, (100 * v) / max)}%` }}
-            />
-          </span>
-          <span className="text-end tabular-nums text-ink-2">
-            {duration(v)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-};
-
 type Asking = "recordings" | "shared" | null;
 
-/** "Your data": a matching buyer message, the user's own recordings on
- * this Mac and the delete buttons; the sharing choices are in Settings.
- * Paid tasks are paused. */
+/** "Your data", the window's first view: hours on this Mac, this week and
+ * the latest meeting on top (design C4, E1 while empty); below, a matching
+ * buyer message, the user's own recordings, the delete buttons and the
+ * sharing choices. Paid tasks are paused. */
 export const SokkiVoicePage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<VoiceDataStats | null>(null);
-  const [community, setCommunity] = useState<CommunityTotal | null>(null);
   const [asking, setAsking] = useState<Asking>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await commands.voiceDataStats();
     if (r.status === "ok") setStats(r.data);
-    const c = await commands.voiceDataCommunity();
-    if (c.status === "ok") setCommunity(c.data);
   }, []);
 
   useEffect(() => {
@@ -105,19 +67,7 @@ export const SokkiVoicePage: React.FC = () => {
   }, [sharing, load]);
 
   if (!stats) return null;
-  const lang = (k: string) =>
-    languageName(k, i18n.language, t("sokki.voice.otherLanguage"));
-  const source = (k: string) =>
-    k === "meeting"
-      ? t("sokki.voice.fromMeetings")
-      : t("sokki.voice.fromDictation");
   const buyer = stats.buyer;
-  // A plain-text message from Sokki (a buyer message is JSON and shows as
-  // the buyer card instead).
-  const plainNotice =
-    community?.notice && !community.notice.trim().startsWith("{")
-      ? community.notice
-      : null;
 
   const answerBuyer = async (answer: "interested" | "no") => {
     const r = await commands.voiceDataAnswerBuyer(answer);
@@ -137,14 +87,36 @@ export const SokkiVoicePage: React.FC = () => {
   };
 
   return (
-    <Page>
-      <PageHeader
-        title={t("sokki.voice.title")}
-        description={t("sokki.voice.intro")}
+    <div className="w-full max-w-[760px] mx-auto flex flex-col gap-7 pt-10 pb-10">
+      {/* The design's glow, once, top right behind the title. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-[220px] -end-[200px] w-[640px] h-[520px] rounded-full"
+        style={{
+          background:
+            "radial-gradient(closest-side, var(--vb-glow), transparent)",
+        }}
       />
+      <Overview
+        stats={stats}
+        onChangeSharing={() => {
+          // Settings › Sharing: open the page, then bring the group up.
+          window.dispatchEvent(
+            new CustomEvent("sokki-open-section", { detail: "settings" }),
+          );
+          window.setTimeout(
+            () =>
+              document
+                .getElementById(SHARING_ANCHOR)
+                ?.scrollIntoView({ block: "start" }),
+            60,
+          );
+        }}
+      />
+      {SPONSORS_LIVE && <MilestoneCard />}
 
       {buyer && (
-        <section className="vb-card p-4 flex flex-col gap-2 border-logo-primary">
+        <section className="relative vb-card p-4 flex flex-col gap-2 border-logo-primary">
           <h2 className="text-[14px] font-semibold">
             {t("sokki.voice.buyer.title", {
               language: languageName(buyer.language, i18n.language, ""),
@@ -180,44 +152,6 @@ export const SokkiVoicePage: React.FC = () => {
               </Button>
             </div>
           )}
-        </section>
-      )}
-
-      <section className="vb-card p-5 flex flex-col gap-5">
-        <p className="text-body">
-          {stats.clips > 0
-            ? t("sokki.voice.onThisMac", {
-                duration: duration(stats.total_seconds),
-                size: size(stats.bytes),
-              })
-            : t("sokki.voice.empty")}
-        </p>
-        {stats.total_seconds > 0 && (
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-small font-semibold text-ink-2">
-                {t("sokki.voice.byLanguage")}
-              </h2>
-              <Breakdown values={stats.seconds_by_language} label={lang} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-small font-semibold text-ink-2">
-                {t("sokki.voice.bySource")}
-              </h2>
-              <Breakdown values={stats.seconds_by_source} label={source} />
-            </div>
-          </div>
-        )}
-      </section>
-
-      {plainNotice && (
-        <section className="vb-card p-4 flex flex-col gap-1 border-logo-primary">
-          <h2 className="text-small font-semibold text-logo-primary">
-            {t("sokki.voice.notice")}
-          </h2>
-          <p className="text-body select-text whitespace-pre-line">
-            {plainNotice}
-          </p>
         </section>
       )}
 
@@ -300,6 +234,6 @@ export const SokkiVoicePage: React.FC = () => {
           </span>
         )}
       </div>
-    </Page>
+    </div>
   );
 };

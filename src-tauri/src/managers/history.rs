@@ -288,6 +288,19 @@ impl HistoryManager {
         })
     }
 
+    /// The text of every dictation in History (no meeting tracks, no files).
+    pub fn dictation_texts(&self) -> Result<Vec<String>> {
+        let conn = self.get_connection()?;
+        let mut stmt = conn.prepare(
+            "SELECT transcription_text FROM transcription_history
+             WHERE meeting_id IS NULL AND source_name IS NULL",
+        )?;
+        let texts = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(texts)
+    }
+
     pub fn recordings_dir(&self) -> &std::path::Path {
         &self.recordings_dir
     }

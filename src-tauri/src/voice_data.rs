@@ -93,6 +93,9 @@ struct Config {
     /// The latest buyer message that matched this Mac's data.
     #[serde(default)]
     buyer: Option<BuyerRequest>,
+    /// The latest important message from Sokki, shown as a window in the app.
+    #[serde(default)]
+    message: Option<StoredMessage>,
 }
 
 /// Looks for a new message from Sokki this often.
@@ -1130,6 +1133,139 @@ struct BuyerNotice {
     text: Option<String>,
 }
 
+/// German and English of one text; other languages read English.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Localized {
+    #[serde(default)]
+    pub de: Option<String>,
+    pub en: String,
+}
+
+impl Localized {
+    fn pick(&self, german: bool) -> String {
+        match (&self.de, german) {
+            (Some(de), true) if !de.trim().is_empty() => de.clone(),
+            _ => self.en.clone(),
+        }
+    }
+}
+
+/// What the message's main button does: open a page, or install the update.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MessageAction {
+    pub label: Localized,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub update: bool,
+}
+
+/// An important message from Sokki, as the counter serves it in `notice`:
+/// `{"kind": "message", "title": {"de", "en"}, "text": {"de", "en"},
+/// "action": {"label": {…}, "url": "…" | "update": true}, "until":
+/// "2026-12-31"}`. Robin (2026-11-23): only important messages, as a window
+/// the user answers; plain-text notices are no longer shown.
+#[derive(Debug, Clone, Deserialize)]
+struct MessageJson {
+    kind: String,
+    title: Localized,
+    text: Localized,
+    #[serde(default)]
+    action: Option<MessageAction>,
+    #[serde(default)]
+    until: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct StoredMessage {
+    id: i64,
+    title: Localized,
+    text: Localized,
+    #[serde(default)]
+    action: Option<MessageAction>,
+    /// Last day it may show, "YYYY-MM-DD" (local); none: no end.
+    #[serde(default)]
+    until: Option<String>,
+    /// After "Later": not before this (unix seconds).
+    #[serde(default)]
+    later_until: i64,
+    /// Answered with its action or "OK": never again.
+    #[serde(default)]
+    done: bool,
+}
+
+/// The message window's content, in the app's language.
+#[derive(Debug, Clone, Serialize, specta::Type, PartialEq)]
+pub struct MessageView {
+    pub id: i64,
+    pub title: String,
+    pub text: String,
+    /// The main button; none: just "OK".
+    pub action_label: Option<String>,
+    pub action_url: Option<String>,
+    pub action_update: bool,
+}
+
+/// "Later" brings the message back after a day.
+const MESSAGE_LATER_S: i64 = 24 * 3600;
+
+/// The message to show now, if any: not answered, not put off, not past
+/// its last day (`today` is the local date, "YYYY-MM-DD").
+fn due_message(m: &StoredMessage, now: i64, today: &str, german: bool) -> Option<MessageView> {
+    if m.done || m.later_until > now {
+        return None;
+    }
+    if let Some(until) = m.until.as_deref() {
+        // ISO dates compare as text.
+        if today > until {
+            return None;
+        }
+    }
+    Some(MessageView {
+        id: m.id,
+        title: m.title.pick(german),
+        text: m.text.pick(german),
+        action_label: m.action.as_ref().map(|a| a.label.pick(german)),
+        action_url: m.action.as_ref().and_then(|a| a.url.clone()),
+        action_update: m.action.as_ref().is_some_and(|a| a.update),
+    })
+}
+
+fn german(app: &AppHandle) -> bool {
+    crate::settings::get_settings(app)
+        .app_language
+        .starts_with("de")
+}
+
+/// The important message to show in the window now, if any.
+pub fn pending_message(app: &AppHandle) -> Result<Option<MessageView>> {
+    let config = read_config(&dir(app)?);
+    let now = chrono::Local::now();
+    Ok(config.message.as_ref().and_then(|m| {
+        due_message(
+            m,
+            now.timestamp(),
+            &now.format("%Y-%m-%d").to_string(),
+            german(app),
+        )
+    }))
+}
+
+/// "later" puts the message off for a day; "done" ends it for good.
+pub fn answer_message(app: &AppHandle, id: i64, answer: &str) -> Result<()> {
+    let d = dir(app)?;
+    let now = chrono::Local::now().timestamp();
+    update_config(&d, |c| {
+        if let Some(m) = c.message.as_mut().filter(|m| m.id == id) {
+            match answer {
+                "later" => m.later_until = now + MESSAGE_LATER_S,
+                _ => m.done = true,
+            }
+        }
+    });
+    Ok(())
+}
+
 /// Looks for a new message from Sokki a minute after start and then every
 /// few hours (a plain download; nothing is sent). A buyer message is matched
 /// against the hours kept here and shown only if enough fits; other
@@ -1202,9 +1338,26 @@ fn check_notice(app: &AppHandle) {
         return;
     }
     update_config(&d, |c| c.last_notice = total.notice_id);
-    let german = crate::settings::get_settings(app)
-        .app_language
-        .starts_with("de");
+    if let Ok(m) = serde_json::from_str::<MessageJson>(&text) {
+        if m.kind == "message" {
+            update_config(&d, |c| {
+                c.message = Some(StoredMessage {
+                    id: total.notice_id,
+                    title: m.title,
+                    text: m.text,
+                    action: m.action,
+                    until: m.until,
+                    later_until: 0,
+                    done: false,
+                })
+            });
+            log::info!("Your data: new message from Sokki, shown in the window");
+            use tauri::Emitter;
+            let _ = app.emit("sokki-message", total.notice_id);
+        }
+        return;
+    }
+    let german = german(app);
     let (title, body) = match serde_json::from_str::<BuyerNotice>(&text) {
         Ok(notice) => {
             if config.support || !config.buyers {
@@ -1233,7 +1386,11 @@ fn check_notice(app: &AppHandle) {
             });
             buyer_message(&lang, hours, german)
         }
-        Err(_) => (crate::brand::app_name().to_string(), text),
+        // Plain text (old messages, e.g. 0.2.2's) is no longer shown.
+        Err(_) => {
+            log::info!("Your data: a plain-text message from Sokki, not shown");
+            return;
+        }
     };
     log::info!("Your data: new message from Sokki");
     #[cfg(target_os = "macos")]
@@ -1245,6 +1402,52 @@ fn check_notice(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn message(json: &str) -> StoredMessage {
+        let m: MessageJson = serde_json::from_str(json).unwrap();
+        StoredMessage {
+            id: 7,
+            title: m.title,
+            text: m.text,
+            action: m.action,
+            until: m.until,
+            later_until: 0,
+            done: false,
+        }
+    }
+
+    #[test]
+    fn a_message_shows_until_answered_put_off_or_past_its_day() {
+        let mut m = message(
+            r#"{"kind":"message","title":{"de":"Bitte aktualisiere Sokki.","en":"Please update Sokki."},
+                "text":{"en":"Long meetings could get lost."},
+                "action":{"label":{"de":"Jetzt aktualisieren","en":"Update now"},"update":true},
+                "until":"2026-12-31"}"#,
+        );
+        let v = due_message(&m, 1000, "2026-11-23", true).unwrap();
+        assert_eq!(v.title, "Bitte aktualisiere Sokki.");
+        // No German text: English.
+        assert_eq!(v.text, "Long meetings could get lost.");
+        assert_eq!(v.action_label.as_deref(), Some("Jetzt aktualisieren"));
+        assert!(v.action_update);
+        assert_eq!(due_message(&m, 1000, "2026-11-23", false).unwrap().title, "Please update Sokki.");
+        // The last day still shows; the day after doesn't.
+        assert!(due_message(&m, 1000, "2026-12-31", true).is_some());
+        assert!(due_message(&m, 1000, "2027-01-01", true).is_none());
+        m.later_until = 2000;
+        assert!(due_message(&m, 1999, "2026-11-23", true).is_none());
+        assert!(due_message(&m, 2000, "2026-11-23", true).is_some());
+        m.done = true;
+        assert!(due_message(&m, 5000, "2026-11-23", true).is_none());
+    }
+
+    #[test]
+    fn plain_text_and_buyer_notices_are_not_messages() {
+        assert!(serde_json::from_str::<MessageJson>("Run the command once more").is_err());
+        assert!(
+            serde_json::from_str::<MessageJson>(r#"{"language":"de","text":"500 hours"}"#).is_err()
+        );
+    }
 
     #[test]
     fn stats_sum_seconds_per_language_and_source() {

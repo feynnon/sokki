@@ -5,18 +5,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { PhoneCard } from "@/components/settings/sokki/PhoneCard";
-import {
-  MilestoneCard,
-  SPONSORS_LIVE,
-} from "@/components/settings/sokki/MilestoneCard";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   Check,
   Copy,
   FileAudio,
-  FilePlus,
   FolderOpen,
   RotateCcw,
   Star,
@@ -38,13 +33,9 @@ import {
 } from "@/stores/transcriptionJobsStore";
 import { formatShortDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
-import { Button } from "../../ui/Button";
 import { copyToClipboard } from "./clipboard";
-import {
-  pickAndTranscribeFiles,
-  useFileReadsStore,
-  type FileRead,
-} from "./transcribeFiles";
+import { useFileReadsStore, type FileRead } from "./transcribeFiles";
+import { Page, PageHeader } from "../sokki/parts";
 
 const IconButton: React.FC<{
   onClick: () => void;
@@ -105,29 +96,6 @@ const FileReadRow: React.FC<{ read: FileRead }> = ({ read }) => {
     </div>
   );
 };
-
-interface HeaderButtonProps {
-  onClick: () => void;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-const HeaderButton: React.FC<HeaderButtonProps> = ({
-  onClick,
-  label,
-  icon: Icon,
-}) => (
-  <Button
-    onClick={onClick}
-    variant="secondary"
-    size="sm"
-    className="flex items-center gap-2"
-    title={label}
-  >
-    <Icon className="w-4 h-4" />
-    <span>{label}</span>
-  </Button>
-);
 
 export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
@@ -230,28 +198,6 @@ export const HistorySettings: React.FC = () => {
     };
   }, []);
 
-  const toggleSaved = async (id: number) => {
-    // Optimistic update
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
-    );
-    try {
-      const result = await commands.toggleHistoryEntrySaved(id);
-      if (result.status !== "ok") {
-        // Revert on failure
-        setEntries((prev) =>
-          prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
-        );
-      }
-    } catch (error) {
-      console.error("Failed to toggle saved status:", error);
-      // Revert on failure
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
-      );
-    }
-  };
-
   const getAudioUrl = useCallback(
     async (fileName: string) => {
       try {
@@ -288,24 +234,10 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
-  const transcribeFile = async () => {
-    try {
-      await pickAndTranscribeFiles();
-    } catch (error) {
-      console.error("Failed to pick a file to transcribe:", error);
-      notify({ title: t("settings.history.transcribeFailed") });
-    }
-  };
-
-  const openRecordingsFolder = async () => {
-    try {
-      const result = await commands.openRecordingsFolder();
-      if (result.status !== "ok") {
-        throw new Error(String(result.error));
-      }
-    } catch (error) {
-      console.error("Failed to open recordings folder:", error);
-    }
+  /** Shows the entry's recording in Finder. */
+  const revealAudio = async (fileName: string) => {
+    const result = await commands.getAudioFilePath(fileName);
+    if (result.status === "ok") await revealItemInDir(result.data);
   };
 
   let content: React.ReactNode;
@@ -335,7 +267,7 @@ export const HistorySettings: React.FC = () => {
                 key={entry.id}
                 entry={entry}
                 job={jobs[entry.id]}
-                onToggleSaved={() => toggleSaved(entry.id)}
+                onReveal={() => void revealAudio(entry.file_name)}
                 onCopyText={() => copyToClipboard(entry.transcription_text)}
                 getAudioUrl={getAudioUrl}
                 deleteAudio={deleteAudioEntry}
@@ -352,41 +284,22 @@ export const HistorySettings: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <div className="space-y-2">
-        <div className="px-4 flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
-              {t("sokki.nav.home")}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <HeaderButton
-              onClick={transcribeFile}
-              label={t("settings.history.transcribeFile")}
-              icon={FilePlus}
-            />
-            <HeaderButton
-              onClick={openRecordingsFolder}
-              label={t("settings.history.openFolder")}
-              icon={FolderOpen}
-            />
-          </div>
-        </div>
-        {SPONSORS_LIVE && <MilestoneCard />}
-        {osType === "macos" && <PhoneCard />}
-        <div className="bg-background border border-line rounded-lg overflow-visible">
-          {content}
-        </div>
+    <Page>
+      <PageHeader
+        title={t("sokki.dictations.title")}
+        description={t("sokki.dictations.description")}
+      />
+      <div className="bg-background border border-line rounded-lg overflow-visible">
+        {content}
       </div>
-    </div>
+    </Page>
   );
 };
 
 interface HistoryEntryProps {
   entry: HistoryEntry;
   job?: ActiveJobStatus;
-  onToggleSaved: () => void;
+  onReveal: () => void;
   onCopyText: () => Promise<boolean>;
   getAudioUrl: (fileName: string) => Promise<string | null>;
   deleteAudio: (id: number) => Promise<void>;
@@ -397,7 +310,7 @@ interface HistoryEntryProps {
 const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   entry,
   job,
-  onToggleSaved,
+  onReveal,
   onCopyText,
   getAudioUrl,
   deleteAudio,
@@ -478,11 +391,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     <div className="group px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <p
-            className="text-[13px] text-ink-3 shrink-0"
-          >
-            {formattedDate}
-          </p>
+          <p className="text-[13px] text-ink-3 shrink-0">{formattedDate}</p>
           {entry.saved && (
             <Star
               width={12}
@@ -503,13 +412,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           )}
         </div>
         {/* Sokki: the entry's actions show on hover or keyboard focus. */}
-        <div
-          className="flex items-center shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
-        >
+        <div className="flex items-center shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
           <IconButton
             onClick={handleCopyText}
             disabled={!hasTranscription || retrying}
-            title={t("settings.history.copyToClipboard")}
+            title={t("sokki.dictations.copy")}
           >
             {showCopied ? (
               <Check width={16} height={16} />
@@ -517,20 +424,8 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               <Copy width={16} height={16} />
             )}
           </IconButton>
-          <IconButton
-            onClick={onToggleSaved}
-            active={entry.saved}
-            title={
-              entry.saved
-                ? t("settings.history.unsave")
-                : t("settings.history.save")
-            }
-          >
-            <Star
-              width={16}
-              height={16}
-              fill={entry.saved ? "currentColor" : "none"}
-            />
+          <IconButton onClick={onReveal} title={t("sokki.dictations.show")}>
+            <FolderOpen width={16} height={16} />
           </IconButton>
           {retrying ? (
             <IconButton

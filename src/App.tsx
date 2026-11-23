@@ -34,7 +34,26 @@ import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { deleteRetiredModel } from "@/lib/models/retired";
 import { NoticePanel } from "@/components/notices/NoticePanel";
+import { RecordBar } from "@/components/RecordBar";
+import { MessageDialog } from "@/components/MessageDialog";
+import { watchMeetings } from "@/stores/meetingStore";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
+
+/** Where the window reopens: the last view; the very first launch opens
+ * Your data (Robin, 2026-11-21; macOS apps restore where you left off). */
+const SECTION_KEY = "sokki.section";
+const RESTORABLE = new Set<string>(
+  Object.keys(SECTIONS_CONFIG).filter((k) => k !== "debug" && k !== "sound"),
+);
+function restoredSection(): SidebarSection {
+  try {
+    const saved = localStorage.getItem(SECTION_KEY);
+    if (saved && RESTORABLE.has(saved)) return saved as SidebarSection;
+  } catch {
+    // No storage: start at Your data.
+  }
+  return "voice";
+}
 
 // flow is first-run onboarding; the rest are single screens for returning users.
 type OnboardingStep =
@@ -78,7 +97,15 @@ function App() {
   // Set when a returning user's selected model is a retired (ONNX) model that
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
-  const [currentSection, setCurrentSection] = useState<SidebarSection>("history");
+  const [currentSection, setCurrentSection] =
+    useState<SidebarSection>(restoredSection);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SECTION_KEY, currentSection);
+    } catch {
+      // Not remembered; the next launch opens Your data.
+    }
+  }, [currentSection]);
   const showHistory = useCallback(() => setCurrentSection("history"), []);
   // Other pages can ask for a section (e.g. Meetings → Models).
   useEffect(() => {
@@ -96,6 +123,8 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
+  // Set when this launch ran the first-run setup: no messages then.
+  const firstStart = useRef(false);
   const settingsScrollRef = useRef<HTMLDivElement>(null);
   // Reset the scroll position whenever the active section changes.
   useLayoutEffect(() => {
@@ -105,6 +134,12 @@ function App() {
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
+
+  // The recording state and the meeting list, shared by every view.
+  useEffect(() => {
+    if (onboardingStep !== "done" || platform() !== "macos") return;
+    return watchMeetings();
+  }, [onboardingStep]);
 
   // Initialize RTL direction when language changes
   useEffect(() => {
@@ -306,7 +341,14 @@ function App() {
       </>
     );
   } else if (onboardingStep === "flow") {
-    content = <OnboardingFlow onComplete={() => setOnboardingStep("done")} />;
+    content = (
+      <OnboardingFlow
+        onComplete={() => {
+          firstStart.current = true;
+          setOnboardingStep("done");
+        }}
+      />
+    );
   } else if (onboardingStep === "permissions") {
     content = (
       <ReturningPermissions
@@ -343,13 +385,11 @@ function App() {
             activeSection={currentSection}
             onSectionChange={setCurrentSection}
           />
-          {/* Scrollable content area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
-              {/* Models fills the window: its table scrolls, not the page. */}
-              <div
-                className={`flex flex-col items-center px-8 py-6 gap-4 ${currentSection === "models" ? "h-full" : ""}`}
-              >
+          {/* Content above the recording bar, which every view shares. */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {currentSection === "meetings" ? (
+              // Meetings is a split view: list and reader scroll apart.
+              <div className="flex-1 min-h-0 flex flex-col">
                 <SecureInputWarning />
                 {renderSettingsContent(
                   currentSection,
@@ -358,10 +398,30 @@ function App() {
                   runModelMigration,
                 )}
               </div>
-            </div>
+            ) : (
+              <div
+                ref={settingsScrollRef}
+                className="relative flex-1 overflow-y-auto overflow-x-hidden"
+              >
+                {/* Models fills the window: its table scrolls, not the page. */}
+                <div
+                  className={`flex flex-col items-center px-8 py-6 gap-4 ${currentSection === "models" ? "h-full" : ""}`}
+                >
+                  <SecureInputWarning />
+                  {renderSettingsContent(
+                    currentSection,
+                    setOnboardingPreview,
+                    runOnboarding,
+                    runModelMigration,
+                  )}
+                </div>
+              </div>
+            )}
+            {platform() === "macos" && <RecordBar />}
           </div>
         </div>
         <FileDropOverlay onDropped={showHistory} />
+        <MessageDialog firstStart={firstStart.current} />
       </div>
     );
   }

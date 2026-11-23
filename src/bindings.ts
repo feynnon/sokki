@@ -930,6 +930,39 @@ async voiceDataStats() : Promise<Result<VoiceDataStats, string>> {
 }
 },
 /**
+ * "Your data": hours, words dictated and meetings, all time.
+ */
+async usageTotals() : Promise<Result<Totals, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("usage_totals") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The important message from Sokki to show in the window now, if any.
+ */
+async pendingMessage() : Promise<Result<MessageView | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pending_message") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Answers the message window: "later" (again in a day) or "done".
+ */
+async answerMessage(id: number, answer: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("answer_message", { id, answer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Sets "Help improve Sokki", "Share all my recordings" and "Ask me when
  * there's a buyer".
  */
@@ -1789,6 +1822,14 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * Sent whenever a meeting record changes (recording, progress, done, failed).
  */
 export type MeetingChanged = { id: string }
+/**
+ * The message window's content, in the app's language.
+ */
+export type MessageView = { id: number; title: string; text: string; 
+/**
+ * The main button; none: just "OK".
+ */
+action_label: string | null; action_url: string | null; action_update: boolean }
 export type MeetingRecord = { id: string; 
 /**
  * Local start time, RFC 3339.
@@ -2229,6 +2270,22 @@ export type StreamWorkKind = "transcribing" | "polishing"
  * and `Dark` force one of the two palettes Sokki already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * "Your data": everything transcribed on this Mac, all time.
+ */
+export type Totals = { 
+/**
+ * Dictations and finished meetings, in seconds.
+ */
+seconds: number; 
+/**
+ * Words dictated.
+ */
+words: number; 
+/**
+ * Finished meetings.
+ */
+meetings: number }
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
 /**
  * Emitted when a dictation finishes (not on cancel); onboarding uses it to measure speed.

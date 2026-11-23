@@ -5,6 +5,9 @@ import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { DataChoices } from "./DataChoices";
 import { duration } from "./VoicePage";
 
+/** Where "Change" on Your data lands: the id of this group's wrapper. */
+export const SHARING_ANCHOR = "sokki-sharing";
+
 /** Settings' first group: the sharing choices, how much this Mac has
  * shared, and how many people share. */
 export const SharingGroup: React.FC = () => {
@@ -50,25 +53,27 @@ export const SharingGroup: React.FC = () => {
       : null;
 
   return (
-    <SettingsGroup title={t("sokki.settings.sharing")}>
-      <DataChoices
-        value={{
-          improve: stats.improve,
-          buyers: stats.buyers,
-          support: stats.support,
-        }}
-        onChange={(v) =>
-          void commands
-            .voiceDataSetChoices(v.improve, v.support, v.buyers)
-            .then(() => load())
-        }
-        variant="switch"
-      />
-      {(shared || people) && (
-        <p className="px-4 py-3 text-[12.5px] leading-[18px] text-ink-3">
-          {[people, shared].filter(Boolean).join(" ")}
-        </p>
-      )}
-    </SettingsGroup>
+    <div id={SHARING_ANCHOR} className="scroll-mt-6">
+      <SettingsGroup title={t("sokki.settings.sharing")}>
+        <DataChoices
+          value={{
+            improve: stats.improve,
+            buyers: stats.buyers,
+            support: stats.support,
+          }}
+          onChange={(v) =>
+            void commands
+              .voiceDataSetChoices(v.improve, v.support, v.buyers)
+              .then(() => load())
+          }
+          variant="switch"
+        />
+        {(shared || people) && (
+          <p className="px-4 py-3 text-[12.5px] leading-[18px] text-ink-3">
+            {[people, shared].filter(Boolean).join(" ")}
+          </p>
+        )}
+      </SettingsGroup>
+    </div>
   );
 };

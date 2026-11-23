@@ -4,7 +4,7 @@ import {
   FlaskConical,
   Mic,
   Cpu,
-  House,
+  MessageSquareText,
   BookOpen,
   Volume2,
   Settings as SettingsIcon,
@@ -16,6 +16,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { SokkiLogo } from "./icons/SokkiLogo";
 import { useSettings } from "../hooks/useSettings";
+import { useMeetingStore } from "@/stores/meetingStore";
 import {
   HistorySettings,
   MeetingsSettings,
@@ -32,9 +33,10 @@ const SPONSOR_URL = "https://sokki.org/sponsor/?s=sidebar";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
-/** Sokki's sidebar: what you use, then how the app behaves (debug last). */
+/** Sokki's sidebar: your data first (the start view), what you use, then
+ * how the app behaves (debug last). Design C4, Robin 2026-11-21. */
 const SOKKI_ORDER: SidebarSection[][] = [
-  ["history", "meetings", "videos", "vocabulary", "voice"],
+  ["voice", "meetings", "videos", "history", "vocabulary"],
   // Sound lives on the Settings page; Models keeps its own place.
   ["settings", "models"],
   ["debug"],
@@ -58,8 +60,8 @@ interface SectionConfig {
 
 export const SECTIONS_CONFIG = {
   history: {
-    labelKey: "sokki.nav.home",
-    icon: House,
+    labelKey: "sokki.nav.dictations",
+    icon: MessageSquareText,
     component: HistorySettings,
     enabled: () => true,
   },
@@ -127,6 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const recording = useMeetingStore((s) => s.recording);
 
   const availableSections = Object.entries(SECTIONS_CONFIG)
     .filter(([_, config]) => config.enabled(settings))
@@ -166,6 +169,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <Icon width={16} height={16} className="shrink-0" />
                   <span className="truncate">{t(section.labelKey)}</span>
+                  {section.id === "meetings" && recording && (
+                    <span
+                      role="img"
+                      aria-label={t("meetings.recording")}
+                      className="vb-pulse ms-auto size-2 shrink-0 rounded-full"
+                      style={{ background: "var(--vb-rec)" }}
+                    />
+                  )}
                 </button>
               );
             })}

@@ -1159,7 +1159,7 @@ pub fn get_default_settings() -> AppSettings {
         },
     );
     #[cfg(target_os = "macos")]
-    let default_meeting_shortcut = "option+shift+m";
+    let default_meeting_shortcut = "option+m";
     #[cfg(not(target_os = "macos"))]
     let default_meeting_shortcut = "ctrl+shift+m";
 

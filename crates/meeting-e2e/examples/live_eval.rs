@@ -185,7 +185,7 @@ fn main() -> anyhow::Result<()> {
         Ok(t) => serde_json::from_str(&t)?,
         Err(_) => {
             let models = Path::new(&std::env::var("HOME")?)
-                .join("Library/Caches/handy-meetings/diarize-models");
+                .join("Library/Caches/sokki/diarize-models");
             let d = diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(&models))?;
             let t0 = Instant::now();
             let mut all = Vec::new();
@@ -375,7 +375,7 @@ fn main() -> anyhow::Result<()> {
             same_voice: env_f64("STITCH_SAME_VOICE", 0.6) as f32,
         };
         let models = Path::new(&std::env::var("HOME")?)
-            .join("Library/Caches/handy-meetings/diarize-models");
+            .join("Library/Caches/sokki/diarize-models");
         let d = diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(&models))?;
         let mut stitched: Vec<(TrackKind, Vec<SpeakerTurn>)> = Vec::new();
         let mut per_track = serde_json::Map::new();

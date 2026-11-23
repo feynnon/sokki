@@ -4,7 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { commands, type Milestone } from "@/bindings";
 
-/** Where "Buy me a coffee" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
+/** Where "Chip in tokens" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
 const SPONSOR_URL = "https://sokki.org/sponsor/?s=stats";
 
 /**

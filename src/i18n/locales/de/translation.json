@@ -26,7 +26,7 @@
     "customModelDescription": "Nicht offiziell unterstützt",
     "migration": {
       "title": "Deine Modelle brauchen ein Update",
-      "description": "Handy verwendet jetzt eine neuere Art von Modellen. Lade die neue Version herunter, um weiter zu transkribieren. Alte Versionen werden entfernt.",
+      "description": "Sokki verwendet jetzt eine neuere Art von Modellen. Lade die neue Version herunter, um weiter zu transkribieren. Alte Versionen werden entfernt.",
       "replaces": "Ersetzt {{name}}",
       "oldFormat": "Altes Format",
       "failed": "Download fehlgeschlagen",
@@ -63,11 +63,11 @@
     "permissions": {
       "microphone": {
         "name": "Mikrofon",
-        "why": "Damit Handy dich hören kann. Audio wird auf diesem Computer in Text umgewandelt und nie hochgeladen."
+        "why": "Damit Sokki dich hören kann. Audio wird auf diesem Computer in Text umgewandelt und nie hochgeladen."
       },
       "accessibility": {
         "name": "Bedienungshilfen",
-        "why": "Damit dein Tastenkürzel in jeder App funktioniert und Handy den Text dort eintippen kann, wo dein Cursor steht."
+        "why": "Damit dein Tastenkürzel in jeder App funktioniert und Sokki den Text dort eintippen kann, wo dein Cursor steht."
       },
       "errors": {
         "checkFailed": "Berechtigungsprüfung fehlgeschlagen. Bitte erneut versuchen.",
@@ -81,12 +81,12 @@
       "openSettings": "Einstellungen öffnen",
       "allowed": "Erlaubt",
       "waiting": "Warten",
-      "turnOnMac": "Aktiviere Handy in den Systemeinstellungen und komm dann hierher zurück.",
+      "turnOnMac": "Aktiviere Sokki in den Systemeinstellungen und komm dann hierher zurück.",
       "turnOnWindows": "Aktiviere den Mikrofonzugriff in den Windows-Einstellungen und komm dann hierher zurück.",
       "hintBoth": "Erlaube beides, um fortzufahren",
       "hintMicrophone": "Erlaube das Mikrofon, um fortzufahren",
       "welcomeBack": "Willkommen zurück. Es geht dort weiter, wo du aufgehört hast.",
-      "relaunch": "Tastenkürzel reagiert danach nicht? <relaunch>Handy neu starten</relaunch> und du landest direkt wieder hier."
+      "relaunch": "Tastenkürzel reagiert danach nicht? <relaunch>Sokki neu starten</relaunch> und du landest direkt wieder hier."
     },
     "shell": {
       "back": "Zurück",
@@ -97,11 +97,11 @@
       "title": "Sprechen statt tippen, in jeder App",
       "subtitle": "Wähle die Sprachen, in denen du diktierst",
       "languagesLabel": "Sprachen",
-      "noMatch": "Keine Sprache passt zu „{{query}}“. Die Modelle von Handy decken etwa 100 Sprachen ab; weitere findest du in den Einstellungen.",
+      "noMatch": "Keine Sprache passt zu „{{query}}“. Die Modelle von Sokki decken etwa 100 Sprachen ab; weitere findest du in den Einstellungen.",
       "appLanguage": "App-Sprache",
       "menusIn": "Menüs auf <b>{{language}}</b>",
       "chinese": {
-        "question": "Du sprichst {{languages}}. Welche Schriftzeichen soll Handy schreiben?",
+        "question": "Du sprichst {{languages}}. Welche Schriftzeichen soll Sokki schreiben?",
         "label": "Chinesische Schriftzeichen",
         "zh-Hans": "Vereinfacht",
         "zh-Hant": "Taiwan",
@@ -171,7 +171,7 @@
     },
     "try": {
       "title": "Probier es aus!",
-      "subtitle": "Handy ist in der Ecke und führt dich durch",
+      "subtitle": "Sokki ist in der Ecke und führt dich durch",
       "noteLabel": "Notiz",
       "placeholder": "Neue Notiz",
       "hold": "Halte <keys/> gedrückt und sprich.",
@@ -199,14 +199,14 @@
     },
     "done": {
       "title": "Alles bereit",
-      "subMac": "Handy ist jetzt in deiner Menüleiste. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
-      "subTray": "Handy ist jetzt in deinem Infobereich. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
+      "subMac": "Sokki ist jetzt in deiner Menüleiste. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
+      "subTray": "Sokki ist jetzt in deinem Infobereich. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
       "hint": "Du kannst das später in den Einstellungen ändern",
       "highFiveLabel": "High Five",
-      "atLogin": "Handy beim Anmelden starten",
+      "atLogin": "Sokki beim Anmelden starten",
       "finish": "Fertig",
       "panel": {
-        "name": "Handy",
+        "name": "Sokki",
         "ready": "Bereit",
         "languages": "Sprachen",
         "model": "Sprachmodell",
@@ -331,7 +331,7 @@
     "general": {
       "title": "Allgemein",
       "shortcut": {
-        "title": "Handy-Tastenkürzel",
+        "title": "Sokki-Tastenkürzel",
         "description": "Tastenkürzel für die Sprachaufnahme konfigurieren",
         "loading": "Tastenkürzel werden geladen...",
         "none": "Keine Tastenkürzel konfiguriert",
@@ -404,17 +404,17 @@
         "fits": "Für deine Sprachen",
         "untested": "Ungetestet"
       },
-      "untestedNote": "Nicht mit Handy getestet. Sie könnten langsamer sein oder mehr Fehler machen.",
+      "untestedNote": "Nicht mit Sokki getestet. Sie könnten langsamer sein oder mehr Fehler machen.",
       "untestedHidden_one": "{{count}} weiteres Modell ist nicht für Diktat optimiert. Suche danach, um es zu finden.",
       "untestedHidden_other": "{{count}} weitere Modelle sind nicht für Diktat optimiert. Suche danach, um eines zu finden.",
-      "emptyYours": "Noch keine Modelle. Wähle unten eines aus: Es wird heruntergeladen, dann nutzt Handy es.",
+      "emptyYours": "Noch keine Modelle. Wähle unten eines aus: Es wird heruntergeladen, dann nutzt Sokki es.",
       "showMore": "{{count}} weitere anzeigen",
       "showFewer": "Weniger anzeigen",
       "download": "Herunterladen und verwenden",
       "downloadingThenUse": "{{percent}} % von {{total}}, dann wird gewechselt",
       "loading": "Wird geladen…",
       "deleteAsk": "{{name}} löschen? Das gibt {{size}} frei.",
-      "deleteAskActive": "{{name}} löschen? Handy kann erst wieder transkribieren, wenn du ein anderes wählst.",
+      "deleteAskActive": "{{name}} löschen? Sokki kann erst wieder transkribieren, wenn du ein anderes wählst.",
       "cancel": "Abbrechen",
       "deleteModel": "{{name}} löschen",
       "cancelDownload": "Download von {{name}} abbrechen",
@@ -428,14 +428,14 @@
         "marks": "? wurde noch nicht gemessen. — versteht diese Sprache nicht."
       },
       "retiredNotice": {
-        "title": "Alte Modelle funktionieren nicht mehr mit Handy",
+        "title": "Alte Modelle funktionieren nicht mehr mit Sokki",
         "description": "Sie belegen {{size}} auf deinem Computer.",
         "delete": "Modelle löschen",
         "deleteFailed": "Einige alte Modelle konnten nicht gelöscht werden. Details findest du im Protokoll."
       },
       "rescan": {
         "label": "Neu scannen",
-        "tooltip": "Erneut nach Modellen scannen, die außerhalb von Handy zum Modellordner oder Hugging-Face-Cache hinzugefügt wurden"
+        "tooltip": "Erneut nach Modellen scannen, die außerhalb von Sokki zum Modellordner oder Hugging-Face-Cache hinzugefügt wurden"
       }
     },
     "languages": {
@@ -505,11 +505,11 @@
       },
       "autostart": {
         "label": "Beim Anmelden öffnen",
-        "description": "Startet Handy, wenn du dich anmeldest."
+        "description": "Startet Sokki, wenn du dich anmeldest."
       },
       "showTrayIcon": {
         "label": "Taskleistensymbol anzeigen",
-        "description": "Das Handy-Symbol in der Taskleiste anzeigen."
+        "description": "Das Sokki-Symbol in der Taskleiste anzeigen."
       },
       "overlay": {
         "style": {
@@ -746,8 +746,8 @@
       },
       "updateChecks": {
         "label": "Nach Updates suchen",
-        "description": "Automatisch nach neuen Versionen von Handy suchen",
-        "lockedDescription": "Durch Systemkonfiguration deaktiviert (HANDY_DISABLE_UPDATER)"
+        "description": "Automatisch nach neuen Versionen von Sokki suchen",
+        "lockedDescription": "Durch Systemkonfiguration deaktiviert (SOKKI_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
         "title": "Vorschau der Neuerungen",
@@ -853,7 +853,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Tastatur-Diagnose",
-        "description": "Prüft, ob Tastaturereignisse Handy erreichen. Es wird nur die Anzahl der Ereignisse erfasst — niemals, welche Tasten du drückst.",
+        "description": "Prüft, ob Tastaturereignisse Sokki erreichen. Es wird nur die Anzahl der Ereignisse erfasst — niemals, welche Tasten du drückst.",
         "run": "10-Sekunden-Diagnose starten",
         "running": "Lauscht… drücke dein Tastenkürzel ein paar Mal (z. B. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -867,7 +867,7 @@
         "mouse": "Maus",
         "verdictBlocked": "Secure Input blockiert Tastenereignisse — Tastenkürzel mit einer normalen Taste können erst wieder funktionieren, wenn das behoben ist.",
         "verdictSuspicious": "Es kamen Modifikator-Ereignisse an, aber keine Tastenereignisse — irgendetwas unterdrückt Tasten, obwohl Secure Input als deaktiviert gemeldet wird. Bitte melde das auf GitHub.",
-        "verdictOk": "Tastenereignisse erreichen Handy normal.",
+        "verdictOk": "Tastenereignisse erreichen Sokki normal.",
         "verdictNoEvents": "Keine Ereignisse erfasst — hast du während des Tests Tasten gedrückt?",
         "failed": "Diagnose fehlgeschlagen: {{error}}"
       }
@@ -876,15 +876,15 @@
       "title": "Info",
       "version": {
         "title": "Version",
-        "description": "Aktuelle Version von Handy"
+        "description": "Aktuelle Version von Sokki"
       },
       "whatsNewUpdates": {
         "label": "Neuerungen anzeigen",
-        "description": "Versionshinweise nach Handy-Updates anzeigen"
+        "description": "Versionshinweise nach Sokki-Updates anzeigen"
       },
       "appDataDirectory": {
         "title": "App-Datenverzeichnis",
-        "description": "Speicherort der Handy-Daten"
+        "description": "Speicherort der Sokki-Daten"
       },
       "sourceCode": {
         "title": "Quellcode",
@@ -893,7 +893,7 @@
       },
       "supportDevelopment": {
         "title": "Entwicklung unterstützen",
-        "description": "Hilf uns, Handy weiterzuentwickeln",
+        "description": "Hilf uns, Sokki weiterzuentwickeln",
         "button": "Spenden"
       },
       "acknowledgments": {
@@ -901,7 +901,7 @@
         "ggml": {
           "title": "ggml",
           "description": "Hochleistungs-Inferenz des Whisper-Spracherkennungsmodells von OpenAI",
-          "details": "Handy verwendet ggml für schnelle, lokale Sprach-zu-Text-Verarbeitung. Dank an Georgi Gerganov und die Mitwirkenden für ihre großartige Arbeit."
+          "details": "Sokki verwendet ggml für schnelle, lokale Sprach-zu-Text-Verarbeitung. Dank an Georgi Gerganov und die Mitwirkenden für ihre großartige Arbeit."
         }
       }
     }
@@ -923,7 +923,7 @@
     "updateNow": "Jetzt aktualisieren"
   },
   "whatsNew": {
-    "title": "Neu in Handy v{{version}}"
+    "title": "Neu in Sokki v{{version}}"
   },
   "common": {
     "playbackPosition": "Wiedergabeposition",
@@ -950,7 +950,7 @@
     "microphoneSilentTitle": "Mikrofon ist stumm",
     "microphoneSilent": "Dein Mikrofon hat nur Stille geliefert. Prüfe, ob es stummgeschaltet ist, oder wähle unter Einstellungen ein anderes Mikrofon.",
     "recordingFailedTitle": "Aufnahmestart fehlgeschlagen",
-    "modelLoadFailed": "Handy konnte dieses Modell nicht laden. Versuche es erneut oder wähle ein anderes.",
+    "modelLoadFailed": "Sokki konnte dieses Modell nicht laden. Versuche es erneut oder wähle ein anderes.",
     "modelLoadFailedTitle": "Modell konnte nicht geladen werden",
     "noModelSelected": "Lade ein Modell herunter oder wähle eines unter Einstellungen > Modelle.",
     "noModelSelectedTitle": "Kein Modell ausgewählt",
@@ -958,7 +958,7 @@
     "pasteFailedTitle": "Text konnte nicht eingefügt werden",
     "pasteFailed": "Der Text konnte nicht in die aktive Anwendung eingefügt werden.",
     "pasteBlockedElevatedTitle": "Kein Einfügen in Admin-Apps",
-    "pasteBlockedElevated": "Die aktive Anwendung läuft als Administrator, daher kann Handy dort nichts einfügen. Du kannst das Transkript aus dem Verlauf kopieren.",
+    "pasteBlockedElevated": "Die aktive Anwendung läuft als Administrator, daher kann Sokki dort nichts einfügen. Du kannst das Transkript aus dem Verlauf kopieren.",
     "postProcessFailedTitle": "Ohne Nachbearbeitung eingefügt",
     "postProcessFailed": "Die Nachbearbeitung wurde nicht abgeschlossen, daher wurde das Transkript unverändert eingefügt.",
     "filePostProcessFailedTitle": "Ohne Nachbearbeitung transkribiert",
@@ -966,7 +966,7 @@
     "fileTranscriptionFailedTitle": "Dateitranskription fehlgeschlagen",
     "transcriptionFailedTitle": "Transkription fehlgeschlagen",
     "meetingStartFailedTitle": "Meeting-Aufnahme nicht gestartet",
-    "meetingStartFailed": "Handy Meetings braucht Zugriff aufs Mikrofon. Erlaube ihn unter Systemeinstellungen > Datenschutz & Sicherheit.",
+    "meetingStartFailed": "Sokki braucht Zugriff aufs Mikrofon. Erlaube ihn unter Systemeinstellungen > Datenschutz & Sicherheit.",
     "meetingStopFailedTitle": "Meeting-Aufnahme nicht gespeichert",
     "meetingStopFailed": "Die Aufnahme wurde beendet, konnte aber nicht zur Verarbeitung gespeichert werden."
   },
@@ -1258,8 +1258,8 @@
     },
     "milestone": {
       "title": "{{hours}} Stunden mit Sokki",
-      "body": "So viel hat Sokki für dich mitgeschrieben, alles auf diesem Mac. Sokki bleibt kostenlos. Wenn es dir das wert war, würde mich ein Kaffee sehr freuen! – Robin",
-      "sponsor": "Kaffee spendieren",
+      "body": "So viel hat Sokki für dich mitgeschrieben, alles auf diesem Mac. Sokki bleibt kostenlos, aber beim Bauen futtert die KI Tokens eimerweise. War es dir das wert, spendier mir ein paar! – Robin",
+      "sponsor": "Tokens spendieren",
       "save": "Bild speichern",
       "saved": "Gespeichert",
       "notNow": "Nicht jetzt",
@@ -1267,15 +1267,15 @@
       "pictureLine": "auf meinem Mac transkribiert, mit Sokki"
     },
     "phoneCard": {
-      "title": "Sokki auch auf dem Handy",
+      "title": "Sokki auch auf dem Smartphone",
       "body": "Nimm Gespräche im Raum auf und diktiere in jeder App. Die Notizen landen hier auf deinem Mac.",
-      "scan": "Mit der Handykamera scannen",
+      "scan": "Mit der Kamera deines Smartphones scannen",
       "copy": "Link kopieren",
       "copied": "Kopiert",
       "email": "Per Mail an mich",
       "notNow": "Nicht jetzt",
-      "mailSubject": "Sokki fürs Handy",
-      "mailBody": "Öffne das auf deinem Handy, um Sokki zu bekommen:"
+      "mailSubject": "Sokki fürs Smartphone",
+      "mailBody": "Öffne das auf deinem Smartphone, um Sokki zu bekommen:"
     }
   },
   "video": {

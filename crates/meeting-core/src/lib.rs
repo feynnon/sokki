@@ -14,7 +14,7 @@
 //! This crate defines the shared types and traits. Implementations live in:
 //! - `diarize` crate: `Diarizer` (FluidAudio on macOS)
 //! - this crate, `pipeline`/`dedup`/`note`/`summary` modules
-//! - the app (`src-tauri`): `Transcriber`, backed by Handy's transcription engine
+//! - the app (`src-tauri`): `Transcriber`, backed by Sokki's transcription engine
 //!
 //! Everything here is plain Rust with no Tauri or OS dependencies, so it can
 //! be tested quickly and reused on other platforms later.

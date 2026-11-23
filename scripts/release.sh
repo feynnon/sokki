@@ -41,13 +41,12 @@ echo "Building Sokki $VERSION from $(git -C "$REPO" rev-parse --short HEAD)."
 
 export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
-export HANDY_BRAND=sokki VITE_HANDY_BRAND=sokki
 export SOKKI_COUNTER_URL="${SOKKI_COUNTER_URL:-$(tr -d '[:space:]' < "$REPO/counter/url.txt")}"
 export TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY")"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 # The same certificate as every earlier build, so macOS keeps the granted
 # permissions across updates.
-IDENTITY="Handy Meetings Dev"
+IDENTITY="Sokki Dev"
 security find-identity -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\"" \
   || { echo "no \"$IDENTITY\" signing certificate" >&2; exit 1; }
 export APPLE_SIGNING_IDENTITY="$IDENTITY"

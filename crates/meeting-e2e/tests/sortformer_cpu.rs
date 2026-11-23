@@ -11,7 +11,7 @@ use std::path::Path;
 fn sortformer_on_cpu_only_backends() {
     transcribe_cpp::init_backends_with(None::<&Path>, transcribe_cpp::BackendMask::CPU).unwrap();
     let models = Path::new(&std::env::var("HOME").unwrap())
-        .join("Library/Caches/handy-meetings/diarize-models");
+        .join("Library/Caches/sokki/diarize-models");
     let Some(fx) = Fixture::load("phone_speaker").unwrap() else {
         return;
     };

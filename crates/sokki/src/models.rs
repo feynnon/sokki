@@ -16,7 +16,7 @@ pub struct File {
     pub size: u64,
 }
 
-/// Parakeet TDT 0.6B v3, Q8_0 (Handy's catalog quant): speech to text in 25
+/// Parakeet TDT 0.6B v3, Q8_0 (the catalog's quant): speech to text in 25
 /// European languages.
 pub const PARAKEET: File = File {
     path: "parakeet-tdt-0.6b-v3-Q8_0.gguf",

@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     }
     let minutes = samples.len() as f64 / 16_000.0 / 60.0;
     let models =
-        Path::new(&std::env::var("HOME")?).join("Library/Caches/handy-meetings/diarize-models");
+        Path::new(&std::env::var("HOME")?).join("Library/Caches/sokki/diarize-models");
     let presets = [
         ("very_high", Some(SortformerPreset::VeryHighLatency)),
         ("high", Some(SortformerPreset::HighLatency)),

@@ -10,7 +10,11 @@
 set -euo pipefail
 
 GH_REPO="feynnon/sokki"
-INDEX="$HOME/Library/Application Support/dev.handymeetings.app/meetings/index.json"
+# The installed app's bundle id and binary, so this works before and after an
+# update that renamed them.
+INSTALLED_PLIST="/Applications/Sokki.app/Contents/Info.plist"
+APP_ID="$(defaults read "$INSTALLED_PLIST" CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
+INDEX="$HOME/Library/Application Support/$APP_ID/meetings/index.json"
 VERSION="${1:-$(gh release view -R "$GH_REPO" --json tagName -q .tagName | sed 's/^v//')}"
 ZIP="Sokki-$VERSION-arm64.zip"
 WORK="$(mktemp -d)"
@@ -35,9 +39,9 @@ while (( quiet < 3 )); do
 done
 busy && { echo "A meeting started just now; try again later." >&2; exit 1; }
 
-osascript -e 'tell application id "dev.handymeetings.app" to quit' 2>/dev/null || true
-for _ in $(seq 1 40); do pgrep -f "/Applications/Sokki.app/Contents/MacOS/handy" >/dev/null || break; sleep 0.5; done
-if pgrep -f "/Applications/Sokki.app/Contents/MacOS/handy" >/dev/null; then
+osascript -e "tell application id \"$APP_ID\" to quit" 2>/dev/null || true
+for _ in $(seq 1 40); do pgrep -f "/Applications/Sokki.app/Contents/MacOS/" >/dev/null || break; sleep 0.5; done
+if pgrep -f "/Applications/Sokki.app/Contents/MacOS/" >/dev/null; then
   echo "Sokki didn't quit; nothing replaced." >&2
   exit 1
 fi

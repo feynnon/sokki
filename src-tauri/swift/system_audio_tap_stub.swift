@@ -4,25 +4,25 @@
 
 import Foundation
 
-@_cdecl("handy_tap_supported")
-public func handy_tap_supported() -> Bool {
+@_cdecl("sokki_tap_supported")
+public func sokki_tap_supported() -> Bool {
     return false
 }
 
-@_cdecl("handy_tap_start")
-public func handy_tap_start(
+@_cdecl("sokki_tap_start")
+public func sokki_tap_start(
     _ callback: @escaping @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<Float>?, Int, UInt32, Double) -> Void,
     _ user: UnsafeMutableRawPointer?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> UnsafeMutableRawPointer? {
-    outError?.pointee = strdup("System audio capture was not built into this Handy binary.")
+    outError?.pointee = strdup("System audio capture was not built into this Sokki binary.")
     return nil
 }
 
-@_cdecl("handy_tap_stop")
-public func handy_tap_stop(_ handle: UnsafeMutableRawPointer?) {}
+@_cdecl("sokki_tap_stop")
+public func sokki_tap_stop(_ handle: UnsafeMutableRawPointer?) {}
 
-@_cdecl("handy_tap_free_error")
-public func handy_tap_free_error(_ error: UnsafeMutablePointer<CChar>?) {
+@_cdecl("sokki_tap_free_error")
+public func sokki_tap_free_error(_ error: UnsafeMutablePointer<CChar>?) {
     free(error)
 }

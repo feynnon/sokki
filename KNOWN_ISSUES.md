@@ -58,10 +58,10 @@ Status: open unless marked.
 
 | # | Problem | Fix idea |
 |---|---|---|
-| X1 | The real recording flow in the app (mic + system tap → processing with Handy's engine → note) has not run yet | first real meeting |
+| X1 | The real recording flow in the app (mic + system tap → processing with the dictation engine → note) has not run yet | first real meeting |
 | X2 | Diarization models download during the first meeting's processing, no progress shown; offline → no speakers (warning) | download on first start with progress |
 | X3 | Quitting the app while a meeting is processing may crash at exit (ggml-metal assert) | wait for processing on quit |
-| X4 | Same icon as Handy; both apps use ⌥Space for dictation | own icon; quit Handy |
+| X4 | Same icon as the upstream app; both use ⌥Space for dictation | own icon; quit the upstream app |
 | X5 | Meeting detection: several bundle IDs unverified; voice messages / browser voice search can trigger a prompt; uses a private API | real tests, cooldown |
 | X6 | Apple Intelligence is a stub (Command Line Tools only) | install Xcode if wanted |
 | X7 | Processing starts only after the meeting ends (21-min call: ready ~3 min after stopping) | live transcription measured and rejected, see F3 |
@@ -79,7 +79,7 @@ Status: open unless marked.
 | R6 | Dictation failed ("Failed to create SileroVad … init_backends_with: status 8") after a meeting was processed: Sortformer registered GPU backends in the app process | **fixed**: CPU-only registration before loading the diarizer (2.5 s per audio minute) |
 | R7 | Ghost speakers: 2–7 words as "Speaker 4/5/6" in a 3-person call | **fixed**: tiny clusters are merged into the nearest speaker |
 | R8 | ASR garbage on muffled call audio ("anoň Yeah", "Stavbe se Besser"); jargon misheard ("Kelasur" → "Colazur", "Claude Code" → "Cloud Code") | partly: LLM correction with glossary; garbage in other languages still open |
-| R9 | Every install asked for all permissions again (ad-hoc signature changes per build) | **fixed**: builds are signed with the self-signed certificate "Handy Meetings Dev" (`scripts/build-and-install.sh`); verified that permissions survive a reinstall |
+| R9 | Every install asked for all permissions again (ad-hoc signature changes per build) | **fixed**: builds are signed with the self-signed certificate "Sokki Dev" (`scripts/build-and-install.sh`); verified that permissions survive a reinstall |
 | R10 | LLM correction on a real call made wrong, meaning-changing edits: "Nuxa" → "Nardum" (glossary name), "Whatever Tool" → "Claude Code", "schweiß" → "schreiben", syllables dropped; fixed only 1 of 6 "Cloud Code" | **fixed** by stricter rules (names used ≥3× are protected, glossary terms must sound alike, no shortening, confirmed glossary fixes applied everywhere); synthetic eval with glossary now 2 right / 0 wrong / 0 harmful. Watch on the next real calls |
 | R11 | Garbage in other languages from muffled call audio ("anoň", "Stavbe se") is not removed | open. Findings: the garbage sits inside otherwise good lines, so dropping whole lines by language doesn't help; per-word ASR confidence is too weak a signal (good words 0.70–0.85, garbage 0.80); the same audio transcribed with more context comes out clean ("Ja." instead of "anoň Yeah"). Tried: transcribing 25 s windows across turns with word times (`PipelineConfig::window_s`): phone_speaker WER 17.6% → 15.3%, but de_en_mixed 3.8% → 31.2% (a window holding both languages comes out in one). Off by default. Next: windows of one speaker's nearby turns only |
 | R13 | **Memory runaway, 51 GB**: propagating a confirmed glossary fix searched from the line start again after each replacement; when the fix contains the misheard words ("Account" → "OVDA-Account") it looped forever, growing the line and the corrections list | **fixed** (search continues after the replacement, regression test). Safety net: memory guard (`meeting/memguard.rs`) stops the app above 6 GB while a meeting processes and marks the meeting failed without retrying it |

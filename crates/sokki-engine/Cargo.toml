@@ -8,7 +8,7 @@ description = "Sokki's engine: one recorded meeting in, one note out; the meetin
 [features]
 default = []
 # A local speech recogniser (Parakeet through transcribe.cpp) for hosts that
-# do not bring their own engine. The macOS app uses Handy's engine instead.
+# do not bring their own engine. The macOS app uses Sokki's engine instead.
 asr = ["dep:transcribe-cpp"]
 
 [dependencies]

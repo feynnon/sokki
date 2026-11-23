@@ -204,7 +204,7 @@ fn real_pipeline_on_all_fixtures() {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| {
             std::path::Path::new(&std::env::var("HOME").unwrap())
-                .join("Library/Caches/handy-meetings/diarize-models")
+                .join("Library/Caches/sokki/diarize-models")
         });
     let live = std::env::var("MEETING_LIVE_LLM").is_ok_and(|v| v == "1");
     let mut failures = Vec::new();

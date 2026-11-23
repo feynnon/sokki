@@ -1,6 +1,6 @@
 //! A local speech recogniser: Parakeet v3 (or any transcribe.cpp model)
 //! loaded once and kept in memory. For hosts without their own engine (the
-//! Linux service); the macOS app uses Handy's engine.
+//! Linux service); the macOS app uses Sokki's engine.
 
 use anyhow::{anyhow, bail, Result};
 use meeting_core::{TimedWord, Transcriber, SAMPLE_RATE};

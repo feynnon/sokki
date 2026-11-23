@@ -170,14 +170,14 @@ impl HistoryManager {
         Ok(())
     }
 
-    /// Bring the schema up to date. A newer Handy's database opens as is:
+    /// Bring the schema up to date. A newer Sokki's database opens as is:
     /// migrations only add columns, and every query names its columns.
     fn apply_migrations(conn: &mut Connection) -> Result<()> {
         match Migrations::new(MIGRATIONS.to_vec()).to_latest(conn) {
             Err(rusqlite_migration::Error::MigrationDefinition(
                 MigrationDefinitionError::DatabaseTooFarAhead,
             )) => {
-                warn!("history.db is from a newer version of Handy; opening it without migrating")
+                warn!("history.db is from a newer version of Sokki; opening it without migrating")
             }
             other => other?,
         }
@@ -792,7 +792,7 @@ mod tests {
                 post_process_requested
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
-                format!("handy-{}.wav", timestamp),
+                format!("sokki-{}.wav", timestamp),
                 timestamp,
                 false,
                 format!("Recording {}", timestamp),
@@ -825,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn a_database_from_a_newer_handy_still_opens() {
+    fn a_database_from_a_newer_sokki_still_opens() {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
         HistoryManager::apply_migrations(&mut conn).expect("migrate");
         conn.execute(
@@ -906,7 +906,7 @@ mod tests {
         insert_entry(&conn, 100, "dictated", None);
         conn.execute(
             "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text, source_name)
-             VALUES ('handy-file-1.wav', 200, 1, 'file', 'from a file', 'talk.mp3')",
+             VALUES ('sokki-file-1.wav', 200, 1, 'file', 'from a file', 'talk.mp3')",
             [],
         )
         .expect("insert file entry");

@@ -329,7 +329,7 @@ const SAFARI_INDEX: usize = KNOWN_APPS.len() - 1;
 /// on the client itself and on its responsible process.
 const EXCLUDED_BUNDLE_IDS: &[&str] = &[
     "com.pais.handy",                  // Handy
-    "com.kole.lark",                   // Lark (Handy fork)
+    "com.kole.lark",                   // Lark
     "com.superduper.superwhisper",     // superwhisper
     "com.electron.wispr-flow",         // Wispr Flow
     "com.goodsnooze.MacWhisper",       // MacWhisper
@@ -348,7 +348,7 @@ const EXCLUDED_PATHS: &[&str] = &[
 
 /// Bundle-id / path markers of WebKit's out-of-process helpers. They serve
 /// Safari but also every app that embeds a WKWebView (including Tauri apps
-/// such as Handy), so they are attributed via the responsible process.
+/// such as Sokki), so they are attributed via the responsible process.
 const WEBKIT_BUNDLE_PREFIX: &str = "com.apple.webkit.";
 const WEBKIT_PATH_MARKER: &str = "/com.apple.webkit.";
 
@@ -495,6 +495,7 @@ mod tests {
     const WEBKIT_WEBCONTENT: &str = "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent";
     const SAFARI: &str = "/Applications/Safari.app/Contents/MacOS/Safari";
     const HANDY: &str = "/Applications/Handy.app/Contents/MacOS/handy";
+    const SOKKI: &str = "/Applications/Sokki.app/Contents/MacOS/sokki";
 
     #[test]
     fn zoom_native_by_bundle_id() {
@@ -560,7 +561,7 @@ mod tests {
 
     #[test]
     fn webkit_helper_owned_by_own_process_is_ignored() {
-        let client = c(300, None, Some(WEBKIT_GPU)).with_responsible(OWN, Some(HANDY));
+        let client = c(300, None, Some(WEBKIT_GPU)).with_responsible(OWN, Some(SOKKI));
         assert_eq!(classify(&[client], OWN), None);
     }
 

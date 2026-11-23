@@ -2,7 +2,7 @@
 //! [`sokki_engine::live`]: both FLAC writers hand their samples to one
 //! [`LiveSession`] as they write them, resampled to 16 kHz exactly as
 //! decoding the files will do it, and the pieces go to processing at the
-//! stop. The transcriber is Handy's engine, which yields to dictation.
+//! stop. The transcriber is Sokki's engine, which yields to dictation.
 
 use meeting_core::live::CutConfig;
 use meeting_core::TrackKind;

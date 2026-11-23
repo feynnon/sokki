@@ -87,24 +87,8 @@ export const getSupportedLanguage = (
 
 // Initialize i18n with English as default
 // Language will be synced from settings after init
-// Sokki build: Handy's texts name the app; show Sokki instead.
-if (import.meta.env.VITE_HANDY_BRAND === "sokki") {
-  i18n.use({
-    type: "postProcessor",
-    name: "brand",
-    process: (value: string, key: string | string[]) => {
-      const k = Array.isArray(key) ? key[0] : key;
-      return k === "sokki.settings.basedOn"
-        ? value
-        : value.replace(/\bHandy\b/g, "Sokki");
-    },
-  });
-}
-
 i18n.use(initReactI18next).init({
   resources,
-  postProcess:
-    import.meta.env.VITE_HANDY_BRAND === "sokki" ? ["brand"] : undefined,
   lng: "en",
   fallbackLng: "en",
   interpolation: {

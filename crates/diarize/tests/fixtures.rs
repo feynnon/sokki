@@ -1,6 +1,6 @@
 //! Runs the real engines on the synthetic meeting fixtures
 //! (`testdata/generate.py`). Models are downloaded on first run into
-//! `~/Library/Caches/handy-meetings/diarize-models` (override with
+//! `~/Library/Caches/sokki/diarize-models` (override with
 //! `DIARIZE_MODELS_DIR`). Fixtures are read from `MEETING_TESTDATA`
 //! (default: the main checkout's `testdata/audio`); tests skip with a
 //! message when they are missing.

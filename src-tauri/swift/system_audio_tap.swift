@@ -1,6 +1,6 @@
 // System-audio capture for meeting recording, via Core Audio process taps
 // (macOS 14.2+). Captures everything the default output plays, except this
-// process, so Handy's own feedback sounds are not recorded.
+// process, so Sokki's own feedback sounds are not recorded.
 //
 // Requires the "System Audio Recording" TCC permission, prompted through
 // NSAudioCaptureUsageDescription in Info.plist.
@@ -40,7 +40,7 @@ private enum TapError: Error, CustomStringConvertible {
         case .noOutputDevice:
             return "No default output device is available."
         case .noSelfProcessObject:
-            return "Could not find Handy's audio process object."
+            return "Could not find Sokki's audio process object."
         }
     }
 }
@@ -73,7 +73,7 @@ private final class SystemTap {
         let selfProcess = try Self.processObjectForCurrentPID()
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [selfProcess])
         description.uuid = UUID()
-        description.name = "Handy system audio"
+        description.name = "Sokki system audio"
         description.isPrivate = true
         // muteBehavior defaults to unmuted: the user still hears the audio.
 
@@ -92,7 +92,7 @@ private final class SystemTap {
         let outputUID = try Self.defaultOutputUID()
         let tapUID = description.uuid.uuidString
         let aggregateDescription: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Handy System Audio",
+            kAudioAggregateDeviceNameKey: "Sokki System Audio",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
@@ -205,7 +205,7 @@ private final class SystemTap {
             &size,
             &object
         )
-        try checkStatus(status, "Looking up Handy's audio process")
+        try checkStatus(status, "Looking up Sokki's audio process")
         guard object != unknownObject else { throw TapError.noSelfProcessObject }
         return object
     }
@@ -250,16 +250,16 @@ private final class SystemTap {
 
 // MARK: - C ABI
 
-@_cdecl("handy_tap_supported")
-public func handy_tap_supported() -> Bool {
+@_cdecl("sokki_tap_supported")
+public func sokki_tap_supported() -> Bool {
     if #available(macOS 14.2, *) {
         return true
     }
     return false
 }
 
-@_cdecl("handy_tap_start")
-public func handy_tap_start(
+@_cdecl("sokki_tap_start")
+public func sokki_tap_start(
     _ callback: @escaping @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<Float>?, Int, UInt32, Double) -> Void,
     _ user: UnsafeMutableRawPointer?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
@@ -279,14 +279,14 @@ public func handy_tap_start(
     return Unmanaged.passRetained(tap).toOpaque()
 }
 
-@_cdecl("handy_tap_stop")
-public func handy_tap_stop(_ handle: UnsafeMutableRawPointer?) {
+@_cdecl("sokki_tap_stop")
+public func sokki_tap_stop(_ handle: UnsafeMutableRawPointer?) {
     guard #available(macOS 14.2, *), let handle else { return }
     let tap = Unmanaged<SystemTap>.fromOpaque(handle).takeRetainedValue()
     tap.stop()
 }
 
-@_cdecl("handy_tap_free_error")
-public func handy_tap_free_error(_ error: UnsafeMutablePointer<CChar>?) {
+@_cdecl("sokki_tap_free_error")
+public func sokki_tap_free_error(_ error: UnsafeMutablePointer<CChar>?) {
     free(error)
 }

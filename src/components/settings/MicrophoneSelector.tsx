@@ -4,7 +4,6 @@ import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ResetButton } from "../ui/ResetButton";
 import { useSettings } from "../../hooks/useSettings";
-import { IS_SOKKI } from "@/lib/brand";
 
 interface MicrophoneSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -81,13 +80,7 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
         descriptionMode={descriptionMode}
         grouped={grouped}
       >
-        <div
-          className={
-            IS_SOKKI
-              ? "flex flex-row-reverse items-center gap-1"
-              : "flex items-center space-x-1"
-          }
-        >
+        <div className={"flex flex-row-reverse items-center gap-1"}>
           <MicrophoneDropdown />
           <ResetButton
             ariaLabel={t("common.resetSetting", {
@@ -96,9 +89,7 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
             onClick={handleReset}
             disabled={isUpdating("selected_microphone") || isLoading}
             className={
-              IS_SOKKI
-                ? "text-ink-3 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
-                : ""
+              "text-ink-3 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
             }
           />
         </div>

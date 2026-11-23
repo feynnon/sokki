@@ -3,7 +3,7 @@
 //! → summarize (optional) → write the Markdown note → apply audio retention.
 //!
 //! The steps themselves are `sokki_engine::run`, shared with the Linux
-//! service; this file supplies Handy's transcription engine, the GPU
+//! service; this file supplies Sokki's transcription engine, the GPU
 //! diarizer worker and voice profiles, and reports progress to the meeting
 //! store and the menu bar.
 
@@ -531,7 +531,7 @@ fn notify_done(_app: &AppHandle, note_path: &std::path::Path) {
 
 // ------------------------------------------------------------- transcriber
 
-/// Handy's engine, chunked, yielding to dictation between chunks.
+/// Sokki's engine, chunked, yielding to dictation between chunks.
 pub(super) struct EngineTranscriber {
     app: AppHandle,
     tm: Arc<TranscriptionManager>,

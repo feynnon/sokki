@@ -1,6 +1,6 @@
 #!/bin/bash
 # End-to-end dictation test without a person, in a separate test app
-# ("Sokki Test", dev.handymeetings.test) next to Robin's Sokki, which it never
+# ("Sokki Test", org.sokki.test) next to Robin's Sokki, which it never
 # touches. Test mode (src-tauri/src/test_mic.rs): the microphone plays a WAV,
 # nothing is pasted, no shortcuts, no permission resets. The script starts a
 # dictation, stops it, and prints what the log says (live text, timings, the
@@ -20,12 +20,14 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-ID=dev.handymeetings.test
+ID=org.sokki.test
 NAME="Sokki Test"
-TESTAPP="$HOME/Applications/$NAME.app"
+TESTAPP="${TESTAPP:-$HOME/Applications/$NAME.app}"
 DATA="$HOME/Library/Application Support/$ID"
-LOG="$HOME/Library/Logs/$ID/handy.log"
-SOKKI_SETTINGS="$HOME/Library/Application Support/dev.handymeetings.app/settings_store.json"
+LOG="$HOME/Library/Logs/$ID/sokki.log"
+# Robin's settings: under the installed Sokki's bundle id.
+REAL_ID="$(defaults read /Applications/Sokki.app/Contents/Info.plist CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
+SOKKI_SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/$REAL_ID/settings_store.json}"
 # Quits the test app if it runs, and only the test app (matched by its own
 # path). No AppleScript: on 2026-11-19 a Sokki Test without test mode showed
 # setup and macOS's permission window 4 s after this script sent `tell
@@ -42,10 +44,10 @@ quit_test_app() {
 
 if [[ "${1:-}" == "--build" ]]; then
   export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
-  export CMAKE_POLICY_VERSION_MINIMUM=3.5 HANDY_BRAND=sokki VITE_HANDY_BRAND=sokki SOKKI_DEV_BUILD=1
+  export CMAKE_POLICY_VERSION_MINIMUM=3.5 SOKKI_DEV_BUILD=1
   # Sign like the real app: an ad hoc signature changes with every build, so
   # macOS treats each build as a new app and would ask for permissions again.
-  IDENTITY="Handy Meetings Dev"
+  IDENTITY="Sokki Dev"
   if security find-identity -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
     export APPLE_SIGNING_IDENTITY="$IDENTITY"
   else
@@ -92,20 +94,20 @@ jq --arg overlay "${OVERLAY:-live}" '.settings.onboarding_completed = true
   | .settings.meetings.phone_link_enabled = false' "$SOKKI_SETTINGS" > "$DATA/settings_store.json"
 
 # Never start a build that could still reset a macOS permission.
-if strings "$TESTAPP/Contents/MacOS/handy" | grep -q /usr/bin/tccutil; then
+if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
   echo "The test app still contains tccutil; rebuild it from current meetings." >&2
   exit 1
 fi
 # Never start an ad hoc build: older ones open macOS's permission window.
 if codesign -dv "$TESTAPP" 2>&1 | grep -q "Signature=adhoc" \
-  && security find-identity -p codesigning 2>/dev/null | grep -q '"Handy Meetings Dev"'; then
+  && security find-identity -p codesigning 2>/dev/null | grep -q '"Sokki Dev"'; then
   echo "The test app is signed ad hoc; rebuild it: scripts/test-dictation.sh --build" >&2
   exit 1
 fi
 
 LLM_ENV=()
 if [[ -n "${SOKKI_TEST_LLM:-}" ]]; then
-  MODEL="$HOME/Library/Application Support/dev.handymeetings.app/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
+  MODEL="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
   [[ -f "$MODEL" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
   mkdir -p "$DATA/meeting-models/llm"
   [[ -f "$DATA/meeting-models/llm/$(basename "$MODEL")" ]] || ln "$MODEL" "$DATA/meeting-models/llm/"

@@ -23,13 +23,13 @@ pub fn testdata_dir() -> PathBuf {
 }
 
 /// Models cache for tests: `DIARIZE_MODELS_DIR`, else
-/// `~/Library/Caches/handy-meetings/diarize-models`.
+/// `~/Library/Caches/sokki/diarize-models`.
 pub fn models_dir() -> PathBuf {
     if let Some(d) = std::env::var_os("DIARIZE_MODELS_DIR") {
         return PathBuf::from(d);
     }
     let home = std::env::var_os("HOME").expect("HOME not set");
-    PathBuf::from(home).join("Library/Caches/handy-meetings/diarize-models")
+    PathBuf::from(home).join("Library/Caches/sokki/diarize-models")
 }
 
 #[derive(Debug, Clone, Deserialize)]

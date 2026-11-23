@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IS_SOKKI } from "@/lib/brand";
 
 export interface DropdownOption {
   value: string;
@@ -91,7 +90,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       <button
         type="button"
         ref={triggerRef}
-        className={`${IS_SOKKI ? "h-[var(--vb-control-h)] px-3 text-[13px] font-medium bg-wash border border-line rounded-[8px] min-w-[var(--vb-control-w)]" : "px-2 py-[5px] text-sm font-semibold bg-wash border border-line-strong rounded-md min-w-[200px]"} w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-all duration-150 ${
+        className={`${"h-[var(--vb-control-h)] px-3 text-[13px] font-medium bg-wash border border-line rounded-[8px] min-w-[var(--vb-control-w)]"} w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-all duration-150 ${
           disabled
             ? "opacity-50 cursor-not-allowed"
             : `${hover} cursor-pointer ${tone === "neutral" ? "hover:border-ink-3" : "hover:border-logo-primary"}`

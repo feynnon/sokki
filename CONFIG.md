@@ -1,9 +1,9 @@
 # Configuration
 
-All settings of Handy Meetings live in **one JSON file**:
+All settings of Sokki live in **one JSON file**:
 
 ```
-~/Library/Application Support/dev.handymeetings.app/settings_store.json
+~/Library/Application Support/org.sokki.app/settings_store.json
 ```
 
 Shape: `{"settings": { …keys below… }}`. Edit it with any tool — the app
@@ -15,17 +15,17 @@ without touching the other settings.
 
 ## For Claude
 
-- Read: `jq .settings "~/Library/Application Support/dev.handymeetings.app/settings_store.json"`
+- Read: `jq .settings "~/Library/Application Support/org.sokki.app/settings_store.json"`
 - Change one value, keeping everything else, e.g. the notes folder:
 
   ```sh
-  F="$HOME/Library/Application Support/dev.handymeetings.app/settings_store.json"
+  F="$HOME/Library/Application Support/org.sokki.app/settings_store.json"
   jq --arg d "$HOME/Notes/Meetings" '.settings.meetings.notes_dir = $d' "$F" > "$F.tmp" && mv "$F.tmp" "$F"
   ```
 
 - Write the whole file atomically (temp file + `mv`) so the app never reads
   a half-written file.
-- Check the log after a change: `~/Library/Logs/dev.handymeetings.app/handy.log`
+- Check the log after a change: `~/Library/Logs/org.sokki.app/sokki.log`
   shows "Applied settings edited outside the app".
 - Keys and values must match the tables below; enum values are listed
   exactly as stored.
@@ -36,7 +36,7 @@ Most useful keys:
 
 | What | Key |
 |---|---|
-| Notes folder | `meetings.notes_dir` (string path, `null` = `~/Documents/Sokki`; existing installs keep `~/Documents/Handy Meetings`) |
+| Notes folder | `meetings.notes_dir` (string path, `null` = `~/Documents/Sokki`; existing installs from before schema 5 keep `~/Documents/Handy Meetings`) |
 | Your name in transcripts | `meetings.user_name` |
 | Language model | `meetings.llm_provider` (`local`, `anthropic`, `openai`, `openrouter`), `meetings.llm_model` (local), `meetings.cloud_model` |
 | Keep audio | `meetings.keep_audio_days` |
@@ -50,7 +50,7 @@ Most useful keys:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `meetings.notes_dir` | `Option<String>` | `null` | Folder the Markdown notes are written to. `None`: ~/Documents/Sokki (~/Documents/Handy Meetings in the Handy build). |
+| `meetings.notes_dir` | `Option<String>` | `null` | Folder the Markdown notes are written to. `None`: ~/Documents/Sokki. |
 | `meetings.user_name` | `String` | `"Ich"` | How the user is named in transcripts (the main voice on the microphone). |
 | `meetings.diarization_enabled` | `bool` | `true` | Separate speakers within each track. |
 | `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude Code"]. The summary prompt lists them, so the summary spells them right where the transcript has a misheard form ("Cloud Code"). The transcript itself stays as recognised. The dictation `custom_words` are added automatically. |
@@ -126,7 +126,7 @@ Most useful keys:
 | `experimental_enabled` | `bool` | `false` | Show experimental features. |
 | `lazy_stream_close` | `bool` | `false` | Keep the live stream open briefly after dictation (faster consecutive dictations). |
 | `airpods_mode` | `bool` | `false` | Experimental, macOS only: move a Bluetooth headset (AirPods) to this Mac while recording, so its microphone does not return silence while another Apple device is playing through it. |
-| `keyboard_implementation` | `KeyboardImplementation` | `"handy_keys"` | Shortcut backend: `tauri`, `handy_keys` or `none` (restart after editing). |
+| `keyboard_implementation` | `KeyboardImplementation` | `"native_keys"` | Shortcut backend: `tauri`, `native_keys` or `none` (restart after editing). |
 | `show_tray_icon` | `bool` | `true` | Show the menu bar icon (needed for the meeting status). |
 | `paste_delay_ms` | `u64` | `60` | Wait before pasting, ms. |
 | `paste_delay_after_ms` | `u64` | `60` | Wait after pasting before restoring the clipboard, ms. |

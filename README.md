@@ -85,7 +85,6 @@ git clone https://github.com/feynnon/sokki.git
 cd sokki
 bun install
 scripts/build-and-install.sh            # builds Sokki and installs it to /Applications
-BRAND=handy scripts/build-and-install.sh  # the same app with Handy's look
 ```
 
 [MEETINGS.md](MEETINGS.md) explains the meeting pipeline, the code layout and the test harness; [CONFIG.md](CONFIG.md) lists every setting. The meeting code lives in `crates/` (platform-independent Rust) and `src-tauri/src/meeting/`.

@@ -133,7 +133,7 @@ fn builtin_model_present() -> bool {
         .is_some_and(|m| m.len() == BUILTIN_MODEL.size)
 }
 
-/// Provider ids that can summarise in the cloud, as in Handy's provider list.
+/// Provider ids that can summarise in the cloud, as in Sokki's provider list.
 pub const CLOUD_PROVIDERS: [&str; 3] = ["anthropic", "openai", "openrouter"];
 
 /// Model used when `cloud_model` is empty.

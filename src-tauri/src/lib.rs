@@ -17,6 +17,7 @@ pub mod engine_supervisor;
 mod helpers;
 mod input;
 mod language_detection;
+mod legacy_data;
 mod languages;
 mod llm_client;
 mod managers;
@@ -52,10 +53,10 @@ pub use cli::CliArgs;
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, collect_events, Builder};
 #[cfg(target_os = "linux")]
-pub use utils::apply_handy_gdk_backend;
+pub use utils::apply_sokki_gdk_backend;
 pub use utils::env_flag_enabled;
 #[cfg(target_os = "linux")]
-pub use utils::{disable_gamescope_wsi_layer, gamescope_wsi_disabled_by_handy};
+pub use utils::{disable_gamescope_wsi_layer, gamescope_wsi_disabled_by_sokki};
 
 use env_filter::Builder as EnvFilterBuilder;
 use managers::audio::AudioRecordingManager;
@@ -263,7 +264,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             Err(e) => {
                 log::error!("Meeting store unavailable ({e:#}); using a temporary one");
-                let tmp = std::env::temp_dir().join("handy-meetings");
+                let tmp = std::env::temp_dir().join("sokki");
                 app_handle.manage(Arc::new(
                     meeting::store::MeetingStore::open(&tmp).expect("temporary meeting store"),
                 ));
@@ -740,9 +741,9 @@ pub fn run(cli_args: CliArgs) {
     // Avoid ggml-metal residency-set teardown assertions when a native engine
     // outlives the Tauri shutdown sequence (#1902). This must happen before
     // transcribe-cpp initializes its Metal device. Advanced users can restore
-    // upstream residency behavior with HANDY_METAL_RESIDENCY=1.
+    // upstream residency behavior with SOKKI_METAL_RESIDENCY=1.
     #[cfg(target_os = "macos")]
-    if std::env::var("HANDY_METAL_RESIDENCY").as_deref() == Ok("1") {
+    if std::env::var("SOKKI_METAL_RESIDENCY").as_deref() == Ok("1") {
         // ggml treats GGML_METAL_NO_RESIDENCY as presence-based, so remove an
         // inherited value as well when explicitly opting back in.
         std::env::remove_var("GGML_METAL_NO_RESIDENCY");
@@ -757,6 +758,11 @@ pub fn run(cli_args: CliArgs) {
 
     // Detect portable mode before anything else
     portable::init();
+
+    // Before anything opens the data folder: carry it over from the old
+    // bundle id (legacy_data.rs).
+    let context = tauri::generate_context!();
+    legacy_data::migrate(&context.config().identifier);
 
     // Parse console logging directives from RUST_LOG, falling back to info-level logging
     // when the variable is unset
@@ -827,8 +833,8 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_transcribe_accelerator_setting,
             shortcut::change_transcribe_gpu_device,
             shortcut::get_available_accelerators,
-            shortcut::handy_keys::start_handy_keys_recording,
-            shortcut::handy_keys::stop_handy_keys_recording,
+            shortcut::native_keys::start_native_keys_recording,
+            shortcut::native_keys::stop_native_keys_recording,
             secure_input::get_secure_input_status,
             secure_input::run_keyboard_diagnostic,
             trigger_update_check,
@@ -1016,11 +1022,11 @@ pub fn run(cli_args: CliArgs) {
                     Target::new(if let Some(data_dir) = portable::data_dir() {
                         TargetKind::Folder {
                             path: data_dir.join("logs"),
-                            file_name: Some("handy".into()),
+                            file_name: Some("sokki".into()),
                         }
                     } else {
                         TargetKind::LogDir {
-                            file_name: Some("handy".into()),
+                            file_name: Some("sokki".into()),
                         }
                     })
                     .filter(|metadata| {
@@ -1045,7 +1051,7 @@ pub fn run(cli_args: CliArgs) {
         builder = builder.plugin(tauri_nspanel::init());
     }
 
-    // Single-instance forwards CLI args to an already-running Handy and exits.
+    // Single-instance forwards CLI args to an already-running Sokki and exits.
     // That would make the headless path
     // (--transcribe-file/--list-devices/--list-models) a silent no-op whenever the
     // app is already open, so skip it in headless mode and run a standalone
@@ -1109,28 +1115,31 @@ pub fn run(cli_args: CliArgs) {
             // The test copy only ever runs in test mode: started normally it
             // would show setup and macOS's permission windows on the
             // developer's screen.
-            if app.config().identifier == "dev.handymeetings.test" && !test_mic::active() {
+            if app.config().identifier == "org.sokki.test" && !test_mic::active() {
                 log::warn!("Sokki Test starts only in test mode (SOKKI_TEST_MIC); quitting");
                 std::process::exit(0);
             }
+            if let Some(outcome) = legacy_data::outcome() {
+                log::info!("Data folder: {outcome}");
+            }
             #[cfg(target_os = "windows")]
             log::info!(
-                "Vulkan layer policy: VK_LOADER_LAYERS_DISABLE={:?}, HANDY_KEEP_VULKAN_IMPLICIT_LAYERS={}",
+                "Vulkan layer policy: VK_LOADER_LAYERS_DISABLE={:?}, SOKKI_KEEP_VULKAN_IMPLICIT_LAYERS={}",
                 std::env::var_os("VK_LOADER_LAYERS_DISABLE"),
-                utils::env_flag_enabled("HANDY_KEEP_VULKAN_IMPLICIT_LAYERS"),
+                utils::env_flag_enabled("SOKKI_KEEP_VULKAN_IMPLICIT_LAYERS"),
             );
             #[cfg(target_os = "linux")]
             log::info!(
-                "GTK backend: GDK_BACKEND={:?}, HANDY_GDK_BACKEND={:?} (applied: {})",
+                "GTK backend: GDK_BACKEND={:?}, SOKKI_GDK_BACKEND={:?} (applied: {})",
                 std::env::var_os("GDK_BACKEND"),
-                std::env::var_os("HANDY_GDK_BACKEND"),
-                std::env::var("HANDY_GDK_BACKEND").is_ok_and(|v| !v.trim().is_empty()),
+                std::env::var_os("SOKKI_GDK_BACKEND"),
+                std::env::var("SOKKI_GDK_BACKEND").is_ok_and(|v| !v.trim().is_empty()),
             );
             #[cfg(target_os = "linux")]
             log::info!(
-                "Gamescope WSI layer policy: DISABLE_GAMESCOPE_WSI={:?} (set by Handy: {})",
+                "Gamescope WSI layer policy: DISABLE_GAMESCOPE_WSI={:?} (set by Sokki: {})",
                 std::env::var_os("DISABLE_GAMESCOPE_WSI"),
-                utils::gamescope_wsi_disabled_by_handy(),
+                utils::gamescope_wsi_disabled_by_sokki(),
             );
             system_languages::log_system_languages();
 
@@ -1179,11 +1188,7 @@ pub fn run(cli_args: CliArgs) {
             // Create main window programmatically so we can set data_directory
             // for portable mode (redirects WebView2 cache to portable Data dir)
             // Sokki's sidebar is wider; give the pages the same room.
-            let main_w = if crate::brand::is_sokki() {
-                utils::MAIN_WINDOW_SIZE.0 + 100.0
-            } else {
-                utils::MAIN_WINDOW_SIZE.0
-            };
+            let main_w = utils::MAIN_WINDOW_SIZE.0 + 100.0;
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title(crate::brand::app_name())
@@ -1356,7 +1361,7 @@ pub fn run(cli_args: CliArgs) {
             _ => {}
         })
         .invoke_handler(invoke_handler)
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application");
 
     // Must sit between build() and run(): see the doc comment.

@@ -15,7 +15,6 @@ import { Legend } from "./Legend";
 import { useModelEntries } from "./modelEntries";
 import { LanguageModels } from "./LanguageModels";
 import { useModelsTab } from "@/stores/modelsTabStore";
-import { IS_SOKKI } from "@/lib/brand";
 import { useSettings } from "@/hooks/useSettings";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { PreferredLanguages } from "../PreferredLanguages";
@@ -24,7 +23,7 @@ import { ChineseScriptSetting } from "../ChineseScript";
 /** Past this many models on disk, the rest fold under "Show N more". */
 const YOURS_LIMIT = 5;
 
-/** Look for model files added outside Handy: quiet, beside its section's name. */
+/** Look for model files added outside Sokki: quiet, beside its section's name. */
 const Rescan: React.FC = () => {
   const { t } = useTranslation();
   const rescanning = useModelStore((s) => s.isRescanning);
@@ -154,9 +153,7 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
         <div className="flex items-center gap-[16px]">
           <h1
             className={
-              IS_SOKKI
-                ? "font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]"
-                : "text-xl font-semibold"
+              "font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]"
             }
           >
             {t("settings.models.title")}
@@ -201,14 +198,14 @@ export const ModelsSettings: React.FC<ModelsSettingsProps> = ({
         <LanguageModels />
       ) : (
         <>
-          {IS_SOKKI && (
+          {
             <div className="mx-[12px] mb-[16px] flex-none vb-card divide-y divide-line">
               <PreferredLanguages descriptionMode="inline" grouped />
               {speaksChinese && (
                 <ChineseScriptSetting descriptionMode="inline" grouped />
               )}
             </div>
-          )}
+          }
           <div className="mx-[12px] mb-[16px] flex-none empty:hidden">
             <RetiredModelsNotice />
           </div>

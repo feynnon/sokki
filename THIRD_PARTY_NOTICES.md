@@ -14,6 +14,18 @@ released under the MIT License. Handy's copyright notice is kept in
 
 Both forks ship Handy's MIT License unchanged; its full text is in [`LICENSE`](LICENSE).
 
+## Vendored crates
+
+Three crates from the Handy project live in this repository under new names,
+so Sokki no longer depends on them from crates.io. Each keeps its license
+file unchanged.
+
+| Crate here | Origin | Changes | License |
+|---|---|---|---|
+| `crates/sokki-keys` | [handy-keys](https://github.com/handy-computer/handy-keys) 0.3.5 | Renamed; `to_handy_string` is `to_shortcut_string`; log and thread names | MIT, © 2026 handy-computer |
+| `crates/sokki-recorder` | [handy-recorder](https://github.com/handy-computer/handy-recorder) 0.1.1 | Renamed; uses `crates/sokki-cpal`; log and thread names | MIT, © 2026 handy-computer |
+| `crates/sokki-cpal` | [handy-cpal](https://github.com/handy-computer/cpal) 0.18.2, a fork of [cpal](https://github.com/RustAudio/cpal) | Package and library renamed (`Cargo.toml`), README replaced; code unchanged | Apache-2.0, © the cpal authors |
+
 ## Models
 
 Models are not part of this repository. Sokki downloads them on first use

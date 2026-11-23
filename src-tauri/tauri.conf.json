@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Handy Meetings",
+  "productName": "Sokki",
   "version": "0.10.1",
-  "identifier": "dev.handymeetings.app",
+  "identifier": "org.sokki.app",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -30,11 +30,11 @@
     "resources": ["resources/**/*"],
     "license": "MIT",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "brands/sokki/icons/32x32.png",
+      "brands/sokki/icons/128x128.png",
+      "brands/sokki/icons/128x128@2x.png",
+      "brands/sokki/icons/icon.icns",
+      "brands/sokki/icons/icon.ico"
     ],
     "macOS": {
       "files": {},
@@ -51,7 +51,7 @@
           "libssl3t64 | libssl3"
         ],
         "files": {
-          "/usr/lib/Handy": "transcribe-libs"
+          "/usr/lib/Sokki": "transcribe-libs"
         }
       },
       "rpm": {
@@ -63,7 +63,7 @@
           "type": "none"
         },
         "files": {
-          "/usr/lib/Handy": "transcribe-libs"
+          "/usr/lib/Sokki": "transcribe-libs"
         }
       },
       "appimage": {
@@ -74,18 +74,18 @@
       }
     },
     "windows": {
-      "signCommand": "trusted-signing-cli -e https://eus.codesigning.azure.net/ -a CJ-Signing -c cjpais-dev -d Handy %1",
+      "signCommand": "trusted-signing-cli -e https://eus.codesigning.azure.net/ -a CJ-Signing -c cjpais-dev -d Sokki %1",
       "nsis": {
         "template": "nsis/installer.nsi",
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "brands/sokki/icons/icon.ico"
       }
     }
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBQjcyMDk1MjA2NjAxRjkKUldUNUFXWWdsU0MzdXRRZi8zYzhqV2FaNUVDbDd2Rk5VM1IvWWowVXdmRFNKQ1BrMXF5RFFsLy8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwNEMyNkM5N0IwRTY1RjkKUldUNVpRNTd5U1pNNExqV2pFYXNyZXc5elU3d1VLd05XUC9VT1JJck8rT0J0Z3JJNmR4Myt3eXoK",
       "endpoints": [
-        "https://github.com/cjpais/Handy/releases/latest/download/latest.json"
+        "https://github.com/feynnon/sokki/releases/latest/download/latest.json"
       ]
     }
   }

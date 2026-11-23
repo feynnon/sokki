@@ -9,8 +9,13 @@
 # the same two commands. Install: ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
 set -euo pipefail
 
-APP_BIN="${SOKKI_APP_BIN:-/Applications/Sokki.app/Contents/MacOS/handy}"
-SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/dev.handymeetings.app/settings_store.json}"
+# The installed app's bundle id and binary, so this works before and after an
+# update that renamed them.
+INSTALLED_PLIST="/Applications/Sokki.app/Contents/Info.plist"
+APP_ID="$(defaults read "$INSTALLED_PLIST" CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
+APP_EXE="$(defaults read "$INSTALLED_PLIST" CFBundleExecutable 2>/dev/null || echo sokki)"
+APP_BIN="${SOKKI_APP_BIN:-/Applications/Sokki.app/Contents/MacOS/$APP_EXE}"
+SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/$APP_ID/settings_store.json}"
 
 usage() {
   sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'

@@ -12,7 +12,7 @@ default = ["sherpa", "sortformer"]
 # sherpa-onnx statically; its build script downloads the prebuilt static
 # libraries from the sherpa-onnx GitHub release at build time.
 sherpa = ["dep:sherpa-onnx", "download"]
-# NVIDIA Streaming Sortformer (GGUF) through transcribe-cpp, Handy's own engine
+# NVIDIA Streaming Sortformer (GGUF) through transcribe-cpp, Sokki's own engine
 # (ggml, Metal on Apple Silicon). Speaker embeddings for its turns need `sherpa`.
 sortformer = ["dep:transcribe-cpp", "download"]
 # Runtime model download + checksum.

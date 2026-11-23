@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     }
     let samples = meeting_e2e::read_wav_16k_mono(Path::new(&args[0]))?;
     let models =
-        Path::new(&std::env::var("HOME")?).join("Library/Caches/handy-meetings/diarize-models");
+        Path::new(&std::env::var("HOME")?).join("Library/Caches/sokki/diarize-models");
     let d = diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(&models))?;
     let t0 = std::time::Instant::now();
     let turns = d.diarize(&samples)?;

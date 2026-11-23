@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
         });
     }
     let models =
-        Path::new(&std::env::var("HOME")?).join("Library/Caches/handy-meetings/diarize-models");
+        Path::new(&std::env::var("HOME")?).join("Library/Caches/sokki/diarize-models");
     let diarizer = diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(&models))?;
     let asr = EngineTranscriber::from_env()?.expect("speech model (MEETING_ASR_MODEL)");
     let mut cfg = PipelineConfig {

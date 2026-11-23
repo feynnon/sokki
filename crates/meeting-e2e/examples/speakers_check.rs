@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
         );
     }
     let home = std::env::var("HOME")?;
-    let models = Path::new(&home).join("Library/Caches/handy-meetings/diarize-models");
+    let models = Path::new(&home).join("Library/Caches/sokki/diarize-models");
     let mut cfg = diarize::DiarizeConfig::new(&models);
     if let Ok(m) = std::env::var("MERGE") {
         cfg.merge_similarity = Some(m.parse()?);
@@ -52,7 +52,7 @@ fn main() -> anyhow::Result<()> {
     let diarizer = diarize::SortformerDiarizer::new(cfg)?;
     let profiles = diarize::VoiceProfiles::open(
         Path::new(&home)
-            .join("Library/Application Support/dev.handymeetings.app/voice-profiles.json"),
+            .join("Library/Application Support/org.sokki.app/voice-profiles.json"),
     )
     .ok();
 

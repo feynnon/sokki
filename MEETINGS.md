@@ -7,24 +7,21 @@ the Mac, unless you choose a cloud language model (see 7). This file covers
 the meeting pipeline, code layout and tests; the [README](README.md) is the
 user-facing overview.
 
-Internally the app is still called **Handy Meetings** (the plain Handy look,
-`BRAND=handy`); it has its own bundle identifier
-(`dev.handymeetings.app`), so it never shares settings with an installed
-Handy. The upstream updater is switched off (`settings.rs`,
-`update_checks_forced_disabled`).
+The app has its own bundle identifier (`org.sokki.app`), so it never shares
+settings with an installed upstream app. Data stored under the identifier it
+had before (2026-11-23) moves over on the first start
+(`src-tauri/src/legacy_data.rs`). Updates come from Sokki's own feed
+(`github.com/feynnon/sokki`).
 
-## Brands
+## Look
 
-Two looks from one code base, chosen at build time:
-
-- **Handy Meetings** (`BRAND=handy`): Handy's name, hand logo and pinks, so
-  changes can go back upstream.
-- **Sokki** (`BRAND=sokki`, the default of `scripts/build-and-install.sh`):
-  own name, V-wave app and menu bar icons, a calm blue on dark grey. Files:
-  `src-tauri/brands/sokki/` (config overlay, icon sources and set),
-  `src-tauri/resources/brands/sokki/` (menu bar icons),
-  `src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/brand-sokki.css`,
-  `src/components/icons/SokkiLogo.tsx`.
+Own name, V-wave app and menu bar icons, a calm blue on dark grey. Files:
+`src-tauri/brands/sokki/` (icon sources and set),
+`src-tauri/resources/brands/sokki/` (menu bar icons),
+`src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/brand-sokki.css`,
+`src/components/icons/SokkiLogo.tsx`. Some screens still carry branches for
+the upstream look (`IS_SOKKI` is always true); they go once the main window
+work has landed.
 
 Sokki also has a simpler window, after Superwhisper: sidebar Home,
 Meetings, Vocabulary | Settings, Sound, Models; descriptions under each
@@ -32,17 +29,16 @@ option instead of info icons; no footer bar; no menu bar icon (the meeting
 pill shows recording); first start is permissions, then the model. Options
 not shown keep their defaults and stay in the config file
 (`src/components/settings/sokki/`). The Vocabulary list goes only into the
-meeting summary prompt: Handy's direct dictation word swap turned „Lied“ into
+meeting summary prompt: the direct dictation word swap turned „Lied“ into
 „Lead“ and „Mach“ into „Nuxa“ with these words.
 
-Both use the same bundle identifier, settings and meetings; installing one
-replaces the other in /Applications. Icons are drawn as SVG in
+Icons are drawn as SVG in
 `src-tauri/brands/sokki/src/`; after a change: `rsvg-convert` to PNG, then
 `bun run tauri icon src-tauri/brands/sokki/src/icon-1024.png -o src-tauri/brands/sokki/icons`.
 
 ## What it does
 
-1. **Dictation** – unchanged Handy.
+1. **Dictation** – as in upstream Handy.
 2. **Meeting recording** – shortcut ⌥⇧M, tray item, the Meetings page, or
    automatically (see 3). A small pill at the top of the screen shows a
    waveform, the time and a stop button.
@@ -80,7 +76,7 @@ replaces the other in /Applications. Icons are drawn as SVG in
       (merging voices that sound alike exists but is off, see
       `DiarizeConfig::merge_similarity`);
    3. drop mic turns that are acoustic echo of the system track;
-   4. transcribe each speaker turn (Parakeet, Handy's engine, ~20 s); a
+   4. transcribe each speaker turn (Parakeet, the dictation engine, ~20 s); a
       turn that pieces from the recording cover takes its words from them
       instead, when each of those pieces holds that one speaker only
       (`pipeline::texts_from_pieces`; 41-minute call: 180 of 231 turns,
@@ -153,10 +149,10 @@ copy those files in at Stop, but meetings have no test mode for the audio).
 | `src/components/settings/meetings/` | Meetings page |
 
 Data on disk:
-- meeting audio + index: `~/Library/Application Support/dev.handymeetings.app/meetings/`
-- voice profiles: `…/dev.handymeetings.app/voice-profiles.json`
-- diarization models: `…/dev.handymeetings.app/meeting-models/` (downloaded on first use)
-- notes: the folder set on the Meetings page (default `~/Documents/Handy Meetings`)
+- meeting audio + index: `~/Library/Application Support/org.sokki.app/meetings/`
+- voice profiles: `…/org.sokki.app/voice-profiles.json`
+- diarization models: `…/org.sokki.app/meeting-models/` (downloaded on first use)
+- notes: the folder set on the Meetings page (default `~/Documents/Sokki`)
 
 ## Tests
 
@@ -175,7 +171,7 @@ python3 -I testdata/generate.py                      # once: synthetic fixtures
 (cd crates/meeting-core && MEETING_LIVE_LLM=1 CARGO_TARGET_DIR=/tmp/hm-target-core cargo test --test live_llm -- --nocapture --test-threads=1)
 ```
 
-The e2e harness needs `~/.cache/handy-meetings/models/parakeet-tdt-0.6b-v3-Q8_0.gguf`
+The e2e harness needs `~/.cache/sokki/models/parakeet-tdt-0.6b-v3-Q8_0.gguf`
 (see `crates/meeting-e2e/src/lib.rs`). It prints, per scenario, word error
 rate, speakers found, speaker attribution and leftover echoes, and writes the
 notes to `$TMPDIR/hm-e2e-notes/`.
@@ -212,10 +208,10 @@ scripts/build-and-install.sh          # build, then install when no meeting is b
 scripts/build-and-install.sh --no-build
 ```
 
-The script signs with the code-signing certificate **"Handy Meetings Dev"**
+The script signs with the code-signing certificate **"Sokki Dev"**
 from the login keychain when it exists, so macOS keeps the granted
 permissions across installs. Create it once (Keychain Access → Certificate
-Assistant → Create a Certificate…; Name "Handy Meetings Dev", Identity Type
+Assistant → Create a Certificate…; Name "Sokki Dev", Identity Type
 "Self-Signed Root", Certificate Type "Code Signing"). Without it, builds are
 signed ad hoc and every install asks for all permissions again.
 
@@ -224,14 +220,14 @@ Manual build:
 ```sh
 bun install
 bun run tauri build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
-# → src-tauri/target/release/bundle/macos/Handy Meetings.app
+# → src-tauri/target/release/bundle/macos/Sokki.app
 ```
 
 Needs Xcode Command Line Tools 26.x (Swift for the system-audio tap). With
 Command Line Tools only, Apple Intelligence is built as a stub; meeting
 summaries use Ollama instead.
 
-## Keeping up with Handy
+## Keeping up with upstream
 
 ```sh
 git fetch upstream

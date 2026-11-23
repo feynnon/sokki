@@ -1,6 +1,6 @@
 //! Microphone half of a meeting recording.
 //!
-//! This uses its own `handy_recorder::Recorder`, separate from the one dictation
+//! This uses its own `sokki_recorder::Recorder`, separate from the one dictation
 //! uses, so starting or stopping a meeting never touches dictation's state.
 //! Audio is written straight to disk through `FlacWriter`.
 //!
@@ -11,7 +11,7 @@
 
 use super::flac::FlacWriter;
 use anyhow::{anyhow, Context, Result};
-use handy_recorder::{AudioChunk, InputDevice, Recorder, RecorderConfig, Sink};
+use sokki_recorder::{AudioChunk, InputDevice, Recorder, RecorderConfig, Sink};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -22,7 +22,7 @@ use std::time::Duration;
 /// How often the supervisor checks for a lost device or a returned preferred one.
 const SUPERVISE_TICK: Duration = Duration::from_secs(1);
 
-/// Receives microphone chunks from handy-recorder and writes them to disk.
+/// Receives microphone chunks from sokki-recorder and writes them to disk.
 /// Runs on the recorder's delivery thread, so it only encodes and writes.
 pub struct MicSink {
     writer: Option<FlacWriter>,
@@ -96,7 +96,7 @@ impl MicCapture {
     /// is used whenever it is unavailable.
     /// `tee` gets the audio as it is written (see [`super::flac::Tee`]).
     pub fn start(path: &Path, tee: Option<super::flac::Tee>) -> Result<Self> {
-        let devices = handy_recorder::list_input_devices().unwrap_or_default();
+        let devices = sokki_recorder::list_input_devices().unwrap_or_default();
         let preferred_name = devices
             .iter()
             .find(|d| d.is_default)
@@ -166,7 +166,7 @@ impl MicCapture {
             }
             let stopped = stopped.map_err(|e| anyhow!("Stopping the microphone failed: {e}"))?;
             inner.dropped_frames += stopped.dropped_frames;
-            if !matches!(stopped.end_reason, handy_recorder::EndReason::StopCalled) {
+            if !matches!(stopped.end_reason, sokki_recorder::EndReason::StopCalled) {
                 error.get_or_insert(format!("{:?}", stopped.end_reason));
             }
             let mut sink = stopped.sink;
@@ -233,7 +233,7 @@ impl Supervisor {
     /// Makes the open device match the one that should be used right now.
     fn reconcile(&self) {
         let lost = self.hooks.lost.swap(false, Ordering::AcqRel);
-        let devices = match handy_recorder::list_input_devices() {
+        let devices = match sokki_recorder::list_input_devices() {
             Ok(devices) => devices,
             Err(e) => {
                 log::warn!("Listing microphones failed: {e}");
@@ -331,7 +331,7 @@ fn open_on(device: Option<&InputDevice>, hooks: &Hooks) -> Result<Recorder<MicSi
     let mut config = RecorderConfig::speech();
     config.device = device.map(|d| d.id.clone());
     let hooks = hooks.clone();
-    let on_failure = move |err: handy_recorder::Error| {
+    let on_failure = move |err: sokki_recorder::Error| {
         log::warn!("Meeting microphone failed: {err}");
         hooks.failed.store(true, Ordering::Release);
         hooks.lost.store(true, Ordering::Release);

@@ -33,7 +33,8 @@ curl -fL --progress-bar "$url" -o "$tmp/Sokki.zip"
 
 OLD_APP="/Applications/Verbatim.app"  # the app's earlier name
 if pgrep -f "$APP/Contents/MacOS" >/dev/null || pgrep -f "$OLD_APP/Contents/MacOS" >/dev/null; then
-  INDEX="$HOME/Library/Application Support/dev.handymeetings.app/meetings/index.json"
+  APP_ID="$(defaults read "$APP/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
+  INDEX="$HOME/Library/Application Support/$APP_ID/meetings/index.json"
   if [[ -f "$INDEX" ]] && grep -Eq '"kind" *: *"(recording|processing)"' "$INDEX"; then
     fail "A meeting is being recorded or processed. Run this again when it's done."
   fi

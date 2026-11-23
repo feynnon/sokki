@@ -1,5 +1,5 @@
 //! Sortformer backend: NVIDIA Streaming Sortformer 4spk v2.1 (GGUF) through
-//! transcribe-cpp, the engine Handy already ships (ggml; Metal on Apple
+//! transcribe-cpp, the engine Sokki already ships (ggml; Metal on Apple
 //! Silicon). Speaker embeddings for its turns come from the sherpa-onnx
 //! extractor when the `sherpa` feature is on ("hybrid").
 

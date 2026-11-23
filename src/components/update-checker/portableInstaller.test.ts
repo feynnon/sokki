@@ -7,21 +7,21 @@ import {
 } from "./portableInstaller";
 
 const X64_SETUP =
-  "https://github.com/cjpais/Handy/releases/download/v0.9.5/Handy_0.9.5_x64-setup.exe";
+  "https://github.com/feynnon/sokki/releases/download/v0.9.5/Sokki_0.9.5_x64-setup.exe";
 const ARM64_SETUP =
-  "https://github.com/cjpais/Handy/releases/download/v0.9.5/Handy_0.9.5_arm64-setup.exe";
+  "https://github.com/feynnon/sokki/releases/download/v0.9.5/Sokki_0.9.5_arm64-setup.exe";
 
-// Trimmed copy of the real latest.json served from the updater endpoint.
+// A trimmed latest.json as the updater endpoint serves it.
 const manifest = {
   version: "0.9.5",
   platforms: {
     "windows-x86_64-nsis": { url: X64_SETUP, signature: "…" },
     "windows-x86_64-msi": {
-      url: "https://github.com/cjpais/Handy/releases/download/v0.9.5/Handy_0.9.5_x64_en-US.msi",
+      url: "https://github.com/feynnon/sokki/releases/download/v0.9.5/Sokki_0.9.5_x64_en-US.msi",
     },
     "windows-aarch64-nsis": { url: ARM64_SETUP, signature: "…" },
     "darwin-aarch64": {
-      url: "https://github.com/cjpais/Handy/releases/download/v0.9.5/Handy_aarch64.app.tar.gz",
+      url: "https://github.com/feynnon/sokki/releases/download/v0.9.5/Sokki_aarch64.app.tar.gz",
     },
   },
 };

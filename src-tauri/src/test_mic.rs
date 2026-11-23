@@ -2,9 +2,11 @@
 //! speaking: with `SOKKI_TEST_MIC=<WAV>` set, the microphone plays that file
 //! in real time from the start of each recording (then silence), the text
 //! is logged instead of pasted, and there are no shortcuts and no permission
-//! resets. `SOKKI_TEST_LLM=1` also starts the built-in language model once
-//! and logs its answer. Run it only in the separate test app (`scripts/test-dictation.sh`),
-//! never in Robin's Sokki.
+//! resets. `SOKKI_TEST_FORGET=1` instead runs "Delete what was shared" with
+//! sharing on (`voice_data::test_forget`). `SOKKI_TEST_LLM=1` also starts
+//! the built-in language model once and logs its answer. Run it only in
+//! the separate test app (`scripts/test-dictation.sh`), never in Robin's
+//! Sokki.
 //!
 //! A meeting instead of a dictation (`scripts/test-meeting.sh`): with
 //! `SOKKI_TEST_MEETING=1` the app records one meeting, the call side played
@@ -21,8 +23,8 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use handy_recorder::testing::FakeMic;
-use handy_recorder::{Error, Recorder, RecorderConfig, Sink};
+use sokki_recorder::testing::FakeMic;
+use sokki_recorder::{Error, Recorder, RecorderConfig, Sink};
 use log::{info, warn};
 
 const RATE: u32 = 16_000;
@@ -173,6 +175,10 @@ pub fn drive(app: &tauri::AppHandle) {
         std::thread::spawn(test_builtin_llm);
     }
     let app = app.clone();
+    if std::env::var_os("SOKKI_TEST_FORGET").is_some() {
+        std::thread::spawn(move || crate::voice_data::test_forget(&app));
+        return;
+    }
     if meeting() {
         std::thread::spawn(move || drive_meeting(&app, hold));
         return;

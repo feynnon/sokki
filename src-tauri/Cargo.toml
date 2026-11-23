@@ -1,11 +1,11 @@
 [package]
-name = "handy"
+name = "sokki-app"
 version = "0.10.1"
-description = "Handy"
+description = "Sokki"
 authors = ["cjpais"]
 edition = "2021"
 license = "MIT"
-default-run = "handy"
+default-run = "sokki"
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.
@@ -16,8 +16,14 @@ incremental = true # Compile your binary in smaller steps.
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "handy_app_lib"
+name = "sokki_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# The app binary inside Sokki.app is `sokki` (scripts/sokki and
+# scripts/install-release.sh use the path).
+[[bin]]
+name = "sokki"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -50,7 +56,7 @@ rdev = { git = "https://github.com/rustdesk-org/rdev" }
 anyhow = "1.0.95"
 hound = "3.5.1"
 # Lock-free ring buffer between the system-audio IO thread and its writer thread.
-# 0.4.0 is already in Cargo.lock through handy-recorder.
+# 0.4.0 is already in Cargo.lock through sokki-recorder.
 rtrb = "0.4"
 # Pure-Rust FLAC encoder for meeting recordings (0.5.1, released 2025-12-18).
 flacenc = "0.5.1"
@@ -68,7 +74,7 @@ env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["process", "time"] }
 earshot = "1.2.2"
 enigo = "0.6.1"
-# Feedback sounds. No `recording`: microphone capture is handy-recorder's.
+# Feedback sounds. No `recording`: microphone capture is sokki-recorder's.
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "wav", "flac", "mp3", "vorbis"] }
 # Decodes files for transcription. rodio's version, plus the M4A/MP4 (AAC,
 # ALAC) and AIFF support rodio leaves out.
@@ -77,10 +83,10 @@ symphonia = { version = "0.5.5", features = ["aac", "alac", "isomp4", "mp3", "ai
 # Builds libopus from source with cmake. 0.2 is the last for symphonia 0.5;
 # 0.2.3 and older drop 120 ms stereo packets (too small a buffer).
 symphonia-adapter-libopus = "0.2.9"
-# Resamples a decoded file to 16 kHz; the version handy-recorder already uses.
+# Resamples a decoded file to 16 kHz; the version sokki-recorder already uses.
 rubato = "5"
 # test-backend: the fake microphone of test mode (src/test_mic.rs).
-handy-recorder = { version = "0.1.1", features = ["test-backend"] }
+sokki-recorder = { path = "../crates/sokki-recorder", features = ["test-backend"] }
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate"] }
 futures-util = "0.3"
 rustfft = "6.4.0"
@@ -106,7 +112,7 @@ libc = "0.2"
 transcribe-cpp = { version = "0.4.2", default-features = false, features = [
   "serde",
 ] }
-handy-keys = "0.3.5"
+sokki-keys = { path = "../crates/sokki-keys" }
 ferrous-opencc = "0.2.3"
 clap = { version = "4", features = ["derive"] }
 specta = "=2.0.0-rc.22"
@@ -158,7 +164,7 @@ winreg = "0.55"
 # buys nothing on ARM — ALL_VARIANTS is an x86 concept, so a DL build there is
 # just a single portable CPU module shipped as a DLL. So ARM links transcribe-cpp
 # STATICALLY (no features = static CPU-only): the one CPU backend is compiled into
-# handy.exe and we ship zero DLLs, which sidesteps the installer's per-DLL
+# sokki.exe and we ship zero DLLs, which sidesteps the installer's per-DLL
 # signtool verify entirely. CI pins -DGGML_NATIVE=OFF (see build.yml) so the
 # static build targets a portable ARM baseline, not the build runner's CPU.
 [target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
@@ -220,7 +226,7 @@ transcribe-cpp = { version = "0.4.2", default-features = false, features = [
 # tao #1231 (removed window subclassing), which left the thread event target's
 # WNDPROC falling through to DefSubclassProc. On a no-longer-subclassed window
 # that returns 0, so WM_QUERYENDSESSION answered FALSE and vetoed Windows
-# shutdown (Handy #1710). `handy` = 07f3742b + a cherry-pick of tao #1274
+# shutdown (upstream #1710). The branch is 07f3742b + a cherry-pick of tao #1274
 # (DefSubclassProc → DefWindowProcW). Repoint at upstream once #1274 merges.
 #
 # tao-macros must be patched to the SAME rev even though nothing here depends on

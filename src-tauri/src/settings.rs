@@ -231,8 +231,10 @@ pub enum RecordingRetentionPeriod {
 #[serde(rename_all = "snake_case")]
 pub enum KeyboardImplementation {
     Tauri,
-    HandyKeys,
-    /// No built-in global shortcuts; trigger Handy via CLI flags or signals
+    /// Stores written before the rename say "handy_keys".
+    #[serde(alias = "handy_keys")]
+    NativeKeys,
+    /// No built-in global shortcuts; trigger Sokki via CLI flags or signals
     /// (e.g. from a Wayland compositor keybinding).
     None,
 }
@@ -242,14 +244,14 @@ impl Default for KeyboardImplementation {
         #[cfg(target_os = "linux")]
         return KeyboardImplementation::Tauri;
         #[cfg(not(target_os = "linux"))]
-        return KeyboardImplementation::HandyKeys;
+        return KeyboardImplementation::NativeKeys;
     }
 }
 
 impl Default for PasteMethod {
     fn default() -> Self {
         // Default to CtrlV for macOS and Windows. On Linux, Shift+Insert pastes in
-        // terminals and GUI apps alike (Handy also puts the text on the primary
+        // terminals and GUI apps alike (Sokki also puts the text on the primary
         // selection, which terminals read), and unlike Direct typing it doesn't
         // depend on the keyboard layout.
         #[cfg(target_os = "linux")]
@@ -310,7 +312,7 @@ impl SoundTheme {
 }
 
 /// UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
-/// and `Dark` force one of the two palettes Handy already ships.
+/// and `Dark` force one of the two palettes Sokki already ships.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
@@ -348,7 +350,7 @@ pub enum VadBackend {
     Earshot,
 }
 
-/// When Handy's spoken-language detector picks the language for Auto.
+/// When Sokki's spoken-language detector picks the language for Auto.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LanguageDetectionMode {
@@ -388,7 +390,7 @@ impl std::ops::DerefMut for SecretMap {
     }
 }
 
-/* still handy for composing the initial JSON in the store ------------- */
+/* still useful for composing the initial JSON in the store ------------- */
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
 /// its `get_default_settings()` value when missing from a stored settings
@@ -616,8 +618,7 @@ impl Default for VideoSettings {
 #[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[serde(default)]
 pub struct MeetingSettings {
-    /// Folder the Markdown notes are written to. `None`: ~/Documents/Sokki
-    /// (~/Documents/Handy Meetings in the Handy build).
+    /// Folder the Markdown notes are written to. `None`: ~/Documents/Sokki.
     pub notes_dir: Option<String>,
     /// How the user is named in transcripts (the main voice on the microphone).
     pub user_name: String,
@@ -691,14 +692,9 @@ impl MeetingSettings {
     }
 }
 
-/// ~/Documents/Sokki, or ~/Documents/Handy Meetings in the Handy build.
+/// ~/Documents/Sokki.
 pub fn default_notes_dir() -> std::path::PathBuf {
-    let name = if crate::brand::is_sokki() {
-        "Sokki"
-    } else {
-        "Handy Meetings"
-    };
-    dirs_home().join("Documents").join(name)
+    dirs_home().join("Documents").join("Sokki")
 }
 
 /// Before schema 5 every Sokki install wrote notes to ~/Documents/Handy
@@ -831,7 +827,7 @@ fn default_paste_delay_ms() -> u64 {
 }
 
 fn default_paste_delay_after_ms() -> u64 {
-    // Linux apps fetch the pasted text from Handy only when they handle the
+    // Linux apps fetch the pasted text from Sokki only when they handle the
     // key, so restoring the old clipboard too soon pastes the old content
     // (#502). Only new installs get this; existing settings keep their value.
     #[cfg(target_os = "linux")]
@@ -876,7 +872,7 @@ fn default_app_language() -> String {
 
 fn default_show_tray_icon() -> bool {
     // Sokki has no menu bar icon: the recording pill shows what's going on.
-    !crate::brand::is_sokki()
+    false
 }
 
 fn default_post_process_provider_id() -> String {
@@ -1676,23 +1672,19 @@ fn self_update_possible() -> bool {
 }
 
 /// Update checks are forced off (without touching the persisted setting) when
-/// `HANDY_DISABLE_UPDATER` is set — e.g. by the Nix package, since self-update
+/// `SOKKI_DISABLE_UPDATER` is set — e.g. by the Nix package, since self-update
 /// can't work against an immutable /nix/store install — or when this build
 /// cannot install its own update (see `linux_self_update_possible`).
 pub fn update_checks_forced_disabled() -> bool {
-    // Only the Sokki build has its own update feed (brands/sokki/tauri.conf.json).
-    // The plain build's endpoint is upstream Handy, whose update would replace
-    // this fork.
     // Dev builds (scripts/build-and-install.sh) are newer than any release and
     // would be replaced by the next one.
-    !crate::brand::is_sokki()
-        || option_env!("SOKKI_DEV_BUILD").is_some()
-        || crate::utils::env_flag_enabled("HANDY_DISABLE_UPDATER")
+    option_env!("SOKKI_DEV_BUILD").is_some()
+        || crate::utils::env_flag_enabled("SOKKI_DISABLE_UPDATER")
         || !self_update_possible()
 }
 
 /// Effective updater state: the user's stored preference, overridden to `false`
-/// while `HANDY_DISABLE_UPDATER` is set. Callers deciding whether to actually
+/// while `SOKKI_DISABLE_UPDATER` is set. Callers deciding whether to actually
 /// check for updates must use this rather than reading `update_checks_enabled`
 /// directly, so the forced-off state never leaks into the persisted setting.
 pub fn update_checks_effectively_enabled(settings: &AppSettings) -> bool {
@@ -1845,7 +1837,7 @@ mod tests {
             "overlay_position": "bottom",
             "debug_mode": false,
             "log_level": 2,
-            "custom_words": ["Handy", "cjpais"],
+            "custom_words": ["Sokki", "cjpais"],
             "model_unload_timeout": "min5",
             "word_correction_threshold": 0.18,
             "history_limit": 5,
@@ -1877,7 +1869,7 @@ mod tests {
             "app_language": "en",
             "experimental_enabled": false,
             "lazy_stream_close": false,
-            "keyboard_implementation": "handy_keys",
+            "keyboard_implementation": "native_keys",
             "show_tray_icon": true,
             "paste_delay_ms": 60,
             "typing_tool": "auto",
@@ -1955,14 +1947,14 @@ mod tests {
         let map = stored.as_object_mut().unwrap();
         map.insert("paste_delay_ms".into(), serde_json::json!("sixty"));
         map.insert("sound_theme".into(), serde_json::json!(42));
-        map.insert("custom_words".into(), serde_json::json!(["handy"]));
+        map.insert("custom_words".into(), serde_json::json!(["sokki"]));
 
         assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
 
         let salvaged = salvage_settings(&stored);
         assert_eq!(salvaged.paste_delay_ms, default_paste_delay_ms());
         assert_eq!(salvaged.sound_theme, default_sound_theme());
-        assert_eq!(salvaged.custom_words, vec!["handy".to_string()]);
+        assert_eq!(salvaged.custom_words, vec!["sokki".to_string()]);
     }
 
     #[cfg(target_os = "linux")]

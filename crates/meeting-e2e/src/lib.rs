@@ -10,7 +10,7 @@
 //!
 //! Paths:
 //! - fixtures: `$MEETING_TESTDATA` or `<repo>/testdata/audio`
-//! - models:   `$MEETING_MODELS` or `~/.cache/handy-meetings/models`
+//! - models:   `$MEETING_MODELS` or `~/.cache/sokki/models`
 
 use anyhow::{bail, Context, Result};
 use meeting_core::{Segment, Track, TrackKind, Transcriber, Transcript, SAMPLE_RATE};
@@ -33,7 +33,7 @@ pub fn models_dir() -> PathBuf {
         return PathBuf::from(p);
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    Path::new(&home).join(".cache/handy-meetings/models")
+    Path::new(&home).join(".cache/sokki/models")
 }
 
 // ---------------------------------------------------------------- fixtures

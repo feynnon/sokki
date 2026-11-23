@@ -10,7 +10,6 @@ import { CAPABILITIES, CAPABILITY_KEYS, type Capability } from "./capabilities";
 import { Values, rowGrid, type VtName } from "./columns";
 import { useModelTable, type TableModel } from "./context";
 import { SOKKI_MODEL_LINES } from "./sokkiLines";
-import { IS_SOKKI } from "@/lib/brand";
 
 export const ROLE_KEYS: Record<PickRole, string> = {
   pick: "recommended",
@@ -124,10 +123,8 @@ export const ModelTableRow: React.FC<ModelTableRowProps> = ({
       t("modelTable.customLine")
     ) : entry.kind === "legacy" ? (
       t("modelTable.legacyLine")
-    ) : IS_SOKKI ? (
-      ((entry.model && SOKKI_MODEL_LINES[entry.model.id]) ?? entry.description)
     ) : (
-      entry.description
+      ((entry.model && SOKKI_MODEL_LINES[entry.model.id]) ?? entry.description)
     ));
 
   return (

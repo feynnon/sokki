@@ -36,7 +36,7 @@ pub const PYANNOTE_SEGMENTATION: ModelFile = ModelFile {
     size: 5_992_913,
 };
 
-/// NVIDIA Streaming Sortformer 4spk v2.1, GGUF Q8_0 (the quant Handy's
+/// NVIDIA Streaming Sortformer 4spk v2.1, GGUF Q8_0 (the quant Sokki's
 /// catalog uses), run by transcribe-cpp.
 pub const SORTFORMER_Q8_0: ModelFile = ModelFile {
     path: "diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf",

@@ -6,7 +6,7 @@
 //! people in the room); system audio is the remote side of a call on this Mac.
 //!
 //! Processing (`process`): speakers are separated, every speaker turn is
-//! transcribed with Handy's model, echoes of the system track are removed
+//! transcribed with Sokki's model, echoes of the system track are removed
 //! from the microphone track, a language model writes the summary, and the
 //! note is saved to the notes folder. Progress is tracked in `store`.
 //!

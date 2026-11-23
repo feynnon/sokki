@@ -64,9 +64,6 @@ pub struct ReadyUpdate {
 }
 
 pub fn start(app: &AppHandle) {
-    if !crate::brand::is_sokki() {
-        return;
-    }
     let a = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(FIRST_CHECK).await;
@@ -253,7 +250,7 @@ fn mark_today(app: &AppHandle) {
     }
 }
 
-/// `/Applications/Sokki.app` for `/Applications/Sokki.app/Contents/MacOS/handy`.
+/// `/Applications/Sokki.app` for `/Applications/Sokki.app/Contents/MacOS/sokki`.
 fn app_bundle() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let bundle = exe.parent()?.parent()?.parent()?.to_path_buf();

@@ -106,7 +106,7 @@ pub struct AudioClient {
 
 impl AudioClient {
     /// A client with just pid, bundle id and path; the name is derived.
-    /// Handy for fixtures and fake sources.
+    /// Useful for fixtures and fake sources.
     pub fn new(pid: u32, bundle_id: Option<&str>, exe_path: Option<&str>) -> Self {
         let bundle_id = bundle_id.map(str::to_owned);
         let exe_path = exe_path.map(str::to_owned);

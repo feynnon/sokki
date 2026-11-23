@@ -1,6 +1,6 @@
 #!/bin/bash
 # A simulated call without a person, in the test app ("Sokki Test",
-# dev.handymeetings.test) next to Robin's Sokki, which it never touches.
+# org.sokki.test) next to Robin's Sokki, which it never touches.
 # Test mode (src-tauri/src/test_mic.rs): the microphone plays one WAV, the
 # system audio another, both in real time; the app records one meeting,
 # stops it, processes it and logs how long that took after the stop. No
@@ -24,12 +24,14 @@
 # Robin's Sokki, its settings or its data.
 set -euo pipefail
 
-ID=dev.handymeetings.test
+ID=org.sokki.test
 NAME="Sokki Test"
 TESTAPP="${TESTAPP:-$HOME/Applications/$NAME.app}"
 DATA="$HOME/Library/Application Support/$ID"
-LOG="$HOME/Library/Logs/$ID/handy.log"
-SOKKI_SETTINGS="$HOME/Library/Application Support/dev.handymeetings.app/settings_store.json"
+LOG="$HOME/Library/Logs/$ID/sokki.log"
+# Robin's settings: under the installed Sokki's bundle id.
+REAL_ID="$(defaults read /Applications/Sokki.app/Contents/Info.plist CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
+SOKKI_SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/$REAL_ID/settings_store.json}"
 quit_test_app() {
   osascript -e "tell application id \"$ID\" to quit" 2>/dev/null || true
   for _ in $(seq 1 10); do
@@ -62,12 +64,12 @@ jq --arg notes "$WORK/notes" '.settings.onboarding_completed = true
   | .settings.meetings.summary_enabled = false
   | .settings.meetings.notes_dir = $notes' "$SOKKI_SETTINGS" > "$DATA/settings_store.json"
 
-if strings "$TESTAPP/Contents/MacOS/handy" | grep -q /usr/bin/tccutil; then
+if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
   echo "The test app still contains tccutil; rebuild it from current meetings." >&2
   exit 1
 fi
 if codesign -dv "$TESTAPP" 2>&1 | grep -q "Signature=adhoc" \
-  && security find-identity -p codesigning 2>/dev/null | grep -q '"Handy Meetings Dev"'; then
+  && security find-identity -p codesigning 2>/dev/null | grep -q '"Sokki Dev"'; then
   echo "The test app is signed ad hoc; rebuild it: scripts/test-dictation.sh --build" >&2
   exit 1
 fi

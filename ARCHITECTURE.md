@@ -57,7 +57,7 @@ A meeting, on any platform:
 | `crates/sokki` | The Linux host. One binary: `sokki daemon` (systemd user service), the CLI (`sokki meeting …`, `sokki dictation …`, `sokki events`), and `sokki process` (the model worker). |
 | `crates/sokki-link` | Phone ↔ computer link over iroh: pairing, sending a recording, getting the note back. |
 | `crates/meeting-e2e` | Headless harness: real speech recognition on synthetic fixtures (`testdata/audio`), with word error rate and speaker metrics. |
-| `src-tauri` | The macOS (and Handy upstream) app. `src/meeting/` is the macOS host: recording, prompts, the indicator, and the adapter around `sokki_engine::process`. |
+| `src-tauri` | The macOS app (the desktop app inherited from upstream). `src/meeting/` is the macOS host: recording, prompts, the indicator, and the adapter around `sokki_engine::process`. |
 | `src` | The Tauri window (React). |
 | `mobile` | Android: Tauri mobile app plus a HeliBoard keyboard (GPL-3.0; everything in `crates/` stays MIT). |
 | `packaging/omarchy` | Omarchy integration: the shell plugin (QML), the systemd unit, `omarchy-*` scripts, the PKGBUILD and the one-line installer. |
@@ -99,7 +99,7 @@ These hold everywhere; a change that breaks one is a bug.
 | Typing | Accessibility | `wtype`, else clipboard | keyboard |
 | Speech models | transcribe.cpp, Metal | transcribe.cpp, Vulkan + CPU | transcribe.cpp, CPU |
 | Settings | `settings_store.json` | `~/.config/sokki/sokki.toml` | app storage |
-| Data | `~/Library/Application Support/dev.handymeetings.app` | `~/.local/share/sokki` | app storage |
+| Data | `~/Library/Application Support/org.sokki.app` | `~/.local/share/sokki` | app storage |
 
 ## The local API (Linux)
 

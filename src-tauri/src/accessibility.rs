@@ -53,13 +53,13 @@ pub fn start_watch(app: &AppHandle) {
                     was = now;
                     if now {
                         log::info!("Accessibility granted: starting the keyboard hook");
-                        crate::shortcut::handy_keys::resume_hook(&app);
+                        crate::shortcut::native_keys::resume_hook(&app);
                         if let Err(e) = crate::commands::initialize_shortcuts(app.clone()) {
                             log::warn!("Shortcuts after the Accessibility grant: {e}");
                         }
                     } else {
                         log::warn!("Accessibility switched off: removing the keyboard hook");
-                        crate::shortcut::handy_keys::suspend_hook(&app);
+                        crate::shortcut::native_keys::suspend_hook(&app);
                     }
                 }
             });

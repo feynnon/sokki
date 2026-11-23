@@ -1,4 +1,4 @@
-/* Sokki brand: calm greys with one blue accent instead of Handy's pinks.
+/* Sokki brand: calm greys with one blue accent instead of Sokki's pinks.
    Only the palette sources are overridden; theme.css derives the rest. */
 :root[data-brand="sokki"] {
   --light-color-text: #111214;

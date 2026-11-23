@@ -25,14 +25,14 @@ mod ffi {
     pub type TapCallback = extern "C" fn(*mut c_void, *const f32, usize, u32, f64);
 
     extern "C" {
-        pub fn handy_tap_supported() -> bool;
-        pub fn handy_tap_start(
+        pub fn sokki_tap_supported() -> bool;
+        pub fn sokki_tap_start(
             callback: TapCallback,
             user: *mut c_void,
             out_error: *mut *mut c_char,
         ) -> *mut c_void;
-        pub fn handy_tap_stop(handle: *mut c_void);
-        pub fn handy_tap_free_error(error: *mut c_char);
+        pub fn sokki_tap_stop(handle: *mut c_void);
+        pub fn sokki_tap_free_error(error: *mut c_char);
     }
 }
 
@@ -57,7 +57,7 @@ extern "C" fn on_samples(
         return;
     }
     // SAFETY: `user` points at the `TapShared` box owned by `SystemAudioCapture`.
-    // The tap calls this only between `handy_tap_start` and `handy_tap_stop`,
+    // The tap calls this only between `sokki_tap_start` and `sokki_tap_stop`,
     // and the box outlives both.
     let shared = unsafe { &mut *(user as *mut TapShared) };
     let _ = shared.sample_rate.set(sample_rate.round() as u32);
@@ -194,7 +194,7 @@ unsafe impl Send for SystemAudioCapture {}
 /// True when this macOS can capture system audio (14.2+).
 pub fn is_supported() -> bool {
     // SAFETY: a plain query with no arguments.
-    unsafe { ffi::handy_tap_supported() }
+    unsafe { ffi::sokki_tap_supported() }
 }
 
 impl SystemAudioCapture {
@@ -223,7 +223,7 @@ impl SystemAudioCapture {
         } else {
             let mut error: *mut c_char = ptr::null_mut();
             // SAFETY: `user` stays valid until the tap is stopped and `shared` freed.
-            let handle = unsafe { ffi::handy_tap_start(on_samples, user, &mut error) };
+            let handle = unsafe { ffi::sokki_tap_start(on_samples, user, &mut error) };
             if handle.is_null() {
                 // SAFETY: the tap never started, so nothing else holds `shared`.
                 unsafe { drop(Box::from_raw(shared)) };
@@ -251,11 +251,11 @@ impl SystemAudioCapture {
                     stop.store(true, Ordering::Release);
                     let _ = thread.join();
                 }
-                // SAFETY: `handle` came from a successful `handy_tap_start`
+                // SAFETY: `handle` came from a successful `sokki_tap_start`
                 // (or is null in test mode, where the player has stopped).
                 unsafe {
                     if !handle.is_null() {
-                        ffi::handy_tap_stop(handle);
+                        ffi::sokki_tap_stop(handle);
                     }
                     drop(Box::from_raw(shared));
                 }
@@ -277,9 +277,9 @@ impl SystemAudioCapture {
     /// Stops the tap, drains the buffer and finalizes the file.
     pub fn stop(mut self) -> Result<SystemRecording> {
         // SAFETY: `handle` is valid until this call; the tap has no callbacks
-        // once `handy_tap_stop` returns.
+        // once `sokki_tap_stop` returns.
         if !self.handle.is_null() {
-            unsafe { ffi::handy_tap_stop(self.handle) };
+            unsafe { ffi::sokki_tap_stop(self.handle) };
         }
         self.handle = ptr::null_mut();
         self.stop_fake();
@@ -334,7 +334,7 @@ impl Drop for SystemAudioCapture {
         // memory. The writer thread is left to finish on its own.
         if !self.handle.is_null() {
             // SAFETY: as in `stop`.
-            unsafe { ffi::handy_tap_stop(self.handle) };
+            unsafe { ffi::sokki_tap_stop(self.handle) };
             self.handle = ptr::null_mut();
             self.stop.store(true, Ordering::Release);
         }
@@ -398,6 +398,6 @@ fn take_error(error: *mut c_char) -> String {
         .to_string_lossy()
         .into_owned();
     // SAFETY: the string came from Swift and is freed exactly once.
-    unsafe { ffi::handy_tap_free_error(error) };
+    unsafe { ffi::sokki_tap_free_error(error) };
     message
 }

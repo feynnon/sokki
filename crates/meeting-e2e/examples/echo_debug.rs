@@ -10,7 +10,7 @@ fn main() {
         .unwrap_or_else(|| "call_tracks".into());
     let fx = Fixture::load(&scenario).unwrap().expect("fixture");
     let models = std::path::Path::new(&std::env::var("HOME").unwrap())
-        .join("Library/Caches/handy-meetings/diarize-models");
+        .join("Library/Caches/sokki/diarize-models");
     let d = diarize::SortformerDiarizer::new(diarize::DiarizeConfig::new(&models)).unwrap();
     let mic = fx.track(TrackKind::Mic).unwrap();
     let sys = fx.track(TrackKind::System).unwrap();

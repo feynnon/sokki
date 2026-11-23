@@ -459,9 +459,10 @@ impl Worker {
                 let safe_us = (self.now_us)()
                     .saturating_sub(NOT_STARTED_MARGIN_US)
                     .saturating_sub(self.mic_first_us);
-                self.mic_safe = self
-                    .mic_safe
-                    .max((safe_us * SAMPLE_RATE as u64 / 1_000_000) as usize);
+                // In u128: a clock far ahead (as in tests) must not overflow.
+                let safe = (safe_us as u128 * SAMPLE_RATE as u128 / 1_000_000)
+                    .min(usize::MAX as u128) as usize;
+                self.mic_safe = self.mic_safe.max(safe);
             }
         }
     }

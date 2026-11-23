@@ -2,7 +2,7 @@
 //!
 //! - [`process`]: one recorded meeting in, one Markdown note out. The host
 //!   passes in its speech recogniser and speaker detector (the macOS app uses
-//!   Handy's engine and a GPU worker; the Linux service its own).
+//!   Sokki's engine and a GPU worker; the Linux service its own).
 //! - [`lifecycle`]: the meeting lifecycle (idle → asking → recording) as a
 //!   pure state machine, so "never record without a yes" is testable.
 //! - [`live`]: transcribing a meeting while it is recorded, so only the

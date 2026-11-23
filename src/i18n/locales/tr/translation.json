@@ -26,7 +26,7 @@
     "customModelDescription": "Resmi olarak desteklenmiyor",
     "migration": {
       "title": "Modellerinizin güncellenmesi gerekiyor",
-      "description": "Handy artık daha yeni bir model türü kullanıyor. Transkripsiyona devam etmek için yeni sürümü indirin. Eski sürümler kaldırılacak.",
+      "description": "Sokki artık daha yeni bir model türü kullanıyor. Transkripsiyona devam etmek için yeni sürümü indirin. Eski sürümler kaldırılacak.",
       "replaces": "{{name}} yerine geçer",
       "oldFormat": "Eski format",
       "failed": "İndirme başarısız oldu",
@@ -63,11 +63,11 @@
     "permissions": {
       "microphone": {
         "name": "Mikrofon",
-        "why": "Handy sizi duyabilsin diye. Ses bu bilgisayarda metne dönüştürülür, hiçbir yere yüklenmez."
+        "why": "Sokki sizi duyabilsin diye. Ses bu bilgisayarda metne dönüştürülür, hiçbir yere yüklenmez."
       },
       "accessibility": {
         "name": "Erişilebilirlik",
-        "why": "Kısayolunuz her uygulamada çalışsın ve Handy metni imlecinizin bulunduğu yere yazabilsin diye."
+        "why": "Kısayolunuz her uygulamada çalışsın ve Sokki metni imlecinizin bulunduğu yere yazabilsin diye."
       },
       "errors": {
         "checkFailed": "İzinler kontrol edilemedi. Lütfen tekrar deneyin.",
@@ -81,12 +81,12 @@
       "openSettings": "Ayarları aç",
       "allowed": "İzin verildi",
       "waiting": "Bekleniyor",
-      "turnOnMac": "Sistem Ayarları'nda Handy'yi açın, sonra buraya dönün.",
+      "turnOnMac": "Sistem Ayarları'nda Sokki'yi açın, sonra buraya dönün.",
       "turnOnWindows": "Windows Ayarları'nda mikrofon erişimini açın, sonra buraya dönün.",
       "hintBoth": "Devam etmek için ikisine de izin verin",
       "hintMicrophone": "Devam etmek için mikrofona izin verin",
       "welcomeBack": "Tekrar hoş geldiniz. Kaldığınız yerden devam ediyoruz.",
-      "relaunch": "Bundan sonra kısayol yanıt vermiyor mu? <relaunch>Handy'yi yeniden başlatın</relaunch>, doğrudan buraya döneceksiniz."
+      "relaunch": "Bundan sonra kısayol yanıt vermiyor mu? <relaunch>Sokki'yi yeniden başlatın</relaunch>, doğrudan buraya döneceksiniz."
     },
     "shell": {
       "back": "Geri",
@@ -97,11 +97,11 @@
       "title": "Yazmak yerine konuşun, her uygulamada",
       "subtitle": "Konuşacağınız dilleri seçin",
       "languagesLabel": "Diller",
-      "noMatch": "“{{query}}” ile eşleşen dil yok. Handy'nin modelleri yaklaşık 100 dili kapsıyor; daha fazlası ayarlarda.",
+      "noMatch": "“{{query}}” ile eşleşen dil yok. Sokki'nin modelleri yaklaşık 100 dili kapsıyor; daha fazlası ayarlarda.",
       "appLanguage": "Uygulama dili",
       "menusIn": "Menüler <b>{{language}}</b> dilinde",
       "chinese": {
-        "question": "{{languages}} konuşuyorsunuz. Handy hangi karakterleri yazsın?",
+        "question": "{{languages}} konuşuyorsunuz. Sokki hangi karakterleri yazsın?",
         "label": "Çince karakterler",
         "zh-Hans": "Basitleştirilmiş",
         "zh-Hant": "Tayvan",
@@ -171,7 +171,7 @@
     },
     "try": {
       "title": "Bir deneyin!",
-      "subtitle": "Handy köşede, size yol göstermek için hazır",
+      "subtitle": "Sokki köşede, size yol göstermek için hazır",
       "noteLabel": "Not",
       "placeholder": "Yeni not",
       "hold": "<keys/> tuşlarını basılı tutun ve konuşun.",
@@ -199,14 +199,14 @@
     },
     "done": {
       "title": "Hazırsınız",
-      "subMac": "Handy artık menü çubuğunuzda. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
-      "subTray": "Handy artık sistem tepsinizde. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
+      "subMac": "Sokki artık menü çubuğunuzda. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
+      "subTray": "Sokki artık sistem tepsinizde. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
       "hint": "Bunları daha sonra Ayarlar'dan değiştirebilirsiniz",
       "highFiveLabel": "Çak bir beşlik",
-      "atLogin": "Oturum açtığımda Handy'yi başlat",
+      "atLogin": "Oturum açtığımda Sokki'yi başlat",
       "finish": "Bitti",
       "panel": {
-        "name": "Handy",
+        "name": "Sokki",
         "ready": "Hazır",
         "languages": "Diller",
         "model": "Konuşma modeli",
@@ -331,7 +331,7 @@
     "general": {
       "title": "Genel",
       "shortcut": {
-        "title": "Handy Kısayolları",
+        "title": "Sokki Kısayolları",
         "description": "Sesle yazma kaydını başlatmak için klavye kısayollarını yapılandırın",
         "loading": "Kısayollar yükleniyor...",
         "none": "Kısayol yapılandırılmadı",
@@ -377,7 +377,7 @@
       },
       "preferredLanguages": {
         "title": "Tercih Edilen Diller",
-        "description": "Konuştuğunuz diller. Handy bunları model önermek için kullanır.",
+        "description": "Konuştuğunuz diller. Sokki bunları model önermek için kullanır.",
         "noMatch": "“{{query}}” ile eşleşen dil yok",
         "weak": "Henüz hiçbir model {{languages}} dilini iyi tanımıyor."
       },
@@ -404,17 +404,17 @@
         "fits": "Dilleriniz için",
         "untested": "Test edilmemiş"
       },
-      "untestedNote": "Handy ile test edilmedi. Daha yavaş olabilir veya daha fazla hata yapabilir.",
+      "untestedNote": "Sokki ile test edilmedi. Daha yavaş olabilir veya daha fazla hata yapabilir.",
       "untestedHidden_one": "{{count}} model daha yazdırma için ayarlanmamış. Bulmak için arama yapın.",
       "untestedHidden_other": "{{count}} model daha yazdırma için ayarlanmamış. Bulmak için arama yapın.",
-      "emptyYours": "Henüz model yok. Aşağıdan birini seçin: iner, sonra Handy onu kullanır.",
+      "emptyYours": "Henüz model yok. Aşağıdan birini seçin: iner, sonra Sokki onu kullanır.",
       "showMore": "{{count}} tane daha göster",
       "showFewer": "Daha az göster",
       "download": "İndir ve kullan",
       "downloadingThenUse": "{{total}} içinden %{{percent}}, sonra geçilir",
       "loading": "Yükleniyor…",
       "deleteAsk": "{{name}} silinsin mi? {{size}} yer açılır.",
-      "deleteAskActive": "{{name}} silinsin mi? Başka bir model seçene kadar Handy transkripsiyon yapamaz.",
+      "deleteAskActive": "{{name}} silinsin mi? Başka bir model seçene kadar Sokki transkripsiyon yapamaz.",
       "cancel": "İptal",
       "deleteModel": "{{name}} modelini sil",
       "cancelDownload": "{{name}} indirmesini durdur",
@@ -428,14 +428,14 @@
         "marks": "? henüz ölçülmedi. — o dili duymaz."
       },
       "retiredNotice": {
-        "title": "Eski modeller artık Handy ile çalışmıyor",
+        "title": "Eski modeller artık Sokki ile çalışmıyor",
         "description": "Bilgisayarınızda {{size}} yer kaplıyorlar.",
         "delete": "Modelleri sil",
         "deleteFailed": "Bazı eski modeller silinemedi. Ayrıntılar için günlüğe bakın."
       },
       "rescan": {
         "label": "Yeniden Tara",
-        "tooltip": "Handy dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
+        "tooltip": "Sokki dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
       }
     },
     "languages": {
@@ -505,11 +505,11 @@
       },
       "autostart": {
         "label": "Başlangıçta Çalıştır",
-        "description": "Bilgisayara giriş yaptığınızda Handy otomatik olarak başlatılır."
+        "description": "Bilgisayara giriş yaptığınızda Sokki otomatik olarak başlatılır."
       },
       "showTrayIcon": {
         "label": "Tepsi Simgesini Göster",
-        "description": "Handy simgesini sistem tepsisinde göster."
+        "description": "Sokki simgesini sistem tepsisinde göster."
       },
       "overlay": {
         "style": {
@@ -746,8 +746,8 @@
       },
       "updateChecks": {
         "label": "Güncellemeleri Kontrol Et",
-        "description": "Handy için yeni sürümleri otomatik olarak kontrol eder",
-        "lockedDescription": "Sistem yapılandırması tarafından devre dışı bırakıldı (HANDY_DISABLE_UPDATER)"
+        "description": "Sokki için yeni sürümleri otomatik olarak kontrol eder",
+        "lockedDescription": "Sistem yapılandırması tarafından devre dışı bırakıldı (SOKKI_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
         "title": "Yenilikleri Önizle",
@@ -853,7 +853,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Klavye Tanılaması",
-        "description": "Klavye olaylarının Handy'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
+        "description": "Klavye olaylarının Sokki'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
         "run": "10 sn'lik tanılamayı çalıştır",
         "running": "Dinleniyor… kısayolunuza birkaç kez basın (ör. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -867,7 +867,7 @@
         "mouse": "Fare",
         "verdictBlocked": "Secure Input tuş olaylarını engelliyor — normal tuş içeren kısayollar bu sorun çözülene kadar çalışamaz.",
         "verdictSuspicious": "Değiştirici olayları geldi ancak hiç tuş olayı gelmedi — Secure Input devre dışı görünmesine rağmen bir şey tuşları bastırıyor. Lütfen bunu GitHub'da bildirin.",
-        "verdictOk": "Tuş olayları Handy'ye normal şekilde ulaşıyor.",
+        "verdictOk": "Tuş olayları Sokki'ye normal şekilde ulaşıyor.",
         "verdictNoEvents": "Hiç olay yakalanmadı — test sırasında herhangi bir tuşa bastınız mı?",
         "failed": "Tanılama başarısız: {{error}}"
       }
@@ -876,15 +876,15 @@
       "title": "Hakkında",
       "version": {
         "title": "Sürüm",
-        "description": "Handy'nin mevcut sürümü"
+        "description": "Sokki'nin mevcut sürümü"
       },
       "whatsNewUpdates": {
         "label": "Yenilikleri Göster",
-        "description": "Handy güncellemelerinden sonra sürüm notlarını göster"
+        "description": "Sokki güncellemelerinden sonra sürüm notlarını göster"
       },
       "appDataDirectory": {
         "title": "Uygulama Veri Dizini",
-        "description": "Handy'nin verilerini sakladığı konum"
+        "description": "Sokki'nin verilerini sakladığı konum"
       },
       "sourceCode": {
         "title": "Kaynak Kodu",
@@ -893,7 +893,7 @@
       },
       "supportDevelopment": {
         "title": "Geliştirmeyi Destekle",
-        "description": "Handy'yi geliştirmeye devam etmemize yardımcı olun",
+        "description": "Sokki'yi geliştirmeye devam etmemize yardımcı olun",
         "button": "Bağış Yap"
       },
       "acknowledgments": {
@@ -901,7 +901,7 @@
         "ggml": {
           "title": "ggml",
           "description": "Cihaz üzerinde makine öğrenmesi çıkarımı için yüksek performanslı tensör kütüphanesi",
-          "details": "Handy'nin yerel konuşmadan metne dönüştürme özelliği transcribe.cpp ve ggml üzerine kuruludur. Georgi Gerganov'a ve katkıda bulunanlara harika çalışmaları için teşekkür ederiz."
+          "details": "Sokki'nin yerel konuşmadan metne dönüştürme özelliği transcribe.cpp ve ggml üzerine kuruludur. Georgi Gerganov'a ve katkıda bulunanlara harika çalışmaları için teşekkür ederiz."
         }
       }
     }
@@ -923,7 +923,7 @@
     "updateNow": "Şimdi güncelle"
   },
   "whatsNew": {
-    "title": "Handy v{{version}} yenilikleri"
+    "title": "Sokki v{{version}} yenilikleri"
   },
   "common": {
     "playbackPosition": "Oynatma konumu",
@@ -950,7 +950,7 @@
     "microphoneSilentTitle": "Mikrofon sessiz",
     "microphoneSilent": "Mikrofonunuz yalnızca sessizlik gönderdi. Sesinin kapalı olmadığını kontrol edin veya Ayarlar'dan başka bir mikrofon seçin.",
     "recordingFailedTitle": "Kayıt başlatılamadı",
-    "modelLoadFailed": "Handy bu modeli yükleyemedi. Yeniden deneyin veya başka bir model seçin.",
+    "modelLoadFailed": "Sokki bu modeli yükleyemedi. Yeniden deneyin veya başka bir model seçin.",
     "modelLoadFailedTitle": "Model yüklenemedi",
     "noModelSelected": "Ayarlar > Modeller bölümünden bir model indirin veya seçin.",
     "noModelSelectedTitle": "Model seçilmedi",
@@ -958,7 +958,7 @@
     "pasteFailedTitle": "Metin yapıştırılamadı",
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
     "pasteBlockedElevatedTitle": "Yapıştırma engellendi",
-    "pasteBlockedElevated": "Etkin uygulama yönetici olarak çalışıyor, bu yüzden Handy içine yapıştıramıyor. Metni Geçmiş'ten kopyalayabilirsiniz.",
+    "pasteBlockedElevated": "Etkin uygulama yönetici olarak çalışıyor, bu yüzden Sokki içine yapıştıramıyor. Metni Geçmiş'ten kopyalayabilirsiniz.",
     "postProcessFailedTitle": "Son işlem olmadan yapıştırıldı",
     "postProcessFailed": "Son işlem tamamlanmadı, bu yüzden metin olduğu gibi yapıştırıldı.",
     "filePostProcessFailedTitle": "Son işlem olmadan yazıya döküldü",
@@ -966,7 +966,7 @@
     "fileTranscriptionFailedTitle": "Dosya transkripsiyonu başarısız oldu",
     "transcriptionFailedTitle": "Transkripsiyon başarısız oldu",
     "meetingStartFailedTitle": "Meeting Recording Didn't Start",
-    "meetingStartFailed": "Handy Meetings needs microphone access, and for calls on this Mac also system audio recording (macOS 14.2 or later). Allow them in System Settings > Privacy & Security, or switch on microphone-only mode.",
+    "meetingStartFailed": "Sokki needs microphone access, and for calls on this Mac also system audio recording (macOS 14.2 or later). Allow them in System Settings > Privacy & Security, or switch on microphone-only mode.",
     "meetingStopFailedTitle": "Meeting Recording Wasn't Saved",
     "meetingStopFailed": "The recording stopped, but it couldn't be saved for processing."
   },
@@ -979,11 +979,11 @@
   },
   "appLanguage": {
     "title": "Uygulama Dili",
-    "description": "Handy arayüzünün dilini değiştirin"
+    "description": "Sokki arayüzünün dilini değiştirin"
   },
   "theme": {
     "title": "Uygulama Teması",
-    "description": "Handy'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
+    "description": "Sokki'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
     "options": {
       "system": "Sistem",
       "light": "Açık",

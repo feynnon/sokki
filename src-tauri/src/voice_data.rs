@@ -634,6 +634,25 @@ pub fn forget(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
+/// Test mode (`SOKKI_TEST_FORGET`): turns sharing on under a new id, without
+/// uploading anything, presses "Delete what was shared" and logs whether
+/// sharing is off afterwards.
+pub fn test_forget(app: &AppHandle) {
+    let Ok(d) = dir(app) else { return };
+    let id = new_install_id();
+    update_config(&d, |c| {
+        c.support = true;
+        c.install_id = id.clone();
+    });
+    let result = forget(app).map_err(|e| format!("{e:#}"));
+    let c = read_config(&d);
+    log::info!(
+        "Test mode: forget {result:?}; sharing {}; new id {}",
+        if c.support { "on" } else { "off" },
+        c.install_id != id
+    );
+}
+
 /// The answer to the current buyer message: "interested" sends the random
 /// id, the language and the matching hours (nothing else); "no" stays here.
 pub fn answer_buyer(app: &AppHandle, answer: &str) -> Result<()> {
@@ -939,7 +958,7 @@ fn problems(app: &AppHandle, since: i64) -> Vec<String> {
     let Ok(log_dir) = crate::portable::app_log_dir(app) else {
         return vec![];
     };
-    let Ok(text) = std::fs::read_to_string(log_dir.join("handy.log")) else {
+    let Ok(text) = std::fs::read_to_string(log_dir.join("sokki.log")) else {
         return vec![];
     };
     let since = chrono::DateTime::from_timestamp(since, 0)
@@ -1072,7 +1091,7 @@ fn usage_report(app: &AppHandle, dir: &Path, config: &Config) -> serde_json::Val
     serde_json::json!({
         "id": config.install_id,
         "app": {
-            // The app's own version (Sokki 0.2.0), not the crate's (Handy 0.10.1).
+            // The app's own version (0.2.0), not the crate's (0.10.1, from upstream).
             "version": app.package_info().version.to_string(),
             "model": settings.selected_model,
             "language": settings.selected_language,

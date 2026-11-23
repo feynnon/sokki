@@ -26,7 +26,7 @@
     "customModelDescription": "Not officially supported",
     "migration": {
       "title": "Your models need an update",
-      "description": "Handy now uses a newer kind of model. Download the new version to keep transcribing. Old versions will be removed.",
+      "description": "Sokki now uses a newer kind of model. Download the new version to keep transcribing. Old versions will be removed.",
       "replaces": "Replaces {{name}}",
       "oldFormat": "Old format",
       "failed": "Download failed",
@@ -63,11 +63,11 @@
     "permissions": {
       "microphone": {
         "name": "Microphone",
-        "why": "So Handy can hear you. Audio is turned into text on this computer and never uploaded."
+        "why": "So Sokki can hear you. Audio is turned into text on this computer and never uploaded."
       },
       "accessibility": {
         "name": "Accessibility",
-        "why": "So your shortcut works in every app, and Handy can type the text where your cursor is."
+        "why": "So your shortcut works in every app, and Sokki can type the text where your cursor is."
       },
       "errors": {
         "checkFailed": "Failed to check permissions. Please try again.",
@@ -81,12 +81,12 @@
       "openSettings": "Open settings",
       "allowed": "Allowed",
       "waiting": "Waiting",
-      "turnOnMac": "Turn on Handy in System Settings, then come back here.",
+      "turnOnMac": "Turn on Sokki in System Settings, then come back here.",
       "turnOnWindows": "Turn on microphone access in Windows Settings, then come back here.",
       "hintBoth": "Allow both to continue",
       "hintMicrophone": "Allow the microphone to continue",
       "welcomeBack": "Welcome back. Picking up where you left off.",
-      "relaunch": "Shortcut not responding after this? <relaunch>Relaunch Handy</relaunch> and you'll land right back here."
+      "relaunch": "Shortcut not responding after this? <relaunch>Relaunch Sokki</relaunch> and you'll land right back here."
     },
     "shell": {
       "back": "Back",
@@ -97,11 +97,11 @@
       "title": "Speak instead of typing, in any app",
       "subtitle": "Pick the languages you will dictate in",
       "languagesLabel": "Languages",
-      "noMatch": "No language matches “{{query}}”. Handy's models cover about 100 languages; more are in settings.",
+      "noMatch": "No language matches “{{query}}”. Sokki's models cover about 100 languages; more are in settings.",
       "appLanguage": "App language",
       "menusIn": "Menus in <b>{{language}}</b>",
       "chinese": {
-        "question": "You speak {{languages}}. Which characters should Handy write?",
+        "question": "You speak {{languages}}. Which characters should Sokki write?",
         "label": "Chinese characters",
         "zh-Hans": "Simplified",
         "zh-Hant": "Taiwan",
@@ -171,7 +171,7 @@
     },
     "try": {
       "title": "Give it a try!",
-      "subtitle": "Handy's in the corner to help walk you through it",
+      "subtitle": "Sokki's in the corner to help walk you through it",
       "noteLabel": "Note",
       "placeholder": "New note",
       "hold": "Hold <keys/> and talk.",
@@ -199,14 +199,14 @@
     },
     "done": {
       "title": "You're all set",
-      "subMac": "Handy's in your menu bar now. Hold or tap <keys/> in any app to talk.",
-      "subTray": "Handy's in your system tray now. Hold or tap <keys/> in any app to talk.",
+      "subMac": "Sokki's in your menu bar now. Hold or tap <keys/> in any app to talk.",
+      "subTray": "Sokki's in your system tray now. Hold or tap <keys/> in any app to talk.",
       "hint": "You can change these later in Settings",
       "highFiveLabel": "High five",
-      "atLogin": "Start Handy when I log in",
+      "atLogin": "Start Sokki when I log in",
       "finish": "Done",
       "panel": {
-        "name": "Handy",
+        "name": "Sokki",
         "ready": "Ready",
         "languages": "Languages",
         "model": "Speech model",
@@ -331,7 +331,7 @@
     "general": {
       "title": "General",
       "shortcut": {
-        "title": "Handy Shortcuts",
+        "title": "Sokki Shortcuts",
         "description": "Configure keyboard shortcuts to trigger speech-to-text recording",
         "loading": "Loading shortcuts...",
         "none": "No shortcuts configured",
@@ -404,17 +404,17 @@
         "fits": "For your languages",
         "untested": "Untested"
       },
-      "untestedNote": "Not tested with Handy. They may be slower or make more mistakes.",
+      "untestedNote": "Not tested with Sokki. They may be slower or make more mistakes.",
       "untestedHidden_one": "{{count}} more model isn’t tuned for dictation. Search to find it.",
       "untestedHidden_other": "{{count}} more models aren’t tuned for dictation. Search to find one.",
-      "emptyYours": "No models yet. Pick one below: it downloads, then Handy uses it.",
+      "emptyYours": "No models yet. Pick one below: it downloads, then Sokki uses it.",
       "showMore": "Show {{count}} more",
       "showFewer": "Show fewer",
       "download": "Download and use",
       "downloadingThenUse": "{{percent}}% of {{total}}, then switches",
       "loading": "Loading…",
       "deleteAsk": "Delete {{name}}? It frees {{size}}.",
-      "deleteAskActive": "Delete {{name}}? Handy can’t transcribe until you pick another.",
+      "deleteAskActive": "Delete {{name}}? Sokki can’t transcribe until you pick another.",
       "cancel": "Cancel",
       "deleteModel": "Delete {{name}}",
       "cancelDownload": "Stop downloading {{name}}",
@@ -428,14 +428,14 @@
         "marks": "? hasn’t been measured yet. — doesn’t hear that language."
       },
       "retiredNotice": {
-        "title": "Old models no longer work with Handy",
+        "title": "Old models no longer work with Sokki",
         "description": "They're taking up {{size}} on your computer.",
         "delete": "Delete models",
         "deleteFailed": "Some old models couldn't be deleted. Check the log for details."
       },
       "rescan": {
         "label": "Rescan",
-        "tooltip": "Rescan for models added to the models folder or Hugging Face cache outside Handy"
+        "tooltip": "Rescan for models added to the models folder or Hugging Face cache outside Sokki"
       }
     },
     "languages": {
@@ -505,11 +505,11 @@
       },
       "autostart": {
         "label": "Open at login",
-        "description": "Starts Handy when you log in."
+        "description": "Starts Sokki when you log in."
       },
       "showTrayIcon": {
         "label": "Show Tray Icon",
-        "description": "Display the Handy icon in the system tray."
+        "description": "Display the Sokki icon in the system tray."
       },
       "overlay": {
         "style": {
@@ -746,8 +746,8 @@
       },
       "updateChecks": {
         "label": "Check for Updates",
-        "description": "Automatically check for new versions of Handy",
-        "lockedDescription": "Disabled by system configuration (HANDY_DISABLE_UPDATER)"
+        "description": "Automatically check for new versions of Sokki",
+        "lockedDescription": "Disabled by system configuration (SOKKI_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
         "title": "Preview What's New",
@@ -853,7 +853,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Keyboard Diagnostic",
-        "description": "Checks whether keyboard events reach Handy. Only event counts are recorded — never which keys you press.",
+        "description": "Checks whether keyboard events reach Sokki. Only event counts are recorded — never which keys you press.",
         "run": "Run 10s diagnostic",
         "running": "Listening… press your shortcut a few times (e.g. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -867,7 +867,7 @@
         "mouse": "Mouse",
         "verdictBlocked": "Secure Input is blocking key events — keyed shortcuts cannot work until it is resolved.",
         "verdictSuspicious": "Modifier events arrived but no key events — something is suppressing keys even though Secure Input reports disabled. Please report this on GitHub.",
-        "verdictOk": "Key events are reaching Handy normally.",
+        "verdictOk": "Key events are reaching Sokki normally.",
         "verdictNoEvents": "No events captured — did you press any keys during the test?",
         "failed": "Diagnostic failed: {{error}}"
       }
@@ -876,15 +876,15 @@
       "title": "About",
       "version": {
         "title": "Version",
-        "description": "Current version of Handy"
+        "description": "Current version of Sokki"
       },
       "whatsNewUpdates": {
         "label": "Show What's New",
-        "description": "Show release notes after Handy updates"
+        "description": "Show release notes after Sokki updates"
       },
       "appDataDirectory": {
         "title": "App Data Directory",
-        "description": "Location where Handy stores its data"
+        "description": "Location where Sokki stores its data"
       },
       "sourceCode": {
         "title": "Source Code",
@@ -893,7 +893,7 @@
       },
       "supportDevelopment": {
         "title": "Support Development",
-        "description": "Help us continue building Handy",
+        "description": "Help us continue building Sokki",
         "button": "Donate"
       },
       "acknowledgments": {
@@ -901,7 +901,7 @@
         "ggml": {
           "title": "ggml",
           "description": "High-performance tensor library for on-device machine learning inference",
-          "details": "Handy's local speech-to-text is built on transcribe.cpp and ggml. Thanks to the amazing work by Georgi Gerganov and contributors."
+          "details": "Sokki's local speech-to-text is built on transcribe.cpp and ggml. Thanks to the amazing work by Georgi Gerganov and contributors."
         }
       }
     }
@@ -923,7 +923,7 @@
     "updateNow": "Update now"
   },
   "whatsNew": {
-    "title": "New in Handy v{{version}}"
+    "title": "New in Sokki v{{version}}"
   },
   "common": {
     "playbackPosition": "Playback position",
@@ -950,7 +950,7 @@
     "microphoneSilentTitle": "Microphone Is Silent",
     "microphoneSilent": "Your microphone sent only silence. Check that it isn't muted, or choose a different microphone in Settings.",
     "recordingFailedTitle": "Failed to Start Recording",
-    "modelLoadFailed": "Handy couldn't load this model. Try again or choose a different one.",
+    "modelLoadFailed": "Sokki couldn't load this model. Try again or choose a different one.",
     "modelLoadFailedTitle": "Failed to Load Model",
     "noModelSelected": "Download or select a model in Settings > Models.",
     "noModelSelectedTitle": "No Model Selected",
@@ -958,7 +958,7 @@
     "pasteFailedTitle": "Failed to Paste Text",
     "pasteFailed": "Text could not be pasted into the active application.",
     "pasteBlockedElevatedTitle": "Can't Paste into Admin Apps",
-    "pasteBlockedElevated": "The active application is running as administrator, so Handy can't paste into it. You can copy the transcript from History.",
+    "pasteBlockedElevated": "The active application is running as administrator, so Sokki can't paste into it. You can copy the transcript from History.",
     "postProcessFailedTitle": "Pasted Without Post-Processing",
     "postProcessFailed": "Post Process didn't finish, so the transcript was pasted as is.",
     "filePostProcessFailedTitle": "Transcribed Without Post-Processing",
@@ -966,7 +966,7 @@
     "fileTranscriptionFailedTitle": "File Transcription Failed",
     "transcriptionFailedTitle": "Transcription Failed",
     "meetingStartFailedTitle": "Meeting Recording Didn't Start",
-    "meetingStartFailed": "Handy Meetings needs microphone access. Allow it in System Settings > Privacy & Security.",
+    "meetingStartFailed": "Sokki needs microphone access. Allow it in System Settings > Privacy & Security.",
     "meetingStopFailedTitle": "Meeting Recording Wasn't Saved",
     "meetingStopFailed": "The recording stopped, but it couldn't be saved for processing."
   },
@@ -1258,8 +1258,8 @@
     },
     "milestone": {
       "title": "{{hours}} hours with Sokki",
-      "body": "That's how much Sokki wrote down for you, all on this Mac. Sokki stays free. If it was worth it to you, a coffee would make me very happy! – Robin",
-      "sponsor": "Buy me a coffee",
+      "body": "That's how much Sokki wrote down for you, all on this Mac. Sokki stays free, but building it eats AI tokens by the bucket. If it was worth it to you, chip in a few! – Robin",
+      "sponsor": "Chip in tokens",
       "save": "Save picture",
       "saved": "Saved",
       "notNow": "Not now",

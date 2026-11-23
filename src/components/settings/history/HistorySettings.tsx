@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { IS_SOKKI } from "@/lib/brand";
 import { PhoneCard } from "@/components/settings/sokki/PhoneCard";
 import {
   MilestoneCard,
@@ -37,7 +36,7 @@ import {
   useTranscriptionJobsStore,
   type ActiveJobStatus,
 } from "@/stores/transcriptionJobsStore";
-import { formatDateTime, formatShortDateTime } from "@/utils/dateFormat";
+import { formatShortDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
 import { copyToClipboard } from "./clipboard";
@@ -357,15 +356,9 @@ export const HistorySettings: React.FC = () => {
       <div className="space-y-2">
         <div className="px-4 flex items-center justify-between">
           <div>
-            {IS_SOKKI ? (
-              <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
-                {t("sokki.nav.home")}
-              </h1>
-            ) : (
-              <h2 className="text-xs font-medium text-ink-3 uppercase tracking-wide">
-                {t("settings.history.title")}
-              </h2>
-            )}
+            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
+              {t("sokki.nav.home")}
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <HeaderButton
@@ -380,8 +373,8 @@ export const HistorySettings: React.FC = () => {
             />
           </div>
         </div>
-        {IS_SOKKI && SPONSORS_LIVE && <MilestoneCard />}
-        {IS_SOKKI && osType === "macos" && <PhoneCard />}
+        {SPONSORS_LIVE && <MilestoneCard />}
+        {osType === "macos" && <PhoneCard />}
         <div className="bg-background border border-line rounded-lg overflow-visible">
           {content}
         </div>
@@ -467,7 +460,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
-  const formattedDate = (IS_SOKKI ? formatShortDateTime : formatDateTime)(
+  const formattedDate = formatShortDateTime(
     String(entry.timestamp),
     i18n.language,
   );
@@ -486,15 +479,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       <div className="flex justify-between items-center gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <p
-            className={
-              IS_SOKKI
-                ? "text-[13px] text-ink-3 shrink-0"
-                : "text-sm font-medium shrink-0"
-            }
+            className="text-[13px] text-ink-3 shrink-0"
           >
             {formattedDate}
           </p>
-          {IS_SOKKI && entry.saved && (
+          {entry.saved && (
             <Star
               width={12}
               height={12}
@@ -515,7 +504,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
         </div>
         {/* Sokki: the entry's actions show on hover or keyboard focus. */}
         <div
-          className={`flex items-center shrink-0 ${IS_SOKKI ? "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100" : ""}`}
+          className="flex items-center shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
         >
           <IconButton
             onClick={handleCopyText}
@@ -574,7 +563,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       <div className="flex flex-col items-start gap-1 pb-2">
         <p
           ref={textRef}
-          className={`${IS_SOKKI ? "text-[15px] leading-[24px]" : "italic text-sm"} w-full ${
+          className={`text-[15px] leading-[24px] w-full ${
             retrying
               ? ""
               : hasTranscription

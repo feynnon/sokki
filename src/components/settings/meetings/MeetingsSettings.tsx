@@ -19,7 +19,6 @@ import {
   selectedLanguageModel,
 } from "../models/LanguageModels";
 import { useModelsTab } from "@/stores/modelsTabStore";
-import { IS_SOKKI } from "@/lib/brand";
 import { MeetingDetails } from "./MeetingDetails";
 import { PhoneLink } from "./PhoneLink";
 import {
@@ -36,15 +35,12 @@ import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { Input } from "../../ui/Input";
 import { Button } from "../../ui/Button";
-import { Dropdown } from "../../ui/Dropdown";
-
-const KEEP_AUDIO_CHOICES = [0, 7, 30];
 
 /** Opens Models → Language model (App switches section on this event). */
 function openLanguageModels() {
   useModelsTab.getState().setTab("language");
   window.dispatchEvent(
-    new CustomEvent("handy-open-section", { detail: "models" }),
+    new CustomEvent("sokki-open-section", { detail: "models" }),
   );
 }
 
@@ -318,15 +314,11 @@ const MeetingSettingsView: React.FC<{
   const { t } = useTranslation();
   const notesDir =
     meetingSettings.notes_dir ||
-    (IS_SOKKI ? "~/Documents/Sokki" : "~/Documents/Handy Meetings");
+    "~/Documents/Sokki";
   const chooseFolder = async () => {
     const dir = await openDialog({ directory: true, multiple: false });
     if (typeof dir === "string" && dir) await save({ notes_dir: dir });
   };
-  const keep = meetingSettings.keep_audio_days;
-  const keepChoices = KEEP_AUDIO_CHOICES.includes(keep)
-    ? KEEP_AUDIO_CHOICES
-    : [...KEEP_AUDIO_CHOICES, keep].sort((a, b) => a - b);
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
@@ -371,36 +363,10 @@ const MeetingSettingsView: React.FC<{
         >
           <SavedInput
             value={meetingSettings.user_name}
-            className={
-              IS_SOKKI
-                ? "w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
-                : undefined
-            }
+            className="w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
             onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
           />
         </SettingContainer>
-        {!IS_SOKKI && (
-          <SettingContainer
-            title={t("meetings.settings.dictionary")}
-            description={t("meetings.settings.dictionaryDescription")}
-            grouped
-            layout="stacked"
-          >
-            <SavedInput
-              value={meetingSettings.glossary.join(", ")}
-              placeholder="Kelasur, OVDA, Claude Code"
-              className="w-full"
-              onSave={(v) =>
-                void save({
-                  glossary: v
-                    .split(",")
-                    .map((w) => w.trim())
-                    .filter((w) => w.length > 0),
-                })
-              }
-            />
-          </SettingContainer>
-        )}
         <ToggleSwitch
           checked={meetingSettings.detection_enabled}
           onChange={(v) => void save({ detection_enabled: v })}
@@ -415,25 +381,6 @@ const MeetingSettingsView: React.FC<{
           description={t("meetings.settings.footerDescription")}
           grouped
         />
-        {!IS_SOKKI && (
-          <SettingContainer
-            title={t("meetings.settings.keepAudio")}
-            description={t("meetings.settings.keepAudioDescription")}
-            grouped
-          >
-            <Dropdown
-              selectedValue={String(keep)}
-              onSelect={(v) => void save({ keep_audio_days: Number(v) })}
-              options={keepChoices.map((d) => ({
-                value: String(d),
-                label:
-                  d === 0
-                    ? t("meetings.settings.keepAudioNone")
-                    : t("meetings.settings.keepAudioDays", { count: d }),
-              }))}
-            />
-          </SettingContainer>
-        )}
       </SettingsGroup>
 
       <SettingsGroup
@@ -552,20 +499,16 @@ export const MeetingsSettings: React.FC = () => {
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
       <div
-        className={`${IS_SOKKI ? "px-1" : "px-4"} flex items-start justify-between gap-4`}
+        className="px-1 flex items-start justify-between gap-4"
       >
-        {IS_SOKKI ? (
-          <div className="min-w-0">
-            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
-              {t("meetings.title")}
-            </h1>
-            <p className="mt-1 max-w-[60ch] text-body text-ink-2">
-              {t("meetings.description")}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-ink-3">{t("meetings.description")}</p>
-        )}
+        <div className="min-w-0">
+          <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]">
+            {t("meetings.title")}
+          </h1>
+          <p className="mt-1 max-w-[60ch] text-body text-ink-2">
+            {t("meetings.description")}
+          </p>
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative flex">
             <Button
@@ -673,20 +616,17 @@ export const MeetingsSettings: React.FC = () => {
                   {m.title ?? t("meetings.untitled")}
                 </div>
                 <div className="text-xs text-ink-3">
-                  {(IS_SOKKI ? formatShortDateTime : formatDateTime)(
+                  {formatShortDateTime(
                     String(Date.parse(m.started_at) / 1000),
                     i18n.language,
                   )}{" "}
                   · {formatDuration(m.duration_s)}
                   {m.source_app && ` · ${m.source_app}`}
-                  {!IS_SOKKI &&
-                    m.online != null &&
-                    ` · ${m.online ? t("meetings.online") : t("meetings.singleMic")}`}
                 </div>
               </div>
               {/* Sokki: the row's actions show on hover or keyboard focus. */}
               <div
-                className={`flex items-center gap-1 shrink-0 ${IS_SOKKI ? "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100" : ""}`}
+                className="flex items-center gap-1 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
               >
                 {m.note_path && (
                   <Button
@@ -710,9 +650,9 @@ export const MeetingsSettings: React.FC = () => {
                     </Button>
                   )}
                 <Button
-                  variant={IS_SOKKI ? "ghost" : "danger-ghost"}
+                  variant="ghost"
                   size="sm"
-                  className={IS_SOKKI ? "hover:text-error" : undefined}
+                  className="hover:text-error"
                   onClick={() =>
                     void commands.deleteMeeting(m.id).then(() => reload())
                   }

@@ -125,10 +125,13 @@ pub fn diarize_in_child(
             .context("start the diarization worker")?;
         let started = Instant::now();
         let mut peak = 0u64;
+        // In the background band while a meeting records (recording wins).
+        let mut band = super::priority::Class::Normal;
         let status = loop {
             if let Some(status) = child.try_wait()? {
                 break status;
             }
+            super::priority::follow_recording_child(child.id(), &mut band);
             if let Some(b) = super::memguard::footprint_of(child.id() as i32) {
                 peak = peak.max(b);
                 if b > MAX_BYTES {

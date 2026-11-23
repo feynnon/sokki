@@ -106,6 +106,8 @@ pub struct Input {
     pub previous_note: Option<PathBuf>,
     /// Problems from recording, carried into the note's record.
     pub warnings: Vec<String>,
+    /// What was transcribed during the recording ([`crate::live`]).
+    pub live: Option<crate::live::Live>,
 }
 
 /// The platform parts.
@@ -120,6 +122,9 @@ pub struct Deps<'a> {
     pub namer: Option<&'a dyn SpeakerNamer>,
     /// Called with each stage and, when known, its progress (0–1).
     pub progress: &'a (dyn Fn(Stage, Option<f32>) + Sync),
+    /// Asked before the summary: `true` saves the note without it, marked
+    /// as waiting, for the host's retry (the Mac app: a meeting records).
+    pub hold_summary: Option<&'a (dyn Fn() -> bool + Sync)>,
 }
 
 /// The result: the note and what a meeting list shows about it.
@@ -154,24 +159,38 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         source_app,
         previous_note,
         mut warnings,
+        live,
     } = input;
     tracks.retain(|t| !t.samples.is_empty());
     if tracks.is_empty() {
         bail!("The recording has no audio.");
     }
     let mut clock = StepClock::new(&tracks);
+    let mut echo_from = Some(0);
     if let Some(t) = timing {
         if let Some(w) = align_tracks(&mut tracks, t.mic_first_us, t.system_first_us) {
             log::warn!("{w}");
+            // Not lined up, the system track is no reference for the echo.
+            echo_from = None;
+        } else if tracks.len() > 1 {
+            echo_from = crate::tracks::track_pads(t.mic_first_us, t.system_first_us).map(|p| p.1);
         }
     }
     // Remove the remote voices the mic picked up from the speakers, so they
-    // are not found as an extra speaker on the mic.
-    if meeting_core::aec::cancel_echo_in_tracks(&mut tracks) {
+    // are not found as an extra speaker on the mic. From where the system
+    // track's audio starts: before it nothing played.
+    let echo_cancelled =
+        echo_from.is_some_and(|f| meeting_core::aec::cancel_echo_in_tracks(&mut tracks, f));
+    if echo_cancelled {
         clock.step("echo cancellation");
     } else {
         clock.skip();
     }
+    let echo_from = echo_from.filter(|_| echo_cancelled);
+    let (pieces, live_turns) = match live.map(|l| crate::live::usable(l, timing, echo_from)) {
+        Some((p, t)) => (Some(p), Some(t)),
+        None => (None, None),
+    };
     let duration_s = tracks.iter().map(|t| t.duration_s()).fold(0.0, f64::max);
 
     // Load the language model while speakers are detected (saves ~6 s
@@ -201,6 +220,8 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         Hooks {
             namer: deps.namer,
             progress: Some(&progress),
+            pieces: pieces.as_deref(),
+            turns: live_turns.as_deref(),
         },
     )?;
     for d in &result.details {
@@ -209,6 +230,14 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     clock.add("speakers", result.speakers_s);
     clock.add("transcription", result.transcribe_s);
     clock.step("echo removal and names");
+    if pieces.is_some() {
+        log::info!(
+            "{} of {} turns taken from the live transcript; speakers of {} tracks found during the call",
+            result.jobs_from_pieces,
+            result.jobs,
+            live_turns.as_ref().map_or(0, Vec::len)
+        );
+    }
     warnings.extend(result.warnings.iter().cloned());
     drop(deps.diarizer);
     if let Some(notes) = &deps.diarizer_notes {
@@ -220,7 +249,8 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     if let Some(p) = preparing {
         let _ = p.join();
     }
-    let llm_ready = wants_llm && llm::is_ready(&settings.llm, &settings.user_name);
+    let held = wants_llm && deps.hold_summary.is_some_and(|hold| hold());
+    let llm_ready = wants_llm && !held && llm::is_ready(&settings.llm, &settings.user_name);
     clock.step("waiting for the language model");
 
     let transcript = result.transcript.clone();
@@ -560,6 +590,7 @@ mod tests {
                 source_app: Some("Google Meet".into()),
                 previous_note: None,
                 warnings: vec![],
+                live: None,
             },
             Deps {
                 transcriber: &Parrot,
@@ -567,6 +598,7 @@ mod tests {
                 diarizer_notes: None,
                 namer: None,
                 progress: &progress,
+                hold_summary: None,
             },
             &settings,
         )
@@ -593,6 +625,7 @@ mod tests {
             source_app: None,
             previous_note: None,
             warnings: vec![],
+            live: None,
         }
     }
 
@@ -665,6 +698,7 @@ mod tests {
                 diarizer_notes: None,
                 namer: None,
                 progress: &progress,
+                hold_summary: None,
             },
             &settings,
         )
@@ -691,6 +725,55 @@ mod tests {
         assert!(md.contains("das ist ein Test"), "{md}");
         // Only once.
         assert!(summarize_note(&done.note_path, &settings).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A meeting records while this one is processed (the Mac app): the
+    /// note is saved without the summary even though the model is ready,
+    /// and the summary waits for the retry.
+    #[test]
+    fn a_held_summary_waits_although_the_model_is_ready() {
+        let dir = std::env::temp_dir().join(format!("sokki-engine-hold-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let settings = llm_settings(&fake_llm(), &dir);
+        let progress = |_s: Stage, _p: Option<f32>| {};
+        let asked = std::sync::atomic::AtomicBool::new(false);
+        let hold = || {
+            asked.store(true, std::sync::atomic::Ordering::Relaxed);
+            true
+        };
+        let out = run(
+            mic_input(3.0),
+            Deps {
+                transcriber: &Parrot,
+                diarizer: Box::new(WholeTrack),
+                diarizer_notes: None,
+                namer: None,
+                progress: &progress,
+                hold_summary: Some(&hold),
+            },
+            &settings,
+        )
+        .unwrap();
+        assert!(asked.load(std::sync::atomic::Ordering::Relaxed));
+        assert_eq!(out.summary_missing, Some(SummaryMissing::Waiting));
+        assert_eq!(out.warnings, vec![SUMMARY_WAITING]);
+        // Not held: the same model writes the summary.
+        let not_held = || false;
+        let out = run(
+            mic_input(3.0),
+            Deps {
+                transcriber: &Parrot,
+                diarizer: Box::new(WholeTrack),
+                diarizer_notes: None,
+                namer: None,
+                progress: &progress,
+                hold_summary: Some(&not_held),
+            },
+            &settings,
+        )
+        .unwrap();
+        assert_eq!(out.summary_missing, None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -721,6 +804,7 @@ mod tests {
                 source_app: None,
                 previous_note: None,
                 warnings: vec![],
+                live: None,
             },
             Deps {
                 transcriber: &Parrot,
@@ -728,6 +812,7 @@ mod tests {
                 diarizer_notes: None,
                 namer: None,
                 progress: &progress,
+                hold_summary: None,
             },
             &Settings::default(),
         )

@@ -16,9 +16,30 @@ pub const TIMING_FILE: &str = "timing.json";
 pub const MIC_FILE: &str = "mic.flac";
 pub const SYSTEM_FILE: &str = "system.flac";
 
+/// Leading silence (samples) that lines the tracks up: (mic, system).
+/// `None` when the offset looks wrong and the tracks are left as they are.
+///
+/// The system track may start any time later: the system-audio tap only
+/// delivers once something plays (a real in-person meeting, 2026-11-23:
+/// 12.1 s after the mic). A microphone more than 5 s late is taken for a
+/// clock glitch, as before.
+pub fn track_pads(mic_first_us: u64, system_first_us: u64) -> Option<(usize, usize)> {
+    if mic_first_us == 0 || system_first_us == 0 {
+        return Some((0, 0));
+    }
+    let offset_us = mic_first_us as i64 - system_first_us as i64;
+    if offset_us > 5_000_000 {
+        return None;
+    }
+    let pad = (offset_us.unsigned_abs() * SAMPLE_RATE as u64 / 1_000_000) as usize;
+    // Positive offset: the microphone started later.
+    Some(if offset_us > 0 { (pad, 0) } else { (0, pad) })
+}
+
 /// Lines the tracks up in time: the track that started later gets leading
-/// silence for the difference, so the same moment has the same timestamp on
-/// both. Returns a warning when the offset looks implausible and is ignored.
+/// silence for the difference ([`track_pads`]), so the same moment has the
+/// same timestamp on both. Returns a warning when the offset looks
+/// implausible and is ignored.
 pub fn align_tracks(
     tracks: &mut [Track],
     mic_first_us: u64,
@@ -28,22 +49,21 @@ pub fn align_tracks(
         return None;
     }
     let offset_us = mic_first_us as i64 - system_first_us as i64;
-    if offset_us.abs() > 5_000_000 {
+    let Some((mic_pad, system_pad)) = track_pads(mic_first_us, system_first_us) else {
         return Some(format!(
             "track start offset {offset_us} µs looks wrong; not aligned"
         ));
-    }
-    let pad = (offset_us.unsigned_abs() * SAMPLE_RATE as u64 / 1_000_000) as usize;
-    // Positive offset: the microphone started later.
-    let later = if offset_us > 0 {
-        TrackKind::Mic
-    } else {
-        TrackKind::System
     };
-    if let Some(t) = tracks.iter_mut().find(|t| t.kind == later) {
-        let mut padded = vec![0.0f32; pad];
-        padded.extend_from_slice(&t.samples);
-        t.samples = padded;
+    for t in tracks.iter_mut() {
+        let pad = match t.kind {
+            TrackKind::Mic => mic_pad,
+            TrackKind::System => system_pad,
+        };
+        if pad > 0 {
+            let mut padded = vec![0.0f32; pad];
+            padded.extend_from_slice(&t.samples);
+            t.samples = padded;
+        }
     }
     log::info!(
         "Aligned tracks: {} started {} ms later",

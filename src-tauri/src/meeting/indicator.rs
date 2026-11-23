@@ -23,6 +23,9 @@ const STOP: f64 = 28.0;
 const STOP_INSET: f64 = 6.0;
 
 pub fn show(app: &AppHandle) {
+    if crate::test_mic::active() {
+        return; // no window on the developer's screen
+    }
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(w) = handle.get_webview_window(LABEL) {
@@ -60,11 +63,17 @@ pub fn show(app: &AppHandle) {
     });
 }
 
+/// Hides the pill; the next meeting shows the same window again at once.
+/// Not `close()`: the app's close handler turns every close into a hide (and
+/// drops the Dock icon), so the old page stayed with its state. After a stop
+/// from the pill it came back with the spinner, dim bars and "0:00" frozen,
+/// and looked like it was still starting (Robin, 2026-11-23). The page now
+/// resets itself once the meeting is no longer recording.
 pub fn hide(app: &AppHandle) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(w) = handle.get_webview_window(LABEL) {
-            let _ = w.close();
+            let _ = w.hide();
         }
     });
 }

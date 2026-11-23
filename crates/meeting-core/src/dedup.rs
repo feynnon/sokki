@@ -241,7 +241,7 @@ fn check_segment(mic: &Segment, system: &[&Segment], cfg: &DedupConfig) -> Verdi
     Verdict::Trim(pieces)
 }
 
-fn capitalize_first(s: &str) -> String {
+pub(crate) fn capitalize_first(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),

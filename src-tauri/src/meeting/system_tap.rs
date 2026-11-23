@@ -80,6 +80,7 @@ fn write_loop(
     sample_rate: Arc<OnceLock<u32>>,
     path: PathBuf,
     stop: Arc<AtomicBool>,
+    tee: Option<super::flac::Tee>,
 ) -> Result<Option<u64>> {
     // Wait for the first callback to tell us the rate. Give up if stopped first.
     let rate = loop {
@@ -110,6 +111,9 @@ fn write_loop(
     let mut held: Vec<f32> = Vec::new();
     let mut out: Vec<f32> = Vec::new();
     let mut writer = FlacWriter::create(&path, super::rate::OUT_RATE)?;
+    if let Some(tee) = tee {
+        writer.set_tee(tee);
+    }
     let mut buffer = vec![0f32; 4096];
     let mut logged_rate: Option<u32> = None;
     loop {
@@ -177,6 +181,8 @@ pub struct SystemAudioCapture {
     sample_rate: Arc<OnceLock<u32>>,
     writer: Option<JoinHandle<Result<Option<u64>>>>,
     path: PathBuf,
+    /// Test mode: the thread playing a file in place of the tap.
+    fake: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
 }
 
 // SAFETY: `handle` is an opaque Swift object used only through the C API, and
@@ -194,8 +200,10 @@ pub fn is_supported() -> bool {
 impl SystemAudioCapture {
     /// Starts the tap and a writer thread that streams into `path`.
     /// Fails when the OS is too old or the system-audio permission is denied.
-    pub fn start(path: PathBuf) -> Result<Self> {
-        if !is_supported() {
+    /// `tee` gets the audio as it is written (see [`super::flac::Tee`]).
+    pub fn start(path: PathBuf, tee: Option<super::flac::Tee>) -> Result<Self> {
+        let test_audio = crate::test_mic::system_audio();
+        if !is_supported() && test_audio.is_none() {
             bail!("System audio capture needs macOS 14.2 or later.");
         }
 
@@ -208,16 +216,23 @@ impl SystemAudioCapture {
         }));
 
         let user = shared.cast::<c_void>();
-        let mut error: *mut c_char = ptr::null_mut();
-        // SAFETY: `user` stays valid until the tap is stopped and `shared` freed.
-        let handle = unsafe { ffi::handy_tap_start(on_samples, user, &mut error) };
-        if handle.is_null() {
-            // SAFETY: the tap never started, so nothing else holds `shared`.
-            unsafe { drop(Box::from_raw(shared)) };
-            let message = take_error(error);
-            log::warn!("System audio tap failed to start: {message}");
-            bail!("{message}");
-        }
+        let mut fake = None;
+        let handle = if let Some(audio) = test_audio {
+            fake = Some(play_test_audio(user, audio));
+            ptr::null_mut()
+        } else {
+            let mut error: *mut c_char = ptr::null_mut();
+            // SAFETY: `user` stays valid until the tap is stopped and `shared` freed.
+            let handle = unsafe { ffi::handy_tap_start(on_samples, user, &mut error) };
+            if handle.is_null() {
+                // SAFETY: the tap never started, so nothing else holds `shared`.
+                unsafe { drop(Box::from_raw(shared)) };
+                let message = take_error(error);
+                log::warn!("System audio tap failed to start: {message}");
+                bail!("{message}");
+            }
+            handle
+        };
         log::info!("System audio tap started");
 
         let stop = Arc::new(AtomicBool::new(false));
@@ -227,14 +242,21 @@ impl SystemAudioCapture {
             let path = path.clone();
             thread::Builder::new()
                 .name("meeting-system-writer".into())
-                .spawn(move || write_loop(consumer, sample_rate, path, stop))
+                .spawn(move || write_loop(consumer, sample_rate, path, stop, tee))
         };
         let writer = match writer {
             Ok(writer) => writer,
             Err(e) => {
-                // SAFETY: `handle` came from a successful `handy_tap_start`.
+                if let Some((stop, thread)) = fake {
+                    stop.store(true, Ordering::Release);
+                    let _ = thread.join();
+                }
+                // SAFETY: `handle` came from a successful `handy_tap_start`
+                // (or is null in test mode, where the player has stopped).
                 unsafe {
-                    ffi::handy_tap_stop(handle);
+                    if !handle.is_null() {
+                        ffi::handy_tap_stop(handle);
+                    }
                     drop(Box::from_raw(shared));
                 }
                 bail!("Starting the system audio writer failed: {e}");
@@ -248,6 +270,7 @@ impl SystemAudioCapture {
             sample_rate,
             writer: Some(writer),
             path,
+            fake,
         })
     }
 
@@ -255,8 +278,11 @@ impl SystemAudioCapture {
     pub fn stop(mut self) -> Result<SystemRecording> {
         // SAFETY: `handle` is valid until this call; the tap has no callbacks
         // once `handy_tap_stop` returns.
-        unsafe { ffi::handy_tap_stop(self.handle) };
+        if !self.handle.is_null() {
+            unsafe { ffi::handy_tap_stop(self.handle) };
+        }
         self.handle = ptr::null_mut();
+        self.stop_fake();
         self.stop.store(true, Ordering::Release);
 
         // SAFETY: the tap has stopped, so the callback no longer touches `shared`.
@@ -283,6 +309,14 @@ impl SystemAudioCapture {
 }
 
 impl SystemAudioCapture {
+    /// Test mode: stops the player, so the callback is no longer called.
+    fn stop_fake(&mut self) {
+        if let Some((stop, thread)) = self.fake.take() {
+            stop.store(true, Ordering::Release);
+            let _ = thread.join();
+        }
+    }
+
     /// Frees `shared`. Only call once the tap has stopped.
     fn free_shared(&mut self) {
         if !self.shared.is_null() {
@@ -304,8 +338,54 @@ impl Drop for SystemAudioCapture {
             self.handle = ptr::null_mut();
             self.stop.store(true, Ordering::Release);
         }
+        self.stop_fake();
         self.free_shared();
     }
+}
+
+/// Test mode: feeds `audio` (16 kHz mono) to the tap's callback in real
+/// time, 10 ms at a time, then silence, as Core Audio would.
+fn play_test_audio(user: *mut c_void, audio: Vec<f32>) -> (Arc<AtomicBool>, JoinHandle<()>) {
+    struct User(*mut c_void);
+    // SAFETY: the pointer is only used by this thread, which `stop_fake`
+    // joins before `shared` is freed.
+    unsafe impl Send for User {}
+    let user = User(user);
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopping = Arc::clone(&stop);
+    // SOKKI_TEST_SYSTEM_DELAY_S: nothing plays at first, as in an in-person
+    // meeting where the tap's first sample came 12 s after the mic's.
+    let delay = std::env::var("SOKKI_TEST_SYSTEM_DELAY_S")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let thread = thread::spawn(move || {
+        let user = user;
+        let wait_until = std::time::Instant::now() + Duration::from_secs_f64(delay);
+        while std::time::Instant::now() < wait_until {
+            if stopping.load(Ordering::Acquire) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        let block = 160;
+        let silence = vec![0.0f32; block];
+        let started = std::time::Instant::now();
+        let mut sent = 0usize;
+        while !stopping.load(Ordering::Acquire) {
+            let piece = match audio.get(sent..(sent + block).min(audio.len())) {
+                Some(p) if !p.is_empty() => p,
+                _ => &silence[..],
+            };
+            on_samples(user.0, piece.as_ptr(), piece.len(), 1, 16_000.0);
+            sent += piece.len();
+            let due = started + Duration::from_secs_f64(sent as f64 / 16_000.0);
+            if let Some(wait) = due.checked_duration_since(std::time::Instant::now()) {
+                thread::sleep(wait);
+            }
+        }
+    });
+    (stop, thread)
 }
 
 /// Reads and frees the Swift error string.

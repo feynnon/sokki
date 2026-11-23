@@ -94,7 +94,8 @@ impl MicCapture {
     /// Opens the default microphone and starts writing to `path`. The default
     /// microphone at this moment is the preferred one; the built-in microphone
     /// is used whenever it is unavailable.
-    pub fn start(path: &Path) -> Result<Self> {
+    /// `tee` gets the audio as it is written (see [`super::flac::Tee`]).
+    pub fn start(path: &Path, tee: Option<super::flac::Tee>) -> Result<Self> {
         let devices = handy_recorder::list_input_devices().unwrap_or_default();
         let preferred_name = devices
             .iter()
@@ -111,7 +112,10 @@ impl MicCapture {
 
         let recorder = open_on(device.as_ref(), &hooks)?;
         let sample_rate = recorder.info().format.sample_rate;
-        let writer = FlacWriter::create(path, sample_rate)?;
+        let mut writer = FlacWriter::create(path, sample_rate)?;
+        if let Some(tee) = tee {
+            writer.set_tee(tee);
+        }
         recorder
             .start(MicSink {
                 writer: Some(writer),
@@ -327,13 +331,20 @@ fn open_on(device: Option<&InputDevice>, hooks: &Hooks) -> Result<Recorder<MicSi
     let mut config = RecorderConfig::speech();
     config.device = device.map(|d| d.id.clone());
     let hooks = hooks.clone();
-    Recorder::<MicSink>::open_with_failure_handler(config, move |err| {
+    let on_failure = move |err: handy_recorder::Error| {
         log::warn!("Meeting microphone failed: {err}");
         hooks.failed.store(true, Ordering::Release);
         hooks.lost.store(true, Ordering::Release);
         let _ = hooks.tx.send(());
-    })
-    .map_err(|e| anyhow!("Opening the microphone failed: {e}"))
+    };
+    if crate::test_mic::active() {
+        // Test mode: the file plays in place of the microphone.
+        config.device = None;
+        return crate::test_mic::open(config, Box::new(on_failure))
+            .map_err(|e| anyhow!("Opening the test microphone failed: {e}"));
+    }
+    Recorder::<MicSink>::open_with_failure_handler(config, on_failure)
+        .map_err(|e| anyhow!("Opening the microphone failed: {e}"))
 }
 
 /// The state is still valid after a panic elsewhere, so keep going.

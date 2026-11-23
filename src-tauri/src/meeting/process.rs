@@ -26,16 +26,24 @@ use crate::settings::MeetingSettings;
 /// One meeting processes at a time; others wait their turn.
 static PROCESSING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Starts processing on a background thread.
-pub fn spawn(app: AppHandle, id: String) {
+/// A meeting (or a summary) is being processed right now.
+pub fn busy() -> bool {
+    matches!(PROCESSING.try_lock(), Err(std::sync::TryLockError::WouldBlock))
+}
+
+/// Starts processing on a background thread. `live`: what was transcribed
+/// during the recording, if it just ended. The thread yields to any meeting
+/// that records meanwhile ([`super::priority`]).
+pub fn spawn(app: AppHandle, id: String, live: Option<super::live::Live>) {
     std::thread::Builder::new()
         .name(format!("meeting-{id}"))
         .spawn(move || {
+            super::priority::follow_recording();
             let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
             let store = app.state::<Arc<MeetingStore>>().inner().clone();
             super::memguard::set_current(Some(&id));
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                process(&app, &store, &id)
+                process(&app, &store, &id, live)
             }));
             super::memguard::set_current(None);
             let error = match result {
@@ -46,11 +54,15 @@ pub fn spawn(app: AppHandle, id: String) {
                     PROCESSING_FAILED.to_string(),
                 )),
             };
-            if error.is_none() {
+            // While a meeting records, the menu bar shows its time only.
+            let recording = super::priority::recording();
+            if error.is_none() && !recording {
                 super::indicator::flash_menu_bar_status(&app, "🟢");
             }
             if let Some((detail, error)) = error {
-                super::indicator::flash_menu_bar_status(&app, "⚠️");
+                if !recording {
+                    super::indicator::flash_menu_bar_status(&app, "⚠️");
+                }
                 log::error!("Meeting {id} failed: {detail}");
                 let _ = store.update(&id, |r| r.status = MeetingStatus::Failed { error });
             }
@@ -74,10 +86,14 @@ fn failure_message(e: &anyhow::Error) -> String {
 }
 
 fn set_stage(app: &AppHandle, store: &MeetingStore, id: &str, stage: &str, progress: Option<f32>) {
+    super::priority::yield_now();
     let pct = progress
         .map(|p| format!(" {}%", (p * 100.0).round() as u32))
         .unwrap_or_default();
-    super::indicator::set_menu_bar_status(app, Some(&format!("🔵{pct}")));
+    // While a meeting records, the menu bar shows its time (the ticker).
+    if !super::priority::recording() {
+        super::indicator::set_menu_bar_status(app, Some(&format!("🔵{pct}")));
+    }
     let _ = store.update(id, |r| {
         r.status = MeetingStatus::Processing {
             stage: stage.to_string(),
@@ -85,6 +101,14 @@ fn set_stage(app: &AppHandle, store: &MeetingStore, id: &str, stage: &str, progr
         }
     });
     emit_changed(app, id);
+}
+
+/// Clears processing's status next to the menu bar icon, unless a meeting
+/// records: then the ticker's time is there.
+fn clear_menu_bar_status(app: &AppHandle) {
+    if !super::priority::recording() {
+        super::indicator::set_menu_bar_status(app, None);
+    }
 }
 
 /// The meeting settings in the engine's terms.
@@ -123,7 +147,17 @@ pub fn llm_settings(
     }
 }
 
-fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
+fn process(
+    app: &AppHandle,
+    store: &MeetingStore,
+    id: &str,
+    live: Option<super::live::Live>,
+) -> Result<()> {
+    // The last piece of each track, transcribed first.
+    let (live, transcriber) = match live {
+        Some(l) => l.finish(),
+        None => (None, Arc::new(EngineTranscriber::new(app))),
+    };
     let record = store.get(id).context("meeting record missing")?;
     let all_settings = crate::settings::get_settings(app);
     let settings = all_settings.meetings.clone();
@@ -164,12 +198,6 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
                 Box::new(WholeTrack)
             }
         };
-    let tm = app.state::<Arc<TranscriptionManager>>().inner().clone();
-    let transcriber = EngineTranscriber {
-        app: app.clone(),
-        tm,
-        polisher: Default::default(),
-    };
     let profiles = voice_profiles(app);
     let namer = |_track: TrackKind, _cluster: &str, embedding: Option<&[f32]>| -> Option<String> {
         let e = embedding?;
@@ -177,6 +205,15 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
     };
     let progress = |stage: Stage, progress: Option<f32>| {
         set_stage(app, store, id, stage.as_str(), progress);
+    };
+    // A meeting records: the summary (the language model on the GPU) waits
+    // for the background retry, which runs once nothing records.
+    let hold_summary = || {
+        let hold = super::priority::recording();
+        if hold {
+            log::info!("Meeting {id}: summary later, a meeting is recording");
+        }
+        hold
     };
     let out = sokki_engine::run(
         sokki_engine::Input {
@@ -186,21 +223,24 @@ fn process(app: &AppHandle, store: &MeetingStore, id: &str) -> Result<()> {
             source_app: record.source_app.clone(),
             previous_note: record.note_path.as_deref().map(PathBuf::from),
             warnings,
+            live,
         },
         sokki_engine::Deps {
-            transcriber: &transcriber,
+            transcriber: &*transcriber,
             diarizer,
             diarizer_notes: Some(diarizer_notes),
             namer: Some(&namer),
             progress: &progress,
+            hold_summary: Some(&hold_summary),
         },
         &engine,
     )?;
     save_speakers(&dir, &out.speaker_info);
 
     // "Your data": only the user's own microphone segments
-    // (named after the user, which happens on calls only).
-    if let Some(mic) = out.tracks.iter().find(|t| t.kind == TrackKind::Mic) {
+    // (named after the user, which happens on calls only). Never in test mode.
+    let mic = out.tracks.iter().find(|t| t.kind == TrackKind::Mic);
+    if let Some(mic) = mic.filter(|_| !crate::test_mic::active()) {
         let own: Vec<crate::voice_data::OwnSegment> = out
             .transcript
             .segments
@@ -252,6 +292,7 @@ pub fn spawn_summarize(app: AppHandle, id: String, by_hand: bool) {
     std::thread::Builder::new()
         .name(format!("summary-{id}"))
         .spawn(move || {
+            super::priority::follow_recording();
             let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
             let store = app.state::<Arc<MeetingStore>>().inner().clone();
             summarize_safely(&app, &store, &id, by_hand);
@@ -271,7 +312,7 @@ fn summarize_safely(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bo
             "Meeting {id}: adding the summary panicked: {}",
             crate::managers::transcription::panic_payload_message(p.as_ref())
         );
-        super::indicator::set_menu_bar_status(app, None);
+        clear_menu_bar_status(app);
     }
     let _ = store.update(id, end_summary_attempt);
     emit_changed(app, id);
@@ -310,7 +351,7 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
     }
     set_stage(app, store, id, "summarizing", None);
     let result = sokki_engine::summarize_note(&note_path, &engine);
-    super::indicator::set_menu_bar_status(app, None);
+    clear_menu_bar_status(app);
     let _ = store.update(id, |r| {
         r.status = MeetingStatus::Done;
         match &result {
@@ -478,6 +519,9 @@ pub fn apply_retention(app: &AppHandle) {
 }
 
 fn notify_done(_app: &AppHandle, note_path: &std::path::Path) {
+    if crate::test_mic::active() {
+        return; // nothing pops up on the developer's screen
+    }
     let title = note_path
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
@@ -488,12 +532,22 @@ fn notify_done(_app: &AppHandle, note_path: &std::path::Path) {
 // ------------------------------------------------------------- transcriber
 
 /// Handy's engine, chunked, yielding to dictation between chunks.
-struct EngineTranscriber {
+pub(super) struct EngineTranscriber {
     app: AppHandle,
     tm: Arc<TranscriptionManager>,
     /// Clean-up for the window last transcribed with word times; the
     /// pipeline polishes a window's lines right after transcribing it.
     polisher: std::sync::Mutex<Option<crate::managers::transcription::Polisher>>,
+}
+
+impl EngineTranscriber {
+    pub(super) fn new(app: &AppHandle) -> Self {
+        Self {
+            app: app.clone(),
+            tm: app.state::<Arc<TranscriptionManager>>().inner().clone(),
+            polisher: Default::default(),
+        }
+    }
 }
 
 struct YieldToDictation<'a> {
@@ -502,6 +556,7 @@ struct YieldToDictation<'a> {
 
 impl ChunkControl for YieldToDictation<'_> {
     fn proceed(&self) -> bool {
+        super::priority::yield_now();
         while crate::tray::dictation_in_progress(self.app) {
             std::thread::sleep(Duration::from_millis(250));
         }
@@ -576,7 +631,7 @@ fn models_dir(app: &AppHandle) -> PathBuf {
         .join("meeting-models")
 }
 
-fn build_diarizer(
+pub(super) fn build_diarizer(
     app: &AppHandle,
     settings: &MeetingSettings,
     dir: &std::path::Path,

@@ -228,7 +228,7 @@ pub fn reprocess_meeting(app: AppHandle, id: String) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())?;
     meeting::emit_changed(&app, &id);
-    meeting::process::spawn(app.clone(), id);
+    meeting::process::spawn(app.clone(), id, None);
     Ok(())
 }
 

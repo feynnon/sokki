@@ -1,9 +1,12 @@
 //! Keeps the Mac awake while a meeting is being recorded.
 //!
 //! On 2026-11-19 an in-person meeting recorded in front of the laptop was cut
-//! off because the Mac went to idle sleep. A `PreventUserIdleSystemSleep`
-//! power assertion keeps the system (and so the capture) running while the
-//! display may still dim and turn off. It is held by `KeepAwake`, which lives
+//! off because the Mac went to idle sleep. On 2026-11-23 the display still
+//! turned off (and locked) two minutes into a recording, which looks like
+//! sleep to someone sitting in front of the laptop. A
+//! `PreventUserIdleDisplaySleep` power assertion keeps the display on, and so
+//! the system and the capture, while a meeting records. It is held by
+//! `KeepAwake`, which lives
 //! in the active meeting, so it ends whenever the recording does: stop,
 //! failed start, quit (`finalize_on_exit`), or a crash (macOS releases a
 //! process's assertions when it exits).
@@ -122,10 +125,10 @@ mod macos {
         }
     }
 
-    /// kIOPMAssertionTypePreventUserIdleSystemSleep: the system stays awake,
-    /// the display may still sleep.
+    /// kIOPMAssertionTypePreventUserIdleDisplaySleep: the display stays on
+    /// (no dimming, no lock), which also keeps the system awake.
     pub fn create(reason: &str) -> Result<u32, i32> {
-        let kind = CfString::new("PreventUserIdleSystemSleep").ok_or(-1)?;
+        let kind = CfString::new("PreventUserIdleDisplaySleep").ok_or(-1)?;
         let name = CfString::new(reason).ok_or(-1)?;
         let mut id = 0u32;
         // SAFETY: both CFStrings are valid for the call; `id` is a valid out pointer.
@@ -164,7 +167,7 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout);
         let pid = format!("pid {}(", std::process::id());
         text.lines().any(|l| {
-            l.contains(&pid) && l.contains("PreventUserIdleSystemSleep") && l.contains(name)
+            l.contains(&pid) && l.contains("PreventUserIdleDisplaySleep") && l.contains(name)
         })
     }
 

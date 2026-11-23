@@ -122,6 +122,8 @@ fn run(id: &str) -> Result<()> {
             source_app: record.source_app.clone(),
             previous_note: record.note_path.as_deref().map(Into::into),
             warnings,
+            // The Linux worker is a separate process; live pieces come later.
+            live: None,
         },
         sokki_engine::Deps {
             transcriber: &transcriber,
@@ -129,6 +131,7 @@ fn run(id: &str) -> Result<()> {
             diarizer_notes: Some(notes),
             namer: Some(&namer),
             progress: &progress,
+            hold_summary: None,
         },
         &cfg.engine(),
     )?;

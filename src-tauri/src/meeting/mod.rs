@@ -17,11 +17,13 @@ pub mod diarize_worker;
 pub mod flac;
 pub mod indicator;
 pub mod keep_awake;
+pub mod live;
 pub mod memguard;
 pub mod mic;
 #[cfg(target_os = "macos")]
 mod notify_macos;
 pub mod phone_link;
+pub mod priority;
 pub mod process;
 pub mod rate;
 pub mod store;
@@ -89,10 +91,11 @@ pub fn note_first_sample(slot: &std::sync::atomic::AtomicU64, frames: usize, rat
 pub use sokki_engine::tracks::{TrackTiming, MIC_FILE, SYSTEM_FILE, TIMING_FILE};
 
 /// Files produced by one meeting, finalized.
-#[derive(Debug)]
 pub struct MeetingRecording {
     pub mic: MicRecording,
     pub system: Option<SystemRecording>,
+    /// What was transcribed while recording.
+    pub live: Option<live::Live>,
 }
 
 struct ActiveMeeting {
@@ -104,6 +107,8 @@ struct ActiveMeeting {
     // Keeps the Mac from idle-sleeping until the meeting is stopped; dropped
     // with it, after both files are finalized.
     _awake: keep_awake::KeepAwake,
+    /// Transcribes the meeting while it records; handed to processing.
+    live: Option<live::Live>,
 }
 
 #[derive(Default)]
@@ -116,8 +121,15 @@ impl MeetingManager {
     /// system audio (`system.flac`) whenever it can be captured. Whether the
     /// meeting was online or on one microphone is decided afterwards, from
     /// whether the system track has speech. Returns warnings (e.g. system
-    /// audio unavailable) that do not stop the recording.
-    pub fn start(&self, meeting_id: &str, dir: &Path) -> Result<Vec<String>> {
+    /// audio unavailable) that do not stop the recording. `app`, when given,
+    /// transcribes the meeting while it records ([`live`]).
+    pub fn start(
+        &self,
+        meeting_id: &str,
+        dir: &Path,
+        app: Option<&AppHandle>,
+    ) -> Result<Vec<String>> {
+        let begun = std::time::Instant::now();
         let mut active = self.lock();
         if active.is_some() {
             bail!("A meeting is already being recorded.");
@@ -131,7 +143,15 @@ impl MeetingManager {
         // System audio first: it is the step that can fail on permission.
         // Without it the meeting still records the microphone.
         let mut warnings = Vec::new();
-        let system = match SystemAudioCapture::start(dir.join(SYSTEM_FILE)) {
+        // Asked before the captures start, so the first samples go in too.
+        let with_system = system_tap::is_supported();
+        let live = app.and_then(|app| live::Live::start(app, with_system, dir));
+        let tee = |track| live.as_ref().map(|l| l.tee(track));
+        let system_begun = std::time::Instant::now();
+        let system = match SystemAudioCapture::start(
+            dir.join(SYSTEM_FILE),
+            tee(meeting_core::TrackKind::System),
+        ) {
             Ok(s) => Some(s),
             Err(e) => {
                 log::warn!("System audio capture unavailable: {e:#}");
@@ -139,7 +159,9 @@ impl MeetingManager {
                 None
             }
         };
-        let mic = match MicCapture::start(&dir.join(MIC_FILE)) {
+        let system_ms = system_begun.elapsed().as_millis();
+        let mic_begun = std::time::Instant::now();
+        let mic = match MicCapture::start(&dir.join(MIC_FILE), tee(meeting_core::TrackKind::Mic)) {
             Ok(mic) => mic,
             Err(e) => {
                 if let Some(system) = system {
@@ -149,13 +171,20 @@ impl MeetingManager {
             }
         };
 
+        let mic_ms = mic_begun.elapsed().as_millis();
         *active = Some(ActiveMeeting {
             meeting_id: meeting_id.to_string(),
             started: std::time::Instant::now(),
             system,
             mic,
             _awake: awake,
+            live,
         });
+        priority::set_recording(true);
+        log::info!(
+            "Meeting {meeting_id} recording {} ms after the start (system audio {system_ms} ms, microphone {mic_ms} ms)",
+            begun.elapsed().as_millis()
+        );
         Ok(warnings)
     }
 
@@ -165,6 +194,7 @@ impl MeetingManager {
         let Some(meeting) = self.lock().take() else {
             bail!("No meeting is being recorded.");
         };
+        priority::set_recording(false);
         let duration = meeting.started.elapsed().as_secs_f64();
         let mic = meeting.mic.stop();
         let system = meeting.system.map(|s| s.stop());
@@ -178,6 +208,7 @@ impl MeetingManager {
             MeetingRecording {
                 mic: mic.context("Finishing the microphone recording")?,
                 system,
+                live: meeting.live,
             },
         ))
     }
@@ -207,12 +238,14 @@ pub fn start_meeting(
     app: &AppHandle,
     source_app: Option<String>,
 ) -> std::result::Result<String, String> {
+    let begun = std::time::Instant::now();
     let meetings = app.state::<Arc<MeetingManager>>();
     let store = app.state::<Arc<MeetingStore>>();
     let now = chrono::Local::now();
     let meeting_id = format!("meeting-{}", now.format("%Y%m%d-%H%M%S-%3f"));
     let dir = store.audio_dir(&meeting_id);
-    let warnings = match meetings.start(&meeting_id, &dir) {
+    let live = (!crate::test_mic::no_live()).then_some(app);
+    let warnings = match meetings.start(&meeting_id, &dir, live) {
         Ok(w) => w,
         Err(e) => {
             let _ = std::fs::remove_dir_all(&dir);
@@ -241,6 +274,11 @@ pub fn start_meeting(
     indicator::show(app);
     indicator::start_ticker(app);
     emit_changed(app, &meeting_id);
+    log::info!(
+        "Meeting {meeting_id} shown as recording {} ms after the start{}",
+        begun.elapsed().as_millis(),
+        if process::busy() { ", while an earlier meeting is processed" } else { "" }
+    );
     Ok(meeting_id)
 }
 
@@ -323,7 +361,7 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     emit_changed(app, &meeting_id);
     notices::clear(app, NoticeSource::Meeting);
     if !tracks.is_empty() {
-        process::spawn(app.clone(), meeting_id.clone());
+        process::spawn(app.clone(), meeting_id.clone(), recording.live);
     }
     log::info!(
         "Meeting {meeting_id} stopped in {} ms",
@@ -411,7 +449,7 @@ pub fn resume_interrupted(app: &AppHandle) {
             let closed_at_quit =
                 matches!(&r.status, MeetingStatus::Failed { error } if error == RESUME_MARKER);
             let _ = store.update(&r.id, |rec| resume_record(rec, closed_at_quit));
-            process::spawn(app.clone(), r.id.clone());
+            process::spawn(app.clone(), r.id.clone(), None);
         }
     }
 }

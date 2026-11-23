@@ -50,6 +50,10 @@ pub struct PipelineConfig {
     pub window_s: Option<f64>,
     /// A window never bridges a pause between turns longer than this.
     pub window_max_gap_s: f64,
+    /// Take a turn's words from pieces even when a piece holds more than
+    /// one speaker (see [`Hooks::pieces`]). Off: such pieces are
+    /// transcribed again turn by turn.
+    pub pieces_any_speaker: bool,
 }
 
 impl Default for PipelineConfig {
@@ -70,6 +74,7 @@ impl Default for PipelineConfig {
             // `de_en_mixed`), though phone audio improves (17.6% -> 15.3%).
             window_s: None,
             window_max_gap_s: 2.0,
+            pieces_any_speaker: false,
         }
     }
 }
@@ -100,6 +105,13 @@ pub struct Hooks<'a> {
     pub namer: Option<&'a dyn SpeakerNamer>,
     /// Called after each transcriber call with (done, total).
     pub progress: Option<&'a (dyn Fn(usize, usize) + Sync)>,
+    /// Pieces transcribed during the recording ([`crate::live`]). A turn
+    /// that pieces of one speaker cover takes its words from them instead
+    /// of being transcribed again.
+    pub pieces: Option<&'a [crate::live::Piece]>,
+    /// Speakers found during the recording ([`crate::stitch`]), per track
+    /// kind: a track listed here is not diarized again.
+    pub turns: Option<&'a [(TrackKind, Vec<SpeakerTurn>)]>,
 }
 
 /// One speaker cluster in the result, so the app can e.g. offer "remember
@@ -125,6 +137,10 @@ pub struct SpeakerInfo {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PipelineResult {
     pub transcript: Transcript,
+    /// Transcription jobs, and how many of them took their words from
+    /// [`Hooks::pieces`].
+    pub jobs: usize,
+    pub jobs_from_pieces: usize,
     /// Speakers in order of first appearance.
     pub speakers: Vec<SpeakerInfo>,
     /// Problems that did not stop the run, one short sentence each for the
@@ -178,6 +194,7 @@ fn transcribe_jobs(
     transcriber: &dyn Transcriber,
     cfg: &PipelineConfig,
     hooks: Hooks<'_>,
+    from_pieces: &[Option<String>],
     failures: &mut usize,
     details: &mut Vec<String>,
 ) -> Vec<String> {
@@ -214,6 +231,19 @@ fn transcribe_jobs(
     let mut words_supported = cfg.window_s.is_some();
     let mut i = 0;
     while i < total {
+        if let Some(words) = &from_pieces[i] {
+            if !words.is_empty() {
+                // A turn often starts mid-sentence of its piece; as its own
+                // line it starts with a capital, as the transcriber would
+                // have written it (seen: 70 of 216 lines in lower case on a
+                // real call, against 33 of 229 transcribed turn by turn).
+                texts[i] = crate::dedup::capitalize_first(&transcriber.polish(words));
+            }
+            i += 1;
+            done += 1;
+            progress(done);
+            continue;
+        }
         if !words_supported {
             per_job(i, &mut texts, details);
             i += 1;
@@ -225,6 +255,7 @@ fn transcribe_jobs(
         let window_s = cfg.window_s.unwrap_or(f64::MAX);
         let mut j = i + 1;
         while j < total
+            && from_pieces[j].is_none()
             && jobs[j].track_index == jobs[i].track_index
             && !jobs[j].break_before
             && jobs[j].start_s - jobs[j - 1].end_s <= cfg.window_max_gap_s
@@ -275,6 +306,108 @@ fn transcribe_jobs(
         i = j;
     }
     texts
+}
+
+/// The raw words of each job that pieces transcribed during the recording
+/// cover, or `None` for a job to transcribe now.
+///
+/// A job takes its words from the pieces only when they cover it fully and
+/// every one of them holds a single speaker: each job that overlaps such a
+/// piece is of the job's cluster. A piece across a change of speaker is
+/// transcribed again turn by turn, as without pieces, so two voices (or two
+/// languages) never share one transcriber run that the pipeline would not
+/// have made itself. Each word goes to the job whose padded span it overlaps
+/// most, as a job's own audio slice would hold every word it overlaps;
+/// words outside every padded job are dropped, as that audio would not have
+/// been transcribed.
+fn texts_from_pieces(
+    tracks: &[Track],
+    jobs: &[Job],
+    pieces: &[crate::live::Piece],
+    cfg: &PipelineConfig,
+) -> Vec<Option<String>> {
+    let mut out: Vec<Option<String>> = vec![None; jobs.len()];
+    let overlaps = |a0: f64, a1: f64, b0: f64, b1: f64| a0 < b1 && b0 < a1;
+    for (ti, track) in tracks.iter().enumerate() {
+        let mut ps: Vec<&crate::live::Piece> =
+            pieces.iter().filter(|p| p.track == track.kind).collect();
+        ps.sort_by(|a, b| a.start_s.total_cmp(&b.start_s));
+        let js: Vec<usize> = (0..jobs.len())
+            .filter(|&j| jobs[j].track_index == ti)
+            .collect();
+        // Jobs overlapping each piece, and whether the piece is one speaker.
+        let on_piece: Vec<Vec<usize>> = ps
+            .iter()
+            .map(|p| {
+                js.iter()
+                    .copied()
+                    .filter(|&j| overlaps(jobs[j].start_s, jobs[j].end_s, p.start_s, p.end_s))
+                    .collect()
+            })
+            .collect();
+        let one_speaker: Vec<bool> = on_piece
+            .iter()
+            .map(|on| {
+                on.first().is_none_or(|&f| {
+                    cfg.pieces_any_speaker || on.iter().all(|&j| jobs[j].cluster == jobs[f].cluster)
+                })
+            })
+            .collect();
+        // Which jobs the pieces cover, without a gap and with one speaker each.
+        let mut usable = vec![false; jobs.len()];
+        for &j in &js {
+            let (s, e) = (jobs[j].start_s, jobs[j].end_s);
+            let mut reach = s;
+            let mut ok = true;
+            for (k, p) in ps.iter().enumerate() {
+                if !overlaps(s, e, p.start_s, p.end_s) {
+                    continue;
+                }
+                // Pieces are contiguous; tolerate float rounding at the seams.
+                if p.start_s > reach + 1e-3 || !one_speaker[k] {
+                    ok = false;
+                    break;
+                }
+                reach = reach.max(p.end_s);
+            }
+            usable[j] = ok && reach + 1e-3 >= e;
+        }
+        let mut words: Vec<Vec<&str>> = vec![Vec::new(); jobs.len()];
+        for p in &ps {
+            for w in &p.words {
+                let text = w.text.trim();
+                if text.is_empty() {
+                    continue;
+                }
+                // The job whose padded span the word overlaps most: what
+                // its own audio slice would have held, at least in part.
+                let shared = |j: usize| {
+                    (w.end_s.min(jobs[j].end_s + cfg.pad_s)
+                        - w.start_s.max(jobs[j].start_s - cfg.pad_s))
+                    .max(0.0)
+                };
+                let best = js
+                    .iter()
+                    .copied()
+                    .filter(|&j| shared(j) > 0.0 || touches(w, &jobs[j], cfg.pad_s))
+                    .max_by(|&a, &b| shared(a).total_cmp(&shared(b)));
+                if let Some(j) = best.filter(|&j| usable[j]) {
+                    words[j].push(text);
+                }
+            }
+        }
+        for &j in &js {
+            if usable[j] {
+                out[j] = Some(words[j].join(" "));
+            }
+        }
+    }
+    out
+}
+
+/// A zero-length word (a time stamp only) inside a job's padded span.
+fn touches(w: &crate::TimedWord, job: &Job, pad_s: f64) -> bool {
+    w.start_s >= job.start_s - pad_s && w.start_s <= job.end_s + pad_s
 }
 
 /// Index of the job whose span holds `t`, else the one closest to it.
@@ -330,7 +463,11 @@ pub fn run_with(
         if dur <= 0.0 {
             continue;
         }
-        let turns = match diarizer.diarize(&track.samples) {
+        let found = hooks
+            .turns
+            .and_then(|all| all.iter().find(|(k, _)| *k == track.kind))
+            .map(|(_, t)| Ok(t.clone()));
+        let turns = match found.unwrap_or_else(|| diarizer.diarize(&track.samples)) {
             Ok(t) => sanitize_turns(t, dur),
             Err(e) => {
                 details.push(format!(
@@ -398,12 +535,19 @@ pub fn run_with(
     let total = jobs.len();
     let mut failures = 0usize;
     let mut raw: Vec<(Segment, usize, String)> = Vec::new();
+    // Jobs the pieces from the recording cover need no transcriber call.
+    let from_pieces = match hooks.pieces {
+        Some(pieces) => texts_from_pieces(tracks, &jobs, pieces, cfg),
+        None => vec![None; total],
+    };
+    let jobs_from_pieces = from_pieces.iter().filter(|t| t.is_some()).count();
     let texts = transcribe_jobs(
         tracks,
         &jobs,
         transcriber,
         cfg,
         hooks,
+        &from_pieces,
         &mut failures,
         &mut details,
     );
@@ -509,6 +653,8 @@ pub fn run_with(
 
     Ok(PipelineResult {
         transcript: Transcript { segments },
+        jobs: total,
+        jobs_from_pieces,
         speakers,
         warnings,
         details,
@@ -671,7 +817,7 @@ pub fn split_turn(
 }
 
 /// Centre of the quietest 100 ms window (10 ms hop) in [lo, hi].
-fn quietest_point(samples: &[f32], lo: f64, hi: f64) -> Option<f64> {
+pub(crate) fn quietest_point(samples: &[f32], lo: f64, hi: f64) -> Option<f64> {
     const WIN: usize = (SAMPLE_RATE / 10) as usize; // 100 ms
     const HOP: usize = (SAMPLE_RATE / 100) as usize; // 10 ms
     let sr = SAMPLE_RATE as f64;
@@ -976,6 +1122,7 @@ mod tests {
             Hooks {
                 namer: Some(&namer),
                 progress: None,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -1218,6 +1365,7 @@ mod tests {
             Hooks {
                 namer: None,
                 progress: Some(&progress),
+                ..Default::default()
             },
         )
         .unwrap();
@@ -1373,5 +1521,117 @@ mod tests {
         }
         let out = absorb_ghost_speakers(segs, 0.04, 8.0);
         assert!(out.iter().all(|s| s.speaker != "G"));
+    }
+
+    // ------------------------------------------------ pieces from the call
+
+    fn piece(s: f64, e: f64, words: &[(f64, &str)]) -> crate::live::Piece {
+        crate::live::Piece {
+            track: TrackKind::Mic,
+            start_s: s,
+            end_s: e,
+            words: words
+                .iter()
+                .map(|(t, w)| TimedWord {
+                    start_s: t - 0.1,
+                    end_s: t + 0.1,
+                    text: format!(" {w}"),
+                })
+                .collect(),
+        }
+    }
+
+    /// S1 at 1-5 and 6-9, S2 at 12-15, S1 again at 20-24. The second piece
+    /// holds S2 and S1.
+    fn run_with_pieces(
+        pieces: &[crate::live::Piece],
+        any_speaker: bool,
+    ) -> (PipelineResult, Vec<(f64, f64)>) {
+        let tracks = vec![timed_track(TrackKind::Mic, 30.0)];
+        let d = FakeDiarizer::new(vec![Ok(vec![
+            turn(1.0, 5.0, "S1"),
+            turn(6.0, 9.0, "S1"),
+            turn(12.0, 15.0, "S2"),
+            turn(20.0, 24.0, "S1"),
+        ])]);
+        let t = WordTranscriber::new(vec![(2.0, "neu"), (13.0, "fünf"), (21.0, "sechs")]);
+        let cfg = PipelineConfig {
+            echo: None,
+            pieces_any_speaker: any_speaker,
+            ..Default::default()
+        };
+        let r = run_with(
+            &tracks,
+            &d,
+            &t,
+            &cfg,
+            Hooks {
+                pieces: Some(pieces),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let calls = t.calls.lock().unwrap().clone();
+        (r, calls)
+    }
+
+    fn texts(r: &PipelineResult) -> Vec<&str> {
+        r.transcript
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect()
+    }
+
+    fn call_pieces() -> Vec<crate::live::Piece> {
+        vec![
+            // Words at 9.8 lie beyond the turn's padding: not transcribed
+            // without pieces either, so dropped.
+            piece(
+                0.0,
+                10.0,
+                &[
+                    (2.0, "eins"),
+                    (3.0, "ähm"),
+                    (4.0, "zwei"),
+                    (7.0, "drei"),
+                    (9.8, "rauschen"),
+                ],
+            ),
+            piece(10.0, 22.0, &[(13.0, "falsch"), (21.0, "auch falsch")]),
+            piece(22.0, 30.0, &[(23.0, "falsch")]),
+        ]
+    }
+
+    #[test]
+    fn turns_of_one_speaker_pieces_take_their_words_from_them() {
+        let (r, calls) = run_with_pieces(&call_pieces(), false);
+        assert_eq!(texts(&r), vec!["Eins zwei", "Drei", "fünf", "sechs"]);
+        assert_eq!((r.jobs, r.jobs_from_pieces), (4, 2));
+        // Only the turns under the piece with two speakers were transcribed.
+        assert_eq!(calls.len(), 2, "{calls:?}");
+        assert!((calls[0].0 - 11.85).abs() < 0.01 && (calls[0].1 - 15.15).abs() < 0.01);
+        assert!((calls[1].0 - 19.85).abs() < 0.01 && (calls[1].1 - 24.15).abs() < 0.01);
+    }
+
+    #[test]
+    fn with_any_speaker_every_covered_turn_takes_the_pieces_words() {
+        let (r, calls) = run_with_pieces(&call_pieces(), true);
+        assert_eq!(
+            texts(&r),
+            vec!["Eins zwei", "Drei", "Falsch", "Auch falsch falsch"]
+        );
+        assert_eq!(r.jobs_from_pieces, 4);
+        assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn a_turn_the_pieces_do_not_fully_cover_is_transcribed() {
+        // Only the first 5.5 s were transcribed during the call (a piece
+        // failed, or the rest is the tail).
+        let (r, calls) = run_with_pieces(&[piece(0.0, 5.5, &[(2.0, "eins")])], false);
+        assert_eq!(texts(&r), vec!["Eins", "fünf", "sechs"]);
+        assert_eq!(r.jobs_from_pieces, 1);
+        assert_eq!(calls.len(), 3);
     }
 }

@@ -122,6 +122,26 @@ pub fn decode_audio_file(path: &Path) -> Result<Vec<f32>> {
     resampled.finish()
 }
 
+/// Mono audio at `rate` in, 16 kHz out, as it arrives: the resampler
+/// [`decode_audio_file`] uses, so audio resampled while it is recorded
+/// matches what decoding its file gives later, sample for sample (all but
+/// the resampler's last few milliseconds, which only the end of the file
+/// pushes out).
+pub struct LiveResampler(Resampled);
+
+impl LiveResampler {
+    pub fn new(rate: u32) -> Result<Self> {
+        Resampled::new(rate).map(Self)
+    }
+
+    /// Adds mono samples at the rate; returns the 16 kHz samples they
+    /// completed.
+    pub fn push(&mut self, samples: &[f32]) -> Result<Vec<f32>> {
+        self.0.push(samples.iter().copied())?;
+        Ok(std::mem::take(&mut self.0.output))
+    }
+}
+
 /// Mono audio at the file's rate in, 16 kHz out, one resampler step at a
 /// time, so the file's audio is never held whole at its own rate.
 struct Resampled {

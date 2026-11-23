@@ -39,7 +39,14 @@ pub struct FlacWriter {
     pending: Vec<i32>,
     header_len: usize,
     frames: u64,
+    sample_rate: u32,
+    /// Gets every sample as written, as decoding the file will give it back.
+    tee: Option<Tee>,
 }
+
+/// Receives the samples a [`FlacWriter`] writes (mono, at its rate), e.g.
+/// to transcribe them during the recording.
+pub type Tee = Box<dyn FnMut(&[f32], u32) + Send>;
 
 impl FlacWriter {
     /// Creates `<final_path>.partial` and writes the FLAC header at `sample_rate`.
@@ -78,6 +85,8 @@ impl FlacWriter {
             pending: Vec::with_capacity(BLOCK_SIZE),
             header_len: header.len(),
             frames: 0,
+            sample_rate,
+            tee: None,
         })
     }
 
@@ -90,15 +99,28 @@ impl FlacWriter {
                 samples.len()
             );
         }
+        let mut teed = Vec::new();
         for frame in samples.chunks_exact(channels) {
             let mono = frame.iter().sum::<f32>() / channels as f32;
-            self.pending.push(to_i16(mono) as i32);
+            let value = to_i16(mono);
+            if self.tee.is_some() {
+                teed.push(from_i16(value));
+            }
+            self.pending.push(value as i32);
             self.frames += 1;
             if self.pending.len() == BLOCK_SIZE {
                 self.encode_pending()?;
             }
         }
+        if let Some(tee) = &mut self.tee {
+            tee(&teed, self.sample_rate);
+        }
         Ok(())
+    }
+
+    /// Hands every sample written from now on to `tee` as well.
+    pub fn set_tee(&mut self, tee: Tee) {
+        self.tee = Some(tee);
     }
 
     /// Encodes the pending samples as one frame. A full block is `BLOCK_SIZE`;
@@ -187,6 +209,11 @@ fn header_bytes(stream: &Stream) -> Result<Vec<u8>> {
         .write(&mut sink)
         .map_err(|e| anyhow!("FLAC header serialization failed: {e:?}"))?;
     Ok(sink.as_slice().to_vec())
+}
+
+/// A stored sample as decoding gives it back (symphonia scales by 2^15).
+fn from_i16(value: i16) -> f32 {
+    value as f32 / 32768.0
 }
 
 fn to_i16(sample: f32) -> i16 {

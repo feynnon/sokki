@@ -991,8 +991,12 @@ pub fn run(cli_args: CliArgs) {
                 .level_for("n0_dns_resolver", log::LevelFilter::Warn)
                 .level_for("netwatch", log::LevelFilter::Warn)
                 .level_for("hyper_util", log::LevelFilter::Warn)
-                .max_file_size(500_000)
-                .rotation_strategy(RotationStrategy::KeepOne)
+                // 5 files of 2 MB: one 500 kB file held only ~1 minute
+                // while a meeting was transcribed (debug lines per chunk),
+                // so the log of a slow meeting start was gone minutes later
+                // (2026-11-23).
+                .max_file_size(2_000_000)
+                .rotation_strategy(RotationStrategy::KeepSome(5))
                 .clear_targets()
                 .targets([
                     // Console output respects RUST_LOG environment variable. In

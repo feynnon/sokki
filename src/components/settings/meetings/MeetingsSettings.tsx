@@ -519,7 +519,9 @@ export const MeetingsSettings: React.FC = () => {
       const result = recording
         ? await commands.stopMeetingRecording()
         : await commands.startMeetingRecording();
-      if (result.status !== "ok") console.error(result.error);
+      // Recording shows as soon as the app says so, not after the list.
+      if (result.status === "ok") setRecording(!recording);
+      else console.error(result.error);
       await reload();
     } finally {
       setBusy(false);

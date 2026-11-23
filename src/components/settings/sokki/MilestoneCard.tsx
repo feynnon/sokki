@@ -4,8 +4,15 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { commands, type Milestone } from "@/bindings";
 
-/** Where "Sponsor" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
+/** Where "Buy me a coffee" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
 const SPONSOR_URL = "https://sokki.org/sponsor/?s=stats";
+
+/**
+ * Off until GitHub Sponsors is approved and sokki.org/sponsor/ leads there.
+ * While off, the card never shows, so no milestone is marked as shown and
+ * users who pass 100 hours meanwhile still see it once it's on.
+ */
+export const SPONSORS_LIVE = false;
 
 /** The shareable picture, 1200×630 (the size link previews use), as a PNG data URL. */
 function drawPicture(hoursText: string, line: string): string {

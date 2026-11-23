@@ -325,7 +325,7 @@ fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Res
         samples.len() as f64 / 16_000.0
     );
     super::emit_changed(app, &id);
-    super::process::spawn(app.clone(), id.clone());
+    super::process::spawn(app.clone(), id.clone(), None);
     Ok(id)
 }
 

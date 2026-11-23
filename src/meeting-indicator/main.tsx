@@ -72,11 +72,20 @@ const Indicator: React.FC = () => {
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
+    // The window is hidden after a stop and shown again for the next
+    // meeting, page and all: once nothing records, the pill starts over, so
+    // the next meeting never shows the last one's spinner and frozen time.
     const load = async () => {
       const r = await commands.listMeetings();
       if (r.status !== "ok") return;
       const rec = r.data.find((m) => m.status.kind === "recording");
-      if (rec) setStartedAt(Date.parse(rec.started_at));
+      if (rec) {
+        setStartedAt(Date.parse(rec.started_at));
+      } else {
+        setStartedAt(null);
+        setStopping(false);
+        level.current = 0;
+      }
     };
     void load();
     const offChanged = events.meetingChanged.listen(() => void load());

@@ -5,6 +5,8 @@
 //!   Handy's engine and a GPU worker; the Linux service its own).
 //! - [`lifecycle`]: the meeting lifecycle (idle → asking → recording) as a
 //!   pure state machine, so "never record without a yes" is testable.
+//! - [`live`]: transcribing a meeting while it is recorded, so only the
+//!   tail is left after the call.
 //! - [`llm`]: language-model settings, status, starting Ollama and
 //!   downloading a model.
 //! - [`tracks`], [`speakers`]: small shared pieces (track alignment, the
@@ -15,6 +17,7 @@
 #[cfg(feature = "asr")]
 pub mod asr;
 pub mod lifecycle;
+pub mod live;
 pub mod llm;
 pub mod process;
 pub mod speakers;

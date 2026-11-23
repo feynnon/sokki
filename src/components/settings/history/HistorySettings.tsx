@@ -7,7 +7,10 @@ import React, {
 } from "react";
 import { IS_SOKKI } from "@/lib/brand";
 import { PhoneCard } from "@/components/settings/sokki/PhoneCard";
-import { MilestoneCard } from "@/components/settings/sokki/MilestoneCard";
+import {
+  MilestoneCard,
+  SPONSORS_LIVE,
+} from "@/components/settings/sokki/MilestoneCard";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
@@ -377,7 +380,7 @@ export const HistorySettings: React.FC = () => {
             />
           </div>
         </div>
-        {IS_SOKKI && <MilestoneCard />}
+        {IS_SOKKI && SPONSORS_LIVE && <MilestoneCard />}
         {IS_SOKKI && osType === "macos" && <PhoneCard />}
         <div className="bg-background border border-line rounded-lg overflow-visible">
           {content}

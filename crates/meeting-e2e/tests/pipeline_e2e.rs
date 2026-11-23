@@ -317,9 +317,96 @@ fn real_pipeline_on_all_fixtures() {
             transcript: result.transcript.clone(),
             summary,
         };
-        let path = meeting_core::note::write_note(&out_dir().join("real"), &note, &Default::default()).unwrap();
+        let path =
+            meeting_core::note::write_note(&out_dir().join("real"), &note, &Default::default())
+                .unwrap();
         table.push(format!("   note: {}", path.display()));
     }
     eprintln!("\n{}", table.join("\n"));
+    assert!(failures.is_empty(), "failures:\n{}", failures.join("\n"));
+}
+/// Transcribing during the recording (`meeting_core::live`) against turn by
+/// turn after it, on every fixture with perfect speakers: the tracks are cut
+/// into pieces as the app cuts them live, the pieces transcribed with word
+/// times, and the pipeline takes each turn's words from them where it may.
+/// The word error rate must not get worse.
+#[test]
+fn live_pieces_on_all_fixtures() {
+    use meeting_core::live::{place_words, CutConfig, Piece, PieceCutter};
+    use meeting_core::Transcriber;
+    let Some(asr) = transcriber() else { return };
+    let mut failures = Vec::new();
+    for scenario in [
+        "de_two",
+        "de_en_mixed",
+        "phone_speaker",
+        "call_tracks",
+        "three_remote",
+        "silence",
+    ] {
+        let Some(fx) = Fixture::load(scenario).unwrap() else {
+            eprintln!("SKIP {scenario}: fixture missing");
+            continue;
+        };
+        let oracle = || OracleByTrack {
+            mic: Oracle::for_track(&fx.truth, "mic"),
+            system: Oracle::for_track(&fx.truth, "system"),
+            calls: Default::default(),
+            order: fx.tracks.iter().map(|t| t.kind).collect(),
+        };
+        let cfg = PipelineConfig {
+            user_name: "Robin".into(),
+            ..Default::default()
+        };
+        let today = pipeline::run(&fx.tracks, &oracle(), &asr, &cfg).unwrap();
+        // Cut small enough that the short fixtures get several pieces.
+        let cut = CutConfig {
+            min_s: 4.0,
+            max_s: 10.0,
+        };
+        let mut pieces = Vec::new();
+        for t in &fx.tracks {
+            let mut c = PieceCutter::new(cut);
+            let mut ps = c.push(&t.samples);
+            ps.extend(c.finish());
+            for (at, audio) in ps {
+                let start_s = at as f64 / 16_000.0;
+                let words = asr.transcribe_words(&audio).unwrap().unwrap_or_default();
+                pieces.push(Piece {
+                    track: t.kind,
+                    start_s,
+                    end_s: start_s + audio.len() as f64 / 16_000.0,
+                    words: place_words(words, start_s),
+                });
+            }
+        }
+        let hooks = pipeline::Hooks {
+            pieces: Some(&pieces),
+            ..Default::default()
+        };
+        let live = pipeline::run_with(&fx.tracks, &oracle(), &asr, &cfg, hooks).unwrap();
+        let (a, b) = (
+            score(&fx.truth, &today.transcript),
+            score(&fx.truth, &live.transcript),
+        );
+        eprintln!(
+            "{scenario:14} WER turn by turn {:5.1}%  live {:5.1}%  ({} of {} turns from {} pieces)",
+            a.wer * 100.0,
+            b.wer * 100.0,
+            live.jobs_from_pieces,
+            live.jobs,
+            pieces.len()
+        );
+        if b.wer > a.wer + 0.02 {
+            failures.push(format!(
+                "{scenario}: WER {:.1}% live vs {:.1}% turn by turn",
+                b.wer * 100.0,
+                a.wer * 100.0
+            ));
+        }
+        if b.speaker_accuracy + 1e-9 < a.speaker_accuracy {
+            failures.push(format!("{scenario}: speaker attribution got worse"));
+        }
+    }
     assert!(failures.is_empty(), "failures:\n{}", failures.join("\n"));
 }

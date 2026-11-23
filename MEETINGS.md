@@ -54,7 +54,22 @@ replaces the other in /Applications. Icons are drawn as SVG in
    Slack, … start using the mic, a dialog asks whether to record. When the
    call ends, the recording stops after 20 s unless you say otherwise.
    Approach from [Lark](https://github.com/bkoleo/lark) (MIT).
-4. **Processing** after the meeting (measured: a 21-minute call is ready
+4. **During the recording** (`sokki-engine/src/live.rs`): both tracks go,
+   sample for sample as written to their files, to one worker at low
+   priority. It lines them up, removes the echo from the mic as a stream
+   (the same filter as step 5.1, bit-identical), cuts each track into
+   8–25 s pieces at the quietest point and transcribes them one at a time
+   with word times (one 41-minute call: 338 pieces, 3 min of GPU work over
+   the call). Every 5 minutes it also finds the speakers of the last 6
+   minutes of each track (Sortformer, as in step 5.2) and joins the
+   windows into one set of speakers per track (`meeting-core/src/stitch.rs`):
+   a window's speaker is the one it shares the 30 s of committed overlap
+   with, else the closest voice (cosine ≥ 0.6), else new; the last 30 s of
+   each window are left to the next. Three real calls: 99.2–100 % of the
+   speech has the same speaker as diarizing the whole track, 99.8–100 % of
+   transcript lines. At the stop only the last piece and the last window
+   of each track are left (41-minute call: speakers 70 s → 3.4 s).
+5. **Processing** after the meeting (measured: a 21-minute call is ready
    ~3 minutes after stopping):
    1. decode, align the two tracks; remove the remote voices from the mic
       track with WebRTC echo cancellation (AEC3, pure-Rust `sonora`,
@@ -65,7 +80,12 @@ replaces the other in /Applications. Icons are drawn as SVG in
       (merging voices that sound alike exists but is off, see
       `DiarizeConfig::merge_similarity`);
    3. drop mic turns that are acoustic echo of the system track;
-   4. transcribe each speaker turn (Parakeet, Handy's engine, ~20 s);
+   4. transcribe each speaker turn (Parakeet, Handy's engine, ~20 s); a
+      turn that pieces from the recording cover takes its words from them
+      instead, when each of those pieces holds that one speaker only
+      (`pipeline::texts_from_pieces`; 41-minute call: 180 of 231 turns,
+      76 s → 15 s; word errors on call1402's checked passages 7.4 % turn by
+      turn, 7.2 % from pieces);
    5. text dedup, merge ghost speakers, names: on an online call the mic
       voice is you; on a single mic nobody is named; remembered voices by
       their embedding;
@@ -76,9 +96,9 @@ replaces the other in /Applications. Icons are drawn as SVG in
       transcript stays as recognised: a separate correction pass cost a
       whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
    7. Markdown note in the notes folder.
-5. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
+6. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
    voice is recognised in later meetings (sherpa-onnx embeddings).
-7. **Language model** – summary (4.6). Chosen under
+7. **Language model** – summary (5.6). Chosen under
    Models → *Language model*, a list like the speech models: Qwen 3.5 9B on
    this Mac, built in (the page downloads the model, 5.7 GB, checksum
    verified) or through Ollama (started only by hand), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
@@ -124,7 +144,7 @@ copy those files in at Stop, but meetings have no test mode for the audio).
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
 | `crates/meeting-detect` | Which processes use the mic (Core Audio), meeting-app matching, debounce watcher |
-| `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `summary_eval`, `diarize_once`) |
+| `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `summary_eval`, `diarize_once`; `live_eval`: transcript during the call vs after it, time and word difference) |
 | `testdata/generate.py` | Builds the synthetic fixtures (macOS voices + ffmpeg) into `testdata/audio/` (gitignored) |
 | `testdata/real/` | Real-call eval data (gitignored, private): uncorrected transcripts, hand labels (34 misheard words, 37 words that must stay), dictionary |
 | `scripts/correction_eval.py` | Scores speech models' transcripts (and, from the removed correction step, correction outputs) against `testdata/real` labels |
@@ -173,6 +193,17 @@ folder under `testdata/audio/`, and add its name to the scenario lists in
 ```
 
 Count only first runs for timing: Ollama reuses cached prompt parts on repeats.
+
+### Transcript during the call
+
+```sh
+# one recorded meeting: time after the stop and word difference, today vs live
+# (prints numbers only; transcripts go to the out dir, keep it outside the repo)
+(cd crates/meeting-e2e && MEETING_ASR_MODEL=<parakeet-ultra-Q8_0.gguf> cargo run --release --example live_eval -- <meeting dir> /tmp/live-eval)
+# a simulated call in the test app, in real time, with CPU and memory (NO_LIVE=1 for the A/B)
+ffmpeg -i <meeting dir>/mic.flac -ar 16000 -ac 1 /tmp/mic.wav     # likewise system.flac
+scripts/test-meeting.sh /tmp/mic.wav /tmp/system.wav
+```
 
 ## Building and installing
 

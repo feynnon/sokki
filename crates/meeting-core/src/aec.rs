@@ -8,7 +8,7 @@
 //! stays (measured on three real calls: 97–98 % of the user's words
 //! transcribed identically before and after).
 
-use sonora::config::{EchoCanceller, HighPassFilter};
+use sonora::config::{EchoCanceller as EchoCanceller3, HighPassFilter};
 use sonora::{AudioProcessing, Config, StreamConfig};
 
 use crate::{Track, TrackKind, SAMPLE_RATE};
@@ -24,48 +24,86 @@ const SILENT_SYSTEM_RMS: f32 = 1e-4;
 /// and aligned in time (sample `i` is the same moment on both). The mic part
 /// after the end of `system` is processed against silence.
 pub fn cancel_echo(mic: &mut [f32], system: &[f32]) {
-    let config = Config {
-        echo_canceller: Some(EchoCanceller::default()),
-        high_pass_filter: Some(HighPassFilter::default()),
-        ..Default::default()
-    };
-    let stream = StreamConfig::new(SAMPLE_RATE as u32, 1);
-    let mut apm = AudioProcessing::builder()
-        .config(config)
-        .capture_config(stream)
-        .render_config(stream)
-        .build();
-    let silence = [0.0f32; FRAME];
-    let mut far_out = [0.0f32; FRAME];
-    let mut near_in = [0.0f32; FRAME];
+    let mut aec = EchoCanceller::new();
     let mut i = 0;
     while i + FRAME <= mic.len() {
-        let far = system.get(i..i + FRAME).unwrap_or(&silence);
-        near_in.copy_from_slice(&mic[i..i + FRAME]);
-        // Errors only come from unsupported formats, which these are not;
-        // on one anyway the frame stays as recorded.
-        let _ = apm.process_render_f32(&[far], &mut [&mut far_out]);
-        if apm
-            .process_capture_f32(&[&near_in], &mut [&mut mic[i..i + FRAME]])
-            .is_err()
-        {
-            mic[i..i + FRAME].copy_from_slice(&near_in);
-        }
+        aec.process_frame(&mut mic[i..i + FRAME], system.get(i..i + FRAME));
         i += FRAME;
     }
 }
 
+/// [`cancel_echo`] as a stream, 10 ms at a time, for audio still being
+/// recorded. Fed the same frames, it gives exactly the same result.
+pub struct EchoCanceller {
+    apm: AudioProcessing,
+    far_out: [f32; FRAME],
+}
+
+impl Default for EchoCanceller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EchoCanceller {
+    /// The frame size in samples (10 ms).
+    pub const FRAME: usize = FRAME;
+
+    pub fn new() -> Self {
+        let config = Config {
+            echo_canceller: Some(EchoCanceller3::default()),
+            high_pass_filter: Some(HighPassFilter::default()),
+            ..Default::default()
+        };
+        let stream = StreamConfig::new(SAMPLE_RATE as u32, 1);
+        let apm = AudioProcessing::builder()
+            .config(config)
+            .capture_config(stream)
+            .render_config(stream)
+            .build();
+        Self {
+            apm,
+            far_out: [0.0; FRAME],
+        }
+    }
+
+    /// Cancels the echo in one mic frame of [`Self::FRAME`] samples, in
+    /// place. `system` is the same moment on the system track, `None` past
+    /// its end (silence).
+    pub fn process_frame(&mut self, mic: &mut [f32], system: Option<&[f32]>) {
+        debug_assert_eq!(mic.len(), FRAME);
+        let silence = [0.0f32; FRAME];
+        let far = system.unwrap_or(&silence);
+        let mut near_in = [0.0f32; FRAME];
+        near_in.copy_from_slice(mic);
+        // Errors only come from unsupported formats, which these are not;
+        // on one anyway the frame stays as recorded.
+        let _ = self
+            .apm
+            .process_render_f32(&[far], &mut [&mut self.far_out]);
+        if self
+            .apm
+            .process_capture_f32(&[&near_in], &mut [mic])
+            .is_err()
+        {
+            mic.copy_from_slice(&near_in);
+        }
+    }
+}
+
 /// Cancels the echo on the mic track when there is a system track with
-/// sound. Returns whether it ran.
-pub fn cancel_echo_in_tracks(tracks: &mut [Track]) -> bool {
+/// sound, from sample `from` on: where the system track's own audio starts
+/// after the silence that lines it up (before it nothing played, so there is
+/// no echo). Returns whether it ran.
+pub fn cancel_echo_in_tracks(tracks: &mut [Track], from: usize) -> bool {
     let Some(si) = tracks.iter().position(|t| t.kind == TrackKind::System) else {
         return false;
     };
     let Some(mi) = tracks.iter().position(|t| t.kind == TrackKind::Mic) else {
         return false;
     };
-    let sys = &tracks[si].samples;
-    if sys.is_empty() {
+    let sys = &tracks[si].samples[from.min(tracks[si].samples.len())..];
+    if sys.is_empty() || tracks[mi].samples.len() <= from {
         return false;
     }
     let rms =
@@ -81,7 +119,7 @@ pub fn cancel_echo_in_tracks(tracks: &mut [Track]) -> bool {
         let (a, b) = tracks.split_at_mut(mi);
         (&mut b[0].samples, &a[si].samples)
     };
-    cancel_echo(mic, system);
+    cancel_echo(&mut mic[from..], &system[from.min(system.len())..]);
     true
 }
 
@@ -148,12 +186,12 @@ mod tests {
             },
         ];
         let before = tracks[0].samples.clone();
-        assert!(!cancel_echo_in_tracks(&mut tracks));
+        assert!(!cancel_echo_in_tracks(&mut tracks, 0));
         assert_eq!(tracks[0].samples, before);
         let mut only_mic = vec![Track {
             kind: TrackKind::Mic,
             samples: voice(n, 2.0),
         }];
-        assert!(!cancel_echo_in_tracks(&mut only_mic));
+        assert!(!cancel_echo_in_tracks(&mut only_mic, 0));
     }
 }

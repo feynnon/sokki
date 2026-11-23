@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
     }
     if std::env::var_os("NO_AEC").is_none() {
         let t0 = std::time::Instant::now();
-        let ran = meeting_core::aec::cancel_echo_in_tracks(&mut tracks);
+        let ran = meeting_core::aec::cancel_echo_in_tracks(&mut tracks, 0);
         eprintln!(
             "echo cancellation: {ran} ({:.1}s)",
             t0.elapsed().as_secs_f64()
@@ -104,6 +104,7 @@ fn main() -> anyhow::Result<()> {
         Hooks {
             namer: Some(&namer),
             progress: None,
+            ..Default::default()
         },
     )?;
     println!("{} speakers:", r.speakers.len());

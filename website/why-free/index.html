@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why Sokki is free</title>
+<meta name="description" content="Open models on your own Mac should cost nothing. Sokki stays free and open source, for good.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<meta property="og:title" content="Why Sokki is free">
+<meta property="og:description" content="Open models on your own Mac should cost nothing.">
+<meta property="og:image" content="https://sokki.org/og.png">
+<meta property="og:url" content="https://sokki.org/why-free/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+.compare { margin-top: 32px; }
+.compare .row { align-items: baseline; }
+.compare .head { padding-top: 0; font-size: 13px; color: var(--ink-3); }
+.compare .head span:last-child { color: var(--ink-3); }
+.compare .cells { display: flex; gap: 0; flex: none; text-align: right; }
+.compare .cells span { width: 128px; }
+.compare .cells span + span { color: var(--ink); }
+.compare .row > span:first-child { color: var(--ink); }
+.compare .muted { color: var(--ink-2); }
+.sign { margin-top: 40px; color: var(--ink); }
+@media (max-width: 700px) { .compare .cells span { width: 96px; } }
+</style>
+</head>
+<body>
+<header class="wrap nav">
+<a href="/" class="brand" aria-label="Sokki home">
+<svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><rect x="5" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="13" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="21" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="29.5" y="29" width="5" height="26" rx="2.5" fill="#8ab4ff"/><rect x="38" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="46" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="54" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/></svg>
+Sokki</a>
+<nav class="links" aria-label="Main"><a href="/privacy/" class="hide-sm">Privacy</a><a href="/github">GitHub</a></nav>
+</header>
+
+<main class="wrap narrow prose" style="padding-top: 96px">
+<p class="eyebrow">Why free</p>
+<h1 class="display">Your Mac. Open models. No bill.</h1>
+<p class="lead">Why Sokki costs nothing, and always will.</p>
+
+<p style="margin-top: 48px">I liked Superwhisper. Then I wanted Parakeet: an open speech model from NVIDIA, free to download, running on my own Mac. Superwhisper puts it in Pro, at $8.49 a month, together with system audio, speaker separation and meetings.</p>
+<p>A monthly fee to run a free model on my own computer didn’t sit right with me. So I built Sokki.</p>
+
+<div class="rows compare" role="table" aria-label="Superwhisper Free and Pro compared with Sokki">
+<div class="row head" role="row"><span role="columnheader">On your Mac</span><span class="cells"><span role="columnheader">Superwhisper Free</span><span role="columnheader">Sokki</span></span></div>
+<div class="row" role="row"><span role="cell">Parakeet</span><span class="cells"><span class="muted" role="cell">Pro</span><span role="cell">Free</span></span></div>
+<div class="row" role="row"><span role="cell">System audio</span><span class="cells"><span class="muted" role="cell">Pro</span><span role="cell">Free</span></span></div>
+<div class="row" role="row"><span role="cell">Speaker separation</span><span class="cells"><span class="muted" role="cell">Pro</span><span role="cell">Free</span></span></div>
+<div class="row" role="row"><span role="cell">Meetings</span><span class="cells"><span class="muted" role="cell">3,000 trial words</span><span role="cell">Free</span></span></div>
+</div>
+<p class="caption">Superwhisper Pro: $8.49 a month or $84.99 a year. Source: <a href="https://superwhisper.com/docs/billing/plans">superwhisper.com/docs/billing/plans</a>, 24 Nov 2026.</p>
+
+<p>Superwhisper is a polished app, and it runs on more devices than Sokki does. This is about one thing only: open models on your own Mac should cost nothing.</p>
+
+<h2 class="title">Free and open source. For good.</h2>
+<p>No trial, no word limit, no account. Sokki runs on your Mac, not on our servers. The code is MIT, on <a href="/github">GitHub</a>, and it stays that way.</p>
+
+<h2 class="title">Build it with us.</h2>
+<p>Sokki is a fork of <a href="https://github.com/cjpais/Handy">Handy</a> by CJ Pais, and it grows the same way: in the open. Fix a bug, add a language, improve a model. Contributions are welcome: <a href="https://github.com/feynnon/sokki/blob/main/CONTRIBUTING.md">how to start</a>.</p>
+
+<h2 class="title">What sponsoring pays for.</h2>
+<!-- Once GitHub Sponsors is live: link "Sponsoring" to https://github.com/sponsors/feynnon -->
+<p>Sokki is built with AI coding tools. Sponsoring pays for the tokens. It opens soon; <a href="/sponsor/">until then</a>, a star on GitHub helps too.</p>
+
+<p class="sign">Robin</p>
+
+<div class="buttons" style="margin-top: 48px">
+<a class="btn primary" href="/get/">Get Sokki</a>
+<a class="btn" href="/github">View on GitHub</a>
+</div>
+</main>
+
+<footer class="footer">
+<div class="wrap">
+<span>Sokki (速記): Japanese for shorthand. Built on <a href="https://github.com/cjpais/Handy">Handy</a>.</span>
+<nav aria-label="Footer"><a href="/privacy/">Privacy</a><a href="/changelog/">Changelog</a><a href="mailto:hello@sokki.org">hello@sokki.org</a><a href="/impressum/">Impressum</a></nav>
+</div>
+</footer>
+</body>
+</html>

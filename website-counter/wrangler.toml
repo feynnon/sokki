@@ -1,0 +1,26 @@
+name = "sokki-website-counter"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Runs in front of sokki.org (GitHub Pages). The asset files (style.css,
+# app.js, favicon.svg, og.png) get routes without a Worker, so only pages
+# and the two link redirects use the free plan's 100,000 runs a day.
+# Set up by scripts/routes.sh, which also turns on "fail open": past the
+# daily limit the site keeps working and only counting pauses.
+workers_dev = false
+routes = [{ pattern = "sokki.org/*", zone_name = "sokki.org" }]
+
+[vars]
+POSTHOG_HOST = "https://eu.i.posthog.com"
+# PostHog's project key: public by design (it can only send events).
+POSTHOG_KEY = "phc_vmeSsQgxZs8aeprLvJCpdxLvNVYCzZUmtXHYYehcJ379"
+
+# One random salt per day for the visitor number, deleted after two days.
+# Also holds the last zip download total. From
+# `wrangler kv namespace create sokki-website-salts`.
+[[kv_namespaces]]
+binding = "SALTS"
+id = "a34da384d7c34ae3b68ce0635c979805"
+
+[triggers]
+crons = ["7 * * * *"]

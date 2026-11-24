@@ -81,20 +81,24 @@ Sokki</a>
 <p>Coming soon. Nothing here happens until you connect an account, and you can disconnect at any time.</p>
 
 <h3>Gmail</h3>
-<p>To send a meeting note to its attendees from your own address, Sokki asks Google for one permission: <strong>send email on your behalf</strong> (<code>gmail.send</code>). Sokki can’t read, search or delete your mail.</p>
+<p>To write to a meeting’s attendees from your own address, Sokki asks Google for two things: to <strong>send email on your behalf</strong> (<code>gmail.send</code>), and your email address, to show which account is connected. Sokki doesn’t read, search or delete your mail.</p>
 <ul>
-<li><strong>What Sokki does with it:</strong> sends the note you approve, from your Gmail, to the people you pick. Nothing else.</li>
+<li><strong>What Sokki does with it:</strong> sends a meeting’s note from your Gmail to its attendees, when you click Send, or after every meeting if you turn on <strong>Send notes to everyone automatically</strong>. Nothing else.</li>
+<li><strong>Mail to guests before the meeting,</strong> if you turn it on: about 10 minutes before a meeting, Sokki tells its guests from other mail domains that you have Sokki take notes. Any reply means Sokki doesn’t record that meeting. To see replies, Sokki asks Google for one more permission, your mail’s headers (<code>gmail.metadata</code>), and looks only at sender and subject in the threads of its own notices, until the meeting ends. Never at message text, never at other mail. Who replied stays on your Mac and is deleted a day after the meeting.</li>
 <li><strong>Where it’s kept:</strong> Google’s access token stays in your Mac’s Keychain. The token, your address and your notes never reach Sokki’s servers or anyone other than Google and your recipients.</li>
 <li><strong>Never:</strong> shared, sold, used for ads, or used to train AI models.</li>
 <li><strong>Disconnect:</strong> in Sokki’s settings, or at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
 </ul>
 <p>Sokki’s use and transfer of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
+<h3>Apple Mail</h3>
+<p>Without Gmail, Sokki sends the same mails through the Mail app on your Mac, from your own account. To see replies to its mails, it looks at the subjects of mail that arrived since, on your Mac, and keeps only replies about that meeting and their sender. If someone answers a note with “stop”, Sokki stops mailing them; for that it reads the first line of such replies. Nothing of this leaves your Mac.</p>
+
 <h3>Slack</h3>
 <p>When you connect Slack, Sokki may post messages and see huddles in your workspace, so it can post a huddle’s note into its thread. Slack’s token stays in your Mac’s Keychain; the note goes only to Slack.</p>
 
 <h3>Calendar</h3>
-<p>With your permission, Sokki reads your Mac’s calendar through macOS to name meetings and know who attended. Calendar data stays on your Mac. Attendees’ addresses leave only in a note you send.</p>
+<p>With your permission, Sokki reads your Mac’s calendar through macOS to name meetings and know who attended. Calendar data stays on your Mac. Attendees’ addresses leave only in the mails Sokki sends for you.</p>
 
 <h2 class="title">Delete everything</h2>
 <p>On the <strong>Your data</strong> page: delete your recordings, and <strong>Delete what was shared</strong> to remove everything the counter holds of your Mac; this also turns sharing off. Meeting notes are plain files: delete them like any file.</p>

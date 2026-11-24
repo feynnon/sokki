@@ -61,8 +61,9 @@ default.
   budget is above the repo variable `AGENT_TESTERS_MAX_RUN_USD` (default $7),
   or more than 8 phones. One run at a time (`concurrency`). The run page shows
   the cap before anything starts and each phone's real cost at the end.
-- The Anthropic key lives in its own Console workspace with a monthly spend
-  limit, so a mistake can't cost more than that limit.
+- With the subscription token, runs use the Claude plan's limits; the dollar
+  caps still stop each phone at the same amount of work. With an API key, put
+  it in its own Console workspace with a monthly spend limit.
 
 ## Test audio (all made up)
 
@@ -100,8 +101,11 @@ is exact.
   private key is on Robin's Mac at `~/.config/sokki-agent-testers/results.pem`,
   never in the repo. Public logs show only status lines and costs.
 - Only test data goes in: made-up names, made-up sentences, a synthetic voice.
-- One secret: `ANTHROPIC_API_KEY`, passed only to the emulator step. Runs start
-  only by hand or on a release; forks and pull requests get nothing.
+- One secret: `CLAUDE_CODE_OAUTH_TOKEN`, a token for Robin's Claude
+  subscription (`claude setup-token`), so runs count against the plan and are
+  not billed per token. `ANTHROPIC_API_KEY` works instead when that secret is
+  absent. Passed only to the emulator step. Runs start only by hand or on a
+  release; forks and pull requests get nothing.
 - Every action is pinned to a commit; Claude Code (2.1.330) and Pillow are
   pinned versions. The agent may only take screenshots, tap, type, press the
   phone's buttons, sleep, and read and write files; no web access.

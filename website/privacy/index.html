@@ -80,10 +80,10 @@ Sokki</a>
 <p>Coming soon. Nothing here happens until you connect an account, and you can disconnect at any time.</p>
 
 <h3>Gmail</h3>
-<p>To write to a meeting’s attendees from your own address, Sokki asks Google for two things: to <strong>send email on your behalf</strong> (<code>gmail.send</code>), and your email address, to show which account is connected. Sokki doesn’t read, search or delete your mail.</p>
+<p>To write to a meeting’s attendees from your own address, Sokki asks Google for three things: to <strong>send email on your behalf</strong> (<code>gmail.send</code>), to <strong>see your mail’s headers</strong> (<code>gmail.metadata</code>), and your email address, to show which account is connected. Sokki never reads the text of your mail, searches it or deletes it.</p>
 <ul>
 <li><strong>What Sokki does with it:</strong> sends a meeting’s note from your Gmail to its attendees, when you click Send, or after every meeting if you turn on <strong>Send notes to everyone automatically</strong>. Nothing else.</li>
-<li><strong>Mail to guests before the meeting,</strong> if you turn it on: about 10 minutes before a meeting, Sokki tells its guests from other mail domains that you have Sokki take notes. Any reply means Sokki doesn’t record that meeting. To see replies, Sokki asks Google for one more permission, your mail’s headers (<code>gmail.metadata</code>), and looks only at sender and subject in the threads of its own notices, until the meeting ends. Never at message text, never at other mail. Who replied stays on your Mac and is deleted a day after the meeting.</li>
+<li><strong>Mail to guests before the meeting,</strong> on until you turn it off: about 10 minutes before a meeting, Sokki tells its guests from other mail domains that you have Sokki take notes. Any reply means Sokki doesn’t record that meeting. To see replies, Sokki uses the headers permission and looks only at sender and subject in the threads of its own notices, until the meeting ends. Never at message text, never at other mail. Who replied stays on your Mac and is deleted a day after the meeting.</li>
 <li><strong>Where it’s kept:</strong> Google’s access token stays in your Mac’s Keychain. The token, your address and your notes never reach Sokki’s servers or anyone other than Google and your recipients.</li>
 <li><strong>Never:</strong> shared, sold, used for ads, or used to train AI models.</li>
 <li><strong>Disconnect:</strong> in Sokki’s settings, or at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>

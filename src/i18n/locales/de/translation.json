@@ -86,7 +86,26 @@
       "hintBoth": "Erlaube beides, um fortzufahren",
       "hintMicrophone": "Erlaube das Mikrofon, um fortzufahren",
       "welcomeBack": "Willkommen zurück. Es geht dort weiter, wo du aufgehört hast.",
-      "relaunch": "Tastenkürzel reagiert danach nicht? <relaunch>Sokki neu starten</relaunch> und du landest direkt wieder hier."
+      "relaunch": "Tastenkürzel reagiert danach nicht? <relaunch>Sokki neu starten</relaunch> und du landest direkt wieder hier.",
+      "title_one": "Eine Berechtigung, dann bist du startklar",
+      "title_two": "Zwei Berechtigungen, dann bist du startklar",
+      "title_three": "Drei Berechtigungen, dann bist du startklar",
+      "title_four": "Vier Berechtigungen, dann bist du startklar",
+      "forBoth": "Für Diktieren und Meetings.",
+      "forDictation": "Für Diktieren.",
+      "forMeetings": "Für Meetings.",
+      "hint_three": "Erlaube alle drei, um fortzufahren",
+      "hint_four": "Erlaube alle vier, um fortzufahren",
+      "asked": "Gefragt",
+      "systemSound": {
+        "name": "Systemton",
+        "why": "Damit deine Notizen alle im Call enthalten."
+      },
+      "screen": {
+        "name": "Bildschirm",
+        "why": "Um deinen Bildschirm mit einem Meeting aufzunehmen, wenn du willst.",
+        "reopen": "Nach „Bildschirm“ öffnet macOS Sokki neu. Du landest wieder hier."
+      }
     },
     "shell": {
       "back": "Zurück",
@@ -94,8 +113,8 @@
       "progress": "Schritt {{step}} von {{count}}"
     },
     "welcome": {
-      "title": "Sprechen statt tippen, in jeder App",
-      "subtitle": "Wähle die Sprachen, in denen du diktierst",
+      "title": "Alles bleibt auf deinem Mac",
+      "subtitle": "Wähle die Sprachen, die du sprichst",
       "languagesLabel": "Sprachen",
       "noMatch": "Keine Sprache passt zu „{{query}}“. Die Modelle von Sokki decken etwa 100 Sprachen ab; weitere findest du in den Einstellungen.",
       "appLanguage": "App-Sprache",
@@ -180,12 +199,12 @@
       "tapAgain": "Tippe erneut auf <keys/>, wenn du fertig bist.",
       "watch": "Schau auf die Notiz.",
       "changeKeys": "Tastenkürzel ändern, {{keys}}",
-      "doneHold": "Abklatschen! Das war Halten.",
+      "doneHold": "Das war Halten.",
       "doneHoldNext": "Als Nächstes: freihändig.",
       "doneTap": "Hoch die Hände! Das war Tippen.",
       "doneTapNext": "Probier jetzt, sie beim Sprechen gedrückt zu halten.",
-      "giveFive": "Geschafft! Gib mir fünf",
-      "highFive": "High Five",
+      "gotIt": "Geschafft!",
+      "finish": "Fertig",
       "slowLine": "{{name}} hat auf diesem Computer {{wait}} gebraucht. <faster>Probier ein schnelleres Modell</faster>",
       "nothingTyped": "Hmm, nichts angekommen.",
       "nothingTypedSub": "Klicke zuerst in die Notiz und versuche es dann erneut.",
@@ -193,7 +212,6 @@
       "silentSub": "Von diesem Mikrofon kam kein Ton. Probier ein anderes:",
       "noWords": "Ich habe keine Worte verstanden.",
       "noWordsSub": "Versuche es noch einmal und sag einen ganzen Satz.",
-      "finish": "Fertig",
       "skip": "Überspringen",
       "seconds": "{{value}} s"
     },
@@ -202,7 +220,7 @@
       "subMac": "Sokki ist jetzt in deiner Menüleiste. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
       "subTray": "Sokki ist jetzt in deinem Infobereich. Halte <keys/> gedrückt oder tippe darauf, um in jeder App zu sprechen.",
       "hint": "Du kannst das später in den Einstellungen ändern",
-      "highFiveLabel": "High Five",
+      "markLabel": "Sokki",
       "atLogin": "Sokki beim Anmelden starten",
       "finish": "Fertig",
       "panel": {
@@ -218,6 +236,14 @@
     "linux": {
       "tryIt": "Funktioniert nicht? <guide>Linux-Einrichtungsanleitung</guide>",
       "done": "Funktioniert in anderen Apps nicht? <guide>Linux-Einrichtungsanleitung</guide>"
+    },
+    "purpose": {
+      "title": "Wofür nutzt du Sokki?",
+      "dictation": "Diktieren",
+      "meetings": "Meetings",
+      "asksFor": "Fragt nach",
+      "later": "Was du auslässt, fragt beim ersten Benutzen.",
+      "pickOne": "Wähle mindestens eins aus, um fortzufahren"
     }
   },
   "modelTable": {
@@ -983,7 +1009,7 @@
   },
   "theme": {
     "title": "Design",
-    "description": "Wie das System, oder immer hell oder dunkel.",
+    "description": "Sokki bleibt dunkel, außer du wählst Hell.",
     "options": {
       "system": "System",
       "light": "Hell",
@@ -1128,6 +1154,19 @@
     },
     "startPlain": "Meeting",
     "startWithScreen": "Meeting mit Bildschirm",
+    "screenVideo": "Bildschirmvideo",
+    "screenNotAllowed": "Erlaube Sokki die Bildschirmaufnahme in den Systemeinstellungen und öffne Sokki dann neu.",
+    "prompt": {
+      "startedTitle": "{{app}}-Meeting gestartet",
+      "startedHint": "Sag allen, dass du aufnimmst.",
+      "screen": "Bildschirm auch aufnehmen",
+      "notNow": "Nicht jetzt",
+      "record": "Aufnehmen",
+      "endedTitle": "{{app}}-Meeting beendet",
+      "endedHint": "Aufnahme beenden?",
+      "keep": "Weiter aufnehmen",
+      "stop": "Beenden"
+    },
     "group": {
       "today": "Heute",
       "yesterday": "Gestern",
@@ -1136,7 +1175,23 @@
       "more": "Mehr",
       "show": "Im Finder zeigen",
       "liveHint": "Text erscheint mit bis zu 25 Sekunden Verzögerung."
-    }
+    },
+    "titleProvisional": "Vorläufiger Titel",
+    "titleEdit": "Titel ändern",
+    "titleEditHint": "Enter speichert, Esc bricht ab.",
+    "place": {
+      "phone": "Handy",
+      "online": "Online",
+      "inPerson": "Vor Ort"
+    },
+    "others": {
+      "withOthers_one": "{{names}} und 1 weitere Person",
+      "withOthers_other": "{{names}} und {{count}} weitere",
+      "only_one": "1 weitere Person",
+      "only_other": "{{count}} weitere Personen"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {
@@ -1145,7 +1200,6 @@
       "sound": "Ton",
       "voice": "Deine Daten",
       "sponsor": "Spenden",
-      "videos": "Videos",
       "dictations": "Diktate"
     },
     "keep": {
@@ -1327,39 +1381,6 @@
     "message": {
       "later": "Später",
       "ok": "OK"
-    }
-  },
-  "video": {
-    "bar": {
-      "title": "Neue Aufnahme",
-      "modeBoth": "Bildschirm und Kamera",
-      "modeScreen": "Nur Bildschirm",
-      "modeCamera": "Nur Kamera",
-      "lookBubble": "Blase",
-      "lookSide": "Nebeneinander",
-      "lookVertical": "Hochkant",
-      "lookFiles": "Zwei Dateien",
-      "record": "Aufnehmen",
-      "close": "Schließen",
-      "screenNotAllowed": "Erlaube Sokki die Bildschirmaufnahme in den Systemeinstellungen und öffne Sokki dann neu.",
-      "cameraNotAllowed": "Erlaube Sokki die Kamera in den Systemeinstellungen."
-    },
-    "page": {
-      "title": "Videos",
-      "description": "Nimm deinen Bildschirm und dich selbst auf. Sokki schreibt mit, was du sagst.",
-      "new": "Neues Video",
-      "empty": "Noch keine Videos.",
-      "recording": "Aufnahme läuft",
-      "rendering": "Video wird erstellt …",
-      "failed": "Video konnte nicht erstellt werden",
-      "show": "Im Finder zeigen",
-      "delete": "In den Papierkorb",
-      "transcript": "Transkript",
-      "look": "Aussehen"
-    },
-    "settings": {
-      "title": "Videos",
-      "description": "Nimm deinen Bildschirm und dich selbst auf. Aus blendet es überall aus."
     }
   }
 }

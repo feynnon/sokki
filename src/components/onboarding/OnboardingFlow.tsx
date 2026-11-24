@@ -7,6 +7,7 @@ import {
   clearOnboardingProgress,
   useOnboardingStore,
   type OnboardingStep,
+  type Uses,
 } from "./onboardingStore";
 import { usePermissions } from "./usePermissions";
 import type { ChineseScriptChoice } from "@/lib/utils/languageSuggestions";
@@ -14,6 +15,7 @@ import { isChinese } from "@/lib/utils/languageSuggestions";
 import { Welcome } from "./screens/Welcome";
 import { Voice } from "./screens/Voice";
 import { Permissions } from "./screens/Permissions";
+import { Purpose } from "./screens/Purpose";
 import { Model } from "./screens/Model";
 import { Demo } from "./screens/Demo";
 import { TryIt } from "./screens/TryIt";
@@ -126,12 +128,21 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
   if (!permissions.checked) return null;
 
-  // Sokki keeps first start short: permissions, then the model. The
-  // spoken languages come from the system (changeable under Models).
+  // Sokki keeps first start short: what for, its permissions, the model,
+  // your data, then a practice round with the shortcut. The spoken
+  // languages come from the system (changeable under Models).
+  const uses: Uses = store.uses;
   const steps = STEP_ORDER.filter(
     (s) =>
-      (s !== "permissions" || permissions.needed || store.welcomeBack) &&
-      (s === "permissions" || s === "model" || s === "voice"),
+      (s !== "permissions" ||
+        permissions.neededFor(uses) ||
+        store.welcomeBack) &&
+      (s === "purpose" ||
+        s === "permissions" ||
+        s === "model" ||
+        s === "voice" ||
+        // The practice round is for the dictation shortcut.
+        (uses.dictation && (s === "try" || s === "done"))),
   );
   const step = steps.includes(store.step) ? store.step : steps[0];
   const progress = { index: steps.indexOf(step), count: steps.length };
@@ -202,10 +213,32 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           }}
         />
       );
+    case "purpose":
+      return (
+        <Purpose
+          progress={progress}
+          onBack={progress.index > 0 ? back : undefined}
+          onContinue={(picked) => {
+            // Without Meetings, calls don't offer to record.
+            const meetings = settings?.meetings;
+            if (
+              !preview &&
+              meetings &&
+              meetings.detection_enabled !== picked.meetings
+            )
+              void commands.setMeetingSettings({
+                ...meetings,
+                detection_enabled: picked.meetings,
+              });
+            onward();
+          }}
+        />
+      );
     case "permissions":
       return (
         <Permissions
           permissions={permissions}
+          uses={uses}
           progress={progress}
           onBack={back}
           onContinue={next}

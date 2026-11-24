@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   FolderOpen,
   Loader2,
+  Pencil,
   RotateCcw,
   Settings,
   Trash2,
@@ -24,11 +25,16 @@ import {
 import {
   dayGroup,
   listWhen,
+  meetingPlace,
+  isDateTitle,
   minutes,
+  otherSpeakers,
   readerWhen,
+  time,
   type DayGroup,
 } from "./meetingDates";
 import { useMeetingStore } from "@/stores/meetingStore";
+import { useFormatLocale } from "./useFormatLocale";
 import { PhoneLink } from "./PhoneLink";
 import {
   commands,
@@ -44,6 +50,7 @@ import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { Input } from "../../ui/Input";
 import { Button } from "../../ui/Button";
+import { Tooltip } from "../../ui/Tooltip";
 
 /** Opens Models → Language model (App switches section on this event). */
 function openLanguageModels() {
@@ -403,43 +410,214 @@ const MeetingSettingsView: React.FC<{
 
 const GROUPS: DayGroup[] = ["today", "yesterday", "thisWeek", "earlier"];
 
-/** One row of the list: title and when · length · app; red while it
- * records. */
+/** Where the meeting took place, in the app's words. */
+function usePlace(record: MeetingRecord): string | null {
+  const { t } = useTranslation();
+  return meetingPlace(record, {
+    phone: t("meetings.place.phone"),
+    online: t("meetings.place.online"),
+    inPerson: t("meetings.place.inPerson"),
+  });
+}
+
+/** The title to show: the meeting's own, else "Google Meet, 10:00" (Robin,
+ * 2026-11-24): while it records or is processed, and for a note without a
+ * summary, whose title would only repeat the date ("Meeting 2026-11-24
+ * 10:00"). */
+function useShownTitle(record: MeetingRecord): string {
+  const { t } = useTranslation();
+  const dates = useFormatLocale();
+  const place = usePlace(record);
+  if (record.title && !isDateTitle(record.title)) return record.title;
+  const at = time(new Date(Date.parse(record.started_at)), dates);
+  return place
+    ? t("meetings.placeholder", { place, time: at })
+    : t("meetings.placeholderNoPlace", { time: at });
+}
+
+/** Who spoke besides the user, in words for screen readers: "Lea, Jonas
+ * and 2 others". */
+function useOthers(record: MeetingRecord, userName: string): string | null {
+  const { t } = useTranslation();
+  if (record.status.kind !== "done") return null;
+  const { named, unnamed } = otherSpeakers(record.speakers, userName);
+  const names = named.join(", ");
+  if (named.length > 0 && unnamed > 0)
+    return t("meetings.others.withOthers", { names, count: unnamed });
+  if (named.length > 0) return names;
+  if (unnamed > 0) return t("meetings.others.only", { count: unnamed });
+  return null;
+}
+
+/** Who spoke besides the user, on the right of a row (variant V2, Robin
+ * 2026-11-24): a circle with the initial of up to two named people, then
+ * how many more; every name in a tooltip. */
+const SpeakerCircles: React.FC<{ record: MeetingRecord; userName: string }> = ({
+  record,
+  userName,
+}) => {
+  const label = useOthers(record, userName);
+  if (!label) return null;
+  const me = userName.trim().toLowerCase();
+  const all = record.speakers.filter((s) => s.trim().toLowerCase() !== me);
+  const { named } = otherSpeakers(record.speakers, userName);
+  const initials = named
+    .slice(0, 2)
+    .map((n) => Array.from(n.trim())[0]?.toUpperCase() ?? "?");
+  const rest = all.length - initials.length;
+  const circles =
+    rest > 0
+      ? [...initials, initials.length ? `+${rest}` : String(rest)]
+      : initials;
+  return (
+    <Tooltip text={all.join(", ")} placement="below">
+      <span className="flex shrink-0" aria-label={label} role="img">
+        {circles.map((c, i) => (
+          <span
+            key={i}
+            aria-hidden="true"
+            className="size-5 grid place-items-center rounded-full border-2 bg-line text-[10px] font-semibold leading-none text-ink-2"
+            style={{
+              marginInlineStart: i ? -6 : 0,
+              borderColor: "var(--vb-list)",
+            }}
+          >
+            {c}
+          </span>
+        ))}
+      </span>
+    </Tooltip>
+  );
+};
+
+/** One row of the list: title, then date · time · place · length (red
+ * while it records); who spoke on the right. */
 const ListItem: React.FC<{
   record: MeetingRecord;
   selected: boolean;
   now: Date;
+  userName: string;
   onSelect: () => void;
-}> = ({ record, selected, now, onSelect }) => {
+}> = ({ record, selected, now, userName, onSelect }) => {
   const { t, i18n } = useTranslation();
+  const dates = useFormatLocale();
   const at = new Date(Date.parse(record.started_at));
   const rec = record.status.kind === "recording";
+  const place = usePlace(record);
+  const shown = useShownTitle(record);
   const meta = rec
-    ? [t("meetings.recording"), record.source_app].filter(Boolean).join(" · ")
+    ? [t("meetings.recording"), place].filter(Boolean).join(" · ")
     : [
-        listWhen(at, now, i18n.language),
+        ...listWhen(at, now, dates),
+        place,
         minutes(record.duration_s, i18n.language),
-        record.source_app,
       ]
         .filter(Boolean)
         .join(" · ");
+  const guess =
+    !record.title || isDateTitle(record.title) || record.title_provisional;
   return (
     <button
       type="button"
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
-      className={`flex flex-col gap-px w-full px-2.5 py-2 rounded-lg text-start cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${selected ? "bg-line" : "hover:bg-wash"}`}
+      className={`flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-start cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${selected ? "bg-line" : "hover:bg-wash"}`}
     >
-      <span className="text-[13px] font-semibold text-text truncate">
-        {record.title ?? t("meetings.untitled")}
+      <span className="flex flex-col gap-px min-w-0 flex-1">
+        <span
+          className={`text-[13px] truncate ${guess ? "font-medium text-ink-2" : "font-semibold text-text"}`}
+        >
+          {shown}
+        </span>
+        <span
+          className={`text-[12px] truncate ${rec ? "font-medium" : "text-ink-3"}`}
+          style={rec ? { color: "var(--vb-rec)" } : undefined}
+        >
+          {meta}
+        </span>
       </span>
-      <span
-        className={`text-[12px] truncate ${rec ? "font-medium" : "text-ink-3"}`}
-        style={rec ? { color: "var(--vb-rec)" } : undefined}
-      >
-        {meta}
-      </span>
+      <SpeakerCircles record={record} userName={userName} />
     </button>
+  );
+};
+
+/** The reader's title. A click turns it into a field; Enter (or leaving
+ * the field) saves, Esc cancels. A typed title is kept for good. */
+const Title: React.FC<{
+  record: MeetingRecord;
+  title: string;
+  onError: (e: string | null) => void;
+}> = ({ record, title, onError }) => {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState<string | null>(null);
+  // Shown at once, until the record catches up.
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => setSaved(null), [record.title]);
+  const shown = saved ?? title;
+  const guess =
+    saved === null &&
+    (!record.title || isDateTitle(record.title) || record.title_provisional);
+  const heading =
+    "font-display text-title font-[650] leading-[1.15] tracking-[-0.015em]";
+
+  const save = async () => {
+    if (draft === null) return;
+    const next = draft.split(/\s+/).join(" ").trim();
+    setDraft(null);
+    if (!next || next === shown) return;
+    setSaved(next);
+    const r = await commands.setMeetingTitle(record.id, next);
+    if (r.status === "error") {
+      setSaved(null);
+      onError(r.error);
+    }
+  };
+
+  if (draft !== null) {
+    return (
+      <div>
+        <input
+          id="meeting-title"
+          autoFocus
+          value={draft}
+          aria-label={t("meetings.titleEdit")}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          onBlur={() => void save()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void save();
+            if (e.key === "Escape") setDraft(null);
+          }}
+          className={`${heading} w-full rounded-[10px] border border-logo-primary bg-wash px-2.5 py-1 -mx-2.5 -my-1 text-text focus:outline-none`}
+        />
+        <p className="mt-1.5 text-[12px] text-ink-3">
+          {t("meetings.titleEditHint")}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <h1 className={`${heading} group flex flex-wrap items-center gap-x-2.5`}>
+      <button
+        type="button"
+        onClick={() => setDraft(shown)}
+        title={t("meetings.titleEdit")}
+        className={`text-start select-text cursor-text rounded-md focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${guess ? "text-ink-2" : "text-text"}`}
+      >
+        {shown}
+      </button>
+      {record.title_provisional && saved === null && (
+        <span className="text-[11px] font-medium tracking-normal font-sans text-ink-2 bg-wash rounded-md px-[7px] py-[3px]">
+          {t("meetings.titleProvisional")}
+        </span>
+      )}
+      <Pencil
+        width={16}
+        height={16}
+        aria-hidden="true"
+        className="text-ink-3 opacity-0 group-hover:opacity-100 transition-opacity"
+      />
+    </h1>
   );
 };
 
@@ -450,16 +628,18 @@ const Reader: React.FC<{
   onChanged: () => void;
 }> = ({ record, hints, onChanged }) => {
   const { t, i18n } = useTranslation();
+  const dates = useFormatLocale();
   const { parts, error: noteError } = useMeetingNote(record);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => setError(null), [record.id]);
   const at = new Date(Date.parse(record.started_at));
-  const title = record.title ?? t("meetings.untitled");
+  const title = useShownTitle(record);
   const rec = record.status.kind === "recording";
+  const place = usePlace(record);
   const meta = [
-    readerWhen(at, new Date(), i18n.language, (g) => t(`meetings.group.${g}`)),
+    readerWhen(at, new Date(), dates, (g) => t(`meetings.group.${g}`)),
     rec ? null : minutes(record.duration_s, i18n.language),
-    record.source_app,
+    place,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -482,9 +662,7 @@ const Reader: React.FC<{
         <div className="max-w-[720px] flex flex-col gap-3">
           {hints}
           <div>
-            <h1 className="font-display text-title font-[650] leading-[1.15] tracking-[-0.015em] select-text">
-              {title}
-            </h1>
+            <Title record={record} title={title} onError={setError} />
             <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
           </div>
           <Speakers record={record} onDone={onChanged} />
@@ -645,6 +823,7 @@ export const MeetingsSettings: React.FC = () => {
                   key={m.id}
                   record={m}
                   now={now}
+                  userName={meetingSettings.user_name}
                   selected={selected?.id === m.id}
                   onSelect={() => select(m.id)}
                 />

@@ -180,12 +180,12 @@
       "tapAgain": "Torneu a prémer <keys/> quan acabeu.",
       "watch": "Mireu la nota.",
       "changeKeys": "Canvia la drecera, {{keys}}",
-      "doneHold": "Xoqueu-la! Això era mantenir premut.",
+      "doneHold": "Això era mantenir premut.",
       "doneHoldNext": "Ara, la manera sense mans.",
       "doneTap": "Xoqueu-la! Això era prémer una vegada.",
       "doneTapNext": "Ara proveu de mantenir-les premudes mentre parleu.",
-      "giveFive": "Ho heu aconseguit! Xoqueu-la",
-      "highFive": "Xoqueu-la",
+      "gotIt": "Ho heu aconseguit!",
+      "finish": "Acaba",
       "slowLine": "{{name}} ha trigat {{wait}} en aquest ordinador. <faster>Proveu un model més ràpid</faster>",
       "nothingTyped": "Mmm, no ha arribat res.",
       "nothingTypedSub": "Feu clic primer a la nota i torneu-ho a provar.",
@@ -193,7 +193,6 @@
       "silentSub": "Aquest micròfon no ha captat cap so. Proveu-ne un altre:",
       "noWords": "No he entès cap paraula.",
       "noWordsSub": "Torneu-ho a provar i digueu una frase sencera.",
-      "finish": "Acaba",
       "skip": "Omet",
       "seconds": "{{value}} s"
     },
@@ -202,7 +201,7 @@
       "subMac": "El Sokki ja és a la barra de menús. Manteniu premut o premeu <keys/> a qualsevol aplicació per parlar.",
       "subTray": "El Sokki ja és a la safata del sistema. Manteniu premut o premeu <keys/> a qualsevol aplicació per parlar.",
       "hint": "Podeu canviar-ho més tard a la configuració",
-      "highFiveLabel": "Xoqueu-la",
+      "markLabel": "Sokki",
       "atLogin": "Inicia el Sokki quan entri a la sessió",
       "finish": "Fet",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Sokki: from the keyboard (HeliBoard), which can't ship global options as
+# library consumer rules. Readable stack traces, no renaming.
+-keepattributes SourceFile,LineNumberTable
+-dontobfuscate

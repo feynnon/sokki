@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { Keyboard, Mic } from "lucide-react";
+import { Keyboard, Mic, Monitor, Volume2 } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { Spinner } from "../../ui/Spinner";
 import { TextLink } from "../../ui/TextLink";
 import { DoneMark } from "../../shared/DoneMark";
 import { OnboardingShell, ScreenHeader, ScreenMain } from "../OnboardingShell";
-import { useOnboardingStore } from "../onboardingStore";
+import { useOnboardingStore, type Uses } from "../onboardingStore";
 import type { Permissions as PermissionsState } from "../usePermissions";
 
 interface PermissionRowProps {
@@ -20,6 +20,8 @@ interface PermissionRowProps {
   action: string;
   /** While waiting, what to do in the OS, in place of `why`. */
   instruction?: string;
+  /** In place of "Allowed" (system sound can only be asked, not checked). */
+  grantedLabel?: string;
   onRequest: () => void;
 }
 
@@ -32,6 +34,7 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
   next,
   action,
   instruction,
+  grantedLabel,
   onRequest,
 }) => {
   const { t } = useTranslation();
@@ -57,7 +60,7 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
       {status === "granted" ? (
         <span className="inline-flex items-center justify-self-end gap-[6px] text-small font-semibold text-moss">
           <DoneMark />
-          {t("onboarding.permissions.allowed")}
+          {grantedLabel ?? t("onboarding.permissions.allowed")}
         </span>
       ) : waiting ? (
         <span className="inline-flex items-center justify-self-end gap-[6px] text-small text-ink-3">
@@ -81,15 +84,25 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
 
 interface PermissionsProps {
   permissions: PermissionsState;
+  /** What Sokki is for: decides which permissions are asked. */
+  uses: Uses;
   /** In the flow: its place and Back. Standalone (a returning user): neither. */
   progress?: { index: number; count: number };
   onBack?: () => void;
   onContinue: () => void;
 }
 
-/** Screen 2: microphone, plus Accessibility on macOS, granted in order. */
+/** Number words for the title and hint, as in "Four permissions". */
+const COUNT = ["one", "two", "three", "four"] as const;
+
+/**
+ * The permissions the picks need, granted in order: the microphone, then on
+ * macOS Accessibility (dictation), system sound and the screen (meetings).
+ * The screen comes last: allowing it makes macOS reopen Sokki.
+ */
 export const Permissions: React.FC<PermissionsProps> = ({
   permissions,
+  uses,
   progress,
   onBack,
   onContinue,
@@ -97,9 +110,20 @@ export const Permissions: React.FC<PermissionsProps> = ({
   const { t } = useTranslation();
   const { welcomeBack, preview, set } = useOnboardingStore();
   const isMac = permissions.platform === "macos";
-  const rows = isMac
-    ? (["microphone", "accessibility"] as const)
-    : (["microphone"] as const);
+  type Row = "microphone" | "accessibility" | "systemSound" | "screen";
+  const rows: Row[] = [
+    "microphone",
+    ...(isMac && uses.dictation ? (["accessibility"] as const) : []),
+    ...(isMac && uses.meetings ? (["systemSound", "screen"] as const) : []),
+  ];
+  const allGranted = permissions.allGrantedFor(uses);
+  const count = COUNT[rows.length - 1];
+  const forWhat =
+    uses.dictation && uses.meetings
+      ? "forBoth"
+      : uses.meetings
+        ? "forMeetings"
+        : "forDictation";
   const next = rows.find((r) => permissions[r] !== "granted");
   // Asking for the microphone opens the OS settings on Windows, and on macOS
   // once it has asked: then the row says what to turn on there.
@@ -121,19 +145,21 @@ export const Permissions: React.FC<PermissionsProps> = ({
       progress={progress}
       onBack={onBack}
       hint={
-        permissions.allGranted
+        allGranted
           ? ""
           : t(
-              isMac
-                ? "onboarding.permissions.hintBoth"
-                : "onboarding.permissions.hintMicrophone",
+              rows.length === 1
+                ? "onboarding.permissions.hintMicrophone"
+                : rows.length === 2
+                  ? "onboarding.permissions.hintBoth"
+                  : `onboarding.permissions.hint_${count}`,
             )
       }
       primary={
         <Button
           variant="primary"
           size="lg"
-          disabled={!permissions.allGranted}
+          disabled={!allGranted}
           onClick={() => {
             if (welcomeBack) set({ welcomeBack: false });
             onContinue();
@@ -154,14 +180,10 @@ export const Permissions: React.FC<PermissionsProps> = ({
                 </div>
               )
             }
-            title={t(
-              isMac
-                ? "onboarding.permissions.titleMac"
-                : "onboarding.permissions.titleWindows",
-            )}
+            title={t(`onboarding.permissions.title_${count}`)}
             sub={t(
               isMac
-                ? "onboarding.permissions.subtitleMac"
+                ? `onboarding.permissions.${forWhat}`
                 : "onboarding.permissions.subtitleWindows",
             )}
           />
@@ -185,7 +207,7 @@ export const Permissions: React.FC<PermissionsProps> = ({
               permissions.requestMicrophone();
             }}
           />
-          {isMac && (
+          {rows.includes("accessibility") && (
             <PermissionRow
               icon={<Keyboard size={20} aria-hidden="true" />}
               title={t("onboarding.permissions.accessibility.name")}
@@ -197,10 +219,42 @@ export const Permissions: React.FC<PermissionsProps> = ({
               onRequest={permissions.requestAccessibility}
             />
           )}
+          {rows.includes("systemSound") && (
+            <PermissionRow
+              icon={<Volume2 size={20} aria-hidden="true" />}
+              title={t("onboarding.permissions.systemSound.name")}
+              why={t("onboarding.permissions.systemSound.why")}
+              status={permissions.systemSound}
+              grantedLabel={t("onboarding.permissions.asked")}
+              next={next === "systemSound"}
+              action={t("onboarding.permissions.allow")}
+              onRequest={permissions.requestSystemSound}
+            />
+          )}
+          {rows.includes("screen") && (
+            <PermissionRow
+              icon={<Monitor size={20} aria-hidden="true" />}
+              title={t("onboarding.permissions.screen.name")}
+              why={t("onboarding.permissions.screen.why")}
+              status={permissions.screen}
+              next={next === "screen"}
+              action={t("onboarding.permissions.allow")}
+              instruction={turnOn}
+              onRequest={permissions.requestScreen}
+            />
+          )}
         </div>
+        {rows.includes("screen") && permissions.screen !== "granted" && (
+          <p className="mt-[18px] mb-0 text-small text-ink-3">
+            {t("onboarding.permissions.screen.reopen")}
+          </p>
+        )}
         <p
           className={`mt-[18px] mb-0 text-small text-ink-3 ${
-            isMac && permissions.accessibility === "granted"
+            isMac &&
+            rows.includes("accessibility") &&
+            permissions.accessibility === "granted" &&
+            !(rows.includes("screen") && permissions.screen !== "granted")
               ? "visible"
               : "invisible"
           }`}

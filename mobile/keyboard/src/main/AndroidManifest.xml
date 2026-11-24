@@ -12,7 +12,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_USER_DICTIONARY" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Sokki: no READ_CONTACTS. HeliBoard's "use contact names" needs it;
+         Sokki shows no word suggestions, so the setting is hidden. -->
 
     <!-- Sokki: the keyboard runs in its own process (":keyboard"), like a
          separate keyboard app: the app's own fields don't block it, and the

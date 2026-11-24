@@ -8,6 +8,7 @@ import {
 
 export type OnboardingStep =
   | "welcome"
+  | "purpose"
   | "permissions"
   | "model"
   | "voice"
@@ -17,6 +18,7 @@ export type OnboardingStep =
 
 export const STEP_ORDER: OnboardingStep[] = [
   "welcome",
+  "purpose",
   "permissions",
   "model",
   "voice",
@@ -24,6 +26,12 @@ export const STEP_ORDER: OnboardingStep[] = [
   "try",
   "done",
 ];
+
+/** What Sokki is for. */
+export interface Uses {
+  dictation: boolean;
+  meetings: boolean;
+}
 
 /** What the flow remembers between screens, and across a relaunch. */
 interface Persisted {
@@ -37,8 +45,16 @@ interface Persisted {
   extraModelId: string | null;
   /** The model being downloaded, or already on disk (catalog id). */
   downloadId: string | null;
+  /** What Sokki is for (the "What for?" screen); Permissions asks only
+   * for what these need. */
+  uses: Uses;
+  /** System sound was asked for (macOS can't tell whether it was allowed). */
+  systemSoundAsked: boolean;
   /** Back after the Accessibility relaunch: Permissions says so. */
   welcomeBack: boolean;
+  /** Screen was asked for: macOS reopens Sokki once it's allowed, and the
+   * next start says "Welcome back" (not this one). */
+  relaunchPending: boolean;
   /** Which ways of using the shortcut they've done for real (Try it). */
   lessons: { hold: boolean; tap: boolean };
   /** Set when All set's panel jumps back to a screen; continuing returns here. */
@@ -68,7 +84,10 @@ const fresh = (): Persisted => ({
   modelId: null,
   extraModelId: null,
   downloadId: null,
+  uses: { dictation: true, meetings: true },
+  systemSoundAsked: false,
   welcomeBack: false,
+  relaunchPending: false,
   lessons: { hold: false, tap: false },
   returnTo: null,
   atLogin: true,
@@ -100,7 +119,19 @@ const load = (): Persisted => {
       modelId: pick("modelId", isId),
       extraModelId: pick("extraModelId", isId),
       downloadId: pick("downloadId", isId),
-      welcomeBack: pick("welcomeBack", isBool),
+      uses: pick(
+        "uses",
+        (v) =>
+          !!v &&
+          typeof v === "object" &&
+          isBool((v as Uses).dictation) &&
+          isBool((v as Uses).meetings),
+      ),
+      systemSoundAsked: pick("systemSoundAsked", isBool),
+      // A start after the Screen prompt is the relaunch it was waiting for.
+      welcomeBack:
+        pick("welcomeBack", isBool) || fields.relaunchPending === true,
+      relaunchPending: false,
       returnTo: pick(
         "returnTo",
         (v) => v === null || STEP_ORDER.includes(v as OnboardingStep),
@@ -129,7 +160,10 @@ const save = (state: OnboardingState) => {
     modelId: state.modelId,
     extraModelId: state.extraModelId,
     downloadId: state.downloadId,
+    uses: state.uses,
+    systemSoundAsked: state.systemSoundAsked,
     welcomeBack: state.welcomeBack,
+    relaunchPending: state.relaunchPending,
     lessons: state.lessons,
     returnTo: state.returnTo,
     atLogin: state.atLogin,

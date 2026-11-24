@@ -14,6 +14,8 @@
 #   SYSTEM_DELAY=12 scripts/test-meeting.sh ...        # system audio starts 12 s late
 #   SECOND_S=30 GAP_S=2 scripts/test-meeting.sh ...   # a second meeting while the first is processed
 #   NO_YIELD=1 SECOND_S=30 scripts/test-meeting.sh ... # same, processing not yielding (A/B)
+#   TITLE_AFTER=60 scripts/test-meeting.sh ...        # provisional title after 60 s, with the
+#                                                     # language model and the summary on
 #   TESTAPP=/path/Sokki\ Test.app scripts/test-meeting.sh ... # another build of the test app
 #
 # Real recordings stay outside the repository: convert them to WAV in a
@@ -24,8 +26,9 @@
 # Robin's Sokki, its settings or its data.
 set -euo pipefail
 
-ID=org.sokki.test
-NAME="Sokki Test"
+# TEST_ID/TEST_NAME: a second test app, so two sessions can test side by side.
+ID="${TEST_ID:-org.sokki.test}"
+NAME="${TEST_NAME:-Sokki Test}"
 TESTAPP="${TESTAPP:-$HOME/Applications/$NAME.app}"
 DATA="$HOME/Library/Application Support/$ID"
 LOG="$HOME/Library/Logs/$ID/sokki.log"
@@ -61,8 +64,15 @@ jq --arg notes "$WORK/notes" '.settings.onboarding_completed = true
   | .settings.meetings.detection_enabled = false
   | .settings.meetings.phone_link_enabled = false
   | .settings.meetings.correction_enabled = false
-  | .settings.meetings.summary_enabled = false
-  | .settings.meetings.notes_dir = $notes' "$SOKKI_SETTINGS" > "$DATA/settings_store.json"
+  | .settings.meetings.summary_enabled = ($title != "")
+  | .settings.meetings.notes_dir = $notes' --arg title "${TITLE_AFTER:-}" "$SOKKI_SETTINGS" > "$DATA/settings_store.json"
+if [[ -n "${TITLE_AFTER:-}" ]]; then
+  # Sokki's downloaded language model, linked, not copied.
+  MODEL="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
+  [[ -f "$MODEL" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+  mkdir -p "$DATA/meeting-models/llm"
+  [[ -f "$DATA/meeting-models/llm/$(basename "$MODEL")" ]] || ln "$MODEL" "$DATA/meeting-models/llm/"
+fi
 
 if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
   echo "The test app still contains tccutil; rebuild it from current meetings." >&2
@@ -81,7 +91,7 @@ sleep 1
 rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|ERROR|WARN"
+PATTERN="Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
@@ -92,7 +102,8 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   --env SOKKI_TEST_MEETING=1 --env SOKKI_TEST_HOLD_S="$HOLD" \
   ${NO_LIVE:+--env SOKKI_TEST_NO_LIVE=1} ${SYSTEM_DELAY:+--env SOKKI_TEST_SYSTEM_DELAY_S=$SYSTEM_DELAY} \
   ${SECOND_S:+--env SOKKI_TEST_SECOND_S="$SECOND_S"} ${GAP_S:+--env SOKKI_TEST_GAP_S="$GAP_S"} \
-  ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} -a "$TESTAPP"
+  ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} ${TITLE_AFTER:+--env SOKKI_TEST_TITLE_AFTER_S="$TITLE_AFTER"} \
+  -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"

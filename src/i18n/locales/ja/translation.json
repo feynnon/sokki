@@ -180,12 +180,12 @@
       "tapAgain": "話し終えたら、もう一度 <keys/> をタップしてください。",
       "watch": "メモを見てみましょう。",
       "changeKeys": "ショートカットを変更、{{keys}}",
-      "doneHold": "ハイタッチ! 押したまま話す方法はバッチリ。",
+      "doneHold": "押したまま話す方法はバッチリ。",
       "doneHoldNext": "次は、手を使わない方法です。",
       "doneTap": "イェイ! タップして話す方法もバッチリ。",
       "doneTapNext": "今度は、押したまま話してみましょう。",
-      "giveFive": "できた! ハイタッチ!",
-      "highFive": "ハイタッチ",
+      "gotIt": "できた!",
+      "finish": "完了",
       "slowLine": "このコンピューターでは {{name}} に {{wait}} かかりました。<faster>より高速なモデルを試す</faster>",
       "nothingTyped": "あれ、何も入力されませんでした。",
       "nothingTypedSub": "まずメモをクリックしてから、もう一度試してください。",
@@ -193,7 +193,6 @@
       "silentSub": "このマイクから音が入ってきません。別のマイクを試してください:",
       "noWords": "言葉を聞き取れませんでした。",
       "noWordsSub": "もう一度、文章でしっかり話してみてください。",
-      "finish": "完了",
       "skip": "スキップ",
       "seconds": "{{value}}秒"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki はメニューバーにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
       "subTray": "Sokki はシステムトレイにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
       "hint": "これらは後から設定で変更できます",
-      "highFiveLabel": "ハイタッチ",
+      "markLabel": "Sokki",
       "atLogin": "ログイン時に Sokki を起動する",
       "finish": "完了",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

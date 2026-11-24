@@ -483,7 +483,10 @@ impl Watcher {
                     match source.poll() {
                         Ok(clients) => {
                             failing = false;
-                            let apps = classify_all(&clients, own_pid);
+                            #[allow(unused_mut)]
+                            let mut apps = classify_all(&clients, own_pid);
+                            #[cfg(target_os = "macos")]
+                            crate::macos::name_calls(&mut apps);
                             for event in detector.observe(clock.now(), &apps) {
                                 log::info!("meeting event: {event:?}");
                                 on_event(event);

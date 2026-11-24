@@ -665,8 +665,8 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
         "light" => Theme::Light,
         "dark" => Theme::Dark,
         other => {
-            warn!("Invalid theme '{}', defaulting to system", other);
-            Theme::System
+            warn!("Invalid theme '{}', defaulting to dark", other);
+            Theme::Dark
         }
     };
     settings.theme = parsed;
@@ -680,8 +680,8 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
 }
 
 /// Applies the appearance setting to the native window chrome (title bar), which
-/// CSS `data-theme` cannot reach. `System` clears the override so the window
-/// follows the OS. Call this on startup and whenever the setting changes to keep
+/// CSS `data-theme` cannot reach. `System` (from older settings) is dark too:
+/// Sokki never follows the OS appearance. Call this on startup and whenever the setting changes to keep
 /// the title bar in sync with the in-app palette.
 ///
 /// On Windows this themes the title bar only. On macOS `set_theme` sets
@@ -691,9 +691,8 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
     let window_theme = match theme {
-        Theme::System => None,
         Theme::Light => Some(tauri::Theme::Light),
-        Theme::Dark => Some(tauri::Theme::Dark),
+        Theme::System | Theme::Dark => Some(tauri::Theme::Dark),
     };
     if let Some(window) = app.get_webview_window("main") {
         if let Err(e) = window.set_theme(window_theme) {

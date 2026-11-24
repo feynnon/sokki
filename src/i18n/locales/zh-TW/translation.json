@@ -180,12 +180,12 @@
       "tapAgain": "說完後再按一次 <keys/>。",
       "watch": "看看備忘錄。",
       "changeKeys": "變更快捷鍵，{{keys}}",
-      "doneHold": "擊掌！這就是按住的用法。",
+      "doneHold": "這就是按住的用法。",
       "doneHoldNext": "接下來，試試免持的方式。",
       "doneTap": "擊掌！這就是輕按的用法。",
       "doneTapNext": "現在試試邊說話邊按住。",
-      "giveFive": "你學會了！擊個掌吧",
-      "highFive": "擊掌",
+      "gotIt": "你學會了！",
+      "finish": "完成",
       "slowLine": "{{name}} 在這台電腦上花了 {{wait}}。<faster>試試更快的模型</faster>",
       "nothingTyped": "嗯，什麼都沒有輸入進去。",
       "nothingTypedSub": "請先點一下備忘錄，再試一次。",
@@ -193,7 +193,6 @@
       "silentSub": "這支麥克風沒有收到任何聲音。換一支試試：",
       "noWords": "我沒聽清楚任何字詞。",
       "noWordsSub": "再試一次，這次請說完整的一句話。",
-      "finish": "完成",
       "skip": "略過",
       "seconds": "{{value}} 秒"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki 現在位於選單列中。在任何應用程式中按住或輕按 <keys/> 即可開口說話。",
       "subTray": "Sokki 現在位於系統匣中。在任何應用程式中按住或輕按 <keys/> 即可開口說話。",
       "hint": "之後可以隨時在「設定」中變更",
-      "highFiveLabel": "擊掌",
+      "markLabel": "Sokki",
       "atLogin": "登入時啟動 Sokki",
       "finish": "完成",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

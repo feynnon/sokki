@@ -1,24 +1,17 @@
-//! Rust side of `swift/video_capture.swift`: screen and camera recording and
-//! rendering a look. JSON in, JSON out.
+//! Rust side of `swift/video_capture.swift`: recording the screen and
+//! rendering it with the meeting's sound. JSON in, JSON out.
 
 use std::ffi::{c_char, c_void, CStr, CString};
 
 extern "C" {
     fn sokki_video_sources() -> *mut c_char;
     fn sokki_video_request_screen() -> bool;
-    fn sokki_video_request_camera() -> bool;
     fn sokki_video_start(config: *const c_char, out_error: *mut *mut c_char) -> *mut c_void;
     fn sokki_video_stop(handle: *mut c_void) -> *mut c_char;
     fn sokki_video_render(config: *const c_char, out_error: *mut *mut c_char) -> bool;
     fn sokki_video_free(s: *mut c_char);
-    fn sokki_video_bubble(show: bool, device_id: *const c_char);
 }
 
-/// Shows or hides the live camera bubble.
-pub fn bubble(show: bool, device_id: Option<&str>) {
-    let id = device_id.and_then(|d| CString::new(d).ok());
-    unsafe { sokki_video_bubble(show, id.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())) }
-}
 
 /// A running recording. Stopping consumes it.
 pub struct Handle(*mut c_void);
@@ -36,7 +29,7 @@ fn take(s: *mut c_char) -> String {
     text
 }
 
-/// Displays, cameras and whether each may be recorded. Never asks.
+/// Displays and whether the screen may be recorded. Never asks.
 pub fn sources() -> serde_json::Value {
     let text = take(unsafe { sokki_video_sources() });
     serde_json::from_str(&text).unwrap_or(serde_json::Value::Null)
@@ -47,10 +40,6 @@ pub fn request_screen() -> bool {
     unsafe { sokki_video_request_screen() }
 }
 
-/// Shows macOS's Camera prompt and waits for the answer.
-pub fn request_camera() -> bool {
-    unsafe { sokki_video_request_camera() }
-}
 
 pub fn start(config: &serde_json::Value) -> Result<Handle, String> {
     let config = CString::new(config.to_string()).map_err(|e| e.to_string())?;
@@ -69,7 +58,7 @@ pub fn stop(handle: Handle) -> serde_json::Value {
     serde_json::from_str(&text).unwrap_or(serde_json::Value::Null)
 }
 
-/// Renders a look into one video file. Blocks.
+/// Renders the screen video with the sound into one file. Blocks.
 pub fn render(config: &serde_json::Value) -> Result<(), String> {
     let config = CString::new(config.to_string()).map_err(|e| e.to_string())?;
     let mut error: *mut c_char = std::ptr::null_mut();

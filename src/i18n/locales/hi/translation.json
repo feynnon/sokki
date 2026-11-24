@@ -180,12 +180,12 @@
       "tapAgain": "बोल चुकें तो <keys/> फिर से टैप करें.",
       "watch": "नोट पर नज़र रखें.",
       "changeKeys": "अपना शॉर्टकट बदलें, {{keys}}",
-      "doneHold": "हाई फ़ाइव! यह था दबाए रखना.",
+      "doneHold": "यह था दबाए रखना.",
       "doneHoldNext": "अब, हैंड्स-फ़्री तरीका.",
       "doneTap": "ताली दो! यह था टैप करना.",
       "doneTapNext": "अब बोलते समय इन्हें दबाए रखकर देखें.",
-      "giveFive": "आपने कर दिखाया! हाई फ़ाइव दो",
-      "highFive": "हाई फ़ाइव",
+      "gotIt": "आपने कर दिखाया!",
+      "finish": "समाप्त करें",
       "slowLine": "इस कंप्यूटर पर {{name}} को {{wait}} लगे. <faster>कोई तेज़ मॉडल आज़माएं</faster>",
       "nothingTyped": "हम्म, कुछ टाइप नहीं हुआ.",
       "nothingTypedSub": "पहले नोट में क्लिक करें, फिर दोबारा कोशिश करें.",
@@ -193,7 +193,6 @@
       "silentSub": "इस माइक्रोफ़ोन से कोई आवाज़ नहीं आई. दूसरा आज़माएं:",
       "noWords": "मुझे कोई शब्द समझ नहीं आया.",
       "noWordsSub": "फिर से कोशिश करें, और पूरा वाक्य बोलें.",
-      "finish": "समाप्त करें",
       "skip": "छोड़ें",
       "seconds": "{{value}} सेकंड"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki अब आपके मेन्यू बार में है. बोलने के लिए किसी भी ऐप में <keys/> दबाए रखें या टैप करें.",
       "subTray": "Sokki अब आपके सिस्टम ट्रे में है. बोलने के लिए किसी भी ऐप में <keys/> दबाए रखें या टैप करें.",
       "hint": "इन्हें आप बाद में सेटिंग्स में बदल सकते हैं",
-      "highFiveLabel": "हाई फ़ाइव",
+      "markLabel": "Sokki",
       "atLogin": "लॉग इन करने पर Sokki शुरू करें",
       "finish": "हो गया",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

@@ -7,6 +7,20 @@ plugins {
     id("rust")
 }
 
+// Release signing (Google Play upload key): a properties file outside the
+// repo with keyAlias, password and storeFile. Its path comes from
+// SOKKI_ANDROID_KEYSTORE, else ~/.config/sokki/android-upload.properties.
+// Without it, release builds come out unsigned.
+val uploadKeyFile = file(
+    System.getenv("SOKKI_ANDROID_KEYSTORE")
+        ?: "${System.getProperty("user.home")}/.config/sokki/android-upload.properties"
+)
+val uploadKey = Properties().apply {
+    if (uploadKeyFile.exists()) {
+        uploadKeyFile.inputStream().use { load(it) }
+    }
+}
+
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -18,13 +32,28 @@ android {
     compileSdk = 37
     namespace = "dev.verbatim.mobile"
     defaultConfig {
-        // The Mac is reached over plain HTTP on the local network (phone link).
-        manifestPlaceholders["usesCleartextTraffic"] = "true"
-        applicationId = "dev.verbatim.mobile"
+        // Only encrypted connections: the phone link and the model download
+        // don't use plain HTTP. Debug builds allow it for Tauri's dev server.
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        // The ID Android and Google Play know the app by; it can never change
+        // after the first upload. The code's namespace (and Tauri's
+        // identifier) stay dev.verbatim.mobile: renaming them would move
+        // every Kotlin file for no visible gain.
+        applicationId = "org.sokki.app"
         minSdk = 24
         targetSdk = 37
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        if (uploadKeyFile.exists()) {
+            create("upload") {
+                keyAlias = uploadKey.getProperty("keyAlias")
+                keyPassword = uploadKey.getProperty("password")
+                storePassword = uploadKey.getProperty("password")
+                storeFile = file(uploadKey.getProperty("storeFile"))
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -40,6 +69,9 @@ android {
             }
         }
         getByName("release") {
+            if (uploadKeyFile.exists()) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
             optimization {
                enable = true
             }

@@ -35,7 +35,7 @@ interface MeetingState {
   reload: () => Promise<void>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
-  startWithScreen: (display: number | null) => Promise<void>;
+  startWithScreen: () => Promise<void>;
   select: (id: string | null) => void;
 }
 
@@ -97,18 +97,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   },
 
   /** "Meeting with screen": the meeting plus a full video of the screen. */
-  startWithScreen: async (display) => {
+  startWithScreen: async () => {
     if (get().busy || get().recording) return;
     set({ busy: true, screenHint: false });
     try {
-      const r = await commands.videoStart({
-        kind: "meeting",
-        mode: "screen",
-        display,
-        camera: null,
-        look: "bubble",
-        source_app: null,
-      });
+      const r = await commands.startMeetingWithScreen();
       set({
         screenHint: r.status === "error" && r.error === "screen_not_allowed",
       });

@@ -180,12 +180,12 @@
       "tapAgain": "הקש שוב על <keys/> כשתסיים.",
       "watch": "תסתכל על הפתק.",
       "changeKeys": "שנה את קיצור המקשים, {{keys}}",
-      "doneHold": "כיף! ככה מחזיקים.",
+      "doneHold": "ככה מחזיקים.",
       "doneHoldNext": "הלאה, בלי ידיים.",
       "doneTap": "תן כאן כיף! ככה מקישים.",
       "doneTapNext": "עכשיו נסה להחזיק אותם בזמן שאתה מדבר.",
-      "giveFive": "הצלחת! תן כיף",
-      "highFive": "כיף",
+      "gotIt": "הצלחת!",
+      "finish": "סיום",
       "slowLine": "{{name}} לקח {{wait}} במחשב הזה. <faster>נסה מודל מהיר יותר</faster>",
       "nothingTyped": "הממ, שום דבר לא נחת.",
       "nothingTypedSub": "לחץ קודם בתוך הפתק, ואז נסה שוב.",
@@ -193,7 +193,6 @@
       "silentSub": "לא הגיע צליל מהמיקרופון הזה. נסה אחר:",
       "noWords": "לא קלטתי מילים.",
       "noWordsSub": "נסה שוב, ואמור משפט שלם.",
-      "finish": "סיום",
       "skip": "דלג",
       "seconds": "{{value}} שנ׳"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki נמצא עכשיו בשורת התפריטים. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
       "subTray": "Sokki נמצא עכשיו במגש המערכת. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
       "hint": "אפשר לשנות את אלה אחר כך בהגדרות",
-      "highFiveLabel": "כיף",
+      "markLabel": "Sokki",
       "atLogin": "הפעל את Sokki כשאני נכנס למערכת",
       "finish": "סיום",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

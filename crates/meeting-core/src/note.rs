@@ -486,6 +486,24 @@ pub fn add_summary(md: &str, summary: &MeetingSummary) -> Option<String> {
     Some(out)
 }
 
+/// The note with `title` as its title heading (the first `# ` line), for a
+/// title the person typed. `None` when the note has no title heading.
+pub fn retitle_markdown(md: &str, title: &str) -> Option<String> {
+    let title = one_line(title.trim());
+    let mut out = String::with_capacity(md.len() + title.len());
+    let mut titled = false;
+    for line in md.split_inclusive('\n') {
+        if !titled && line.starts_with("# ") {
+            titled = true;
+            let eol = &line[line.trim_end_matches(['\r', '\n']).len()..];
+            out.push_str(&format!("# {title}{eol}"));
+        } else {
+            out.push_str(line);
+        }
+    }
+    titled.then_some(out)
+}
+
 /// The file stem for a note once it got its summary: "YYYY-MM-DD HHmm
 /// <Title>" when the note still has the name it was written with ("… Meeting"
 /// or "… Meeting 2"), `None` when the user renamed it (keep that name).
@@ -651,6 +669,16 @@ mod tests {
         assert_eq!(sanitize_filename("a\nb\tc", 80), "a b c");
         assert_eq!(sanitize_filename("abcdef ghij", 7), "abcdef");
         assert_eq!(sanitize_filename("???", 80), "");
+    }
+
+    #[test]
+    fn retitle_changes_only_the_title_heading() {
+        let md = "---\ndate: 2026-11-24\n---\n# Old title\r\n\n## Summary\n# Not a title\n";
+        assert_eq!(
+            retitle_markdown(md, "  New   title ").unwrap(),
+            "---\ndate: 2026-11-24\n---\n# New title\r\n\n## Summary\n# Not a title\n"
+        );
+        assert_eq!(retitle_markdown("no heading\n", "T"), None);
     }
 
     #[test]

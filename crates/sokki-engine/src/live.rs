@@ -18,7 +18,7 @@ use meeting_core::aec::EchoCanceller;
 use meeting_core::live::{place_words, CutConfig, Piece, PieceCutter, TextCache};
 use meeting_core::pipeline::PipelineConfig;
 use meeting_core::stitch::{StitchConfig, Stitcher};
-use meeting_core::{Diarizer, SpeakerTurn, Track, TrackKind, Transcriber, SAMPLE_RATE};
+use meeting_core::{Diarizer, SpeakerTurn, TimedWord, Track, TrackKind, Transcriber, SAMPLE_RATE};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -183,6 +183,36 @@ impl LiveFeed {
 pub struct LiveSession {
     tx: Sender<Msg>,
     worker: Option<JoinHandle<Live>>,
+    heard: Heard,
+}
+
+/// What a running session has transcribed so far, for a provisional title.
+/// Cheap to clone; readable from any thread while the session runs.
+#[derive(Clone, Default)]
+pub struct Heard(Arc<std::sync::Mutex<Vec<(f64, String)>>>);
+
+impl Heard {
+    fn add(&self, start_s: f64, words: &[TimedWord]) {
+        let text = words
+            .iter()
+            .map(|w| w.text.trim())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !text.is_empty() {
+            self.0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((start_s, text));
+        }
+    }
+
+    /// Both tracks' pieces in the order they were said, as plain text.
+    pub fn text(&self) -> String {
+        let mut v = self.0.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        v.sort_by(|a, b| a.0.total_cmp(&b.0));
+        v.into_iter().map(|(_, t)| t).collect::<Vec<_>>().join(" ")
+    }
 }
 
 /// What the host gives a session.
@@ -206,6 +236,8 @@ pub struct LiveOptions {
 impl LiveSession {
     pub fn start(transcriber: Arc<dyn Transcriber>, options: LiveOptions) -> std::io::Result<Self> {
         let (tx, rx) = mpsc::channel();
+        let heard = Heard::default();
+        let heard_w = heard.clone();
         let worker = std::thread::Builder::new()
             .name("meeting-live".into())
             .spawn(move || {
@@ -220,13 +252,20 @@ impl LiveSession {
                 } = options;
                 on_start();
                 let mut w = Worker::new(transcriber, with_system, timing, now_us, cut);
+                w.heard = heard_w;
                 w.speakers = diarizer.and_then(|d| Speakers::start(d, stitch));
                 w.run(rx)
             })?;
         Ok(Self {
             tx,
             worker: Some(worker),
+            heard,
         })
+    }
+
+    /// What has been transcribed so far.
+    pub fn heard(&self) -> Heard {
+        self.heard.clone()
     }
 
     pub fn feed(&self) -> LiveFeed {
@@ -453,6 +492,7 @@ struct Worker {
     /// keep flowing meanwhile).
     speakers: Option<Speakers>,
     live: Live,
+    heard: Heard,
 }
 
 impl Worker {
@@ -494,6 +534,7 @@ impl Worker {
             no_word_times: false,
             speakers: None,
             live: Live::default(),
+            heard: Heard::default(),
         }
     }
 
@@ -535,8 +576,9 @@ impl Worker {
         }
         self.finish();
         log::info!(
-            "Live transcript: {} pieces, {:.0} s during the call, {:.0} s left at the end, {} turns transcribed ({:.0} s recorded)",
+            "Live transcript: {} pieces ({} with words), {:.0} s during the call, {:.0} s left at the end, {} turns transcribed ({:.0} s recorded)",
             self.live.pieces.len(),
+            self.live.pieces.iter().filter(|p| !p.words.is_empty()).count(),
             self.live.live_audio_s,
             self.live.tail_audio_s,
             self.live.texts.len(),
@@ -772,12 +814,16 @@ impl Worker {
         let start_s = at as f64 / SAMPLE_RATE as f64;
         let end_s = start_s + audio.len() as f64 / SAMPLE_RATE as f64;
         match self.transcriber.transcribe_words(&audio) {
-            Ok(Some(words)) => self.live.pieces.push(Piece {
-                track: kind,
-                start_s,
-                end_s,
-                words: place_words(words, start_s),
-            }),
+            Ok(Some(words)) => {
+                let words = place_words(words, start_s);
+                self.heard.add(start_s, &words);
+                self.live.pieces.push(Piece {
+                    track: kind,
+                    start_s,
+                    end_s,
+                    words,
+                })
+            }
             // A model without word times can't place words in turns.
             Ok(None) => {
                 log::info!("Live transcript off: the speech model gives no word times");
@@ -1072,6 +1118,20 @@ mod tests {
     }
 
     #[test]
+    fn heard_is_in_the_order_it_was_said() {
+        let heard = Heard::default();
+        let w = |t: &str| TimedWord {
+            start_s: 0.0,
+            end_s: 0.1,
+            text: t.into(),
+        };
+        heard.add(12.0, &[w(" später"), w("Text ")]);
+        heard.add(3.0, &[w("Zuerst")]);
+        heard.add(5.0, &[w("  ")]);
+        assert_eq!(heard.text(), "Zuerst später Text");
+    }
+
+    #[test]
     fn without_system_audio_the_mic_goes_on_alone() {
         let mic = voice(40 * SR, 2.0);
         let timing = TrackTiming {
@@ -1080,11 +1140,18 @@ mod tests {
         };
         let words = Arc::new(Words::default());
         let s = session(true, timing, words.clone());
+        let heard = s.heard();
         for b in mic.chunks(1600) {
             s.feed().push(TrackKind::Mic, b);
         }
         let live = s.finish().unwrap();
         assert_eq!(live.echo_from, None);
+        // What was heard during the call: pieces' words, as text (the last
+        // pieces, transcribed at the stop, may be missing).
+        let n_words: usize = live.pieces.iter().map(|p| p.words.len()).sum();
+        let text = heard.text();
+        assert!(text.split(' ').count() <= n_words);
+        assert!(text.split_whitespace().all(|w| w == "w"));
         let audio: Vec<f32> = words.seen.lock().unwrap().concat();
         assert!(audio == mic, "the mic is passed on unfiltered");
         // The run at the end saw no system track: the pieces fit.

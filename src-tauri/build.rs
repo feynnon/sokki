@@ -698,7 +698,8 @@ fn is_command_line_tools_only() -> bool {
 }
 
 /// Compiles `swift/video_capture.swift` (screen recording with
-/// ScreenCaptureKit, camera with AVFoundation, rendering a look) into a static
+/// ScreenCaptureKit for "Meeting with screen", and rendering it with the
+/// meeting's sound) into a static
 /// library and links it. ScreenCaptureKit is weak-linked: the Swift code uses
 /// it only behind `@available(macOS 12.3, *)`.
 fn build_video_bridge() {
@@ -784,7 +785,7 @@ fn build_video_bridge() {
     );
     println!("cargo:rustc-link-search=native=/usr/lib/swift");
     println!("cargo:rustc-link-lib=static=video_capture");
-    for framework in ["AVFoundation", "CoreMedia", "CoreVideo", "CoreImage", "CoreGraphics"] {
+    for framework in ["AVFoundation", "CoreMedia", "CoreVideo", "CoreGraphics"] {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
     println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");

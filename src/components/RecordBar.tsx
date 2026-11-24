@@ -1,13 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  AlertTriangle,
-  ChevronUp,
-  FileUp,
-  Mic,
-  Monitor,
-  Video,
-} from "lucide-react";
+import { AlertTriangle, ChevronUp, FileUp, Mic, Monitor } from "lucide-react";
 import { commands } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import { useOsType } from "@/hooks/useOsType";
@@ -155,7 +148,6 @@ export async function transcribeFileIntoDictations(failed: string) {
 
 const Idle: React.FC = () => {
   const { t } = useTranslation();
-  const { settings } = useSettings();
   const busy = useMeetingStore((s) => s.busy);
   const start = useMeetingStore((s) => s.start);
   const startWithScreen = useMeetingStore((s) => s.startWithScreen);
@@ -164,26 +156,28 @@ const Idle: React.FC = () => {
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   usePressAway(menu, menuRef, () => setMenu(false));
-  const videos = settings?.videos;
-  const videosOn = videos?.enabled ?? false;
 
   const item =
     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] text-start hover:bg-wash cursor-pointer focus:outline-none focus-visible:bg-wash";
 
   return (
     <div className="h-14 shrink-0 flex items-center gap-3 ps-5 pe-4 border-t border-line bg-background">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
+      <div className="shrink-0 whitespace-nowrap flex items-center gap-2 text-[13px] font-medium text-ink-2">
         <span className="size-2.5 rounded-full border-2 border-ink-3" />
         {t("sokki.bar.idle")}
       </div>
       {screenHint && (
-        <div className="flex items-center gap-1.5 text-[13px] text-warning">
+        <div className="min-w-0 flex items-center gap-1.5 text-[12px] leading-tight text-warning">
           <AlertTriangle width={14} height={14} className="shrink-0" />
-          {t("video.bar.screenNotAllowed")}
+          <span className="line-clamp-2" title={t("meetings.screenNotAllowed")}>
+            {t("meetings.screenNotAllowed")}
+          </span>
         </div>
       )}
-      <span className="ms-auto font-mono text-[12px] text-ink-3">{keys}</span>
-      <div ref={menuRef} className="relative flex">
+      <span className="ms-auto shrink-0 whitespace-nowrap font-mono text-[12px] text-ink-3">
+        {keys}
+      </span>
+      <div ref={menuRef} className="relative flex shrink-0 whitespace-nowrap">
         <button
           type="button"
           onClick={() => void start()}
@@ -210,34 +204,18 @@ const Idle: React.FC = () => {
             role="menu"
             className="absolute end-0 bottom-full z-30 mb-1.5 w-60 rounded-xl border border-line bg-background p-1 shadow-lg"
           >
-            {videosOn && (
-              <button
-                type="button"
-                role="menuitem"
-                className={item}
-                onClick={() => {
-                  setMenu(false);
-                  void startWithScreen(videos?.display ?? null);
-                }}
-              >
-                <Monitor width={16} height={16} className="text-ink-2" />
-                {t("meetings.startWithScreen")}
-              </button>
-            )}
-            {videosOn && (
-              <button
-                type="button"
-                role="menuitem"
-                className={item}
-                onClick={() => {
-                  setMenu(false);
-                  void commands.videoBarShow();
-                }}
-              >
-                <Video width={16} height={16} className="text-ink-2" />
-                {t("sokki.bar.recordVideo")}
-              </button>
-            )}
+            <button
+              type="button"
+              role="menuitem"
+              className={item}
+              onClick={() => {
+                setMenu(false);
+                void startWithScreen();
+              }}
+            >
+              <Monitor width={16} height={16} className="text-ink-2" />
+              {t("meetings.startWithScreen")}
+            </button>
             <button
               type="button"
               role="menuitem"

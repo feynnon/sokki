@@ -566,6 +566,13 @@ impl Llm {
 /// Gets the language model ready for one job. The built-in model starts its
 /// server and loads (a few seconds); every other provider is used as set.
 pub fn open(s: &LlmSettings, user_name: &str) -> Result<Llm> {
+    open_with(s, user_name, false)
+}
+
+/// Like [`open`]; `background`: the built-in model runs in macOS's
+/// background band (efficiency cores, low GPU priority), for work done
+/// while a meeting records.
+pub fn open_with(s: &LlmSettings, user_name: &str, background: bool) -> Result<Llm> {
     let mut cfg = config(s, user_name);
     if s.provider.trim() != BUILTIN {
         return Ok(Llm { cfg, _server: None });
@@ -574,7 +581,7 @@ pub fn open(s: &LlmSettings, user_name: &str) -> Result<Llm> {
     let model = builtin_model_path()
         .filter(|_| builtin_model_present())
         .context("The language model is not downloaded")?;
-    let server = Server::start(&bin, &model, cfg.context_tokens)?;
+    let server = Server::start(&bin, &model, cfg.context_tokens, background)?;
     cfg.base_url = format!("http://127.0.0.1:{}/v1", server.port);
     cfg.api_key = Some(server.key.clone());
     Ok(Llm {
@@ -608,7 +615,12 @@ struct Server {
 }
 
 impl Server {
-    fn start(bin: &std::path::Path, model: &std::path::Path, context: usize) -> Result<Server> {
+    fn start(
+        bin: &std::path::Path,
+        model: &std::path::Path,
+        context: usize,
+        background: bool,
+    ) -> Result<Server> {
         use std::process::{Command, Stdio};
         let port = std::net::TcpListener::bind("127.0.0.1:0")?
             .local_addr()?
@@ -616,10 +628,11 @@ impl Server {
         let key = random_key();
         let t0 = std::time::Instant::now();
         let mut cmd = Command::new("/bin/sh");
-        cmd.arg("-c")
-            .arg(WATCHDOG)
-            .arg("sokki-llm")
-            .arg(bin)
+        cmd.arg("-c").arg(WATCHDOG).arg("sokki-llm");
+        if background && cfg!(target_os = "macos") {
+            cmd.args(["/usr/sbin/taskpolicy", "-b"]);
+        }
+        cmd.arg(bin)
             .arg("--model")
             .arg(model)
             .args(["--host", "127.0.0.1", "--port", &port.to_string()])

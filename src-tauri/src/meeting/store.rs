@@ -73,6 +73,13 @@ pub struct MeetingRecord {
     /// system track), `false` for everything on one microphone.
     #[serde(default)]
     pub online: Option<bool>,
+    /// The person typed this title; nothing replaces it.
+    #[serde(default)]
+    pub title_by_hand: bool,
+    /// The title is a first guess from the live transcript, until the
+    /// summary names the meeting.
+    #[serde(default)]
+    pub title_provisional: bool,
 }
 
 /// The meeting index, safe to share between threads.
@@ -274,6 +281,8 @@ mod tests {
             summary_missing: None,
             audio_deleted: false,
             online: None,
+            title_by_hand: false,
+            title_provisional: false,
         }
     }
 

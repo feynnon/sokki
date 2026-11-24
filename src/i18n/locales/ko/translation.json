@@ -180,12 +180,12 @@
       "tapAgain": "다 말했으면 <keys/>를 다시 탭하세요.",
       "watch": "메모를 지켜보세요.",
       "changeKeys": "단축키 변경, {{keys}}",
-      "doneHold": "하이파이브! 누르고 있기 성공이에요.",
+      "doneHold": "누르고 있기 성공이에요.",
       "doneHoldNext": "다음은 손이 자유로운 방식이에요.",
       "doneTap": "하이파이브! 탭하기 성공이에요.",
       "doneTapNext": "이번에는 누른 채로 말해 보세요.",
-      "giveFive": "잘했어요! 하이파이브",
-      "highFive": "하이파이브",
+      "gotIt": "잘했어요!",
+      "finish": "마치기",
       "slowLine": "이 컴퓨터에서 {{name}}은(는) {{wait}} 걸렸습니다. <faster>더 빠른 모델 써보기</faster>",
       "nothingTyped": "음, 아무것도 입력되지 않았어요.",
       "nothingTypedSub": "먼저 메모를 클릭한 다음 다시 해보세요.",
@@ -193,7 +193,6 @@
       "silentSub": "이 마이크에서 소리가 나오지 않았습니다. 다른 마이크를 써보세요:",
       "noWords": "말씀을 알아듣지 못했어요.",
       "noWordsSub": "다시 해보고, 한 문장을 온전히 말해 보세요.",
-      "finish": "마치기",
       "skip": "건너뛰기",
       "seconds": "{{value}}초"
     },
@@ -202,7 +201,7 @@
       "subMac": "이제 Sokki가 메뉴 막대에 있습니다. 어떤 앱에서든 <keys/>를 누르거나 탭해서 말하세요.",
       "subTray": "이제 Sokki가 시스템 트레이에 있습니다. 어떤 앱에서든 <keys/>를 누르거나 탭해서 말하세요.",
       "hint": "나중에 설정에서 바꿀 수 있습니다",
-      "highFiveLabel": "하이파이브",
+      "markLabel": "Sokki",
       "atLogin": "로그인할 때 Sokki 시작",
       "finish": "완료",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

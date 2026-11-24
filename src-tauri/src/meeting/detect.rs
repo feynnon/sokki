@@ -53,35 +53,28 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                 return;
             }
             let handle = app.clone();
-            let (id, name) = (meeting.id.to_string(), meeting.name.to_string());
+            let (id, name) = (meeting.id.to_string(), meeting.label().to_string());
             std::thread::spawn(move || {
-                let question = format!("{name}-Meeting erkannt. Aufnehmen?\n\nSag allen Beteiligten, dass du aufnimmst.");
-                // With Videos on, the screen can be recorded too.
-                let videos = crate::settings::get_settings(&handle).videos;
-                let mut buttons = vec!["Nicht jetzt", "Aufnehmen"];
-                if cfg!(target_os = "macos") && videos.enabled {
-                    buttons.push(WITH_SCREEN);
-                }
-                let answer = choose(&question, &buttons, "Aufnehmen", 45);
+                // The screen can be recorded too (macOS only).
+                let answer = super::prompt::ask(
+                    &handle,
+                    super::prompt::Kind::Started {
+                        screen: cfg!(target_os = "macos"),
+                    },
+                    &name,
+                    std::time::Duration::from_secs(45),
+                );
                 let started = match answer.as_deref() {
-                    Some("Aufnehmen") => {
+                    Some("record") => {
                         log::info!("Meeting start via call detection ({name})");
                         Some(super::start_meeting(&handle, Some(name)))
                     }
                     #[cfg(target_os = "macos")]
-                    Some(WITH_SCREEN) => {
+                    Some("record_screen") => {
                         log::info!("Meeting start with screen via call detection ({name})");
-                        let options = crate::video::VideoStartOptions {
-                            kind: "meeting".into(),
-                            mode: "screen".into(),
-                            display: videos.display,
-                            camera: None,
-                            look: "bubble".into(),
-                            source_app: Some(name.clone()),
-                        };
                         // Without Screen Recording yet (macOS was just asked),
                         // the meeting is still recorded, without the screen.
-                        Some(crate::video::start(&handle, options).or_else(|e| {
+                        Some(crate::video::start(&handle, Some(name.clone())).or_else(|e| {
                             log::warn!("Meeting with screen: {e}; recording the meeting without it");
                             super::start_meeting(&handle, Some(name))
                         }))
@@ -118,12 +111,14 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             let name = meeting.name.to_string();
             std::thread::spawn(move || {
                 // No answer within 20 s counts as "stop": the call is over.
-                let keep = ask(
-                    &format!("Das {name}-Meeting ist vorbei. Aufnahme beenden?"),
-                    "Beenden",
-                    "Weiter aufnehmen",
-                    20,
-                ) == Some(false);
+                let keep = super::prompt::ask(
+                    &handle,
+                    super::prompt::Kind::Ended,
+                    &name,
+                    std::time::Duration::from_secs(20),
+                )
+                .as_deref()
+                    == Some("keep");
                 if !keep {
                     let still_ours = handle.state::<Arc<MeetingManager>>().active_id().as_deref()
                         == Some(meeting_id.as_str());
@@ -139,48 +134,6 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             });
         }
     }
-}
-
-/// Third button on the "meeting detected" dialog, when Videos is on.
-const WITH_SCREEN: &str = "Mit Bildschirm";
-
-/// Shows a dialog with two buttons. `Some(true)` for `yes`, `Some(false)` for
-/// `no`, `None` when it timed out or failed.
-fn ask(question: &str, yes: &str, no: &str, timeout_s: u32) -> Option<bool> {
-    choose(question, &[no, yes], yes, timeout_s).map(|b| b == yes)
-}
-
-/// Shows a dialog with up to three buttons (left to right). The label of the
-/// button pressed, or `None` when it timed out or failed.
-fn choose(question: &str, buttons: &[&str], default: &str, timeout_s: u32) -> Option<String> {
-    let list = buttons
-        .iter()
-        .map(|b| applescript_string(b))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let script = format!(
-        "display dialog {} buttons {{{}}} default button {} with title {} giving up after {}",
-        applescript_string(question),
-        list,
-        applescript_string(default),
-        applescript_string(crate::brand::app_name()),
-        timeout_s
-    );
-    let out = Command::new("osascript")
-        .args(["-e", &script])
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    if text.contains("gave up:true") || !out.status.success() {
-        return None;
-    }
-    // Output is "button returned:X, gave up:false".
-    let pressed = text.split("button returned:").nth(1)?;
-    let pressed = pressed.split(", gave up:").next()?.trim();
-    buttons
-        .iter()
-        .find(|b| **b == pressed)
-        .map(|b| b.to_string())
 }
 
 /// A macOS notification banner, as Sokki (Script Editor via osascript only

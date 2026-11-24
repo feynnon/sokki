@@ -9,8 +9,8 @@ import { prefersReducedMotion } from "@/lib/utils/motion";
 import { Button } from "../../ui/Button";
 import { TextLink } from "../../ui/TextLink";
 import { CapturedKeys, captureHintKey, Keycaps } from "../../shared/Keycaps";
-import { Mascot } from "../../shared/Mascot";
 import TrayIcon from "../../icons/TrayIcon";
+import { SokkiMark } from "../../icons/SokkiLogo";
 import { DesktopBar } from "../DesktopBar";
 import { WindowBar } from "../WindowBar";
 import { OnboardingShell, ScreenSub, ScreenTitle } from "../OnboardingShell";
@@ -33,11 +33,11 @@ type Stage = "try" | "windup" | "five" | "fly" | "set";
 /** What started it: the last take, the High five button (or Finish), Skip. */
 type How = "auto" | "five" | "skip";
 
-/** "Give me five" is up this long, the glove winding up, before it's given. */
+/** "You got it!" is up this long, the mark winding up, before it's given. */
 const WINDUP_MS = 950;
 /** The flight from the note's corner into the icon. */
 const FLIGHT_MS = 560;
-/** How far through the flight the glove starts fading into the icon. */
+/** How far through the flight the mark starts fading into the icon. */
 const FADE_FROM = 0.7;
 
 /** The bubble's content. A new `id` fades in; the same `id` stays mounted. */
@@ -248,7 +248,7 @@ export const TryIt: React.FC<TryItProps> = ({
     return () => clearTimeout(next);
   }, [stage, how]);
 
-  // Fly the glove into the tray icon: straight up on macOS, else a hop down.
+  // Fly the mark into the tray icon: straight up on macOS, else a hop down.
   useLayoutEffect(() => {
     if (stage !== "fly") return;
     onArrive();
@@ -340,14 +340,14 @@ export const TryIt: React.FC<TryItProps> = ({
   const captureHint = captureHintKey(partial);
   const keysLabel = keycapLabel(e.shortcut, os);
 
-  /* ---------- what the glove says ---------- */
+  /* ---------- what the mark says ---------- */
 
   const say = ((): Say => {
     if (moving && how === "auto")
       return {
         shape: "instruction",
         id: "giveFive",
-        line: t("onboarding.try.giveFive"),
+        line: t("onboarding.try.gotIt"),
         mood: "cheer",
       };
     const instruction = (key: string): Say => ({
@@ -463,7 +463,7 @@ export const TryIt: React.FC<TryItProps> = ({
       return {
         shape: "outcome",
         id: "ask",
-        line: t("onboarding.try.giveFive"),
+        line: t("onboarding.try.gotIt"),
         sub: (
           <Button
             variant="primary"
@@ -475,7 +475,7 @@ export const TryIt: React.FC<TryItProps> = ({
             disabled={stage !== "try"}
           >
             <TrayIcon state="idle" size={16} />
-            {t("onboarding.try.highFive")}
+            {t("onboarding.try.finish")}
           </Button>
         ),
         mood: "ready",
@@ -623,7 +623,7 @@ export const TryIt: React.FC<TryItProps> = ({
                         : "listen"
                 }
                 data-how={how}
-                aria-label={t("onboarding.done.highFiveLabel")}
+                aria-label={t("onboarding.done.markLabel")}
                 onMouseDown={(ev) => ev.preventDefault()}
                 // Finishes when both ways are done; otherwise just a slap.
                 onClick={() =>
@@ -631,11 +631,12 @@ export const TryIt: React.FC<TryItProps> = ({
                 }
               >
                 <span className="try-pose">
-                  <Mascot
+                  <span
                     key={fived ? "finale" : e.fives}
-                    size={88}
-                    animation={fived || e.fives ? "slap" : "wave"}
-                  />
+                    className={`try-mark ${fived || e.fives ? "try-hop" : "try-arrive"}`}
+                  >
+                    <SokkiMark size={52} />
+                  </span>
                 </span>
                 {(fived || e.fives > 0) && (
                   <span

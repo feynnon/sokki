@@ -27,7 +27,8 @@ android {
         }
         consumerProguardFiles("proguard-rules.pro")
         // HeliBoard reads these from BuildConfig; libraries don't get them.
-        buildConfigField("String", "APPLICATION_ID", "\"dev.verbatim.mobile\"")
+        // Must match the app's applicationId (src-tauri/gen/android/app).
+        buildConfigField("String", "APPLICATION_ID", "\"org.sokki.app\"")
         buildConfigField("int", "VERSION_CODE", "4201")
         buildConfigField("String", "VERSION_NAME", "\"4.2-sokki\"")
     }
@@ -52,7 +53,18 @@ android {
 
     lint {
         abortOnError = false
+        // Release builds run "lint vital" first. On this module it crashes
+        // inside lint itself (NoSuchMethodError in JavaDocParser, AGP 9.3.1 +
+        // Kotlin 2.4.0), not on a finding, and fails the build. The app's
+        // release still asks for this module's lint vital, so the tasks are
+        // switched off below too.
+        checkReleaseBuilds = false
     }
+}
+
+// See lint { } above: lint vital crashes on this module, so skip it.
+tasks.configureEach {
+    if (name.startsWith("lintVital")) enabled = false
 }
 
 kotlin {

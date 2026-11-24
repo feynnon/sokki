@@ -16,6 +16,7 @@ import { useShortcutCapture } from "@/hooks/useShortcutCapture";
 import { keycapLabels } from "@/lib/utils/keyboard";
 import { openMeeting, useMeetingStore } from "@/stores/meetingStore";
 import { minutes, readerWhen } from "../meetings/meetingDates";
+import { useFormatLocale } from "../meetings/useFormatLocale";
 import { useCopyNote } from "../meetings/MeetingDetails";
 
 /** Set once the "Your dictations are now under Dictations" tip is done. */
@@ -227,6 +228,7 @@ const Filled: React.FC<{ stats: VoiceDataStats; totals: Totals }> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
+  const dates = useFormatLocale();
   const meetings = useMeetingStore((s) => s.meetings);
   const latest = meetings.find((m) => m.status.kind !== "recording") ?? null;
   const { copied, copy } = useCopyNote(latest?.id ?? null);
@@ -279,7 +281,7 @@ const Filled: React.FC<{ stats: VoiceDataStats; totals: Totals }> = ({
                   readerWhen(
                     new Date(Date.parse(latest.started_at)),
                     new Date(),
-                    lang,
+                    dates,
                     (g) => t(`meetings.group.${g}`),
                   ),
                   minutes(latest.duration_s, lang),

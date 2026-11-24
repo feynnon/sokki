@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
-import { commands, type OverlayStyle, type ShortcutActivation } from "@/bindings";
-import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import type { OverlayStyle, ShortcutActivation } from "@/bindings";
 import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import { ShortcutInput } from "../ShortcutInput";
@@ -25,27 +24,6 @@ import { KeepRecordings } from "./KeepRecordings";
 import { SoundGroup } from "./SoundPage";
 import { SharingGroup } from "./SharingGroup";
 import { Page, PageHeader, Segmented } from "./parts";
-
-/** Videos on or off: off hides screen and camera recording everywhere. */
-const VideosToggle: React.FC = () => {
-  const { t } = useTranslation();
-  const { settings, refreshSettings } = useSettings();
-  const videos = settings?.videos;
-  if (!videos) return null;
-  return (
-    <ToggleSwitch
-      checked={videos.enabled}
-      onChange={async (enabled) => {
-        await commands.setVideoSettings({ ...videos, enabled });
-        await refreshSettings();
-      }}
-      label={t("video.settings.title")}
-      description={t("video.settings.description")}
-      descriptionMode="inline"
-      grouped
-    />
-  );
-};
 
 /** Classic / Mini / None, as Superwhisper calls it. */
 const RecordingWindow: React.FC = () => {
@@ -220,7 +198,6 @@ export const SokkiSettingsPage: React.FC = () => {
           title={t("sokki.settings.startMeeting")}
           description={t("sokki.settings.startMeetingDescription")}
         />
-        <VideosToggle />
       </SettingsGroup>
       <SoundGroup />
       <SettingsGroup title={t("sokki.settings.application")}>

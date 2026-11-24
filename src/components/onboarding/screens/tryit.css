@@ -106,7 +106,7 @@
 }
 
 /* ---------- Sokki on the window's corner ---------- */
-/* The glove on the window's bottom corner, the bubble beside it. Never on the
+/* The mark on the window's bottom corner, the bubble beside it. Never on the
    Windows taskbar. */
 .try-guide {
   position: absolute;
@@ -123,7 +123,7 @@
   bottom: 44px;
 }
 
-/* The glove: a high five on click. */
+/* Sokki's mark on a tile: it talks in the bubble and hops on click. */
 .try-glove {
   position: relative;
   margin: 0;
@@ -143,8 +143,61 @@
   transform-origin: 50% 90%;
   transition: transform 460ms var(--ease-glide);
 }
+/* The mark's tile, like the app icon. */
+.try-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 15%, transparent);
+  background: var(--color-demo-window);
+  box-shadow: 0 6px 18px -8px rgb(0 0 0 / 0.35);
+  color: var(--color-text);
+}
+.try-mark rect {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+/* Listening: the bars move like a voice. */
+.try-glove[data-mood="listen"] .try-mark rect {
+  animation: try-bar 900ms ease-in-out infinite;
+}
+.try-glove[data-mood="listen"] .try-mark rect:nth-child(2n) {
+  animation-delay: -300ms;
+}
+.try-glove[data-mood="listen"] .try-mark rect:nth-child(3n) {
+  animation-delay: -600ms;
+}
+@keyframes try-bar {
+  50% {
+    transform: scaleY(0.5);
+  }
+}
+/* Arrives with a small rise; a click is a hop. */
+.try-arrive {
+  animation: rise 420ms var(--ease-glide) 250ms both;
+}
+.try-hop {
+  animation: try-hop 420ms var(--ease-glide);
+}
+@keyframes try-hop {
+  30% {
+    scale: 1.12 0.94;
+    translate: 0 -8px;
+  }
+  60% {
+    scale: 0.97 1.03;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .try-mark,
+  .try-mark rect {
+    animation: none !important;
+  }
+}
 /* A slight lean toward the note; listening nods from it, so pressing never
-   swings the glove. */
+   swings the mark. */
 .try-glove[data-mood="point"] .try-pose,
 .try-glove[data-mood="listen"] .try-pose {
   transform: rotate(-6deg);
@@ -186,7 +239,7 @@
 }
 
 /* ---------- the bubble ---------- */
-/* Sized by .try-eased, up to 420px, and lifted so the tail meets the glove's
+/* Sized by .try-eased, up to 420px, and lifted so the tail meets the mark's
    face. One edge colour and fill, so the tail can share them. */
 .try-bubble {
   --try-bubble-edge: color-mix(in srgb, var(--color-text) 15%, transparent);
@@ -211,7 +264,7 @@
   --try-bubble-fill: var(--color-warning-wash);
 }
 /* Rotated square, half inside the bubble to cover its edge. It needs 17px of
-   straight side: centred on a one-line bubble, else at the glove's face (31px
+   straight side: centred on a one-line bubble, else at the mark's face (31px
    up). */
 .try-bubble::after {
   content: "";
@@ -354,7 +407,7 @@
   margin: 0 3px;
 }
 
-/* The tray icon pops as it catches the glove (scale only). */
+/* The tray icon pops as it catches the mark (scale only). */
 .desktop-tray[data-caught] {
   animation: try-catch 560ms var(--ease-glide);
 }
@@ -367,7 +420,7 @@
   }
 }
 
-/* The note makes room for the panel, timed to the glove's flight. */
+/* The note makes room for the panel, timed to the mark's flight. */
 .try-notes,
 .try-note-page {
   transition:
@@ -441,7 +494,7 @@
 [dir="rtl"] .try-glove[data-mood="windup"] .try-pose {
   transform: rotate(-18deg) translate(-6px, -10px) scale(1.08);
 }
-/* The bubble moves with the glove so its tail stays at the face. */
+/* The bubble moves with the mark so its tail stays at the face. */
 .try-main:is([data-stage="windup"], [data-stage="five"])
   .try-glove[data-how="auto"]
   + .try-bubble {

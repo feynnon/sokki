@@ -6,6 +6,7 @@ import {
   FileText,
   FolderOpen,
   Globe,
+  Monitor,
   MoreHorizontal,
   RotateCcw,
   Trash2,
@@ -14,8 +15,10 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   commands,
+  events,
   type MeetingNoteParts,
   type MeetingRecord,
+  type VideoMeta,
 } from "@/bindings";
 import { usePressAway } from "@/hooks/usePressAway";
 import { useMeetingStore } from "@/stores/meetingStore";
@@ -164,6 +167,27 @@ export function useCopyNote(id: string | null) {
   return { copied, copy };
 }
 
+/** The screen video recorded with this meeting ("Meeting with screen"), once ready. */
+const useScreenVideo = (meetingId: string): VideoMeta | null => {
+  const [video, setVideo] = useState<VideoMeta | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      void commands.videoList().then((r) => {
+        if (!live || r.status !== "ok") return;
+        const v = r.data.find((x) => x.meeting_id === meetingId);
+        setVideo(v?.status === "ready" ? v : null);
+      });
+    load();
+    const unlisten = events.videoChanged.listen(load);
+    return () => {
+      live = false;
+      void unlisten.then((fn) => fn());
+    };
+  }, [meetingId]);
+  return video;
+};
+
 /** The reader's toolbar: copy transcript (accent), copy summary, and "…". */
 export const ReaderToolbar: React.FC<{
   record: MeetingRecord;
@@ -174,6 +198,7 @@ export const ReaderToolbar: React.FC<{
 }> = ({ record, title, date, onDeleted, onError }) => {
   const { t } = useTranslation();
   const { copied, copy } = useCopyNote(record.id);
+  const screenVideo = useScreenVideo(record.id);
   const [menu, setMenu] = useState(false);
   const [saved, setSaved] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -273,6 +298,23 @@ export const ReaderToolbar: React.FC<{
               >
                 <FolderOpen width={16} height={16} className="text-ink-2" />
                 {t("meetings.group.show")}
+              </button>
+            )}
+            {screenVideo && (
+              <button
+                type="button"
+                role="menuitem"
+                className={item}
+                onClick={() => {
+                  setMenu(false);
+                  const v = screenVideo;
+                  void commands.videoReveal(
+                    v.rendered ? `${v.folder}/${v.rendered}` : v.folder,
+                  );
+                }}
+              >
+                <Monitor width={16} height={16} className="text-ink-2" />
+                {t("meetings.screenVideo")}
               </button>
             )}
             {done && (

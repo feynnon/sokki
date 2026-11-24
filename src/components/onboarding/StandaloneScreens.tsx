@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { useModelStore } from "@/stores/modelStore";
-import { clearOnboardingProgress, useOnboardingStore } from "./onboardingStore";
+import { clearOnboardingProgress, useOnboardingStore, type Uses } from "./onboardingStore";
 import { usePermissions } from "./usePermissions";
 import { useOnboardingModels } from "./useOnboardingModels";
 import { downloadPick } from "./downloadPick";
@@ -10,21 +10,25 @@ import { Model } from "./screens/Model";
 
 /** Onboarding screens reused later: a revoked permission, a retired model. */
 
+/** A returning user lost Microphone or Accessibility: just those again. */
+const RETURNING: Uses = { dictation: true, meetings: false };
+
 export const ReturningPermissions: React.FC<{ onComplete: () => void }> = ({
   onComplete,
 }) => {
   const permissions = usePermissions(false);
+  const allGranted = permissions.allGrantedFor(RETURNING);
   // Everything allowed (the switch was on after all): go on without a
   // click, once.
   const done = useRef(false);
   useEffect(() => {
-    if (permissions.checked && permissions.allGranted && !done.current) {
+    if (permissions.checked && allGranted && !done.current) {
       done.current = true;
       onComplete();
     }
-  }, [permissions.checked, permissions.allGranted, onComplete]);
-  if (!permissions.checked || permissions.allGranted) return null;
-  return <Permissions permissions={permissions} onContinue={onComplete} />;
+  }, [permissions.checked, allGranted, onComplete]);
+  if (!permissions.checked || allGranted) return null;
+  return <Permissions permissions={permissions} uses={RETURNING} onContinue={onComplete} />;
 };
 
 export const ReplaceModel: React.FC<{

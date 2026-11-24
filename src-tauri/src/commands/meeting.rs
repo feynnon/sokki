@@ -35,6 +35,39 @@ pub fn qr_code_svg(text: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Asks macOS for "System Audio Recording" by opening the system-sound tap
+/// for a moment (that shows macOS's prompt the first time). macOS has no way
+/// to read the answer, so this only asks.
+#[tauri::command]
+#[specta::specta]
+pub async fn request_system_audio_permission() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return tokio::task::spawn_blocking(|| {
+            let path = std::env::temp_dir().join(format!("sokki-ask-{}.flac", std::process::id()));
+            let capture = crate::meeting::system_tap::SystemAudioCapture::start(path.clone(), None)
+                .map_err(|e| e.to_string())?;
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let _ = capture.stop();
+            let _ = std::fs::remove_file(&path);
+            Ok(())
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("System sound needs macOS.".into())
+}
+
+/// The answer from the call window (`meeting/prompt.rs`): "not_now",
+/// "record", "record_screen", "keep" or "stop".
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_prompt_answer(answer: String) -> Result<(), String> {
+    crate::meeting::prompt::answer(answer);
+    Ok(())
+}
+
 /// Phone link pairing details for the settings page.
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -248,6 +281,77 @@ pub fn summarize_meeting(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// The locale dates and times follow: the Mac's region and clock setting
+/// (System Settings → General → Language & Region), not the app language.
+/// "en_DE" → "en-DE" (24.11., 15:20); the 24-hour switch, when set, as a
+/// Unicode extension ("en-US-u-hc-h23"). `None` where the system gives none.
+#[tauri::command]
+#[specta::specta]
+pub fn date_format_locale() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSLocale, NSString, NSUserDefaults};
+        let id = NSLocale::currentLocale().localeIdentifier().to_string();
+        let defaults = NSUserDefaults::standardUserDefaults();
+        let force = |key: &str| defaults.boolForKey(&NSString::from_str(key));
+        let cycle = if force("AppleICUForce24HourTime") {
+            Some("h23")
+        } else if force("AppleICUForce12HourTime") {
+            Some("h12")
+        } else {
+            None
+        };
+        return bcp47(&id, cycle);
+    }
+    #[cfg(not(target_os = "macos"))]
+    None
+}
+
+/// "en_DE@calendar=gregorian" → "en-DE", with `-u-hc-<cycle>` when given.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn bcp47(id: &str, cycle: Option<&str>) -> Option<String> {
+    let base = id.split('@').next()?.replace('_', "-");
+    if base.is_empty() {
+        return None;
+    }
+    Some(match cycle {
+        Some(c) => format!("{base}-u-hc-{c}"),
+        None => base,
+    })
+}
+
+#[cfg(test)]
+mod locale_tests {
+    #[test]
+    fn mac_locale_ids_become_bcp47() {
+        assert_eq!(super::bcp47("en_DE", None).as_deref(), Some("en-DE"));
+        assert_eq!(
+            super::bcp47("en_US@calendar=gregorian", Some("h23")).as_deref(),
+            Some("en-US-u-hc-h23")
+        );
+        assert_eq!(super::bcp47("", None), None);
+    }
+}
+
+/// Sets the title the person typed; nothing replaces it later. It goes into
+/// the note's title heading too (once there is a note).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_title(app: AppHandle, id: String, title: String) -> Result<(), String> {
+    let store = app.state::<Arc<MeetingStore>>();
+    let mut typed = false;
+    let r = store
+        .update(&id, |r| typed = meeting::title::set_typed(r, &title))
+        .map_err(|e| e.to_string())?;
+    if !typed {
+        return Err("The title is empty.".into());
+    }
+    meeting::title::write_typed_into_note(&r);
+    meeting::emit_changed(&app, &id);
+    Ok(())
+}
+
 /// Deletes the meeting record and its audio. The note stays in the notes folder.
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -263,6 +367,7 @@ pub fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {
         }
     }
     store.remove(&id).map_err(|e| e.to_string())?;
+    crate::video::delete_for_meeting(&id);
     meeting::emit_changed(&app, &id);
     Ok(())
 }
@@ -512,6 +617,13 @@ pub fn reprocess_meeting(_id: String) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn summarize_meeting(_id: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_title(_id: String, _title: String) -> Result<(), String> {
     Err(UNAVAILABLE.to_string())
 }
 

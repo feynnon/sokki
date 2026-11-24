@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">"Sokki"</string>
     <string name="main_activity_title">"Sokki"</string>
+    <!-- Quick Settings tile (RecordTile.kt) -->
+    <string name="tile_record">Record meeting</string>
+    <string name="tile_recording">Recording</string>
 </resources>

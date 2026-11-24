@@ -86,7 +86,26 @@
       "hintBoth": "Allow both to continue",
       "hintMicrophone": "Allow the microphone to continue",
       "welcomeBack": "Welcome back. Picking up where you left off.",
-      "relaunch": "Shortcut not responding after this? <relaunch>Relaunch Sokki</relaunch> and you'll land right back here."
+      "relaunch": "Shortcut not responding after this? <relaunch>Relaunch Sokki</relaunch> and you'll land right back here.",
+      "title_one": "One permission, then you're set",
+      "title_two": "Two permissions, then you're set",
+      "title_three": "Three permissions, then you're set",
+      "title_four": "Four permissions, then you're set",
+      "forBoth": "For dictation and meetings.",
+      "forDictation": "For dictation.",
+      "forMeetings": "For meetings.",
+      "hint_three": "Allow all three to continue",
+      "hint_four": "Allow all four to continue",
+      "asked": "Asked",
+      "systemSound": {
+        "name": "System sound",
+        "why": "So your notes include everyone on the call."
+      },
+      "screen": {
+        "name": "Screen",
+        "why": "To record your screen with a meeting, when you choose to.",
+        "reopen": "After Screen, macOS reopens Sokki. You land back here."
+      }
     },
     "shell": {
       "back": "Back",
@@ -94,8 +113,8 @@
       "progress": "Step {{step}} of {{count}}"
     },
     "welcome": {
-      "title": "Speak instead of typing, in any app",
-      "subtitle": "Pick the languages you will dictate in",
+      "title": "Everything stays on your Mac",
+      "subtitle": "Pick the languages you speak",
       "languagesLabel": "Languages",
       "noMatch": "No language matches “{{query}}”. Sokki's models cover about 100 languages; more are in settings.",
       "appLanguage": "App language",
@@ -180,12 +199,12 @@
       "tapAgain": "Tap <keys/> again when you're done.",
       "watch": "Watch the note.",
       "changeKeys": "Change your shortcut, {{keys}}",
-      "doneHold": "High five! That's holding.",
+      "doneHold": "That's holding.",
       "doneHoldNext": "Next, the hands-free way.",
       "doneTap": "Up top! That's tapping.",
       "doneTapNext": "Now try holding them while you talk.",
-      "giveFive": "You got it! Give me five",
-      "highFive": "High five",
+      "gotIt": "You got it!",
+      "finish": "Finish",
       "slowLine": "{{name}} took {{wait}} on this computer. <faster>Try a faster model</faster>",
       "nothingTyped": "Hmm, nothing landed.",
       "nothingTypedSub": "Click into the note first, then try again.",
@@ -193,7 +212,6 @@
       "silentSub": "No sound came from this microphone. Try another:",
       "noWords": "I didn't catch any words.",
       "noWordsSub": "Try again, and say a whole sentence.",
-      "finish": "Finish",
       "skip": "Skip",
       "seconds": "{{value}}s"
     },
@@ -202,7 +220,7 @@
       "subMac": "Sokki's in your menu bar now. Hold or tap <keys/> in any app to talk.",
       "subTray": "Sokki's in your system tray now. Hold or tap <keys/> in any app to talk.",
       "hint": "You can change these later in Settings",
-      "highFiveLabel": "High five",
+      "markLabel": "Sokki",
       "atLogin": "Start Sokki when I log in",
       "finish": "Done",
       "panel": {
@@ -218,6 +236,14 @@
     "linux": {
       "tryIt": "Not working? <guide>Linux setup guide</guide>",
       "done": "Not working in other apps? <guide>Linux setup guide</guide>"
+    },
+    "purpose": {
+      "title": "What will you use Sokki for?",
+      "dictation": "Dictation",
+      "meetings": "Meetings",
+      "asksFor": "Asks for",
+      "later": "Anything you skip asks when you first use it.",
+      "pickOne": "Pick at least one to continue"
     }
   },
   "modelTable": {
@@ -983,7 +1009,7 @@
   },
   "theme": {
     "title": "Theme",
-    "description": "Follow the system, or stay light or dark.",
+    "description": "Sokki stays dark unless you pick Light.",
     "options": {
       "system": "System",
       "light": "Light",
@@ -1128,6 +1154,19 @@
     },
     "startPlain": "Meeting",
     "startWithScreen": "Meeting with screen",
+    "screenVideo": "Screen video",
+    "screenNotAllowed": "Allow Screen Recording for Sokki in System Settings, then reopen Sokki.",
+    "prompt": {
+      "startedTitle": "{{app}} meeting started",
+      "startedHint": "Tell everyone you're recording.",
+      "screen": "Record screen too",
+      "notNow": "Not now",
+      "record": "Record",
+      "endedTitle": "{{app}} meeting ended",
+      "endedHint": "Stop recording?",
+      "keep": "Keep recording",
+      "stop": "Stop"
+    },
     "group": {
       "today": "Today",
       "yesterday": "Yesterday",
@@ -1136,7 +1175,23 @@
       "more": "More",
       "show": "Show in Finder",
       "liveHint": "Text appears up to 25 seconds behind."
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {
@@ -1145,7 +1200,6 @@
       "sound": "Sound",
       "voice": "Your data",
       "sponsor": "Sponsor",
-      "videos": "Videos",
       "dictations": "Dictations"
     },
     "keep": {
@@ -1327,39 +1381,6 @@
     "message": {
       "later": "Later",
       "ok": "OK"
-    }
-  },
-  "video": {
-    "bar": {
-      "title": "New recording",
-      "modeBoth": "Screen and camera",
-      "modeScreen": "Screen only",
-      "modeCamera": "Camera only",
-      "lookBubble": "Bubble",
-      "lookSide": "Side by side",
-      "lookVertical": "Vertical",
-      "lookFiles": "Two files",
-      "record": "Record",
-      "close": "Close",
-      "screenNotAllowed": "Allow Screen Recording for Sokki in System Settings, then reopen Sokki.",
-      "cameraNotAllowed": "Allow the camera for Sokki in System Settings."
-    },
-    "page": {
-      "title": "Videos",
-      "description": "Record your screen and yourself. Sokki writes down what you say.",
-      "new": "New video",
-      "empty": "No videos yet.",
-      "recording": "Recording",
-      "rendering": "Making the video…",
-      "failed": "Couldn't make the video",
-      "show": "Show in Finder",
-      "delete": "Move to Trash",
-      "transcript": "Transcript",
-      "look": "Look"
-    },
-    "settings": {
-      "title": "Videos",
-      "description": "Record your screen and yourself. Off hides it everywhere."
     }
   }
 }

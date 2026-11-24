@@ -1,9 +1,5 @@
 /**
- * Sokki's look (see src-tauri/src/brand.rs). Importing this module tags the
- * document so the brand's CSS applies.
+ * Sokki's look (see src-tauri/src/brand.rs). The colors live in
+ * styles/theme.css, so importing this module no longer has to tag the document.
  */
-import "../styles/brand-sokki.css";
-
-if (typeof document !== "undefined") {
-  document.documentElement.dataset.brand = "sokki";
-}
+export {};

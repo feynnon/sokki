@@ -252,6 +252,25 @@ impl LlmSummarizer {
         &self.cfg
     }
 
+    /// A title for a meeting that is still running, from its transcript so
+    /// far (plain text), named the way the summary names it.
+    pub fn provisional_title(&self, transcript: &str) -> Result<String> {
+        let lang = self
+            .cfg
+            .language
+            .unwrap_or_else(|| detect_language(transcript).unwrap_or(Language::German));
+        let system = format!(
+            "You name a meeting from the beginning of its transcript. Answer with only the title: a short title for the meeting, at most 8 words, no date, in {}.",
+            lang.name()
+        );
+        let reply = self.chat_plain(&system, transcript)?;
+        let title = clean_title(reply.lines().find(|l| !l.trim().is_empty()).unwrap_or(""));
+        if title.is_empty() {
+            bail!("the language model gave no title");
+        }
+        Ok(title)
+    }
+
     /// Like [`Summarizer::summarize`], plus statistics.
     pub fn summarize_with_stats(
         &self,
@@ -1243,12 +1262,18 @@ fn summary_from_value(v: &Value) -> Result<MeetingSummary> {
 /// Final tidy-up: trims, removes empty and duplicate entries, normalises
 /// owners ("null", "unknown", "-" → none; case-insensitive match to a speaker
 /// label → that label), strips a trailing period from the title.
-fn clean_summary(mut s: MeetingSummary, speakers: &[String]) -> MeetingSummary {
-    s.title = s.title.split_whitespace().collect::<Vec<_>>().join(" ");
-    s.title = s
-        .title
+/// A title on one line, without the quotes, full stop or heading mark
+/// models put around it.
+fn clean_title(t: &str) -> String {
+    t.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
         .trim_matches(|c| c == '"' || c == '.' || c == '#' || c == ' ')
-        .to_string();
+        .to_string()
+}
+
+fn clean_summary(mut s: MeetingSummary, speakers: &[String]) -> MeetingSummary {
+    s.title = clean_title(&s.title);
     s.summary = s.summary.trim().to_string();
     let mut seen = std::collections::HashSet::new();
     s.decisions
@@ -1566,6 +1591,23 @@ mod tests {
         assert_eq!(bodies[2]["max_completion_tokens"], 3_072);
         // chat_plain asks for free text: no response_format.
         assert!(bodies[2].get("response_format").is_none());
+    }
+
+    #[test]
+    fn provisional_title_is_one_clean_line_in_the_transcripts_language() {
+        let reply = json!({"choices": [{"message": {"content": "\n\"Budget der Herbstkampagne.\"\nMehr Text"}}]}).to_string();
+        let (url, rx) = fake_server(vec![(200, reply)]);
+        let llm = LlmSummarizer::new(LlmConfig::openai_compatible(url, "m", None));
+        let title = llm
+            .provisional_title("Wir müssen über das Budget für die Kampagne sprechen.")
+            .unwrap();
+        assert_eq!(title, "Budget der Herbstkampagne");
+        let r = rx.recv().unwrap();
+        let body: Value = serde_json::from_str(r.split_once("\n\n").unwrap().1).unwrap();
+        assert!(body["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .ends_with("in German."));
     }
 
     #[test]

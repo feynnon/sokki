@@ -1019,41 +1019,64 @@ async voiceDataCommunity() : Promise<Result<CommunityTotal | null, string>> {
 }
 },
 /**
- * Displays, cameras and whether each may be recorded. Never asks.
+ * The answer from the call window (`meeting/prompt.rs`): "not_now",
+ * "record", "record_screen", "keep" or "stop".
  */
-async videoSources() : Promise<Result<VideoSources, string>> {
+async meetingPromptAnswer(answer: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("video_sources") };
+    return { status: "ok", data: await TAURI_INVOKE("meeting_prompt_answer", { answer }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Asks macOS for "screen" or "camera". True when allowed.
+ * Starts a meeting with its screen. Returns the meeting id. The error
+ * "screen_not_allowed" means macOS was just asked for Screen Recording.
+ * Stops with the meeting (the recording pill or `stop_meeting_recording`).
  */
-async videoRequestAccess(kind: string) : Promise<Result<boolean, string>> {
+async startMeetingWithScreen() : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("video_request_access", { kind }) };
+    return { status: "ok", data: await TAURI_INVOKE("start_meeting_with_screen") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Starts recording the screen and/or camera with the meeting audio. Stops
- * with the meeting (the recording pill or `stop_meeting_recording`).
+ * Whether this Mac lets Sokki record the screen. Never asks.
  */
-async videoStart(options: VideoStartOptions) : Promise<Result<string, string>> {
+async screenPermission() : Promise<boolean> {
+    return await TAURI_INVOKE("screen_permission");
+},
+/**
+ * Asks macOS for Screen Recording (its own prompt, or System Settings when
+ * declined before). True when it is already allowed; once allowed, macOS
+ * asks to quit and reopen Sokki.
+ */
+async requestScreenPermission() : Promise<Result<boolean, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("video_start", { options }) };
+    return { status: "ok", data: await TAURI_INVOKE("request_screen_permission") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * All videos, newest first.
+ * Asks macOS for "System Audio Recording" by opening the system-sound tap
+ * for a moment (that shows macOS's prompt the first time). macOS has no way
+ * to read the answer, so this only asks.
+ */
+async requestSystemAudioPermission() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("request_system_audio_permission") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Every meeting's screen video, newest first.
  */
 async videoList() : Promise<Result<VideoMeta[], string>> {
     try {
@@ -1064,78 +1087,11 @@ async videoList() : Promise<Result<VideoMeta[], string>> {
 }
 },
 /**
- * Changes a video's look and renders it again.
- */
-async videoSetLook(folder: string, look: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("video_set_look", { folder, look }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Moves a video's folder to the Trash.
- */
-async videoDelete(folder: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("video_delete", { folder }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Shows a video in Finder: the rendered file when there is one, else the
- * folder.
+ * Shows a file or folder in Finder.
  */
 async videoReveal(path: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("video_reveal", { path }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Opens the recording bar (pick what to record, then Record).
- */
-async videoBarShow() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("video_bar_show") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Closes the recording bar without recording.
- */
-async videoBarHide() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("video_bar_hide") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Shows or hides the live camera bubble (only when the camera is allowed).
- */
-async videoBubble(show: boolean, camera: string | null) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("video_bubble", { show, camera }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Sets the video settings.
- */
-async setVideoSettings(settings: VideoSettings) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("set_video_settings", { settings }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1269,6 +1225,27 @@ async pullMeetingLlm() : Promise<Result<null, string>> {
 async renameMeetingSpeaker(id: string, from: string, to: string, remember: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("rename_meeting_speaker", { id, from, to, remember }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The locale dates and times follow: the Mac's region and clock setting
+ * (System Settings → General → Language & Region), not the app language.
+ * "en_DE" → "en-DE" (24.11., 15:20); the 24-hour switch, when set, as a
+ * Unicode extension ("en-US-u-hc-h23"). `None` where the system gives none.
+ */
+async dateFormatLocale() : Promise<string | null> {
+    return await TAURI_INVOKE("date_format_locale");
+},
+/**
+ * Sets the title the person typed; nothing replaces it later. It goes into
+ * the note's title heading too (once there is a note).
+ */
+async setMeetingTitle(id: string, title: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_title", { id, title }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1665,12 +1642,7 @@ overlay_style?: OverlayStyle;
 /**
  * Meeting notes (this fork): recording, speakers, summary and the notes folder.
  */
-meetings?: MeetingSettings; 
-/**
- * Screen and camera recording (`video/`): on or off, and the choices
- * from the last recording.
- */
-videos?: VideoSettings }
+meetings?: MeetingSettings }
 /**
  * What the footer shows: the new version and how long Sokki will be away.
  */
@@ -1860,7 +1832,16 @@ audio_deleted: boolean;
  * After processing: `true` for an online meeting (someone spoke on the
  * system track), `false` for everything on one microphone.
  */
-online?: boolean | null }
+online?: boolean | null; 
+/**
+ * The person typed this title; nothing replaces it.
+ */
+title_by_hand?: boolean; 
+/**
+ * The title is a first guess from the live transcript, until the
+ * summary names the meeting.
+ */
+title_provisional?: boolean }
 /**
  * Settings for meeting notes. Every field falls back to its default when
  * missing, so older stores load unchanged.
@@ -2332,83 +2313,22 @@ export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "x
 export type VadBackend = "silero" | "earshot"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
 
-export type VideoCamera = { id: string; name: string }
 /**
- * Sent whenever a video changes (recording, rendering, ready, failed).
+ * Sent whenever a screen video changes (recording, rendering, ready, failed).
  */
 export type VideoChanged = { folder: string }
-export type VideoDisplay = { id: number; name: string; width: number; height: number; main?: boolean }
 /**
- * A video, as kept in its folder's `video.json`.
+ * A meeting's screen video, as kept in its folder's `video.json`.
  */
-export type VideoMeta = { folder: string; meeting_id: string; kind: string; started_at: string; duration_s: number; look: string; screen: VideoTrack | null; camera: VideoTrack | null; audio?: VideoTrack[]; 
+export type VideoMeta = { folder: string; meeting_id: string; started_at: string; duration_s: number; screen: VideoTrack | null; audio?: VideoTrack[]; 
 /**
- * The rendered file's name, once there is one.
+ * The finished file's name, once there is one.
  */
 rendered: string | null; 
 /**
  * "recording", "rendering", "ready" or "failed".
  */
 status: string; error: string | null }
-/**
- * Screen and camera recording. Every field falls back to its default when
- * missing, so older stores load unchanged.
- */
-export type VideoSettings = { 
-/**
- * Off hides recording the screen and camera everywhere: the Videos page,
- * "Meeting with screen" and the screen option when a call is detected.
- */
-enabled: boolean; 
-/**
- * What the last recording used: "both", "screen" or "camera".
- */
-mode: string; 
-/**
- * How the finished video looks: "bubble", "side", "vertical" or "files"
- * (screen and camera only as separate files).
- */
-look: string; 
-/**
- * Display to record (Core Graphics display id). `None`: the main display.
- */
-display: number | null; 
-/**
- * Camera to record (AVFoundation unique id). `None`: the default camera.
- */
-camera: string | null }
-/**
- * Displays and cameras, and whether each may be recorded.
- */
-export type VideoSources = { 
-/**
- * "allowed" or "not_allowed".
- */
-screen: string; 
-/**
- * "allowed", "denied", "not_asked" or "restricted".
- */
-camera: string; displays: VideoDisplay[]; cameras: VideoCamera[] }
-/**
- * What to record, from the recording bar or "Meeting with screen".
- */
-export type VideoStartOptions = { 
-/**
- * "video" (the Videos page) or "meeting" (a meeting with its screen).
- */
-kind: string; 
-/**
- * "both", "screen" or "camera".
- */
-mode: string; display: number | null; camera: string | null; 
-/**
- * "bubble", "side", "vertical" or "files".
- */
-look: string; 
-/**
- * The meeting app, when started from call detection.
- */
-source_app: string | null }
 /**
  * One recorded track in the video's folder.
  */

@@ -180,12 +180,12 @@
       "tapAgain": "Appuyez à nouveau sur <keys/> quand vous avez terminé.",
       "watch": "Regardez la note.",
       "changeKeys": "Modifier votre raccourci, {{keys}}",
-      "doneHold": "Tope là ! Ça, c'était en maintenant.",
+      "doneHold": "Ça, c'était en maintenant.",
       "doneHoldNext": "Place à la méthode mains libres.",
       "doneTap": "Tope là ! Ça, c'était en appuyant.",
       "doneTapNext": "Essayez maintenant de les maintenir enfoncées pendant que vous parlez.",
-      "giveFive": "Bien joué ! Tope là",
-      "highFive": "Tope là",
+      "gotIt": "Bien joué !",
+      "finish": "Terminer",
       "slowLine": "{{name}} a mis {{wait}} sur cet ordinateur. <faster>Essayer un modèle plus rapide</faster>",
       "nothingTyped": "Hmm, rien n'est arrivé.",
       "nothingTypedSub": "Cliquez d'abord dans la note, puis réessayez.",
@@ -193,7 +193,6 @@
       "silentSub": "Ce microphone n'a capté aucun son. Essayez-en un autre :",
       "noWords": "Je n'ai saisi aucun mot.",
       "noWordsSub": "Réessayez, en disant une phrase entière.",
-      "finish": "Terminer",
       "skip": "Passer",
       "seconds": "{{value}} s"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki est maintenant dans votre barre des menus. Maintenez ou appuyez sur <keys/> dans n'importe quelle app pour parler.",
       "subTray": "Sokki est maintenant dans votre zone de notification. Maintenez ou appuyez sur <keys/> dans n'importe quelle app pour parler.",
       "hint": "Vous pourrez modifier tout cela plus tard dans les Paramètres",
-      "highFiveLabel": "Tope là",
+      "markLabel": "Sokki",
       "atLogin": "Lancer Sokki à l'ouverture de ma session",
       "finish": "Terminé",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

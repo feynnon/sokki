@@ -44,6 +44,23 @@ action the user takes, should feel as instant as possible."
   bug. Past cases: meeting start/stop on the main thread (ea7f823a), a pill
   stuck at "starting" after a stop (7c1a1311).
 
+## Sokki does the step itself
+
+A general design rule for every feature that ends in an action: sending a
+mail, posting in a chat, sharing a note, inviting someone. Robin (2026-11-24):
+"weniger von diesem der Mensch muss abschicken: Das macht NIEMAND. … Wir
+automatisieren, was wir automatisieren können."
+
+- Sokki does the action itself. The user's part is one opt-in (a switch, a
+  permission, a sign-in), not a step they repeat every time. A draft, a copy
+  button or "paste it yourself" is not a design; nobody does it.
+- When an obstacle comes up (a permission, an app review, a law, a missing
+  API), work out exactly what it takes before you rule anything out. Then
+  build the automatic path, and handle the obstacle in the design: a consent
+  switch, the user's own account as sender, a text the user approved once.
+- A manual step stays only where the law or a platform requires a person, and
+  then it is one click inside Sokki. Name the source that requires it.
+
 ## As few rules as possible
 
 Add a rule, heuristic or threshold only when a real recording shows it is

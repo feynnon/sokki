@@ -25,9 +25,11 @@ mod notify_macos;
 pub mod phone_link;
 pub mod priority;
 pub mod process;
+pub mod prompt;
 pub mod rate;
 pub mod store;
 pub mod system_tap;
+pub mod title;
 
 use anyhow::{bail, Context, Result};
 use mic::{MicCapture, MicRecording};
@@ -221,6 +223,14 @@ impl MeetingManager {
         self.lock().as_ref().map(|m| m.meeting_id.clone())
     }
 
+    /// What the running meeting's live transcript has heard so far.
+    pub fn heard(&self) -> Option<sokki_engine::live::Heard> {
+        self.lock()
+            .as_ref()
+            .and_then(|m| m.live.as_ref())
+            .map(|l| l.heard())
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<ActiveMeeting>> {
         // A poisoned lock still holds valid state; keep recording rather than panic.
         self.active.lock().unwrap_or_else(|e| e.into_inner())
@@ -266,9 +276,14 @@ pub fn start_meeting(
         summary_missing: None,
         audio_deleted: false,
         online: None,
+        title_by_hand: false,
+        title_provisional: false,
     };
     if let Err(e) = store.insert(record) {
         log::warn!("Saving the meeting record failed: {e:#}");
+    }
+    if let Some(heard) = meetings.heard() {
+        title::spawn_provisional(app.clone(), meeting_id.clone(), heard);
     }
     notices::clear(app, NoticeSource::Meeting);
     indicator::show(app);
@@ -302,7 +317,7 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     if let Ok(text) = serde_json::to_string(&timing) {
         let _ = std::fs::write(store.audio_dir(&meeting_id).join(TIMING_FILE), text);
     }
-    // A video recorded with this meeting: finish its files, start its render.
+    // A screen video recorded with this meeting: finish it, start its render.
     #[cfg(target_os = "macos")]
     crate::video::on_meeting_stopped(app, &meeting_id, duration);
     let mut tracks = Vec::new();
@@ -489,6 +504,8 @@ mod resume_tests {
             summary_missing: None,
             audio_deleted: false,
             online: None,
+            title_by_hand: false,
+            title_provisional: false,
         }
     }
 

@@ -267,6 +267,18 @@ fn wait_processed(app: &tauri::AppHandle, id: &str, which: &str, stopped: Instan
     }
 }
 
+/// Logs the meeting's title as the list shows it.
+fn log_title(app: &tauri::AppHandle, id: &str, when: &str) {
+    use crate::meeting::store::MeetingStore;
+    use tauri::Manager;
+    if let Some(r) = app.state::<std::sync::Arc<MeetingStore>>().get(id) {
+        info!(
+            "Test mode: Meeting title {when}: {:?} (provisional: {})",
+            r.title, r.title_provisional
+        );
+    }
+}
+
 /// Records one meeting for `hold` seconds, then logs how long processing
 /// took once the note is written. With [`second_meeting`], a second one
 /// starts while the first is processed, as on 2026-11-23.
@@ -278,10 +290,15 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         "Test mode: meeting starts ({hold:.1}s, live transcript {})",
         if no_live() { "off" } else { "on" }
     );
+    info!(
+        "Test mode: dates follow {:?}",
+        crate::commands::meeting::date_format_locale()
+    );
     let Some(id) = start_timed(app, "first") else {
         return;
     };
     std::thread::sleep(Duration::from_secs_f64(hold));
+    log_title(app, &id, "before the stop");
     let stopped = Instant::now();
     if let Err(e) = crate::meeting::stop_meeting(app) {
         warn!("Test mode: the meeting didn't stop: {e}");
@@ -308,6 +325,7 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         std::thread::sleep(Duration::from_millis(200));
         match store.get(&id).map(|r| r.status) {
             Some(MeetingStatus::Done) => {
+                log_title(app, &id, "when done");
                 info!(
                     "Test mode: meeting processed {:.1}s after the stop",
                     stopped.elapsed().as_secs_f64()

@@ -1,12 +1,17 @@
 package dev.verbatim.mobile
 
 import android.Manifest
+import android.app.StatusBarManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.Icon
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.webkit.JavascriptInterface
@@ -25,12 +30,40 @@ class MainActivity : TauriActivity() {
     askForLocalNetwork()
     fromKeyboard(intent)
     pairingLink(intent)
+    // Not when Android recreates Sokki or it's reopened from recents: that
+    // would start a recording nobody asked for.
+    val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+    if (savedInstanceState == null && !fromHistory) fromTile(intent)
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     fromKeyboard(intent)
     pairingLink(intent)
+    fromTile(intent)
+  }
+
+  override fun onDestroy() {
+    if (Recording.page?.get() == webView) {
+      Recording.page = null
+      Recording.on = false
+    }
+    super.onDestroy()
+  }
+
+  companion object {
+    /** The Quick Settings tile opens Sokki with this to start recording. */
+    const val ACTION_RECORD = "dev.verbatim.mobile.RECORD"
+  }
+
+  /** Set when the tile opened Sokki to record, until the page starts. */
+  @Volatile private var pendingRecord = false
+
+  private fun fromTile(intent: Intent?) {
+    if (intent?.action != ACTION_RECORD) return
+    pendingRecord = true
+    // Page already loaded: start now (else it asks on start).
+    webView?.post { webView?.evaluateJavascript("window.__sokkiRecord && window.__sokkiRecord()", null) }
   }
 
   private var webView: WebView? = null
@@ -74,7 +107,66 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(KeyboardSetup(), "SokkiKeyboard")
     webView.addJavascriptInterface(Links(), "SokkiLinks")
     webView.addJavascriptInterface(Screen(), "SokkiScreen")
+    webView.addJavascriptInterface(Recorder(), "SokkiRecorder")
+    Recording.page = java.lang.ref.WeakReference(webView)
   }
+
+  /** `window.SokkiRecorder`: the Quick Settings tile (RecordTile.kt), and
+   * whether Android silences the recording. */
+  inner class Recorder {
+    /** True once after the tile opened Sokki to record. */
+    @JavascriptInterface
+    fun takeStart(): Boolean = pendingRecord.also { pendingRecord = false }
+
+    /** The page reports when it starts and stops recording, for the tile. */
+    @JavascriptInterface
+    fun recording(on: Boolean) {
+      Recording.on = on
+    }
+
+    /** Android's own "Add tile" dialog (Android 13+), once per install. No
+     * app can put a tile into the panel by itself, nor choose the wide
+     * tile with text: the user widens it in the panel's edit mode. */
+    @JavascriptInterface
+    fun offerTile() = runOnUiThread { offerTileOnce() }
+
+    /** True while Android gives the recording silence instead of the
+     * microphone, e.g. during a phone or internet call: only the call app
+     * gets the microphone then (emulator, Android 15, 2026-11-23: from
+     * accepting the call to hanging up, not while it rings). The page asks
+     * with every clock tick while it records.
+     *
+     * Android hands apps every app's recordings without saying whose, so
+     * another app's silenced recording counts too. No real case of that yet. */
+    @JavascriptInterface
+    fun silenced(): Boolean {
+      if (Build.VERSION.SDK_INT < 29) return false
+      return audio.activeRecordingConfigurations.any { it.isClientSilenced }
+    }
+  }
+
+  private fun offerTileOnce() {
+    if (Build.VERSION.SDK_INT < 33) return
+    val prefs = getSharedPreferences("sokki", MODE_PRIVATE)
+    if (prefs.getBoolean("tile_offered", false)) return
+    val bar = getSystemService(StatusBarManager::class.java) ?: return
+    bar.requestAddTileService(
+      ComponentName(this, RecordTile::class.java),
+      getString(R.string.tile_record),
+      Icon.createWithResource(this, R.drawable.ic_tile_record),
+      mainExecutor,
+    ) { result ->
+      Log.i("Sokki", "Tile offer: result $result")
+      // Shown (added or not) or already there: done. An error (another
+      // dialog in front, say) leaves it for the next start.
+      val answered = result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+        result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED ||
+        result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+      if (answered) prefs.edit().putBoolean("tile_offered", true).apply()
+    }
+  }
+
+  private val audio by lazy { getSystemService(AudioManager::class.java) }
 
   /** `window.SokkiScreen`: the screen stays on while a meeting records. With
    * the screen off the app goes to the background, and since Android 9 a

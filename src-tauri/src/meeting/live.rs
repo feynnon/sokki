@@ -66,6 +66,11 @@ impl Live {
         }
     }
 
+    /// What has been transcribed so far.
+    pub fn heard(&self) -> sokki_engine::live::Heard {
+        self.session.heard()
+    }
+
     /// The tee for one track's FLAC writer.
     pub fn tee(&self, track: TrackKind) -> Tee {
         tee(self.session.feed(), track)

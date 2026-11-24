@@ -317,6 +317,8 @@ fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Res
         summary_missing: None,
         audio_deleted: false,
         online: None,
+        title_by_hand: false,
+        title_provisional: false,
     };
     store.insert(record)?;
     log::info!(

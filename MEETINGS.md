@@ -18,7 +18,7 @@ had before (2026-11-23) moves over on the first start
 Own name, V-wave app and menu bar icons, a calm blue on dark grey. Files:
 `src-tauri/brands/sokki/` (icon sources and set),
 `src-tauri/resources/brands/sokki/` (menu bar icons),
-`src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/brand-sokki.css`,
+`src-tauri/src/brand.rs`, `src/lib/brand.ts`, `src/styles/theme.css`,
 `src/components/icons/SokkiLogo.tsx`. Some screens still carry branches for
 the upstream look (`IS_SOKKI` is always true); they go once the main window
 work has landed.
@@ -105,9 +105,26 @@ Icons are drawn as SVG in
       transcript stays as recognised: a separate correction pass cost a
       whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
    7. Markdown note in the notes folder.
-6. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
+6. **Name and list row** (`meeting/title.rs`, `meetings/meetingDates.ts`):
+   the summary's title names the meeting. Built but switched off
+   (`title::DURING_RECORDING`, on only in the test app): five minutes into
+   the recording the language model names it once from what the live
+   transcript has heard (built-in model in macOS's background band,
+   `llm::open_with`), until the summary replaces that guess. Off because a
+   model load during a call is not safe until the system-audio capture
+   recovers from a dead tap (24.11.: 13 minutes of call audio lost under
+   load). A title typed in the reader (click it) is kept for good and goes
+   into the note's heading. A list row reads "24.11. · 10:00 · Google Meet ·
+   34 Min." (date and time in the Mac's region, `date_format_locale`) and,
+   on the right, who spoke besides you: initials of up to two named people,
+   then how many more, every name in a tooltip.
+   The place is the call app; for a browser the call service from its tab
+   titles (`meeting-detect/src/macos.rs`, needs Screen Recording, else the
+   browser's name), else "Online"/"In person" from the processed tracks.
+   Test: `TITLE_AFTER=60 scripts/test-meeting.sh mic.wav system.wav 90`.
+7. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
    voice is recognised in later meetings (sherpa-onnx embeddings).
-7. **Language model** – summary (5.6). Chosen under
+8. **Language model** – summary (5.6) and the provisional title (6). Chosen under
    Models → *Language model*, a list like the speech models: Qwen 3.5 9B on
    this Mac, built in (the page downloads the model, 5.7 GB, checksum
    verified) or through Ollama (started only by hand), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
@@ -117,32 +134,92 @@ Icons are drawn as SVG in
    (`meetings.llm_provider`, `llm_model`, `cloud_model`). Request shapes are
    covered by tests against a fake server (`summary.rs`); a real-request
    check: `MEETING_CLOUD=anthropic MEETING_CLOUD_MODEL=claude-opus-5-5 MEETING_CLOUD_KEY=… cargo test -p meeting-core cloud_summary_smoke -- --ignored --nocapture`.
-8. **Safety** – a memory guard stops the app above 6 GB while a meeting is
+9. **Safety** – a memory guard stops the app above 6 GB while a meeting is
    processed (`meeting/memguard.rs`); recordings are closed at quit and
    processed at the next launch.
 
-## Videos (screen and camera)
+## Other people's voices (Robin's decision, 2026-11-24)
 
-A video is a meeting recording (microphone and system sound, so it gets a
-transcript and note like any meeting) plus a full screen video and/or a full
-camera video, recorded with ScreenCaptureKit and AVFoundation
-(`src-tauri/swift/video_capture.swift`, Rust side `src-tauri/src/video/`).
-Sokki's own windows (the camera bubble, the recording bar, the pill) are left
-out of the screen video. After Stop, Sokki renders the chosen look into one
-`.mp4` with sound: bubble, side by side or vertical (9:16); "two files"
-renders nothing. The look can be changed later on the Videos page. Files go to
-`~/Movies/Sokki/<date time>/`.
+How Sokki treats the voices of the other people in a meeting. Robin decided
+this after reading up on German law (§ 201 StGB, GDPR). It is not legal
+advice, and the second point is not built yet.
 
-Starts: "New video" on the Videos page opens the recording bar
-(`src/video-bar/`); "Meeting with screen" on the Meetings page and "Mit
-Bildschirm" in the call-detected dialog record a meeting with its screen.
-`videos.enabled` off hides all of it.
+1. **Sokki tells people.** In every online meeting format, the others learn
+   that Sokki records:
+   - a line in the meeting chat when recording starts; anyone who types
+     "stop" stops Sokki and deletes the recording (branch `chat-notice`,
+     Sokki Board card "Hinweis im Meeting-Chat");
+   - planned: a mail to outside guests before the meeting (card "Mail vor
+     dem Meeting").
+   - In a room, the app asks the user to tell everyone.
+2. **Only your own voice is kept.** During the meeting Sokki saves both
+   tracks (`mic.flac`, `system.flac`), because transcription and speaker
+   detection need the whole audio (live transcription measured worse, F3).
+   Once the note is written:
+   - the system track (everyone else on the call) is deleted;
+   - only the microphone track, your own voice, may stay
+     (`meetings.keep_audio_days`).
+   - Today `keep_audio_days` keeps or deletes both tracks together
+     (`process.rs`, `apply_retention`).
+3. **Others' voices only with their OK.** Keeping someone else's voice
+   needs that person's OK. Sokki can't yet tell who said OK, or take one
+   voice out of the call sound, so for now it keeps no one else's voice.
+4. **No phone calls.** Sokki makes no notes of phone calls (Robin,
+   2026-11-24).
+   - On Android no app hears the call (KNOWN_ISSUES X10).
+   - The ways around it (rooting the phone, the Mac posing as the phone's
+     Bluetooth headset) were dropped.
+   - German law needs the other side's OK, and a phone call has no chat
+     for Sokki's notice.
+   - Details: `mobile/README.md`.
 
-Tests: `SOKKI_VIDEO_FIXTURES=<dir with screen.mov, camera.mov, mic.flac>
-cargo test --lib video::` renders every look from sample files. Capture
-itself needs Screen Recording and Camera permission, so it is not tested
-automatically yet (`SOKKI_TEST_SCREEN` / `SOKKI_TEST_CAMERA` skip capture and
-copy those files in at Stop, but meetings have no test mode for the audio).
+Why this is enough for Robin:
+- § 201 StGB punishes saving someone's non-public words without their OK.
+  It is prosecuted only if that person files a complaint.
+- Deleting the file after the meeting doesn't undo the saving. The notice
+  is what covers it: someone who stays and talks after a clear notice that
+  they are being recorded agrees by staying. Lawyers write this; no court
+  has ruled on it.
+- So the notice should say "recording", not only "taking notes".
+- GDPR applies to work meetings in any case, so people are told even
+  though Sokki keeps none of their voice.
+- Robin weighs the remaining risk as small against what Sokki is useful
+  for.
+
+Open, not covered by this decision:
+- On a call through speakers, the mic track also holds the others' voices
+  (echo). Keep it only after echo removal (`meeting-core/src/aec.rs`). In a
+  room, the microphone hears everyone.
+- A meeting with screen keeps the call sound in its `.mp4`.
+- Remembered voices (`voice-profiles.json`) store other people's voice
+  embeddings.
+- FaceTime on the Mac also carries iPhone phone calls (Continuity), and
+  Sokki offers to record FaceTime calls. Not checked: whether those should
+  be left out under point 4.
+
+## Meeting with screen
+
+A meeting can also record its screen: "Meeting with screen" under the arrow
+next to Start meeting, or "Record screen too" in the call window
+(`meeting/prompt.rs`, `src/meeting-prompt/`; it replaced macOS's own dialog,
+which could not hold a switch and was German only). The screen is recorded
+in full with ScreenCaptureKit (`src-tauri/swift/video_capture.swift`, Rust
+side `src-tauri/src/video/`); Sokki's own windows stay out of it. After Stop,
+the screen video and the meeting's sound become one `.mp4` in
+`~/Movies/Sokki/<date time>/`; the meeting's row shows a screen button that
+reveals it in Finder. Deleting the meeting moves that folder to the Trash.
+
+Without Screen Recording permission, macOS is asked and the meeting is
+recorded without the screen (from the call window) or not started (from the
+Meetings page, which then says how to allow it).
+
+Tests: `SOKKI_VIDEO_FIXTURES=<dir with screen.mov, mic.flac> cargo test --lib
+video::` renders the screen video with sound from sample files.
+`SOKKI_TEST_SCREEN=<video file>` skips capture and copies that file in at Stop.
+
+The Videos page (camera, recording bar, looks) was removed on 2026-11-23
+(Robin: "Videos raus, Bildschirm bleibt"); its last state is on branch
+`video` (commit 71e0eea6).
 
 ## Layout
 

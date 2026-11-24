@@ -67,6 +67,11 @@ Status: open unless marked.
 | X7 | Processing starts only after the meeting ends (21-min call: ready ~3 min after stopping) | live transcription measured and rejected, see F3 |
 | X8 | **Fixed 2026-11-19:** keyboard and mouse froze Mac-wide (13:3x, forced restart; 15:02, 5 min). Onboarding ran `tccutil reset` before asking for a permission. A second copy (started from a shell, or a test copy with a fresh data folder) reads "not granted" and resets while the running Sokki holds an active keyboard event tap; revoking that grant hangs all input (Apple FB24619068, developer.apple.com/forums/thread/844416) | reset removed (onboarding only asks; a stale grant after a signature change is fixed by the user in System Settings). Still open: a listen-only tap when no shortcut needs blocking |
 | X9 | **Partly fixed 2026-11-19:** an in-person meeting recorded in front of the laptop was cut off when the Mac went to idle sleep. Every recording now keeps the device awake: macOS a `PreventUserIdleSystemSleep` assertion (`src-tauri/src/meeting/keep_awake.rs`; the display may still turn off), Linux/Omarchy a logind sleep inhibitor (`crates/sokki/src/keep_awake.rs`; screen may still lock and turn off), Android keeps the screen on while recording (`MainActivity.kt`, `SokkiScreen`; with the screen off a background app records only silence). Still open: closing the lid sleeps a laptop and ends the capture (Mac: with no external display; only the admin-level `pmset disablesleep` prevents it; Linux: logind's `LidSwitchIgnoreInhibited=yes`); on Android, pressing the power button cuts the recording; Windows holds nothing | warn when the lid closes during a recording; Android: record in a foreground service; Windows: `PowerSetRequest` |
+| X10 | **Fixed 2026-11-23:** Android: a recording made during a phone call or internet call is silent, but the app showed a normal recording with a running clock (emulator, Android 15: `dumpsys audio` shows Sokki's capture `silenced` from call accept to hang-up). Android gives no app but the call app the microphone during a call | while Android silences the recording, a line under the clock says so (`SokkiRecorder.silenced()` in `MainActivity.kt`, `isClientSilenced`). The part itself stays silent: Android offers no way around it. Sokki makes no notes of phone calls (Robin, 2026-11-24; MEETINGS.md "Other people's voices") |
+| X11 | Android: the first recording sent after Sokki starts takes 15–45 s to reach the Mac, once it hung until "Check again" (emulator, 2026-11-23, with the tile and with the button); a ping right after answers in 150 ms | connect to the Mac when a recording starts, so the link is up when it stops |
+| X12 | Android: Sokki can't be installed next to HeliBoard, nor a debug `org.sokki.app` next to the old `dev.verbatim.mobile` (emulator, 2026-11-24: `INSTALL_FAILED_CONFLICTING_PROVIDER`). The keyboard's clipboard provider has a fixed name (`helium314.keyboard.clipprovider`, debug `helium314.keyboard.debug.clipprovider`, `keyboard/src/*/res/values/clip_provider.xml`) that HeliBoard itself also uses | name it after the app ID (`${applicationId}.clipprovider`), e.g. by overriding `clipboard_provider_authority` in the app's resources |
+| X13 | No call audio since 2026-11-24 10:02: every desktop meeting after the coreaudiod overload at 10:02:20 has an all-zero system track (Zoom 14:19–15:20 and Chrome 14:43–15:07 alike, 98–100 % exact zeros), although a new tap is created per recording and the log says it started at 48 kHz with 0 dropped samples. The 09:30 call lost its system audio mid-call at 10:02. The same Sokki process has run since 2026-11-23 16:12. In the 14:29 Zoom call the mic heard three speakers, so remote voices played on the speakers but the tap gave silence. Ruled out: the permission (tccd: allowed), no output running, the default output. Not Zoom-specific, as first thought | restart Sokki and check the next call's system track; if it comes back, the broken state lives in the process. Fix: detect a dead tap (stuck zeros while output runs) and rebuild it, see the card "call audio must recover" (`src-tauri/swift/system_audio_tap.swift`) |
+| X14 | Not a bug, for the record: 7 desktop meetings ended with an empty note and the title "Meeting <date> <time>" (17.11. 15:32/15:42, 19.11. 21:02/21:08, 24.11. 14:42/14:43/14:51). None had speech: 0 words from Parakeet on each track, also 25 dB louder; mic never above -40 dB for a second, system track zeros. The note says "Keine Sprache erkannt" | the log now says "No speech found on any track" and how many live pieces had words |
 
 ## Found in the first real call (2026-11-17)
 
@@ -104,23 +109,18 @@ Status: open unless marked.
 | F7 | Ollama memory (MLX runner) | grows to 13–16 GB during correction + summary; freed 1 min after (keep_alive) |
 | F8 | Built-in llama.cpp vs Ollama (2026-11-20, M1 Pro 32 GB, the 41-min 14:20 call, ~8,800 prompt tokens, one request, both cold, two runs each, GPU otherwise idle) | built-in 92.6 s and 70.6 s (load 1.3 s; 7.4 s with a cold disk cache), peak 6.2 GB RSS, 0 GB right after; Ollama 86.6 s and 81.3 s, peak 5.8–6.5 GB RSS (`ollama ps`: 8.1 GB), 3.2–4.6 GB still held 2 s after. Built-in: prompt 138 tok/s, output 12 tok/s at that context; the JSON schema costs nothing. Another app on the GPU at the same time doubled the time |
 
-## Videos (2026-11-20, first version)
+## Meeting with screen (2026-11-23)
 
-- Real screen and camera capture, the camera bubble and the recording bar
-  have not run on a Mac yet: they need Screen Recording and Camera
-  permission, which no session may trigger. Rendering is tested on sample
-  files.
-- The recording bar has no microphone picker and no settings cog (system
-  sound is always recorded, as in meetings); the look menu is a plain menu
-  without the pictures from the design; the screen picker lists displays, not
-  windows.
-- The call-detected dialog is still macOS's own dialog: "Mit Bildschirm" is a
-  third button, not a switch in a Sokki window as designed. Its text is German
-  only, also in an English app.
-- After Screen Recording is allowed, macOS asks to quit and reopen Sokki; the
-  bar then says so, but there is no "welcome back" line yet.
-- A recording cut by a quit is rendered at the next launch without its first
-  frame time, so screen and camera may be slightly out of step with the sound.
+- Real screen capture and the call window have not run on a Mac yet: they
+  need Screen Recording permission, which no session may trigger. Rendering
+  is tested on sample files.
+- Always records the main display; there is no screen or window picker.
+- After Screen Recording is allowed, macOS asks to quit and reopen Sokki;
+  nothing says so in Sokki after the reopen.
+- Setup asks for System sound by opening the tap for a moment; macOS has
+  no way to read the answer, so the row says "Asked", not "Allowed".
+- Setup without Meetings turns off "Notice meetings"; picking Meetings
+  leaves it as it was.
 
 ## Planned
 

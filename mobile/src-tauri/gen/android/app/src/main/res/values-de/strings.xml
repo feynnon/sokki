@@ -1,0 +1,5 @@
+<resources>
+    <!-- Quick Settings tile (RecordTile.kt) -->
+    <string name="tile_record">Meeting aufnehmen</string>
+    <string name="tile_recording">Aufnahme läuft</string>
+</resources>

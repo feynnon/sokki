@@ -239,6 +239,11 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     for d in &result.details {
         log::warn!("{d}");
     }
+    if result.jobs == 0 {
+        // Speaker detection found no turn on any track. A failed detection
+        // falls back to one turn per track, so this means no speech.
+        log::info!("No speech found on any track: the note says so");
+    }
     clock.add("speakers", result.speakers_s);
     clock.add("transcription", result.transcribe_s);
     clock.step("echo removal and names");
@@ -420,6 +425,17 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
         note_path: note_path.to_path_buf(),
         title,
     })
+}
+
+/// A title for a meeting that still records, from what its live transcript
+/// has heard so far ([`crate::live::Heard`]). `background`: the built-in
+/// model runs in the background band, below the recording.
+pub fn provisional_title(heard: &str, settings: &Settings, background: bool) -> Result<String> {
+    if heard.split_whitespace().next().is_none() {
+        bail!("nothing heard yet");
+    }
+    let model = llm::open_with(&settings.llm, &settings.user_name, background)?;
+    LlmSummarizer::new(summary_config(settings, &model)).provisional_title(heard)
 }
 
 /// The language model config for summaries: the person's dictionary goes

@@ -20,6 +20,21 @@ const links = () => (window as unknown as { SokkiLinks?: Links }).SokkiLinks;
 const screen = () =>
   (window as unknown as { SokkiScreen?: { keepOn(on: boolean): void } })
     .SokkiScreen;
+/** The Quick Settings tile (RecordTile.kt) opens Sokki to record and stops
+ * a recording in place; the page tells it when it records. `silenced()`:
+ * Android gives the recording silence right now (during a call).
+ * `offerTile` shows Android's "Add tile" dialog, once per install. */
+const tile = () =>
+  (
+    window as unknown as {
+      SokkiRecorder?: {
+        takeStart(): boolean;
+        recording(on: boolean): void;
+        silenced?(): boolean;
+        offerTile?(): void;
+      };
+    }
+  ).SokkiRecorder;
 import { Format, scan } from "@tauri-apps/plugin-barcode-scanner";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { inviteMailto } from "../../shared/invite";
@@ -131,6 +146,7 @@ export default function App() {
     }
   };
   const [pairing, setPairing] = useState<link.Pairing | null>(null);
+  const [pairingKnown, setPairingKnown] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkNote, setCheckNote] = useState<string | null>(null);
   useEffect(() => {
@@ -144,15 +160,24 @@ export default function App() {
     const opened = fromLink();
     void link.pairing().then((p) => {
       setPairing(p);
-      if (!opened && !p && localStorage.getItem("sokki.setupSkipped") !== "1")
+      setPairingKnown(true);
+      if (
+        !opened &&
+        !openedToRecord.current &&
+        !p &&
+        localStorage.getItem("sokki.setupSkipped") !== "1"
+      )
         setView({ name: "setup" });
     });
   }, []);
   const [list, setList] = useState<Recording[]>(loadList);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [silenced, setSilenced] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
+  const starting = useRef(false);
+  const openedToRecord = useRef(false);
   const started = useRef<Date | null>(null);
   const listRef = useRef(list);
 
@@ -282,11 +307,17 @@ export default function App() {
     const t = setInterval(() => {
       if (started.current)
         setElapsed((Date.now() - started.current.getTime()) / 1000);
+      setSilenced(tile()?.silenced?.() ?? false);
     }, 250);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      setSilenced(false);
+    };
   }, [recording]);
 
   const start = async () => {
+    if (recorder.current || starting.current) return;
+    starting.current = true;
     setMicError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -309,6 +340,8 @@ export default function App() {
       setRecording(true);
     } catch (e) {
       setMicError(`Microphone not available: ${(e as Error).message}`);
+    } finally {
+      starting.current = false;
     }
   };
 
@@ -317,6 +350,35 @@ export default function App() {
     recorder.current = null;
     setRecording(false);
   };
+
+  // The tile: window.__sokkiRecord() starts a recording the tile asked for
+  // (when Sokki opens, or from MainActivity if it's already open);
+  // window.__sokkiRecord("stop") stops one.
+  const controls = useRef({ start, stop });
+  useEffect(() => {
+    controls.current = { start, stop };
+  });
+  useEffect(() => {
+    const record = (cmd?: "stop") => {
+      if (cmd === "stop") return controls.current.stop();
+      if (!tile()?.takeStart()) return;
+      openedToRecord.current = true;
+      setView({ name: "list" });
+      setMode("meeting");
+      void controls.current.start();
+    };
+    (window as unknown as { __sokkiRecord: unknown }).__sokkiRecord = record;
+    record();
+  }, []);
+  useEffect(() => {
+    tile()?.recording(recording);
+  }, [recording]);
+  // The first time the Meeting tab shows (after the Mac setup, if that comes
+  // first), offer the tile: Android lets no app add it by itself.
+  const onMeetingTab = pairingKnown && view.name === "list" && mode === "meeting";
+  useEffect(() => {
+    if (onMeetingTab) tile()?.offerTile?.();
+  }, [onMeetingTab]);
 
   if (view.name === "setup") {
     return (
@@ -411,6 +473,12 @@ export default function App() {
             <p className="rec-label">
               {recording ? clock(elapsed) : "Tap to record a meeting"}
             </p>
+            {recording && silenced && (
+              <p className="error">
+                Android mutes the microphone during calls: this part stays
+                silent
+              </p>
+            )}
             {micError && <p className="error">{micError}</p>}
             <p className="hint">Tell everyone you are recording.</p>
           </section>

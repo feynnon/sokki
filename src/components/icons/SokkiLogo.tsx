@@ -37,16 +37,21 @@ export const SokkiMark: React.FC<{ size?: number; className?: string }> = ({
   );
 };
 
-/** Mark and name, for the sidebar. */
-export const SokkiLogo: React.FC<{ className?: string }> = ({
+/** Mark and name: small for the sidebar, large for the welcome screen. */
+export const SokkiLogo: React.FC<{ className?: string; large?: boolean }> = ({
   className,
+  large = false,
 }) => (
   <div
-    className={`flex items-center gap-2 text-text ${className ?? ""}`}
+    className={`flex items-center text-text ${large ? "gap-[10px]" : "gap-2"} ${className ?? ""}`}
     aria-label="Sokki"
     role="img"
   >
-    <SokkiMark size={22} />
-    <span className="text-[19px] font-bold tracking-[-0.02em]">Sokki</span>
+    <SokkiMark size={large ? 44 : 22} />
+    <span
+      className={`font-bold tracking-[-0.02em] ${large ? "text-[28px]" : "text-[19px]"}`}
+    >
+      {"Sokki"}
+    </span>
   </div>
 );

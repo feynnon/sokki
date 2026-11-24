@@ -1,22 +1,23 @@
-/* Sokki Colors: every color the app uses comes from here. Pick by job:
+/* Sokki Colors: every color the app uses comes from here: calm greys and
+ * one blue accent. Pick by job:
  * greys (ink-2, ink-3, line-strong, line, wash) for text, edges and fills;
  * logo-primary / background-ui for brand and primary actions; plum for keys
  * and picks (onboarding); moss / warning / error (+ -wash) for status.
- * demo-*, wordmark and mascot are illustration, not UI.
+ * demo-* and wordmark are illustration, not UI.
  */
 
 :root {
   /* Palette source of truth. Each themed color is defined once as a
      light/dark pair; the active tokens below and the `data-theme` overrides
      in App.css reference these, so a hex value lives in exactly one place. */
-  --light-color-text: #0f0f0f;
-  --light-color-background: #fbfbfb;
-  --light-color-logo-primary: #faa2ca;
-  --light-color-logo-stroke: #382731;
+  --light-color-text: #111214;
+  --light-color-background: #f7f7f8;
+  --light-color-logo-primary: #3567cc;
+  --light-color-logo-stroke: #111214;
 
-  --dark-color-text: #fbfbfb;
-  --dark-color-background: #2c2b29;
-  --dark-color-logo-primary: #f28cbb;
+  --dark-color-text: #ecedef;
+  --dark-color-background: #17181b;
+  --dark-color-logo-primary: #8ab4ff;
 
   /* Status colors. Each has a -wash tint below. */
   --light-color-warning: #d97706;
@@ -24,7 +25,7 @@
   --dark-color-warning: #fbbf24;
   --dark-color-error: #f87171;
 
-  /* Success. Pink already means "recording", so it gets its own hue. */
+  /* Success. Blue already means the brand, so it gets its own hue. */
   --light-color-moss: #2f7d5b;
   --dark-color-moss: #86c9a4;
 
@@ -55,32 +56,28 @@
     ),
     radial-gradient(
       90% 80% at 5% -5%,
-      color-mix(in srgb, #c7b9ef 55%, #fbfbfb) 0%,
+      color-mix(in srgb, #b9c6e6 55%, #fbfbfb) 0%,
       transparent 62%
     ),
-    color-mix(in srgb, #e9e1f3 60%, #fbfbfb);
+    color-mix(in srgb, #e3e8f1 60%, #fbfbfb);
   --dark-demo-wallpaper:
     radial-gradient(
       110% 80% at 90% 105%,
-      color-mix(in srgb, var(--dark-color-logo-primary) 26%, #1b1719) 0%,
+      color-mix(in srgb, var(--dark-color-logo-primary) 26%, #15171b) 0%,
       transparent 60%
     ),
     radial-gradient(
       90% 80% at 5% -5%,
-      color-mix(in srgb, #7c68c0 38%, #1b1719) 0%,
+      color-mix(in srgb, #4b5f8c 38%, #15171b) 0%,
       transparent 62%
     ),
-    #1f1a1e;
+    #191b20;
 
-  /* The wordmark. Dark mode outlines it in white to cut down on pinks. */
+  /* The wordmark. Dark mode outlines it in white. */
   --light-color-wordmark: var(--light-color-logo-primary);
   --light-color-wordmark-stroke: var(--light-color-logo-stroke);
   --dark-color-wordmark: var(--dark-color-logo-primary);
   --dark-color-wordmark-stroke: var(--dark-color-text);
-
-  /* Mascot outline and face; dark mode uses the background, not muddy plum. */
-  --light-color-mascot-line: var(--light-color-logo-stroke);
-  --dark-color-mascot-line: var(--dark-color-background);
 
   /* Demo's recording pill ring and shadow. */
   --light-demo-pill-shadow:
@@ -124,30 +121,29 @@
   );
 
   /* Tokens that do not change between light and dark */
-  --color-background-ui: #da5893;
+  --color-background-ui: #3567cc;
   --color-mid-gray: #808080;
 
-  /* Active palette — defaults to light, follows the OS via the media query
-     below, or is forced by `data-theme` (see the overrides below). */
-  --color-text: var(--light-color-text);
-  --color-background: var(--light-color-background);
-  --color-logo-primary: var(--light-color-logo-primary);
-  --color-warning: var(--light-color-warning);
-  --color-error: var(--light-color-error);
-  --color-moss: var(--light-color-moss);
-  --color-plum: var(--light-color-plum);
-  --demo-pill-shadow: var(--light-demo-pill-shadow);
-  --color-demo-window: var(--light-color-demo-window);
-  --color-demo-lid: var(--light-color-demo-lid);
-  --color-demo-alu-hi: var(--light-color-demo-alu-hi);
-  --color-demo-alu-lo: var(--light-color-demo-alu-lo);
-  --demo-wallpaper: var(--light-demo-wallpaper);
-  --color-wordmark: var(--light-color-wordmark);
-  --color-wordmark-stroke: var(--light-color-wordmark-stroke);
-  --color-mascot-line: var(--light-color-mascot-line);
-  --color-moss-wash: var(--light-color-moss-wash);
-  --color-warning-wash: var(--light-color-warning-wash);
-  --color-error-wash: var(--light-color-error-wash);
+  /* Active palette: dark, whatever macOS is set to. `data-theme="light"`
+     (the Light appearance setting) switches it below. */
+  --color-text: var(--dark-color-text);
+  --color-background: var(--dark-color-background);
+  --color-logo-primary: var(--dark-color-logo-primary);
+  --color-warning: var(--dark-color-warning);
+  --color-error: var(--dark-color-error);
+  --color-moss: var(--dark-color-moss);
+  --color-plum: var(--dark-color-plum);
+  --demo-pill-shadow: var(--dark-demo-pill-shadow);
+  --color-demo-window: var(--dark-color-demo-window);
+  --color-demo-lid: var(--dark-color-demo-lid);
+  --color-demo-alu-hi: var(--dark-color-demo-alu-hi);
+  --color-demo-alu-lo: var(--dark-color-demo-alu-lo);
+  --demo-wallpaper: var(--dark-demo-wallpaper);
+  --color-wordmark: var(--dark-color-wordmark);
+  --color-wordmark-stroke: var(--dark-color-wordmark-stroke);
+  --color-moss-wash: var(--dark-color-moss-wash);
+  --color-warning-wash: var(--dark-color-warning-wash);
+  --color-error-wash: var(--dark-color-error-wash);
 
   /* Grey steps: secondary text, hints/icons, control edges, dividers, hover fill. */
   --color-ink-2: color-mix(in srgb, var(--color-text) 60%, transparent);
@@ -165,36 +161,11 @@
   --color-plum-faint: color-mix(in srgb, var(--color-plum) 22%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-text: var(--dark-color-text);
-    --color-background: var(--dark-color-background);
-    --color-logo-primary: var(--dark-color-logo-primary);
-    --color-warning: var(--dark-color-warning);
-    --color-error: var(--dark-color-error);
-    --color-moss: var(--dark-color-moss);
-    --color-plum: var(--dark-color-plum);
-    --demo-pill-shadow: var(--dark-demo-pill-shadow);
-    --color-demo-window: var(--dark-color-demo-window);
-    --color-demo-lid: var(--dark-color-demo-lid);
-    --color-demo-alu-hi: var(--dark-color-demo-alu-hi);
-    --color-demo-alu-lo: var(--dark-color-demo-alu-lo);
-    --demo-wallpaper: var(--dark-demo-wallpaper);
-    --color-wordmark: var(--dark-color-wordmark);
-    --color-wordmark-stroke: var(--dark-color-wordmark-stroke);
-    --color-mascot-line: var(--dark-color-mascot-line);
-    --color-moss-wash: var(--dark-color-moss-wash);
-    --color-warning-wash: var(--dark-color-warning-wash);
-    --color-error-wash: var(--dark-color-error-wash);
-  }
-}
-
 /*
  * Explicit theme override, driven by the `theme` setting via
  * `document.documentElement.dataset.theme`. When set, the higher-specificity
- * attribute selectors win over the `prefers-color-scheme` media query above,
- * so a user can keep Sokki light or dark regardless of the OS setting.
- * `system` (or no attribute) leaves the OS in charge.
+ * attribute selectors win over the defaults above. Sokki never follows the
+ * OS appearance; an old `system` setting is shown dark.
  *
  * Lives here (not in App.css) so every window that imports the shared palette —
  * the settings window and the recording overlay alike — honours the override.
@@ -215,7 +186,6 @@
   --demo-wallpaper: var(--light-demo-wallpaper);
   --color-wordmark: var(--light-color-wordmark);
   --color-wordmark-stroke: var(--light-color-wordmark-stroke);
-  --color-mascot-line: var(--light-color-mascot-line);
   --color-moss-wash: var(--light-color-moss-wash);
   --color-warning-wash: var(--light-color-warning-wash);
   --color-error-wash: var(--light-color-error-wash);
@@ -237,8 +207,73 @@
   --demo-wallpaper: var(--dark-demo-wallpaper);
   --color-wordmark: var(--dark-color-wordmark);
   --color-wordmark-stroke: var(--dark-color-wordmark-stroke);
-  --color-mascot-line: var(--dark-color-mascot-line);
   --color-moss-wash: var(--dark-color-moss-wash);
   --color-warning-wash: var(--dark-color-warning-wash);
   --color-error-wash: var(--dark-color-error-wash);
+}
+
+/* Surfaces: the page, a slightly lighter card, a darker sidebar, and the
+   chosen segment of a picker (lighter than its track). */
+:root {
+  --vb-card: color-mix(in srgb, var(--color-text) 4%, var(--color-background));
+  --vb-sidebar: color-mix(in srgb, black 18%, var(--color-background));
+  --vb-segment: color-mix(
+    in srgb,
+    var(--color-text) 16%,
+    var(--color-background)
+  );
+  /* One size for every settings control. */
+  --vb-control-w: 232px;
+  --vb-control-h: 30px;
+}
+:root[data-theme="light"] {
+  --vb-card: #ffffff;
+  --vb-sidebar: #eceef1;
+  --vb-segment: #ffffff;
+}
+.vb-card {
+  background: var(--vb-card);
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+}
+
+/* Main window (design C, 2026-11-21): the recording bar, the meeting list
+   and the "Your data" overview. Dark first; light only when chosen. */
+:root {
+  --vb-rec: #ff6961;
+  --vb-rec-fill: #c9271d;
+  --vb-rec-bar: #2a1817;
+  --vb-rec-line: rgba(255, 69, 58, 0.14);
+  --vb-accent-wash: rgba(138, 180, 255, 0.13);
+  --vb-glow: #1e3a6e;
+  --vb-day: #33363c;
+  --vb-flat: #4a4d54;
+  --vb-list: color-mix(in srgb, var(--color-text) 2%, var(--color-background));
+}
+:root[data-theme="light"] {
+  --vb-rec: #c4140b;
+  --vb-rec-bar: #fdecea;
+  --vb-rec-line: rgba(255, 59, 48, 0.1);
+  --vb-accent-wash: rgba(53, 103, 204, 0.09);
+  --vb-glow: #dce8ff;
+  --vb-day: #d5d8dd;
+  --vb-flat: #c9ccd2;
+  --vb-list: #f0f1f3;
+}
+@keyframes vb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.vb-pulse {
+  animation: vb-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vb-pulse {
+    animation: none;
+  }
 }

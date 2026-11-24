@@ -20,8 +20,9 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-ID=org.sokki.test
-NAME="Sokki Test"
+# TEST_ID/TEST_NAME: a second test app, so two sessions can test side by side.
+ID="${TEST_ID:-org.sokki.test}"
+NAME="${TEST_NAME:-Sokki Test}"
 TESTAPP="${TESTAPP:-$HOME/Applications/$NAME.app}"
 DATA="$HOME/Library/Application Support/$ID"
 LOG="$HOME/Library/Logs/$ID/sokki.log"

@@ -4,8 +4,6 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Request microphone access to transcribe audio locally</string>
-  <key>NSCameraUsageDescription</key>
-  <string>Record yourself with your screen, when you choose to. Videos stay on this Mac.</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>Record the sound from your speakers, such as a meeting in Slack or Google Meet, to transcribe it locally</string>
 </dict>

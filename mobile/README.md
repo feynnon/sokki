@@ -21,6 +21,47 @@ Nothing is stored in between.
   relay (open source) or pay n0. A paid mailbox for "send while the Mac is
   off" is an idea for a waitlist, not built.
 
+## Quick Settings tile ("Record meeting" / "Meeting aufnehmen")
+
+The first time the Meeting tab shows, Sokki offers it with Android's own
+"Add tile" dialog (Android 13+, once per install). By hand: swipe down
+twice, tap the pencil, find **Record meeting** (Sokki) among all tiles and
+drag it into the panel. Android 17 (Pixel 7, 2026-11-24) shows a newly
+added tile as a small square with only the icon; in edit mode, tap it and
+drag its edge to make it wide with its text. No app can add the tile itself
+or choose its size. Tapping it opens Sokki already recording (the same
+recording as the red button); tapping it again stops the recording without opening anything,
+and it goes to the Mac as usual. While Sokki records, the tile is on and
+says "Recording". `RecordTile.kt`; the page reports its state through
+`window.SokkiRecorder`.
+
+It has to open Sokki: Android lets a tile start a foreground service, but
+not one that uses the microphone (SecurityException, tested on Android 15).
+Sokki then records like after a tap on its button: on screen, screen kept on.
+
+**Phone calls** (tested on the emulator, Android 15, 2026-11-23): while a
+call is active (audio mode `IN_CALL`), Android gives Sokki silence. A
+recording started during a call runs and shows its clock, but Android marks
+it `silenced` the whole time; a recording that is running when a call comes
+in keeps going and is silent exactly while the call is active (ringing is
+not silenced). Neither your own voice nor the other side gets in. Android
+does the same for internet calls (`IN_COMMUNICATION`, e.g. WhatsApp); the
+call audio itself is only open to pre-installed system apps. While Android
+silences the recording, a line under the clock says so
+(`SokkiRecorder.silenced()`). Check on a device:
+`adb shell dumpsys audio | grep silenced`.
+
+**No notes of phone calls** (Robin, 2026-11-24). Sokki doesn't transcribe
+phone or internet calls on the phone and doesn't try to get around Android.
+These ways around it were looked at and dropped:
+- rooting the phone (BCR, phone calls only);
+- the Mac posing as the phone's Bluetooth headset (you would talk to the
+  Mac, not the phone);
+- importing the Pixel's own call recordings.
+
+German law (§ 201 StGB) needs the other side's OK, and a phone call has no
+chat for Sokki's notice. See MEETINGS.md, "Other people's voices".
+
 ## Keyboard (voice typing in every app)
 
 `keyboard/` is HeliBoard 4.2 (see `keyboard/UPSTREAM`) built into the app
@@ -34,7 +75,7 @@ HeliBoard are marked "Sokki" in the code:
   to stop; the mic is red while listening.
 - Setup in the app (Dictate tab): two buttons open Android's keyboard list
   and picker; a third asks for the microphone if needed.
-- Debug builds: `Android/data/dev.verbatim.mobile/files/sokki_test.wav`
+- Debug builds: `Android/data/org.sokki.app/files/sokki_test.wav`
   (16 kHz mono) is "spoken" instead of the microphone, for tests on the
   emulator.
 
@@ -59,6 +100,12 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-u
   microphone (debug builds); `bun scripts/cdp.ts eval '<js>'` reads app state;
   `window.__verbatim.pair(ticket)` and `.checkAgain()` drive the link.
 - Screens: `adb exec-out screencap -p > shot.png`; taps: `adb shell input tap x y`.
+- New worktree with `src-tauri/target` copied from another checkout: the
+  build fails with "Unresolved reference 'TauriActivity'". Tauri's build
+  script writes `gen/android/.../generated/TauriActivity.kt` but only runs
+  again when that file changes at the old checkout's path. Run this once,
+  then build again:
+  `cargo clean -p tauri --target aarch64-linux-android --manifest-path src-tauri/Cargo.toml`
 
 The Mac side is `src-tauri/src/meeting/phone_link.rs` in the main app.
 

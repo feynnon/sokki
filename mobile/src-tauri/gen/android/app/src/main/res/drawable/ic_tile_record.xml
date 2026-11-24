@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Settings tile icon: Sokki's bars (the logo in mobile/src/App.tsx). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,12.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0zM13,18.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0zM21,24.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0zM29.5,30.5a2.5,2.5 0,0 1,5 0v21a2.5,2.5 0,0 1,-5 0zM38,24.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0zM46,18.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0zM54,12.5a2.5,2.5 0,0 1,5 0v17a2.5,2.5 0,0 1,-5 0z" />
+</vector>

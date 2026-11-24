@@ -41,7 +41,7 @@ blob-report/
 .envrc
 
 # Nix build output
-result
+/result
 
 # Python bytecode (scripts/)
 __pycache__/

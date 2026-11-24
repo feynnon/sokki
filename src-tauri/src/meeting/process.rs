@@ -274,19 +274,21 @@ fn process(
         }
     }
 
-    store.update(id, |r| {
-        r.status = MeetingStatus::Done;
-        r.title = Some(out.title.clone());
-        r.note_path = Some(out.note_path.to_string_lossy().into_owned());
-        r.speakers = out.speakers.clone();
-        r.warnings = out.warnings.clone();
-        r.summary_missing = out.summary_missing.map(Into::into);
-        r.duration_s = out.duration_s;
-        r.online = Some(out.online);
-        if delete_audio {
-            r.audio_deleted = true;
-        }
-    })?;
+    store
+        .update(id, |r| {
+            r.status = MeetingStatus::Done;
+            super::title::set_processed(r, &out.title, out.summary_missing.is_some());
+            r.note_path = Some(out.note_path.to_string_lossy().into_owned());
+            r.speakers = out.speakers.clone();
+            r.warnings = out.warnings.clone();
+            r.summary_missing = out.summary_missing.map(Into::into);
+            r.duration_s = out.duration_s;
+            r.online = Some(out.online);
+            if delete_audio {
+                r.audio_deleted = true;
+            }
+        })
+        .inspect(super::title::write_typed_into_note)?;
     crate::milestones::add_meeting(app, id, out.duration_s);
     emit_changed(app, id);
     notify_done(app, &out.note_path);
@@ -363,14 +365,12 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
     set_stage(app, store, id, "summarizing", None);
     let result = sokki_engine::summarize_note(&note_path, &engine);
     clear_menu_bar_status(app);
-    let _ = store.update(id, |r| {
+    let updated = store.update(id, |r| {
         r.status = MeetingStatus::Done;
         match &result {
             Ok(done) => {
                 r.note_path = Some(done.note_path.to_string_lossy().into_owned());
-                if let Some(t) = &done.title {
-                    r.title = Some(t.clone());
-                }
+                super::title::set_summarized(r, done.title.as_deref());
                 r.summary_missing = None;
                 r.warnings.retain(|w| {
                     w != sokki_engine::SUMMARY_WAITING && w != sokki_engine::SUMMARY_FAILED
@@ -379,6 +379,9 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
             Err(_) => set_summary_missing(r, SummaryMissing::Failed),
         }
     });
+    if let Ok(r) = updated {
+        super::title::write_typed_into_note(&r);
+    }
     match result {
         Ok(done) => log::info!(
             "Meeting {id}: summary added to {}",
@@ -802,6 +805,8 @@ mod tests {
             summary_missing: None,
             audio_deleted: false,
             online: None,
+            title_by_hand: false,
+            title_provisional: false,
         }
     }
 

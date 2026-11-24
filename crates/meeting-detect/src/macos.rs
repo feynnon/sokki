@@ -258,3 +258,109 @@ pub(crate) fn audio_input_clients() -> Result<Vec<AudioClient>> {
     }
     Ok(clients)
 }
+
+// ---- browser windows, to name a call in a browser ----
+
+type CFArrayRef = *const c_void;
+type CFDictionaryRef = *const c_void;
+type CFNumberRef = *const c_void;
+
+const WINDOW_LIST_ALL: u32 = 0; // kCGWindowListOptionAll
+const NULL_WINDOW: u32 = 0; // kCGNullWindowID
+const CF_NUMBER_SINT64: i32 = 4; // kCFNumberSInt64Type
+
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGWindowListCopyWindowInfo(option: u32, relative_to: u32) -> CFArrayRef;
+    static kCGWindowOwnerPID: CFStringRef;
+    static kCGWindowName: CFStringRef;
+    static kCGWindowLayer: CFStringRef;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    fn CFArrayGetCount(a: CFArrayRef) -> CFIndex;
+    fn CFArrayGetValueAtIndex(a: CFArrayRef, i: CFIndex) -> *const c_void;
+    fn CFDictionaryGetValue(d: CFDictionaryRef, key: *const c_void) -> *const c_void;
+    fn CFNumberGetValue(n: CFNumberRef, kind: i32, out: *mut c_void) -> u8;
+}
+
+fn dict_i64(d: CFDictionaryRef, key: CFStringRef) -> Option<i64> {
+    let n = unsafe { CFDictionaryGetValue(d, key) };
+    if n.is_null() {
+        return None;
+    }
+    let mut v: i64 = 0;
+    (unsafe { CFNumberGetValue(n, CF_NUMBER_SINT64, &mut v as *mut i64 as *mut c_void) } != 0)
+        .then_some(v)
+}
+
+/// The windows of normal apps (layer 0), front to back, with their titles.
+/// macOS gives other apps' window titles only to an app allowed to record
+/// the screen; without that the titles are empty.
+fn windows() -> Vec<crate::hyprland::Window> {
+    let list = unsafe { CGWindowListCopyWindowInfo(WINDOW_LIST_ALL, NULL_WINDOW) };
+    if list.is_null() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let n = unsafe { CFArrayGetCount(list) };
+    for i in 0..n {
+        let d = unsafe { CFArrayGetValueAtIndex(list, i) };
+        if d.is_null() || dict_i64(d, unsafe { kCGWindowLayer }) != Some(0) {
+            continue;
+        }
+        let Some(pid) = dict_i64(d, unsafe { kCGWindowOwnerPID }) else {
+            continue;
+        };
+        let name = unsafe { CFDictionaryGetValue(d, kCGWindowName) };
+        let title = if name.is_null() {
+            String::new()
+        } else {
+            cfstring_to_string(name).unwrap_or_default()
+        };
+        out.push(crate::hyprland::Window {
+            class: String::new(),
+            title,
+            pid: pid as u32,
+            focus_history_id: out.len() as i64,
+        });
+    }
+    unsafe { CFRelease(list) };
+    out
+}
+
+/// The app bundle a path is in ("/Applications/Google Chrome.app"), so a
+/// helper process and the app's windows count as one app.
+fn bundle_root(path: &str) -> &str {
+    path.find(".app/").map_or(path, |i| &path[..i + 4])
+}
+
+/// Names browser calls from the browser's window titles (a tab "Meet – …").
+/// Looks only when a browser holds the mic.
+pub(crate) fn name_calls(apps: &mut [crate::MeetingApp]) {
+    if !apps.iter().any(|a| a.kind == crate::AppKind::Browser) {
+        return;
+    }
+    let windows = windows();
+    crate::hyprland::name_calls_by(apps, &windows, |app, w| {
+        match (app.exe_path.as_deref(), pid_executable_path(w.pid)) {
+            (Some(a), Some(b)) => bundle_root(a) == bundle_root(&b),
+            _ => false,
+        }
+    });
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::bundle_root;
+
+    #[test]
+    fn helpers_belong_to_their_app_bundle() {
+        let helper = "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/131.0/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper";
+        let main = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+        assert_eq!(bundle_root(helper), bundle_root(main));
+        assert_eq!(bundle_root(main), "/Applications/Google Chrome.app");
+        assert_eq!(bundle_root("/usr/bin/x"), "/usr/bin/x");
+    }
+}

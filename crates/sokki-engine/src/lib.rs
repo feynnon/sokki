@@ -24,6 +24,6 @@ pub mod speakers;
 pub mod tracks;
 
 pub use process::{
-    run, summarize_note, Deps, Input, Output, Settings, Stage, Summarized, SummaryMissing,
-    SUMMARY_FAILED, SUMMARY_WAITING,
+    provisional_title, run, summarize_note, Deps, Input, Output, Settings, Stage, Summarized,
+    SummaryMissing, SUMMARY_FAILED, SUMMARY_WAITING,
 };

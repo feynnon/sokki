@@ -24,8 +24,6 @@ mod managers;
 pub mod meeting;
 #[cfg(target_os = "macos")]
 pub mod video;
-#[cfg(target_os = "macos")]
-mod video_bar;
 mod memory;
 mod milestones;
 mod notices;
@@ -883,17 +881,13 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
             commands::meeting::get_meeting_note,
-            commands::video::video_sources,
-            commands::video::video_request_access,
-            commands::video::video_start,
+            commands::meeting::meeting_prompt_answer,
+            commands::video::start_meeting_with_screen,
             commands::video::video_list,
-            commands::video::video_set_look,
-            commands::video::video_delete,
             commands::video::video_reveal,
-            commands::video::video_bar_show,
-            commands::video::video_bar_hide,
-            commands::video::video_bubble,
-            commands::video::set_video_settings,
+            commands::video::screen_permission,
+            commands::video::request_screen_permission,
+            commands::meeting::request_system_audio_permission,
             commands::voice::voice_data_stats,
             commands::voice::usage_totals,
             commands::voice::pending_message,
@@ -914,6 +908,8 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::start_ollama,
             commands::meeting::pull_meeting_llm,
             commands::meeting::rename_meeting_speaker,
+            commands::meeting::set_meeting_title,
+            commands::meeting::date_format_locale,
             commands::meeting::list_voice_profiles,
             commands::meeting::delete_voice_profile,
             commands::audio::get_microphone_mode,

@@ -180,12 +180,12 @@
       "tapAgain": "انقر على <keys/> مرة أخرى عندما تنتهي.",
       "watch": "راقب الملاحظة.",
       "changeKeys": "غيّر اختصارك، {{keys}}",
-      "doneHold": "كفّك! هذا هو الضغط المطوّل.",
+      "doneHold": "هذا هو الضغط المطوّل.",
       "doneHoldNext": "التالي، طريقة بلا استخدام اليدين.",
       "doneTap": "هات كفّك! هذا هو النقر.",
       "doneTapNext": "الآن جرّب الضغط المطوّل أثناء حديثك.",
-      "giveFive": "أحسنت! هات كفّك",
-      "highFive": "كفّك",
+      "gotIt": "أحسنت!",
+      "finish": "إنهاء",
       "slowLine": "استغرق {{name}} {{wait}} على هذا الكمبيوتر. <faster>جرّب نموذجًا أسرع</faster>",
       "nothingTyped": "همم، لم يُكتب شيء.",
       "nothingTypedSub": "انقر داخل الملاحظة أولًا، ثم أعد المحاولة.",
@@ -193,7 +193,6 @@
       "silentSub": "لم يصل أي صوت من هذا الميكروفون. جرّب ميكروفونًا آخر:",
       "noWords": "لم ألتقط أي كلمات.",
       "noWordsSub": "أعد المحاولة، وقل جملة كاملة.",
-      "finish": "إنهاء",
       "skip": "تخطي",
       "seconds": "{{value}} ث"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki الآن في شريط القوائم. اضغط مطوّلًا أو انقر على <keys/> في أي تطبيق لتتحدث.",
       "subTray": "Sokki الآن في صينية النظام. اضغط مطوّلًا أو انقر على <keys/> في أي تطبيق لتتحدث.",
       "hint": "يمكنك تغيير هذه لاحقًا من الإعدادات",
-      "highFiveLabel": "كفّك",
+      "markLabel": "Sokki",
       "atLogin": "تشغيل Sokki عند تسجيل الدخول",
       "finish": "تم",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

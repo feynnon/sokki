@@ -180,12 +180,12 @@
       "tapAgain": "Ketuk <keys/> lagi kalau sudah selesai.",
       "watch": "Perhatikan catatannya.",
       "changeKeys": "Ubah pintasan Anda, {{keys}}",
-      "doneHold": "Tos! Itu cara menahan.",
+      "doneHold": "Itu cara menahan.",
       "doneHoldNext": "Selanjutnya, cara tanpa tangan.",
       "doneTap": "Tos! Itu cara mengetuk.",
       "doneTapNext": "Sekarang coba tahan tombolnya sambil bicara.",
-      "giveFive": "Berhasil! Tos dong",
-      "highFive": "Tos",
+      "gotIt": "Berhasil!",
+      "finish": "Selesai",
       "slowLine": "{{name}} butuh {{wait}} di komputer ini. <faster>Coba model yang lebih cepat</faster>",
       "nothingTyped": "Hmm, tidak ada yang masuk.",
       "nothingTypedSub": "Klik dulu ke dalam catatan, lalu coba lagi.",
@@ -193,7 +193,6 @@
       "silentSub": "Tidak ada suara dari mikrofon ini. Coba yang lain:",
       "noWords": "Saya tidak menangkap kata apa pun.",
       "noWordsSub": "Coba lagi, dan ucapkan satu kalimat utuh.",
-      "finish": "Selesai",
       "skip": "Lewati",
       "seconds": "{{value}} dtk"
     },
@@ -202,7 +201,7 @@
       "subMac": "Sokki kini ada di bilah menu Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
       "subTray": "Sokki kini ada di baki sistem Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
       "hint": "Anda dapat mengubahnya nanti di Pengaturan",
-      "highFiveLabel": "Tos",
+      "markLabel": "Sokki",
       "atLogin": "Jalankan Sokki saat saya masuk",
       "finish": "Selesai",
       "panel": {
@@ -1121,7 +1120,23 @@
       "invite": "Set up your phone",
       "inviteDescription": "Opens your mail app with install steps for your phone and other devices. Send it to yourself.",
       "inviteButton": "Email me the setup"
-    }
+    },
+    "titleProvisional": "Provisional title",
+    "titleEdit": "Edit title",
+    "titleEditHint": "Enter saves, Esc cancels.",
+    "place": {
+      "phone": "Phone",
+      "online": "Online",
+      "inPerson": "In person"
+    },
+    "others": {
+      "withOthers_one": "{{names}} and 1 other",
+      "withOthers_other": "{{names}} and {{count}} others",
+      "only_one": "1 other person",
+      "only_other": "{{count}} other people"
+    },
+    "placeholder": "{{place}}, {{time}}",
+    "placeholderNoPlace": "Meeting, {{time}}"
   },
   "sokki": {
     "nav": {

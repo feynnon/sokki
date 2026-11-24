@@ -311,8 +311,8 @@ impl SoundTheme {
     }
 }
 
-/// UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
-/// and `Dark` force one of the two palettes Sokki already ships.
+/// UI appearance mode. Sokki is dark whatever the OS is set to: `System` is
+/// kept only so older settings files still load, and is shown dark.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
@@ -576,41 +576,6 @@ pub struct AppSettings {
     /// Meeting notes (this fork): recording, speakers, summary and the notes folder.
     #[serde(default)]
     pub meetings: MeetingSettings,
-    /// Screen and camera recording (`video/`): on or off, and the choices
-    /// from the last recording.
-    #[serde(default)]
-    pub videos: VideoSettings,
-}
-
-/// Screen and camera recording. Every field falls back to its default when
-/// missing, so older stores load unchanged.
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
-#[serde(default)]
-pub struct VideoSettings {
-    /// Off hides recording the screen and camera everywhere: the Videos page,
-    /// "Meeting with screen" and the screen option when a call is detected.
-    pub enabled: bool,
-    /// What the last recording used: "both", "screen" or "camera".
-    pub mode: String,
-    /// How the finished video looks: "bubble", "side", "vertical" or "files"
-    /// (screen and camera only as separate files).
-    pub look: String,
-    /// Display to record (Core Graphics display id). `None`: the main display.
-    pub display: Option<u32>,
-    /// Camera to record (AVFoundation unique id). `None`: the default camera.
-    pub camera: Option<String>,
-}
-
-impl Default for VideoSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            mode: "both".into(),
-            look: "bubble".into(),
-            display: None,
-            camera: None,
-        }
-    }
 }
 
 /// Settings for meeting notes. Every field falls back to its default when
@@ -857,7 +822,7 @@ fn default_sound_theme() -> SoundTheme {
 }
 
 fn default_theme() -> Theme {
-    Theme::System
+    Theme::Dark
 }
 
 fn default_post_process_enabled() -> bool {
@@ -1245,7 +1210,6 @@ pub fn get_default_settings() -> AppSettings {
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
         meetings: MeetingSettings::default(),
-        videos: VideoSettings::default(),
     }
 }
 

@@ -158,20 +158,31 @@ pub fn name_calls(
     windows: &[Window],
     exe_of: impl Fn(u32) -> Option<String>,
 ) {
+    let exes: std::collections::HashMap<u32, Option<String>> =
+        windows.iter().map(|w| (w.pid, exe_of(w.pid))).collect();
+    name_calls_by(apps, windows, |app, w| {
+        let binary = app.exe_path.as_deref().map(file_name);
+        binary.is_some() && exes[&w.pid].as_deref().map(file_name) == binary
+    });
+}
+
+/// [`name_calls`] with the platform's own test of which windows belong to
+/// a browser (`same_app(browser, window)`).
+pub fn name_calls_by(
+    apps: &mut [MeetingApp],
+    windows: &[Window],
+    same_app: impl Fn(&MeetingApp, &Window) -> bool,
+) {
     let mut windows: Vec<&Window> = windows.iter().collect();
     // Never-focused windows (-1) last.
     windows.sort_by_key(|w| u64::try_from(w.focus_history_id).unwrap_or(u64::MAX));
-    let exes: Vec<Option<String>> = windows.iter().map(|w| exe_of(w.pid)).collect();
     for app in apps.iter_mut().filter(|a| a.kind == AppKind::Browser) {
-        let Some(binary) = app.exe_path.as_deref().map(file_name) else {
-            continue;
-        };
-        app.call = windows
+        let call = windows
             .iter()
-            .zip(&exes)
-            .filter(|(_, exe)| exe.as_deref().map(file_name) == Some(binary))
-            .find_map(|(w, _)| call_service(&w.class, &w.title))
+            .filter(|w| same_app(app, w))
+            .find_map(|w| call_service(&w.class, &w.title))
             .map(str::to_string);
+        app.call = call;
     }
 }
 

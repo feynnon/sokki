@@ -1,0 +1,247 @@
+# AI testers for Sokki on Android: builds a debug APK of Sokki, then gives
+# each persona (tests/agent-testers/personas.json) its own emulator, driven by
+# a headless Claude Code agent that uses the app like a new user and writes a
+# bug report with screenshots. How to run it, what it costs and what it can't
+# test: tests/agent-testers/README.md.
+#
+# Runs only by hand (Actions → Agent testers → Run workflow), or after a
+# release when the repo variable AGENT_TESTERS_ON_RELEASE is "true".
+# Never on push or pull request: forks get no secrets and no runs.
+# Cost: each phone stops at budget_per_phone dollars (Claude Code's
+# --max-budget-usd); the run refuses to start above AGENT_TESTERS_MAX_RUN_USD.
+# Results (screenshots, reports) are encrypted with results_public.pem before
+# upload: the logs of a public repo are public, the results are not.
+#
+# Adapted from pierridotite/mobile-agent-testers at d610b95a (MIT). Every
+# action is pinned to a commit.
+name: Agent testers
+
+on:
+  workflow_dispatch:
+    inputs:
+      personas:
+        description: "Personas, comma-separated (all = every one). lena, tom, ada, jonas, camille, lucia, marek, noor"
+        default: "lena,tom,ada"
+      brief:
+        description: "Mission: explore (new users, own goals), one feature end to end, reproduce a bug, or improve (for comparing two builds)"
+        type: choice
+        options:
+          [explore, onboarding, keyboard, meeting, settings, reproduce, improve]
+        default: explore
+      bug_report:
+        description: "For reproduce: an issue (owner/repo#123 or its URL) or the steps as text"
+        default: ""
+      ref:
+        description: "Branch, tag or SHA of Sokki to build (empty = this run's commit). Compare: run twice with two refs"
+        default: ""
+      model:
+        description: "Claude model"
+        type: choice
+        options: [sonnet, haiku, opus]
+        default: sonnet
+      budget_per_phone:
+        description: "Dollar cap per phone (at most 2)"
+        default: "0.80"
+      record_video:
+        description: "Record each phone's screen (encrypted with the results)"
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  issues: read # reproduce: read the issue
+
+concurrency:
+  group: agent-testers # one run at a time: costs never stack up
+  cancel-in-progress: false
+
+env:
+  PERSONAS: ${{ inputs.personas || 'lena,tom,ada' }}
+  BRIEF_NAME: ${{ inputs.brief || 'explore' }}
+  MODEL: ${{ inputs.model || 'sonnet' }}
+  BUDGET_USD: ${{ inputs.budget_per_phone || '0.80' }}
+  APP_REF: ${{ inputs.ref || github.sha }}
+  MODEL_URL: https://huggingface.co/handy-computer/parakeet-ultra-gguf/resolve/main/parakeet-ultra-Q8_0.gguf
+  SPEECH_MODEL: parakeet-ultra-Q8_0.gguf
+
+jobs:
+  plan:
+    if: github.repository == 'feynnon/sokki' && (github.event_name == 'workflow_dispatch' || vars.AGENT_TESTERS_ON_RELEASE == 'true')
+    runs-on: ubuntu-24.04
+    outputs:
+      android: ${{ steps.m.outputs.android }}
+      speech: ${{ steps.m.outputs.speech }}
+      brief: ${{ steps.b.outputs.brief }}
+      preload: ${{ steps.b.outputs.preload }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Check setup (without printing any secret)
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          test -s tests/agent-testers/results_public.pem || { echo "::error::tests/agent-testers/results_public.pem is missing"; exit 1; }
+          [ "$HAS_KEY" = true ] || { echo "::error::The ANTHROPIC_API_KEY secret is not set (Settings → Secrets and variables → Actions)"; exit 1; }
+      - id: b
+        run: |
+          case "$BRIEF_NAME" in
+            explore) echo "brief=AGENT_BRIEF.md" ;;
+            *) echo "brief=briefs/$BRIEF_NAME.md" ;;
+          esac >> "$GITHUB_OUTPUT"
+          # onboarding tests the model download itself
+          [ "$BRIEF_NAME" = onboarding ] && echo "preload=false" >> "$GITHUB_OUTPUT" || echo "preload=true" >> "$GITHUB_OUTPUT"
+      - id: m
+        name: Personas and cost cap
+        env:
+          MAX_RUN_USD: ${{ vars.AGENT_TESTERS_MAX_RUN_USD || '7' }}
+        run: |
+          python3 tests/agent-testers/scripts/matrix.py > "$RUNNER_TEMP/m.txt"
+          cat "$RUNNER_TEMP/m.txt" >> "$GITHUB_OUTPUT"
+          cap=$(grep '^cap=' "$RUNNER_TEMP/m.txt" | cut -d= -f2)
+          { echo "### Agent testers"
+            echo "- Personas: \`$PERSONAS\` · mission: \`$BRIEF_NAME\` · model: \`$MODEL\` · Sokki: \`$APP_REF\`"
+            echo "- Spend cap for this run: **\$$cap** (\$$BUDGET_USD per phone, run limit \$$MAX_RUN_USD)"; } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: "${{ env.APP_REF }}", persist-credentials: false }
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          {
+            distribution: temurin,
+            java-version: "17",
+            cache: gradle,
+            cache-dependency-path: "mobile/**/*.gradle*",
+          }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Rust for Android x86_64, NDK
+        run: |
+          rustup target add x86_64-linux-android
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" >/dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with: { workspaces: "mobile/src-tauri -> target", key: android-x86_64 }
+      - name: Build debug APK (x86_64, for the emulator)
+        working-directory: mobile
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+        run: |
+          export ANDROID_NDK_ROOT="$NDK_HOME" ANDROID_NDK="$NDK_HOME"
+          bun install --frozen-lockfile
+          bun run tauri android build --debug --target x86_64 --apk
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk "$GITHUB_WORKSPACE/app.apk"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: sokki-apk, path: app.apk, retention-days: 3 }
+
+  model:
+    needs: plan
+    if: needs.plan.outputs.preload == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - id: c
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          {
+            path: "model/${{ env.SPEECH_MODEL }}",
+            key: "speech-${{ env.SPEECH_MODEL }}",
+          }
+      - if: steps.c.outputs.cache-hit != 'true'
+        run: mkdir -p model && curl -fsSL --retry 3 -o "model/$SPEECH_MODEL" "$MODEL_URL"
+
+  android:
+    needs: [plan, build, model]
+    if: always() && needs.build.result == 'success' && (needs.model.result == 'success' || needs.model.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.android) }}
+    defaults:
+      run: { working-directory: tests/agent-testers }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { name: sokki-apk, path: tests/agent-testers }
+      - if: needs.plan.outputs.preload == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          {
+            path: "model/${{ env.SPEECH_MODEL }}",
+            key: "speech-${{ env.SPEECH_MODEL }}",
+            fail-on-cache-miss: true,
+          }
+      - name: Tools (pinned)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq espeak-ng sox pulseaudio pulseaudio-utils >/dev/null
+          pip install -q pillow==11.3.0
+          npm install -g --silent @anthropic-ai/claude-code@2.1.330
+      - name: Test audio (synthetic voice, made-up sentences) and virtual microphone
+        run: |
+          bash scripts/make_audio.sh "$RUNNER_TEMP/audio" "${{ matrix.speech }}"
+          bash scripts/mic_feed.sh setup
+      - name: Enable KVM
+        working-directory: .
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Device profile (fallback to pixel_6)
+        id: profile
+        env: { WANTED: "${{ matrix.profile }}" }
+        run: |
+          if "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" list device -c 2>/dev/null | grep -qx "$WANTED"; then echo "profile=$WANTED" >> "$GITHUB_OUTPUT"
+          else echo "profile=pixel_6" >> "$GITHUB_OUTPUT"; echo "Profile $WANTED missing, pixel_6 used" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Bug report to reproduce
+        if: inputs.bug_report != ''
+        env:
+          BUG_REPORT: ${{ inputs.bug_report }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/bug_report.sh
+      - name: Emulator + agent
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PERSONA: ${{ matrix.persona }}
+          DEVICE: ${{ matrix.device }}
+          FONT_SCALE: ${{ matrix.font_scale }}
+          THEME: ${{ matrix.theme }}
+          LOCALE: ${{ matrix.locale }}
+          SPEECH: ${{ matrix.speech }}
+          BRIEF: ${{ needs.plan.outputs.brief }}
+          PRELOAD_MODEL: ${{ needs.plan.outputs.preload }}
+          MODEL_FILE: ${{ github.workspace }}/model/${{ env.SPEECH_MODEL }}
+          AUDIO_DIR: ${{ runner.temp }}/audio
+          MIC_FEED: "true"
+          RECORD_VIDEO: ${{ inputs.record_video || false }}
+          QEMU_AUDIO_DRV: pa
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ steps.profile.outputs.profile }}
+          ram-size: 4096M
+          disk-size: 6G
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -allow-host-audio
+          working-directory: tests/agent-testers
+          script: bash scripts/mic_feed.sh play "$AUDIO_DIR/$SPEECH/mic.wav" && bash scripts/android/run_agent.sh
+      - name: Encrypt results
+        if: always()
+        run: bash scripts/encrypt_results.sh "${{ matrix.persona }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          {
+            name: "results-${{ matrix.persona }}",
+            path: tests/agent-testers/results.enc/,
+            retention-days: 14,
+          }

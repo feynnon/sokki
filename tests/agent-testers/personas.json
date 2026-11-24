@@ -1,0 +1,130 @@
+[
+  {
+    "id": "lena",
+    "platform": "android",
+    "profile": "Kindergarten teacher, 52, types slowly with one finger and wants to speak her messages instead. Reads every word, gives up on English jargon.",
+    "goal": "Turn on the Sokki keyboard and dictate a short message into any text field by voice.",
+    "locale": "de-DE",
+    "speech": "de",
+    "geo": [52.52, 13.405],
+    "device": {
+      "name": "Small phone, Android 11, text 130 %",
+      "profile": "Nexus 5",
+      "android_api": 30,
+      "font_scale": 1.3,
+      "theme": "light"
+    }
+  },
+  {
+    "id": "tom",
+    "platform": "android",
+    "profile": "Sales lead, 38, records client meetings, hates digging through apps. Expects a one-tap shortcut and skims every text.",
+    "goal": "Put the Record meeting tile in Quick Settings, record a short meeting with it and stop it again.",
+    "locale": "en-GB",
+    "speech": "en",
+    "geo": [51.5072, -0.1276],
+    "device": {
+      "name": "Pixel 7, Android 14, dark mode",
+      "profile": "pixel_7",
+      "android_api": 34,
+      "font_scale": 1.0,
+      "theme": "dark"
+    }
+  },
+  {
+    "id": "ada",
+    "platform": "android",
+    "profile": "Retired engineer, 71, low vision, uses the largest text size. Careful, patient, notices every cut-off word.",
+    "goal": "Set Sokki up from the first screen and dictate one sentence in the Dictate tab.",
+    "locale": "en-US",
+    "speech": "en",
+    "geo": [40.7128, -74.006],
+    "device": {
+      "name": "Pixel 6, Android 14, text 200 %",
+      "profile": "pixel_6",
+      "android_api": 34,
+      "font_scale": 2.0,
+      "theme": "light"
+    }
+  },
+  {
+    "id": "jonas",
+    "platform": "android",
+    "profile": "Product manager, 34, on a tablet in meetings, switches between apps fast and expects everything to work in landscape too.",
+    "goal": "Record a meeting from the Meeting tab, then dictate a note with the Sokki keyboard in another app.",
+    "locale": "de-DE",
+    "speech": "de",
+    "geo": [48.1351, 11.582],
+    "device": {
+      "name": "Pixel Tablet, Android 14",
+      "profile": "pixel_tablet",
+      "android_api": 34,
+      "font_scale": 1.0,
+      "theme": "light"
+    }
+  },
+  {
+    "id": "camille",
+    "platform": "android",
+    "profile": "Nurse, 29, in a hurry between shifts, dark mode everywhere, skips onboarding texts.",
+    "goal": "Reach dictation as fast as possible, skipping every optional step.",
+    "locale": "fr-FR",
+    "speech": "fr",
+    "geo": [48.8566, 2.3522],
+    "device": {
+      "name": "Small phone, Android 13, text 115 %, dark",
+      "profile": "Nexus 5",
+      "android_api": 33,
+      "font_scale": 1.15,
+      "theme": "dark"
+    }
+  },
+  {
+    "id": "lucia",
+    "platform": "android",
+    "profile": "Freelance translator, 45, privacy-minded, checks what each permission is for before saying yes.",
+    "goal": "Find out what Sokki does with her voice, then set up the keyboard and dictate one sentence.",
+    "locale": "es-ES",
+    "speech": "es",
+    "geo": [40.4168, -3.7038],
+    "device": {
+      "name": "Pixel 7, Android 15, text 130 %",
+      "profile": "pixel_7",
+      "android_api": 35,
+      "font_scale": 1.3,
+      "theme": "light"
+    }
+  },
+  {
+    "id": "marek",
+    "platform": "android",
+    "profile": "Student, 22, taps fast, tries every button, rotates the phone, backs out of screens halfway.",
+    "goal": "Break things: start and stop recordings quickly, leave screens mid-way, rotate during a recording.",
+    "locale": "pl-PL",
+    "speech": "pl",
+    "geo": [52.2297, 21.0122],
+    "device": {
+      "name": "Pixel 6, Android 14",
+      "profile": "pixel_6",
+      "android_api": 34,
+      "font_scale": 1.0,
+      "theme": "dark"
+    }
+  },
+  {
+    "id": "noor",
+    "platform": "android",
+    "profile": "Teacher, 40, phone in Arabic (right to left), dictates in English at work.",
+    "goal": "Set up the Sokki keyboard and dictate an English sentence; check that screens read correctly right to left.",
+    "locale": "ar-EG",
+    "speech": "en",
+    "geo": [30.0444, 31.2357],
+    "device": {
+      "name": "Pixel 7, Android 14, text 115 %",
+      "profile": "pixel_7",
+      "android_api": 34,
+      "font_scale": 1.15,
+      "theme": "light"
+    }
+  }
+]

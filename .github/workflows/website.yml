@@ -1,5 +1,8 @@
 # Publishes website/ to GitHub Pages (sokki.org) when it changes on main.
 # Needs Settings → Pages → Source: GitHub Actions.
+# Two jobs, as in GitHub's own Pages template: with upload and deploy in one
+# job, deploy-pages sometimes doesn't see the artifact uploaded a second
+# earlier ("No artifacts named github-pages"; 3 failed deploys on 2026-11-25).
 name: Website
 on:
   push:
@@ -12,18 +15,22 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4

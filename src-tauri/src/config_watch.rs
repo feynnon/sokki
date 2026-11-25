@@ -107,6 +107,11 @@ fn apply_side_effects(app: &AppHandle, before: &AppSettings, after: &AppSettings
     if before.meetings != after.meetings {
         crate::meeting::detect::sync_with_settings(app);
     }
+    if before.keep_what_i_write != after.keep_what_i_write
+        || before.journal_excluded_apps != after.journal_excluded_apps
+    {
+        crate::journal::sync(app);
+    }
     crate::tray::update_tray_menu(app);
 }
 

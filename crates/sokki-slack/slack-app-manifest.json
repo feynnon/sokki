@@ -1,0 +1,30 @@
+{
+  "display_information": {
+    "name": "Sokki",
+    "description": "Posts your Sokki meeting notes into the huddle's thread.",
+    "long_description": "Sokki is a free, open-source meeting notetaker for the Mac that records calls locally, with no bot. After a Slack huddle it posts the summary into the huddle's thread, from your own account, with the transcript attached as a file. Audio never leaves your Mac. More at https://sokki.org",
+    "background_color": "#1d4ed8"
+  },
+  "oauth_config": {
+    "redirect_urls": ["http://localhost:47821/slack"],
+    "scopes": {
+      "user": [
+        "chat:write",
+        "files:write",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "users.profile:read",
+        "users:read",
+        "users:read.email"
+      ]
+    },
+    "pkce_enabled": true
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": true
+  }
+}

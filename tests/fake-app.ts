@@ -92,7 +92,109 @@ function fixtures(s: Scenario) {
         meeting("m4", "Interview Nutzerforschung", at(9, 14), 41, "Zoom"),
         meeting("m5", null, at(12, 16, 15), 9, null),
       ];
+  // Voices across meetings (Sprecher page); invented people.
+  const line = (
+    meeting_id: string,
+    speaker: string,
+    start_s: number,
+    text: string,
+    title: string,
+    daysAgo: number,
+  ) => ({
+    meeting_id,
+    meeting_title: title,
+    started_at: at(daysAgo, 10),
+    speaker,
+    start_s,
+    text,
+    audio: true,
+  });
+  const voice = (
+    id: string,
+    name: string | null,
+    meetings: number,
+    daysAgo: number,
+    extra: object = {},
+  ) => ({
+    id,
+    name,
+    is_user: false,
+    meetings,
+    unnamed: name ? 0 : meetings,
+    last: at(daysAgo, 10),
+    members: Array.from({ length: meetings }, (_, i) => ({
+      meeting_id: `m${i + 1}`,
+      speaker: name ?? "Speaker 2",
+    })),
+    emails: [],
+    remembered: false,
+    suggestion: null,
+    lines: [],
+    ...extra,
+  });
+  const voices = s.empty
+    ? []
+    : [
+        voice("a", null, 13, 0, {
+          suggestion: {
+            name: "Mara Keller",
+            email: "mara@example.com",
+            invited: 11,
+            of: 13,
+          },
+          lines: [
+            line(
+              "m1",
+              "Speaker 2",
+              312,
+              "Die Preise kläre ich bis Mittwoch mit dem Vertrieb.",
+              "Wochenplanung Produkt",
+              0,
+            ),
+            line(
+              "m2",
+              "Speaker 3",
+              95,
+              "Das Angebot für den Kunden geht morgen raus.",
+              "Kundengespräch Lieferzeiten",
+              1,
+            ),
+            line(
+              "m4",
+              "Speaker 2",
+              1210,
+              "Ich übernehme die Folien für Freitag.",
+              "Interview Nutzerforschung",
+              9,
+            ),
+          ],
+        }),
+        voice("b", null, 12, 1, {
+          suggestion: {
+            name: "Tim Hoffmann",
+            email: null,
+            invited: 7,
+            of: 12,
+          },
+        }),
+        voice("c", null, 5, 6),
+        voice("u", "Du", 17, 0, { is_user: true }),
+        voice("l", "Lea Brandt", 9, 0, {
+          remembered: true,
+          emails: ["lea@example.com"],
+        }),
+        voice("j", "Jonas Weber", 4, 3, {
+          unnamed: 2,
+          members: [
+            { meeting_id: "m1", speaker: "Jonas Weber" },
+            { meeting_id: "m2", speaker: "Jonas Weber" },
+            { meeting_id: "m3", speaker: "Speaker 2" },
+            { meeting_id: "m4", speaker: "Speaker 3" },
+          ],
+        }),
+      ];
   return {
+    voices,
     settings: {
       onboarding_completed: !s.setup,
       app_language: s.lang,
@@ -134,6 +236,10 @@ function fixtures(s: Scenario) {
         detection_enabled: true,
         footer_enabled: true,
         phone_link_enabled: false,
+        // On by default since 2026-11-25 (meeting/mail.rs).
+        mail_notes_auto: true,
+        mail_notes_auto_set: false,
+        silence_hint_enabled: true,
       },
       videos: { enabled: true, display: null },
       custom_words: ["Sokki", "Parakeet", "Obsidian", "Tauri"],
@@ -271,10 +377,22 @@ export async function open(page: Page, s: Scenario) {
         get_history_entries: () => ({ entries: data.history, has_more: false }),
         meeting_llm_status: () => ({ state: "ready" }),
         list_voice_profiles: () => [],
+        list_voices: () => ({
+          voices: data.voices,
+          once: data.voices.length ? 21 : 0,
+        }),
+        meeting_speaker_proposals: () => [],
+        name_voice: (a) => (a.members as unknown[]).length + 1,
+        set_person_emails: () => null,
+        // A tenth of a second of silence.
+        speaker_clip: () =>
+          "data:audio/wav;base64,UklGRkQGAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAGAAA=",
+        delete_voice_profile: () => null,
         get_available_models: () => [],
         get_active_notices: () => [],
         get_available_microphones: () => [],
         get_available_output_devices: () => [],
+        switch_meeting_microphone: () => null,
         get_current_model: () => "parakeet",
         "plugin:macos-permissions|check_accessibility_permission": () =>
           perm.acc,

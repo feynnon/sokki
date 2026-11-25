@@ -10,7 +10,7 @@ import {
   type Uses,
 } from "./onboardingStore";
 import { usePermissions } from "./usePermissions";
-import { useGmail, useMacRegion } from "./useGmail";
+import { useGmail } from "./useGmail";
 import type { ChineseScriptChoice } from "@/lib/utils/languageSuggestions";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { Welcome } from "./screens/Welcome";
@@ -59,7 +59,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const { settings, updateSetting } = useSettings();
   const permissions = usePermissions(preview);
   const gmail = useGmail(preview);
-  const region = useMacRegion(preview);
   // Gmail not yet connected at the first look: Permissions offers it, so
   // the screen stays in the flow even with every macOS permission given.
   const offerGmail = useRef<boolean | null>(null);
@@ -261,7 +260,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         <Permissions
           permissions={permissions}
           gmail={gmail}
-          region={region}
           uses={uses}
           progress={progress}
           onBack={back}

@@ -2,14 +2,28 @@
 //! 200, 500 and 1,000 hours (a picture to share and the ask to sponsor).
 //! Dictations and finished meetings add their length; deleting them later
 //! doesn't subtract. Kept in `milestones.json` in the app data folder.
+//!
+//! Before the first milestone, once: the star card ("Enjoying Sokki?") at
+//! [`STAR_HOURS`], right after a finished meeting or dictation.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 /// Hours at which the card appears, once each.
 pub const MILESTONES: [u32; 4] = [100, 200, 500, 1000];
+
+/// Hours after which Sokki asks once for a star on GitHub (Robin's call).
+pub const STAR_HOURS: f64 = 5.0;
+
+/// Event the window gets when the star card is due.
+pub const STAR_EVENT: &str = "sokki-star-ask";
+
+/// Set when a meeting or dictation finished since Sokki started, so the
+/// star card never shows on a start alone.
+static STAR_ARMED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Default, Serialize, Deserialize)]
 struct State {
@@ -26,6 +40,9 @@ struct State {
     /// Set once `words` was filled from the dictations already in History.
     #[serde(default)]
     words_started: bool,
+    /// Set once the star card was answered: starred, "Not now" or closed.
+    #[serde(default)]
+    star_closed: bool,
 }
 
 static LOCK: Mutex<()> = Mutex::new(());
@@ -102,6 +119,8 @@ pub fn add_dictation(app: &AppHandle, seconds: f64) {
     let mut state = load(app);
     state.seconds += seconds;
     save(app, &state);
+    drop(_guard);
+    finished(app);
 }
 
 /// Words in a text, as a word counter counts them.
@@ -152,6 +171,79 @@ pub fn add_meeting(app: &AppHandle, id: &str, seconds: f64) {
     state.meetings.push(id.to_string());
     state.seconds += seconds.max(0.0);
     save(app, &state);
+    drop(_guard);
+    finished(app);
+}
+
+/// A meeting or dictation just finished: tells the window when the star
+/// card is due now.
+fn finished(app: &AppHandle) {
+    STAR_ARMED.store(true, Ordering::SeqCst);
+    if star_due(app) {
+        if let Err(e) = app.emit(STAR_EVENT, ()) {
+            log::warn!("Could not ask for the star card: {e}");
+        }
+    }
+}
+
+/// Hours so far; `SOKKI_DEBUG_HOURS=120` pretends 120 hours, to test the cards.
+fn hours(state: &State) -> f64 {
+    std::env::var("SOKKI_DEBUG_HOURS")
+        .ok()
+        .and_then(|h| h.parse::<f64>().ok())
+        .unwrap_or(state.seconds / 3600.0)
+}
+
+/// Whether something records now: a dictation, a meeting or the screen.
+fn recording(app: &AppHandle) -> bool {
+    use std::sync::Arc;
+    use tauri::Manager;
+    if app
+        .try_state::<Arc<crate::managers::audio::AudioRecordingManager>>()
+        .is_some_and(|a| a.is_recording())
+    {
+        return true;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if app
+            .try_state::<Arc<crate::meeting::MeetingManager>>()
+            .is_some_and(|m| m.is_recording())
+            || app
+                .try_state::<Arc<crate::video::VideoManager>>()
+                .is_some_and(|v| v.is_recording())
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether the star card shows now: once, at [`STAR_HOURS`], after a
+/// meeting or dictation finished in this run, never while one records.
+pub fn star_due(app: &AppHandle) -> bool {
+    let state = {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        load(app)
+    };
+    star_due_at(
+        hours(&state),
+        STAR_ARMED.load(Ordering::SeqCst),
+        state.star_closed,
+        recording(app),
+    )
+}
+
+fn star_due_at(hours: f64, armed: bool, closed: bool, recording: bool) -> bool {
+    armed && !closed && !recording && hours >= STAR_HOURS
+}
+
+/// Closes the star card for good.
+pub fn close_star(app: &AppHandle) {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut state = load(app);
+    state.star_closed = true;
+    save(app, &state);
 }
 
 /// The milestone card to show, if any.
@@ -164,18 +256,17 @@ pub struct Milestone {
 }
 
 /// The highest milestone reached whose card wasn't closed yet.
-/// `SOKKI_DEBUG_HOURS=120` pretends 120 hours, to test the card.
 pub fn due(app: &AppHandle) -> Option<Milestone> {
     let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let state = load(app);
-    let hours = std::env::var("SOKKI_DEBUG_HOURS")
-        .ok()
-        .and_then(|h| h.parse::<f64>().ok())
-        .unwrap_or(state.seconds / 3600.0);
-    pick(hours, &state.shown)
+    pick(hours(&state), &state.shown, state.star_closed)
 }
 
-fn pick(hours: f64, shown: &[u32]) -> Option<Milestone> {
+/// The star card comes first: no milestone until it was answered.
+fn pick(hours: f64, shown: &[u32], star_closed: bool) -> Option<Milestone> {
+    if !star_closed {
+        return None;
+    }
     MILESTONES
         .iter()
         .rev()
@@ -201,7 +292,7 @@ pub fn close(app: &AppHandle, hours: u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{pick, words};
+    use super::{pick, star_due_at, words, STAR_HOURS};
 
     #[test]
     fn counts_words_like_a_word_counter() {
@@ -211,11 +302,34 @@ mod tests {
 
     #[test]
     fn shows_the_highest_milestone_reached_once() {
-        assert!(pick(99.9, &[]).is_none());
-        assert_eq!(pick(100.0, &[]).unwrap().hours, 100);
-        assert_eq!(pick(230.0, &[]).unwrap().hours, 200);
-        assert!(pick(230.0, &[100, 200]).is_none());
-        assert_eq!(pick(1500.0, &[100, 200]).unwrap().hours, 1000);
-        assert_eq!(pick(1500.0, &[100, 200]).unwrap().total_hours, 1500);
+        assert!(pick(99.9, &[], true).is_none());
+        assert_eq!(pick(100.0, &[], true).unwrap().hours, 100);
+        assert_eq!(pick(230.0, &[], true).unwrap().hours, 200);
+        assert!(pick(230.0, &[100, 200], true).is_none());
+        assert_eq!(pick(1500.0, &[100, 200], true).unwrap().hours, 1000);
+        assert_eq!(pick(1500.0, &[100, 200], true).unwrap().total_hours, 1500);
+    }
+
+    #[test]
+    fn the_star_card_comes_before_the_first_donation_ask() {
+        assert!(STAR_HOURS < 100.0);
+        // Past 100 hours but the star card not answered yet: no milestone.
+        assert!(pick(150.0, &[], false).is_none());
+        assert_eq!(pick(150.0, &[], true).unwrap().hours, 100);
+    }
+
+    #[test]
+    fn the_star_card_shows_once_after_a_finished_recording() {
+        // At X hours, right after a meeting or dictation finished.
+        assert!(star_due_at(STAR_HOURS, true, false, false));
+        assert!(star_due_at(40.0, true, false, false));
+        // Not before X hours.
+        assert!(!star_due_at(STAR_HOURS - 0.01, true, false, false));
+        // Not on a start alone, before anything finished in this run.
+        assert!(!star_due_at(40.0, false, false, false));
+        // Never while something records.
+        assert!(!star_due_at(40.0, true, false, true));
+        // Never again once answered (starred, "Not now" or X).
+        assert!(!star_due_at(40.0, true, true, false));
     }
 }

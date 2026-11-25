@@ -51,16 +51,16 @@ silences the recording, a line under the clock says so
 (`SokkiRecorder.silenced()`). Check on a device:
 `adb shell dumpsys audio | grep silenced`.
 
-**No notes of phone calls** (Robin, 2026-11-24). Sokki doesn't transcribe
-phone or internet calls on the phone and doesn't try to get around Android.
+**Calls can't be recorded on the phone** (Robin, 2026-11-24): Android
+gives no app the call audio, and Sokki doesn't try to get around that.
 These ways around it were looked at and dropped:
 - rooting the phone (BCR, phone calls only);
 - the Mac posing as the phone's Bluetooth headset (you would talk to the
   Mac, not the phone);
 - importing the Pixel's own call recordings.
 
-German law (§ 201 StGB) needs the other side's OK, and a phone call has no
-chat for Sokki's notice. See MEETINGS.md, "Other people's voices".
+An iPhone call taken on the Mac is different: Sokki on the Mac asks to
+record it (Robin, 2026-11-25). See MEETINGS.md, "Other people's voices".
 
 ## Keyboard (voice typing in every app)
 

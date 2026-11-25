@@ -9,7 +9,7 @@ Speak, and the words appear while you talk. Copy them anywhere. Offline after a 
 The Sokki keyboard dictates into any app: tap the mic, speak, tap again. Autocorrect fixes typos only. German and English side by side, no switching.
 
 <b>Meetings</b>
-Record a meeting on your phone, or with one tap from Quick Settings. Sokki on your Mac turns it into a note with speakers, summary, tasks and transcript, and sends it back. Phone and Mac connect directly, encrypted end to end. Needs Sokki for Mac, free at sokki.org.
+Record a meeting on your phone, or with one tap from Quick Settings. Sokki writes the transcript right on your phone. With Sokki on your Mac, free at sokki.org, you also get speakers, a summary and tasks. Phone and Mac connect directly, encrypted end to end.
 
 <b>Private</b>
 Recordings and text stay on your phone or go to your own Mac. Sokki collects nothing.

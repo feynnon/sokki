@@ -126,8 +126,12 @@ const KNOWN_APPS: &[KnownApp] = &[
         id: "facetime",
         name: "FaceTime",
         kind: AppKind::Native,
-        // avconferenced is the daemon that runs FaceTime (and Continuity
-        // phone) call audio.
+        // avconferenced is the daemon that runs FaceTime call audio and
+        // also iPhone calls taken on the Mac (Continuity). Those are
+        // offered too, on purpose (Robin, 2026-11-25): macOS gives call
+        // state (FaceTime or phone) only to Apple's own apps, and Robin
+        // wants phone calls on the Mac recordable. MEETINGS.md, "Other
+        // people's voices", point 4.
         bundle_ids: &["com.apple.FaceTime", "com.apple.avconference"],
         paths: &["/facetime.app/", "/avconferenced"],
         bins: &[],
@@ -691,6 +695,24 @@ mod tests {
                 "{p}"
             );
         }
+    }
+
+    #[test]
+    fn continuity_phone_call_is_offered_as_facetime() {
+        // An iPhone call taken on the Mac holds the mic through
+        // avconferenced, exactly like FaceTime. It is offered on purpose.
+        let client = c(
+            1178,
+            Some("com.apple.avconference"),
+            Some("/usr/libexec/avconferenced"),
+        );
+        let app = classify(&[client], OWN).unwrap();
+        assert_eq!(app.id, "facetime");
+        assert_eq!(app.kind, AppKind::Native);
+        assert_eq!(app.matched_by, MatchedBy::BundleId);
+        // Without a bundle id the daemon's path still matches.
+        let app = classify(&[c(1178, None, Some("/usr/libexec/avconferenced"))], OWN).unwrap();
+        assert_eq!(app.id, "facetime");
     }
 
     #[test]

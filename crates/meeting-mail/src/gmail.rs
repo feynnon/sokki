@@ -28,12 +28,10 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// What notes-to-all asks for. Anything more is asked for only when the
-/// person turns on a feature that needs it ([`sign_in_with`]).
+/// What notes-to-all asks for: sending, and the address it sends from.
+/// Anything more only through [`sign_in_with`]; nothing in Sokki asks for
+/// more since the mail before a meeting was dropped (Robin, 2026-11-25).
 pub const SCOPES: &str = "https://www.googleapis.com/auth/gmail.send openid email";
-/// Headers of messages, never their bodies: what the mail before a meeting
-/// needs to see replies (card pre-meeting-mail). Restricted scope.
-pub const METADATA_SCOPE: &str = "https://www.googleapis.com/auth/gmail.metadata";
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
@@ -333,7 +331,7 @@ pub fn sign_in(client: &Client, open_browser: impl FnOnce(&str)) -> Result<Signe
     sign_in_with(client, &[], open_browser)
 }
 
-/// [`sign_in`] asking for `extra_scopes` too (e.g. [`METADATA_SCOPE`]).
+/// [`sign_in`] asking for `extra_scopes` too.
 pub fn sign_in_with(
     client: &Client,
     extra_scopes: &[&str],
@@ -453,7 +451,7 @@ impl<S: TokenStore> Gmail<S> {
 
 impl<S: TokenStore> Gmail<S> {
     /// A GET on the Gmail API with the person's token, refreshed as needed
-    /// (for reading replies with [`METADATA_SCOPE`]). The JSON reply.
+    /// (needs a scope beyond [`SCOPES`] to read anything). The JSON reply.
     pub fn authorized_get(&self, url: &str) -> Result<serde_json::Value, SendError> {
         let token = self.access_token()?;
         let mut resp = agent()
@@ -608,11 +606,9 @@ mod tests {
             "http://127.0.0.1:5000",
             &Pkce::new(),
             "xyz",
-            &[METADATA_SCOPE, METADATA_SCOPE],
+            &["https://example.com/extra", "https://example.com/extra"],
         );
-        assert!(more.contains(
-            "openid%20email%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.metadata&"
-        ));
+        assert!(more.contains("openid%20email%20https%3A%2F%2Fexample.com%2Fextra&"));
     }
 
     #[test]

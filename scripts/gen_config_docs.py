@@ -154,7 +154,7 @@ These sit in the same folder but are not part of `settings_store.json`.
 | File | What | Editing |
 |---|---|---|
 | `voice-data/config.json` | "Your data": `improve` (Help improve Sokki), `buyers` (Ask me when there's a buyer) and `support` (Share all my recordings), each `true`/`false`. Read each time it is used, so an edit applies on the next use. | These three are the user's consent to share data: change them only when the user asks for exactly that. Leave every other field (`install_id`, counters, dates) alone. |
-| `voice-profiles.json` | Remembered voices: `profiles[].name` with `embeddings`. Read when a meeting is processed. | Removing a profile forgets that voice. Embeddings come only from the app. |
+| `voice-profiles.json` | People: `profiles[].name`, their `emails` (calendar invitees get named by address), and only with the person's consent (`consent_at`) their voice `embeddings`, dropped a year after `last_heard`. Read when a meeting is processed and by the Sprecher page. | Adding or fixing `emails` by hand is fine. Removing a profile forgets that person. Embeddings come only from the app. |
 | `phone_link.json` | This Mac's key, the pairing code and paired phones. | Don't edit; pair and remove phones in the app. |
 | `history.db` | Dictation history (SQLite). | Read only. |
 | `meetings/` | `index.json` (every meeting) and each meeting's audio. | Read only; delete meetings in the app. |

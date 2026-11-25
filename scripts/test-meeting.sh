@@ -21,12 +21,27 @@
 #   TITLE_AFTER=60 scripts/test-meeting.sh ...        # provisional title after 60 s, with the
 #                                                     # language model and the summary on
 #   TESTAPP=/path/Sokki\ Test.app scripts/test-meeting.sh ... # another build of the test app
+#   SLACK=auth.json scripts/test-meeting.sh ...        # pretend the call is a Slack huddle and
+#                                                      # post the notes into its thread, signed
+#                                                      # in with that sokki-slack Auth file (make
+#                                                      # one with `cargo run --example slack --
+#                                                      # login`). Start a huddle in a TEST channel
+#                                                      # first and stay in it until the post; add
+#                                                      # TITLE_AFTER for a summary to post.
+#                                                      # SLACK_THREAD=C…/ts: no huddle needed,
+#                                                      # post into that existing test thread.
 #   CHAT=zoom scripts/test-meeting.sh ...              # post the chat notice into the running
 #                                                      # Zoom (or teams, chrome, arc, edge, brave)
 #                                                      # call and watch it for "stop"; your own
 #                                                      # test meeting only. Needs Accessibility
 #                                                      # for Sokki Test. Add OWN_TEST_CALL=1 when
 #                                                      # Robin's Sokki records that test call.
+#   CALENDAR=events.json scripts/test-meeting.sh ...  # a made-up calendar (SOKKI_TEST_CALENDAR)
+#   KEEP_MEETINGS=1 scripts/test-meeting.sh ...       # keep the test app's earlier meetings
+#                                                     # (voices across meetings)
+#   NAME_SPEAKER="Speaker 2=Lena Vogt" CONSENT=1 scripts/test-meeting.sh ...
+#                                                     # name a speaker after processing, as a
+#                                                     # click would (speaker-names)
 #   MAIL_TO=me@example.com scripts/test-meeting.sh ... # notes to everyone (meeting/mail.rs): the
 #                                                      # summary on, a made-up calendar event
 #                                                      # around the call (CALENDAR=events.json for
@@ -76,7 +91,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$DATA"
 # Robin's settings, minus everything that reaches outside the test app.
-jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" '.settings.onboarding_completed = true
+jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --arg slack "${SLACK:-}" '.settings.onboarding_completed = true
   | .settings.start_hidden = true
   | .settings.autostart_enabled = false
   | .settings.update_checks_enabled = false
@@ -87,7 +102,14 @@ jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" '.
   | .settings.meetings.summary_enabled = ($title != "" or $mail != "")
   | .settings.meetings.mail_notes_auto = ($mail != "")
   | .settings.meetings.chat_notice_enabled = ($chat != "")
+  | .settings.meetings.slack_post_huddles = ($slack != "")
   | .settings.meetings.notes_dir = $notes' --arg title "${TITLE_AFTER:-}" "$SOKKI_SETTINGS" > "$DATA/settings_store.json"
+rm -f "$DATA/slack_auth.json"
+if [[ -n "${SLACK:-}" ]]; then
+  install -m 600 "$SLACK" "$DATA/slack_auth.json"
+  # Releases leave Slack out; the test app gets the client id at run time.
+  SLACK_ID="$(sed -n 's/^Client ID: `\(.*\)`$/\1/p' "$(dirname "$0")/../crates/sokki-slack/SLACK_APP.md")"
+fi
 if [[ -n "${TITLE_AFTER:-}" || -n "${MAIL_TO:-}" ]]; then
   # Sokki's downloaded language model, linked, not copied.
   MODEL="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
@@ -136,10 +158,10 @@ quit_test_app
 sleep 1
 # Only the test app's own meetings: a run cut short by quitting would
 # otherwise be processed at this launch, next to the new one.
-rm -rf "$DATA/meetings"
+[[ -n "${KEEP_MEETINGS:-}" ]] || rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
+PATTERN="Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
@@ -152,8 +174,9 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${DEAD_AT:+--env SOKKI_TEST_SYSTEM_DEAD_AT_S=$DEAD_AT} ${OUTPUT_CHANGE_AT:+--env SOKKI_TEST_OUTPUT_CHANGE_AT_S=$OUTPUT_CHANGE_AT} \
   ${SECOND_S:+--env SOKKI_TEST_SECOND_S="$SECOND_S"} ${GAP_S:+--env SOKKI_TEST_GAP_S="$GAP_S"} \
   ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} ${TITLE_AFTER:+--env SOKKI_TEST_TITLE_AFTER_S="$TITLE_AFTER"} \
-  ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} \
-  ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} -a "$TESTAPP"
+  ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
+  ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
+  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"
@@ -163,7 +186,9 @@ for _ in $(seq 1 "$LIMIT"); do
   sleep 5
   grep -E "$PATTERN" "$WORK/log.txt" | grep -v "Loaded settings" > "$EVENTS" || true
   [[ -n "$STARTED" ]] || ! grep -q "Test mode: meeting starts" "$EVENTS" || STARTED=$(date +%s)
-  if grep -qE "Test mode: (meeting processed|the meeting failed|the meeting didn|no speech)|stopped and deleted after a stop" "$EVENTS"; then
+  if [[ -n "${SLACK:-}" ]]; then
+    grep -qE "Slack: meeting .*(notes posted|posting failed|no huddle seen)|Test mode: (the meeting failed|the meeting didn)" "$EVENTS" && break
+  elif grep -qE "Test mode: (meeting processed|the meeting failed|the meeting didn|no speech)|stopped and deleted after a stop" "$EVENTS"; then
     # The notes mail goes out after processing; wait for it (2 min at most).
     [[ -z "${MAIL_TO:-}" ]] || grep -qE "notes mailed|notes not mailed|the meeting failed" "$EVENTS" \
       || (( $(date +%s) - ${MAILWAIT:=$(date +%s)} > 120 )) || continue

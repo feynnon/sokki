@@ -1,0 +1,19 @@
+[package]
+name = "sokki-slack"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Post a meeting's notes into its Slack huddle thread, as the user: sign-in with OAuth and PKCE (no server), find the huddle, upload the transcript"
+
+[dependencies]
+anyhow = "1"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.2"
+
+[[example]]
+name = "slack"

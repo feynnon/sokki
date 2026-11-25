@@ -468,6 +468,40 @@ pub struct AppSettings {
     pub log_level: LogLevel,
     #[serde(default = "default_custom_words")]
     pub custom_words: Vec<String>,
+    /// Developer mode, "Keep what I write": saves the text the user sends
+    /// or leaves in any app, with the app and the time, in
+    /// `<app data>/typing_log/` on this Mac only (`sokki-journal`). Never
+    /// password fields, secure input, terminals or password managers.
+    /// Off by default.
+    #[serde(default)]
+    pub keep_what_i_write: bool,
+    /// Apps "Keep what I write" never reads, as bundle ids, on top of the
+    /// built-in list (password managers, terminals). E.g. ["com.apple.mail"].
+    #[serde(default)]
+    pub journal_excluded_apps: Vec<String>,
+    /// Learn names and terms from what "Keep what I write" keeps: once a
+    /// day while the Mac is idle, a local language model checks each new
+    /// word and Sokki speaks it to itself to hear how the speech model
+    /// writes it (`learn_words.rs`). Does nothing while the journal is off.
+    #[serde(default = "default_learn_words")]
+    pub learn_words: bool,
+    /// Words learned from the user's writing (Vocabulary › Learned from
+    /// your writing). They reach dictation and meeting summaries like the
+    /// Vocabulary list.
+    #[serde(default)]
+    pub vocabulary_learned: Vec<String>,
+    /// How the speech model writes a word ("Fassel" for "Vercel"): from the
+    /// hear test or from the user's own fixes. Dictations get these fixed
+    /// exactly.
+    #[serde(default)]
+    pub vocabulary_heard_as: Vec<HeardAs>,
+    /// Learned words and "heard as" forms the user removed, lowercase:
+    /// never learned again.
+    #[serde(default)]
+    pub vocabulary_rejected: Vec<String>,
+    /// When word learning last ran, ms since 1970.
+    #[serde(default)]
+    pub learn_words_last_run: u64,
     #[serde(default)]
     pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
@@ -608,7 +642,9 @@ pub struct MeetingSettings {
     /// Code"]. The summary prompt lists them, so the summary spells them
     /// right where the transcript has a misheard form ("Cloud Code"). The
     /// transcript itself stays as recognised. The dictation `custom_words`
-    /// are added automatically.
+    /// are added automatically. Dictation uses these words too: exact
+    /// "heard as" fixes, and the sound-and-spelling swap for words of 6+
+    /// letters.
     pub glossary: Vec<String>,
     /// Write a summary, decisions and action items with a language model.
     pub summary_enabled: bool,
@@ -649,9 +685,14 @@ pub struct MeetingSettings {
     pub chat_notice_enabled: bool,
     /// After a meeting, send its notes (summary, decisions, action items; no
     /// transcript) to everyone invited in the calendar, from the user's own
-    /// Apple Mail and in their name. Off by default; the note's "Send to
-    /// everyone" button works either way (`meeting/mail.rs`).
+    /// Gmail or Apple Mail and in their name. On by default (Robin,
+    /// 2026-11-25: "summaries sent to everyone is on by default, and can be
+    /// deactivated"); the note's "Send to everyone" button works either way
+    /// (`meeting/mail.rs`).
     pub mail_notes_auto: bool,
+    /// The person set `mail_notes_auto` themselves (Settings). Until then
+    /// the default may change under them; after, never.
+    pub mail_notes_auto_set: bool,
     /// The Gmail address notes are sent from, once Gmail is connected
     /// (Settings › Meetings › Notes by mail). Shown only; the token is in
     /// the Keychain (`meeting/gmail_account.rs`). None: Apple Mail sends.
@@ -662,9 +703,17 @@ pub struct MeetingSettings {
     /// settings file. Off: Apple Mail only, until the review passes
     /// (`meeting/gmail_account.rs`, `GOOGLE_VERIFIED`).
     pub gmail_testing: bool,
+    /// After a Slack huddle, post the summary (with the Sokki line) into the
+    /// huddle's thread as the user, with the transcript as a file. Needs
+    /// "Connect Slack"; connecting turns it on (`meeting/slack.rs`).
+    pub slack_post_huddles: bool,
     /// Accept recordings from the Sokki phone app: direct and end-to-end
     /// encrypted from any network, paired by QR code (`meeting/phone_link.rs`).
     pub phone_link_enabled: bool,
+    /// While a meeting records: say so when the microphone brings no speech
+    /// (muted, wrong device) or a detected call brings no sound, once per
+    /// recording (`meeting/silence.rs`).
+    pub silence_hint_enabled: bool,
 }
 
 impl Default for MeetingSettings {
@@ -684,10 +733,13 @@ impl Default for MeetingSettings {
             keep_audio_days: 0,
             detection_enabled: true,
             chat_notice_enabled: false,
-            mail_notes_auto: false,
+            mail_notes_auto: true,
+            mail_notes_auto_set: false,
             gmail_address: None,
             gmail_testing: false,
+            slack_post_huddles: false,
             phone_link_enabled: false,
+            silence_hint_enabled: true,
         }
     }
 }
@@ -734,10 +786,20 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 7;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 8;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
+}
+
+/// Notes to everyone became on by default (schema 8, Robin, 2026-11-25).
+/// Installs from before never recorded whether the person set the switch,
+/// and it was off by default then, so it turns on for everyone once; from
+/// now on a switch the person sets stays as they set it.
+fn notes_mail_on_by_default(m: &mut MeetingSettings) {
+    if !m.mail_notes_auto_set {
+        m.mail_notes_auto = true;
+    }
 }
 
 fn default_settings_schema_version() -> u32 {
@@ -746,6 +808,50 @@ fn default_settings_schema_version() -> u32 {
 
 fn default_hold_threshold_ms() -> u64 {
     300
+}
+
+fn default_learn_words() -> bool {
+    true
+}
+
+/// One "heard as" form of a word.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct HeardAs {
+    /// What the speech model writes, e.g. "Fassel".
+    pub heard: String,
+    /// The word meant, e.g. "Vercel".
+    pub word: String,
+    /// "hear_test" (Sokki spoke it to itself) or "correction" (the user
+    /// fixed a dictation).
+    pub source: String,
+}
+
+impl AppSettings {
+    /// "Heard as" pairs for dictation.
+    pub fn heard_as_pairs(&self) -> Vec<(String, String)> {
+        self.vocabulary_heard_as
+            .iter()
+            .map(|h| (h.heard.clone(), h.word.clone()))
+            .collect()
+    }
+
+    /// Every word dictation and summaries should spell right: the
+    /// Advanced list, Vocabulary, and learned words.
+    pub fn all_vocabulary(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for w in self
+            .custom_words
+            .iter()
+            .chain(&self.meetings.glossary)
+            .chain(&self.vocabulary_learned)
+        {
+            let w = w.trim();
+            if !w.is_empty() && !out.iter().any(|x| x.eq_ignore_ascii_case(w)) {
+                out.push(w.to_string());
+            }
+        }
+        out
+    }
 }
 
 fn default_always_on_microphone() -> bool {
@@ -1213,6 +1319,13 @@ pub fn get_default_settings() -> AppSettings {
         debug_mode: false,
         log_level: default_log_level(),
         custom_words: default_custom_words(),
+        keep_what_i_write: false,
+        journal_excluded_apps: Vec::new(),
+        learn_words: default_learn_words(),
+        vocabulary_learned: Vec::new(),
+        vocabulary_heard_as: Vec::new(),
+        vocabulary_rejected: Vec::new(),
+        learn_words_last_run: 0,
         model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
@@ -1591,6 +1704,11 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 8 {
+        notes_mail_on_by_default(&mut settings.meetings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -1768,6 +1886,27 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notes_mail_turns_on_once_unless_the_person_set_it() {
+        let mut m = MeetingSettings {
+            mail_notes_auto: false,
+            ..MeetingSettings::default()
+        };
+        notes_mail_on_by_default(&mut m);
+        assert!(m.mail_notes_auto, "an untouched switch turns on");
+        let mut off = MeetingSettings {
+            mail_notes_auto: false,
+            mail_notes_auto_set: true,
+            ..MeetingSettings::default()
+        };
+        notes_mail_on_by_default(&mut off);
+        assert!(!off.mail_notes_auto, "a switch the person set stays off");
+        assert!(
+            MeetingSettings::default().mail_notes_auto,
+            "new installs: on"
+        );
+    }
 
     #[test]
     fn meeting_settings_from_before_the_correction_was_removed_load() {

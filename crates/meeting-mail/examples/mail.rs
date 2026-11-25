@@ -94,9 +94,9 @@ fn main() {
             let md = std::fs::read_to_string(arg(1)).expect("note");
             let m = summary_mail(&md, &arg(2)).expect("the note has no summary");
             println!("Opening Google's consent page …");
-            // As the app's "Connect Gmail" asks (send + metadata). The page
-            // opens in the default browser; SOKKI_PRINT_URL=1 prints it instead.
-            let signed = gmail::sign_in_with(&client, &[gmail::METADATA_SCOPE], |url| {
+            // As the app's "Connect Gmail" asks (send only). The page opens
+            // in the default browser; SOKKI_PRINT_URL=1 prints it instead.
+            let signed = gmail::sign_in_with(&client, &[], |url| {
                 if std::env::var_os("SOKKI_PRINT_URL").is_some() {
                     println!("CONSENT_URL {url}");
                 } else {

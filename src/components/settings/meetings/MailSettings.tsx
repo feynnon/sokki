@@ -20,7 +20,7 @@ import { ErrorBoundary } from "../../ErrorBoundary";
  * after it is clicked, right before Google's page opens (card
  * privacy-google), so the settings page itself stays one line.
  */
-const GmailRow: React.FC = () => {
+const GmailRow: React.FC<{ onChange: () => void }> = ({ onChange }) => {
   const { t } = useTranslation();
   const { refreshSettings } = useSettings();
   const [status, setStatus] = useState<GmailStatus | null>(null);
@@ -48,6 +48,7 @@ const GmailRow: React.FC = () => {
     if (r?.status === "error") setError(r.error);
     await refreshSettings();
     void load();
+    onChange();
   };
   const disconnect = async () => {
     setBusy(true);
@@ -56,6 +57,7 @@ const GmailRow: React.FC = () => {
     if (r?.status === "error") setError(r.error);
     await refreshSettings();
     void load();
+    onChange();
   };
 
   return (
@@ -151,7 +153,8 @@ const MailSettingsBox: React.FC<{
   }, []);
 
   const toggle = async (v: boolean) => {
-    await save({ mail_notes_auto: v });
+    // Set by the person: a later default never changes it again.
+    await save({ mail_notes_auto: v, mail_notes_auto_set: true });
     // Turning it on is the moment to ask for the calendar and for Mail.
     if (v) void check();
     else setSetup(null);
@@ -176,12 +179,14 @@ const MailSettingsBox: React.FC<{
 
   return (
     <SettingsGroup title={t("meetings.mail.title")}>
-      <GmailRow />
+      {/* The sender changed: an Apple Mail problem may no longer apply. */}
+      <GmailRow onChange={() => (on ? void check() : undefined)} />
       <ToggleSwitch
         checked={on}
         onChange={(v) => void toggle(v)}
         label={t("meetings.mail.auto")}
-        description=""
+        description={t("meetings.mail.autoHint")}
+        descriptionMode="inline"
         grouped
       />
       {on && problem && (

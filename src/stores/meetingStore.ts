@@ -4,14 +4,10 @@ import { commands, events, type MeetingRecord } from "@/bindings";
 
 /** Below this RMS (-55 dBFS, the pill's floor) a track counts as silent. */
 export const SILENCE_RMS = 10 ** (-55 / 20);
-/** "Sokki hears nothing from {app}" after the call track has been exact
- * zeros (or had no audio at all) this long while the microphone hears
- * someone (Robin approved the warning, 2026-11-23; the delay is the brief's
- * suggestion). Only exact zeros count: a quiet call still has noise in it,
- * and the old test (no sound above -55 dBFS) blamed the call when the
- * other side was just quiet. Sokki rebuilds a dead tap after 3 s, so this
- * shows when that did not help. */
-export const NO_SOUND_AFTER_MS = 20_000;
+/** Which track Sokki hears nothing from; Rust decides when
+ * (`meeting/silence.rs`). The call hint replaces the 20-s test that
+ * Robin approved on 2026-11-23, with the same text. */
+export type SilenceHint = "mic" | "call";
 
 /** A level as a bar height 0…1, as the pill draws it. */
 export function levelHeight(rms: number): number {
@@ -38,6 +34,11 @@ interface MeetingState {
   systemHeardAt: number;
   /** How long the call track has been exact zeros or empty (ms). */
   systemDeadMs: number;
+  /** "Sokki hears nothing" while it applies (`meeting/silence.rs` decides:
+   * no speech from the microphone, or no sound from a detected call). */
+  hint: SilenceHint | null;
+  /** The microphone the meeting records from. */
+  micName: string | null;
   reload: () => Promise<void>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
@@ -57,6 +58,8 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   micHeardAt: 0,
   systemHeardAt: 0,
   systemDeadMs: 0,
+  hint: null,
+  micName: null,
 
   reload: async () => {
     const [list, recording] = await Promise.all([
@@ -70,7 +73,9 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       loaded: true,
       recording,
       ...(recording && !was ? { micHeardAt: now, systemHeardAt: now } : {}),
-      ...(!recording ? { mic: 0, system: 0, systemDeadMs: 0 } : {}),
+      ...(!recording
+        ? { mic: 0, system: 0, systemDeadMs: 0, hint: null, micName: null }
+        : {}),
     });
   },
 
@@ -146,14 +151,18 @@ export function watchMeetings(): () => void {
     mic: number;
     system: number;
     system_dead_ms?: number;
+    hint?: SilenceHint | null;
+    mic_name?: string | null;
   }>("meeting-level", (e) => {
     if (!store.getState().recording) return;
     const now = Date.now();
-    const { mic, system, system_dead_ms } = e.payload;
+    const { mic, system, system_dead_ms, hint, mic_name } = e.payload;
     store.setState((s) => ({
       mic,
       system,
       systemDeadMs: system_dead_ms ?? 0,
+      hint: hint ?? null,
+      micName: mic_name ?? null,
       micHeardAt: mic > SILENCE_RMS ? now : s.micHeardAt,
       systemHeardAt: system > SILENCE_RMS ? now : s.systemHeardAt,
     }));

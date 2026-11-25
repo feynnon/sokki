@@ -18,8 +18,10 @@ mod dictation_cleanup;
 pub mod engine_supervisor;
 mod helpers;
 mod input;
+mod journal;
 mod language_detection;
 mod languages;
+mod learn_words;
 mod legacy_data;
 mod llm_client;
 mod managers;
@@ -123,7 +125,7 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     // Test mode (SOKKI_TEST_MIC) runs without a window: nothing of it may
     // appear on Robin's screen, a permissions screen included (2026-11-20:
     // a Sokki Test without Accessibility kept showing one).
@@ -273,6 +275,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
         app_handle.manage(Arc::new(meeting::detect::DetectState::default()));
         app_handle.manage(Arc::new(meeting::chat_notice::ChatNoticeState::default()));
+        app_handle.manage(Arc::new(meeting::slack::SlackState::default()));
         app_handle.manage(Arc::new(video::VideoManager::default()));
     }
     app_handle.manage(tray::TrayState::new());
@@ -286,12 +289,19 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
         meeting::detect::sync_with_settings(app_handle);
+        // A click on one of Sokki's banners opens its window.
+        let handle = app_handle.clone();
+        meeting::notify_macos::on_click(move || {
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || show_main_window(&app));
+        });
         meeting::process::apply_retention(app_handle);
         meeting::process::set_builtin_llm_paths(app_handle);
         meeting::resume_interrupted(app_handle);
         video::resume(app_handle);
         meeting::process::retry_summaries(app_handle);
         meeting::phone_link::start_if_enabled(app_handle);
+        meeting::slack::keep_alive(app_handle);
     }
 
     // Note: Shortcuts are NOT initialized here.
@@ -816,6 +826,13 @@ pub fn run(cli_args: CliArgs) {
             shortcut::delete_post_process_prompt,
             shortcut::set_post_process_selected_prompt,
             shortcut::update_custom_words,
+            journal::journal_stats,
+            journal::journal_open_folder,
+            journal::journal_delete_all,
+            journal::change_keep_what_i_write_setting,
+            learn_words::vocabulary_forget_learned,
+            learn_words::vocabulary_forget_heard_as,
+            learn_words::change_learn_words_setting,
             shortcut::suspend_all_bindings,
             shortcut::resume_all_bindings,
             shortcut::change_mute_while_recording_setting,
@@ -877,6 +894,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::start_meeting_recording,
             commands::meeting::stop_meeting_recording,
             commands::meeting::is_meeting_recording,
+            commands::meeting::switch_meeting_microphone,
             commands::meeting::list_meetings,
             commands::meeting::open_meeting_note,
             commands::meeting::save_meeting_page,
@@ -918,10 +936,16 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::qr_code_svg,
             commands::milestone::get_milestone,
             commands::milestone::close_milestone,
+            commands::milestone::get_star_ask,
+            commands::milestone::close_star_ask,
             commands::milestone::save_picture,
             commands::meeting::get_phone_link_info,
             commands::meeting::renew_phone_link_code,
             commands::meeting::remove_paired_phone,
+            commands::meeting::slack_status,
+            commands::meeting::slack_connect,
+            commands::meeting::slack_cancel_connect,
+            commands::meeting::slack_disconnect,
             commands::meeting::start_ollama,
             commands::meeting::pull_meeting_llm,
             dictation_cleanup::dictation_cleanup_model,
@@ -937,6 +961,11 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::date_format_locale,
             commands::meeting::list_voice_profiles,
             commands::meeting::delete_voice_profile,
+            commands::meeting::list_voices,
+            commands::meeting::meeting_speaker_proposals,
+            commands::meeting::name_voice,
+            commands::meeting::set_person_emails,
+            commands::meeting::speaker_clip,
             commands::audio::get_microphone_mode,
             commands::audio::get_windows_microphone_permission_status,
             commands::audio::open_microphone_privacy_settings,
@@ -1310,6 +1339,10 @@ pub fn run(cli_args: CliArgs) {
             // a hook left running while the switch goes off freezes all input.
             accessibility::start_watch(&app_handle);
 
+            // Developer mode, "Keep what I write" (off unless switched on).
+            journal::start(&app_handle);
+            // Learns names and terms from it, once a day while the Mac is idle.
+            learn_words::start(&app_handle);
             // Fixes typos as you type; idle until its switch is on.
             autocorrect::start(&app_handle);
 

@@ -31,9 +31,6 @@ type Scenario = {
   provider?: string;
   /** Gmail (`gmail_status`); left out, the command doesn't exist. */
   gmail?: { available: boolean; connected: string | null };
-  /** The mail before a meeting exists (pre-meeting-mail): Gmail sign-in
-   * also asks to see replies. Default true when `gmail` is set. */
-  replies?: boolean;
   /** The Mac's region locale, e.g. "en-DE". */
   locale?: string;
 };
@@ -206,12 +203,6 @@ async function open(page: Page, s: Scenario) {
           ? {
               gmail_status: () => s.gmail,
               gmail_connect: () => "maya@example.com",
-              ...(s.replies !== false
-                ? {
-                    gmail_connect_for_meetings: () => "maya@example.com",
-                    premeeting_mail_status: () => "no_mailbox",
-                  }
-                : {}),
             }
           : {}),
         date_format_locale: () => s.locale ?? "en-US",
@@ -515,26 +506,11 @@ test.describe("setup: Gmail with Meetings", () => {
     await shot(page, "setup-permissions-gmail");
   });
 
-  test("in Germany, going on without Gmail shows the § 201 notice first", async ({
+  test("going on without Gmail goes straight on, also in Germany", async ({
     page,
   }) => {
-    await open(page, {
-      onboarding: { step: "permissions" },
-      gmail: { available: true, connected: null },
-      locale: "en-DE",
-    });
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(
-      page.getByText(
-        "In Germany you may not record anyone without their consent (§ 201 StGB).",
-      ),
-    ).toBeVisible();
-    await shot(page, "setup-consent-notice");
-    await page.getByRole("button", { name: "Continue without" }).click();
-    await expect.poll(() => step(page)).toBe("model");
-  });
-
-  test("German notice, and connecting from it goes on", async ({ page }) => {
+    // The § 201 notice promised a mail before the meeting, which Robin
+    // dropped (2026-11-25): no notice any more.
     await open(page, {
       lang: "de",
       theme: "light",
@@ -543,30 +519,16 @@ test.describe("setup: Gmail with Meetings", () => {
       locale: "de-DE",
     });
     await expect(page.locator("b", { hasText: /^Gmail/ })).toBeVisible();
+    await expect(
+      page.getByText("Schickt allen nach dem Meeting die Notizen."),
+    ).toBeVisible();
     await shot(page, "setup-permissions-gmail-de");
     await page.getByRole("button", { name: "Weiter" }).click();
-    await expect(
-      page.getByText(
-        "In Deutschland darfst du niemanden ohne Einverständnis aufnehmen (§ 201 StGB).",
-      ),
-    ).toBeVisible();
-    await shot(page, "setup-consent-notice-de");
-    await page.getByRole("button", { name: "Gmail verbinden" }).click();
-    expect(await called(page, "gmail_connect_for_meetings")).toHaveLength(1);
+    await expect(page.getByText(/§ 201/)).toHaveCount(0);
     await expect.poll(() => step(page)).toBe("model");
   });
 
-  test("outside Germany, no notice", async ({ page }) => {
-    await open(page, {
-      onboarding: { step: "permissions" },
-      gmail: { available: true, connected: null },
-      locale: "en-US",
-    });
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect.poll(() => step(page)).toBe("model");
-  });
-
-  test("Gmail connected in the row: no notice", async ({ page }) => {
+  test("Gmail connected in the row, then on", async ({ page }) => {
     await open(page, {
       onboarding: { step: "permissions" },
       gmail: { available: true, connected: null },
@@ -589,13 +551,12 @@ test.describe("setup: Gmail with Meetings", () => {
     await expect(page.locator("b", { hasText: /^Gmail/ })).toHaveCount(0);
   });
 
-  test("without the mail before meetings: send-only sign-in, short notice", async ({
+  test("Gmail asks for sending only, with the short notice", async ({
     page,
   }) => {
     await open(page, {
       onboarding: { step: "permissions" },
       gmail: { available: true, connected: null },
-      replies: false,
       locale: "en-US",
     });
     await expect(
@@ -606,23 +567,6 @@ test.describe("setup: Gmail with Meetings", () => {
     await page.getByRole("button", { name: "Connect" }).click();
     await expect(page.getByText("Connected", { exact: true })).toBeVisible();
     expect(await called(page, "gmail_connect")).toHaveLength(1);
-    expect(await called(page, "gmail_connect_for_meetings")).toHaveLength(0);
-  });
-
-  test("with it: one sign-in that also sees replies, and the long notice", async ({
-    page,
-  }) => {
-    await open(page, {
-      onboarding: { step: "permissions" },
-      gmail: { available: true, connected: null },
-      locale: "en-US",
-    });
-    await expect(
-      page.getByText(/see the sender and subject of your emails/),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Connect" }).click();
-    await expect(page.getByText("Connected", { exact: true })).toBeVisible();
-    expect(await called(page, "gmail_connect_for_meetings")).toHaveLength(1);
-    expect(await called(page, "gmail_connect")).toHaveLength(0);
+    await expect(page.getByText(/sender and subject/)).toHaveCount(0);
   });
 });

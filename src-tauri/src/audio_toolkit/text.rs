@@ -190,6 +190,16 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
             if let Some((replacement, score)) =
                 find_best_match(&ngram, custom_words, &custom_word_match_keys, threshold)
             {
+                // A correct word must not swallow its neighbour: "to
+                // Kubernetes" holds "Kubernetes" already, so it stays two
+                // words (measured 2026-11-24, scratch replay of TTS dictations).
+                let key = build_match_key(replacement);
+                if n > 1
+                    && (build_ngram(&ngram_words[1..]) == key
+                        || build_ngram(&ngram_words[..n - 1]) == key)
+                {
+                    continue;
+                }
                 let is_better = best_match
                     .as_ref()
                     .is_none_or(|(_, _, best_score)| score < *best_score);
@@ -217,6 +227,87 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
     }
 
     result.join(" ")
+}
+
+/// Words the user's vocabulary may swap into a dictation by sound and
+/// spelling. Vocabulary and learned words count only from 6 letters: shorter
+/// ones overwrite normal words (a 4-letter word turned "mit" into "Meta" 28
+/// times in 36 real dictations, 2026-11-24). `custom_words` (Advanced) are
+/// taken as they are.
+pub fn swap_words(custom: &[String], vocabulary: &[String], learned: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |w: &str| {
+        let w = w.trim();
+        if !w.is_empty() && !out.iter().any(|x| x.eq_ignore_ascii_case(w)) {
+            out.push(w.to_string());
+        }
+    };
+    for w in custom {
+        push(w);
+    }
+    for w in vocabulary.iter().chain(learned) {
+        if build_match_key(w).chars().count() >= 6 {
+            push(w);
+        }
+    }
+    out
+}
+
+/// Replaces each exact "heard as" form (one to three words, any case) with
+/// its word, keeping the punctuation around it: "läuft auf Fassel." →
+/// "läuft auf Vercel.".
+pub fn apply_heard_as(text: &str, pairs: &[(String, String)]) -> String {
+    let keys: Vec<(Vec<String>, &str)> = pairs
+        .iter()
+        .map(|(heard, word)| {
+            (
+                heard
+                    .split_whitespace()
+                    .map(build_match_key)
+                    .collect::<Vec<_>>(),
+                word.as_str(),
+            )
+        })
+        .filter(|(k, w)| {
+            !k.is_empty() && k.len() <= 3 && k.iter().all(|p| !p.is_empty()) && !w.is_empty()
+        })
+        .collect();
+    if keys.is_empty() {
+        return text.to_string();
+    }
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut out: Vec<String> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    'next: while i < words.len() {
+        for (key, word) in &keys {
+            let n = key.len();
+            if i + n > words.len() {
+                continue;
+            }
+            let span = &words[i..i + n];
+            // No match across punctuation inside the span.
+            if span[..n - 1]
+                .iter()
+                .any(|w| !extract_punctuation(w).1.is_empty())
+            {
+                continue;
+            }
+            if span
+                .iter()
+                .map(|w| build_match_key(w))
+                .eq(key.iter().cloned())
+            {
+                let (prefix, _) = extract_punctuation(span[0]);
+                let (_, suffix) = extract_punctuation(span[n - 1]);
+                out.push(format!("{prefix}{word}{suffix}"));
+                i += n;
+                continue 'next;
+            }
+        }
+        out.push(words[i].to_string());
+        i += 1;
+    }
+    out.join(" ")
 }
 
 /// Preserves the case pattern of the original word when applying a replacement
@@ -786,6 +877,62 @@ mod tests {
         let result = normalize_transcription_output(&filtered);
 
         assert_eq!(result, "should be removed but um should remain");
+    }
+
+    #[test]
+    fn test_correct_word_keeps_its_neighbour() {
+        let words = vec!["Kubernetes".to_string()];
+        assert_eq!(
+            apply_custom_words(
+                "We moved the pipeline to Kubernetes last week.",
+                &words,
+                0.18
+            ),
+            "We moved the pipeline to Kubernetes last week."
+        );
+        // A real two-word mishearing still joins.
+        let words = vec!["Claude Code".to_string()];
+        assert_eq!(
+            apply_custom_words("The Claude code session", &words, 0.18),
+            "The Claude Code session"
+        );
+    }
+
+    #[test]
+    fn test_swap_words_keeps_short_vocabulary_out() {
+        let custom = vec!["Sokki".to_string()];
+        let vocabulary = vec![
+            "Meta".to_string(),
+            "Brannwick".to_string(),
+            "Lead".to_string(),
+        ];
+        let learned = vec!["Tarnisio".to_string(), "brannwick".to_string()];
+        assert_eq!(
+            swap_words(&custom, &vocabulary, &learned),
+            vec!["Sokki", "Brannwick", "Tarnisio"]
+        );
+    }
+
+    #[test]
+    fn test_apply_heard_as() {
+        let pairs = vec![
+            ("Fassel".to_string(), "Vercel".to_string()),
+            ("off dar".to_string(), "OVDA".to_string()),
+        ];
+        assert_eq!(
+            apply_heard_as("Das läuft auf Fassel. Die Off-Dar Kampagne", &pairs),
+            "Das läuft auf Vercel. Die Off-Dar Kampagne"
+        );
+        assert_eq!(
+            apply_heard_as("wegen der off dar, Kampagne", &pairs),
+            "wegen der OVDA, Kampagne"
+        );
+        // Not across a comma, not inside a word.
+        assert_eq!(
+            apply_heard_as("off, dar Fasseln", &pairs),
+            "off, dar Fasseln"
+        );
+        assert_eq!(apply_heard_as("nichts", &[]), "nichts");
     }
 
     #[test]

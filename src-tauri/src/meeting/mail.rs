@@ -5,12 +5,19 @@
 //! - **Who:** the calendar event the recording belongs to (by time and
 //!   meeting link, `meeting_mail::calendar::find_event`), its attendees
 //!   minus the person, people who declined, rooms, and the objection list.
+//!   After a Slack huddle (Slack connected): everyone else who was in it,
+//!   from Slack (`meeting/slack.rs::huddle_event`), with the same filters;
+//!   no calendar needed.
 //! - **What:** the note's summary, decisions and action items, no
 //!   transcript, ending with the note's Sokki line when the note has one,
 //!   and how to say no ("reply stop").
 //! - **When:** the note's "Send to everyone" button, or by itself after
-//!   each meeting when `meetings.mail_notes_auto` is on (off by default).
-//!   By itself only for a meeting from the last day, once.
+//!   each meeting when `meetings.mail_notes_auto` is on (on by default,
+//!   Robin, 2026-11-25). By itself only for a meeting from the last day,
+//!   once, and never while another meeting records: macOS's calendar and
+//!   Mail prompts come up then, after a meeting, not at start. A prompt
+//!   declined, no event, nobody to send to: the mail is skipped with one
+//!   log line; only a send that failed shows on the meeting's card.
 //! - **Objections:** before each send through Apple Mail, Sokki reads
 //!   Mail's inbox for "stop" replies to these mails and adds the senders to
 //!   the list (Gmail's `gmail.send` can't read; there the person adds them)
@@ -137,13 +144,15 @@ fn span(r: &MeetingRecord) -> Option<(f64, f64)> {
 }
 
 /// The meeting's calendar event, by time and meeting link. Needs access.
-fn find_event(r: &MeetingRecord) -> Option<CalendarEvent> {
+pub(crate) fn find_event(r: &MeetingRecord) -> Option<CalendarEvent> {
     let (start, end) = span(r)?;
     let events = calendar::events(start - EVENT_MARGIN_S, end + EVENT_MARGIN_S);
     meeting_mail::calendar::find_event(&events, start, end, r.source_app.as_deref()).cloned()
 }
 
-fn plan(r: &MeetingRecord) -> Plan {
+/// `resolve`: may ask Slack who was in a huddle (blocking; not for the
+/// preview, which reads only what is stored).
+fn plan(app: &AppHandle, r: &MeetingRecord, resolve: bool) -> Plan {
     let composed = r
         .note_path
         .as_deref()
@@ -162,6 +171,11 @@ fn plan(r: &MeetingRecord) -> Plan {
     // up, so its notes can't reach anyone.
     if r.sample {
         plan.problem = Some(MailProblem::NoEvent);
+        return plan;
+    }
+    // A recorded Slack huddle: the people come from Slack, not the calendar.
+    if let Some(event) = super::slack::huddle_event(app, r, resolve) {
+        plan.event = Some(event);
         return plan;
     }
     match calendar::access() {
@@ -204,7 +218,7 @@ fn is_sending(id: &str) -> bool {
 pub fn preview(app: &AppHandle, id: &str) -> Result<MailPreview, String> {
     let store = app.state::<Arc<MeetingStore>>();
     let r = store.get(id).ok_or("Meeting not found")?;
-    let p = plan(&r);
+    let p = plan(app, &r, false);
     let mut preview = MailPreview {
         event: p.event.as_ref().map(|e| e.title.clone()),
         to: Vec::new(),
@@ -310,31 +324,72 @@ fn problem_text(app: &AppHandle, p: MailProblem) -> String {
 /// calendar prompt): call it off the main thread. `auto`: the automatic
 /// setting, which never asks for anything and never sends twice.
 pub fn send(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, String> {
+    send_inner(app, id, auto).map_err(|f| f.text)
+}
+
+/// Why a send didn't happen. `skip`: nothing to send or not allowed (a
+/// declined prompt, no event); quiet for the automatic send.
+struct Fail {
+    skip: bool,
+    text: String,
+}
+
+impl Fail {
+    fn skip(text: impl Into<String>) -> Self {
+        Self {
+            skip: true,
+            text: text.into(),
+        }
+    }
+    fn error(text: impl Into<String>) -> Self {
+        Self {
+            skip: false,
+            text: text.into(),
+        }
+    }
+    fn send(app: &AppHandle, e: &SendError) -> Self {
+        let skip = matches!(
+            e,
+            SendError::NotAllowed | SendError::NoAccount | SendError::Unsupported
+        );
+        Self {
+            skip,
+            text: send_error_text(app, e),
+        }
+    }
+}
+
+fn send_inner(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, Fail> {
     let started = Instant::now();
     let test = crate::test_mic::active() || std::env::var_os("SOKKI_TEST_CALENDAR").is_some();
     let test_to = test_mail_to();
     if test && test_to.is_none() {
-        return Err("Test mode: set SOKKI_TEST_MAIL_TO to send".into());
+        return Err(Fail::skip("Test mode: set SOKKI_TEST_MAIL_TO to send"));
     }
     let _guard = SendingGuard::take(id)
-        .ok_or_else(|| say(app, "Wird schon gesendet.", "Already sending."))?;
+        .ok_or_else(|| Fail::skip(say(app, "Wird schon gesendet.", "Already sending.")))?;
     let store = app.state::<Arc<MeetingStore>>().inner().clone();
-    let r = store.get(id).ok_or("Meeting not found")?;
+    let r = store
+        .get(id)
+        .ok_or_else(|| Fail::skip("Meeting not found"))?;
     if let Some(m) = &r.mailed {
         if auto {
             return Ok(m.clone());
         }
     }
-    if !auto && calendar::access() == CalendarAccess::NotDetermined {
-        // The person pressed the button: this is the moment to ask.
+    if calendar::access() == CalendarAccess::NotDetermined
+        && super::slack::huddle_event(app, &r, false).is_none()
+    {
+        // The button, or the first automatic send after a meeting (never
+        // during one, see `after_note`): the moment to ask.
         calendar::request();
     }
-    let p = plan(&r);
+    let p = plan(app, &r, true);
     if let Some(problem) = p.problem {
-        return Err(problem_text(app, problem));
+        return Err(Fail::skip(problem_text(app, problem)));
     }
     let (Some(event), Some(composed)) = (p.event, p.composed) else {
-        return Err(problem_text(app, MailProblem::NoEvent));
+        return Err(Fail::skip(problem_text(app, MailProblem::NoEvent)));
     };
 
     let mut objections = objections(app);
@@ -343,9 +398,9 @@ pub fn send(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, String> {
     let (own, from, via): (Vec<String>, Option<String>, &str) = match &gmail {
         Some(g) => (g.own_addresses().unwrap_or_default(), None, "Gmail"),
         None => {
-            let accounts = AppleMail.accounts().map_err(|e| send_error_text(app, &e))?;
+            let accounts = AppleMail.accounts().map_err(|e| Fail::send(app, &e))?;
             if accounts.is_empty() {
-                return Err(send_error_text(app, &SendError::NoAccount));
+                return Err(Fail::send(app, &SendError::NoAccount));
             }
             // Apple Mail can read "stop" replies; Gmail (gmail.send) can't.
             match AppleMail.stop_replies(STOP_REPLIES_SINCE) {
@@ -382,7 +437,7 @@ pub fn send(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, String> {
     };
     let list = recipients(&event, &own, &objections);
     if list.to.is_empty() {
-        return Err(problem_text(app, MailProblem::NoRecipients));
+        return Err(Fail::skip(problem_text(app, MailProblem::NoRecipients)));
     }
     let to: Vec<Recipient> = match &test_to {
         Some(addr) => vec![Recipient {
@@ -401,7 +456,7 @@ pub fn send(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, String> {
         Some(g) => g.send(&mail),
         None => AppleMail.send(&mail),
     }
-    .map_err(|e| send_error_text(app, &e))?;
+    .map_err(|e| Fail::send(app, &e))?;
 
     let mailed = Mailed {
         at: chrono::Local::now().to_rfc3339(),
@@ -454,26 +509,44 @@ pub fn after_note(app: &AppHandle, id: &str) {
     let id = id.to_string();
     let _ = std::thread::Builder::new()
         .name(format!("mail-{id}"))
-        .spawn(move || match send(&app, &id, true) {
-            Ok(m) => {
-                let names = m.to.join(", ");
-                super::detect::notify(
-                    &say(&app, "Notizen gesendet", "Notes sent"),
-                    &format!("{} {names}", say(&app, "An", "To")),
-                );
+        .spawn(move || {
+            // Never during a recording: the calendar and Mail prompts would
+            // come up mid-meeting. Wait for it to end (within the day).
+            let manager = app.state::<Arc<super::MeetingManager>>().inner().clone();
+            let waited = Instant::now();
+            while manager.is_recording() {
+                if waited.elapsed() > AUTO_WITHIN {
+                    log::info!("Meeting {id}: notes not mailed: a recording ran all day");
+                    return;
+                }
+                std::thread::sleep(Duration::from_secs(30));
             }
-            Err(e) => {
-                log::warn!("Meeting {id}: notes not mailed: {e}");
-                let line = format!(
-                    "{} {e}",
-                    say(&app, "Notizen nicht gesendet:", "Notes not sent:")
-                );
-                let _ = app.state::<Arc<MeetingStore>>().update(&id, |r| {
-                    if !r.warnings.contains(&line) {
-                        r.warnings.push(line.clone());
-                    }
-                });
-                super::emit_changed(&app, &id);
+            match send_inner(&app, &id, true) {
+                Ok(m) => {
+                    let names = m.to.join(", ");
+                    super::detect::notify(
+                        &say(&app, "Notizen gesendet", "Notes sent"),
+                        &format!("{} {names}", say(&app, "An", "To")),
+                    );
+                }
+                // Nothing to send or not allowed: one line, nothing on screen.
+                Err(f) if f.skip => {
+                    log::info!("Meeting {id}: notes not mailed: {}", f.text);
+                }
+                Err(f) => {
+                    log::warn!("Meeting {id}: notes not mailed: {}", f.text);
+                    let line = format!(
+                        "{} {}",
+                        say(&app, "Notizen nicht gesendet:", "Notes not sent:"),
+                        f.text
+                    );
+                    let _ = app.state::<Arc<MeetingStore>>().update(&id, |r| {
+                        if !r.warnings.contains(&line) {
+                            r.warnings.push(line.clone());
+                        }
+                    });
+                    super::emit_changed(&app, &id);
+                }
             }
         });
 }

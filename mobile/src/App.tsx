@@ -5,13 +5,7 @@ import { DictateView } from "./DictateView";
 import { KeyboardSetup } from "./KeyboardSetup";
 import { GetComputerCard } from "./GetComputerCard";
 import { JournalView, journalAvailable } from "./JournalView";
-import {
-  NO_MODEL,
-  type NoMac,
-  getNoMac,
-  setNoMac,
-  transcribeOnPhone,
-} from "./phoneTranscript";
+import { NO_MODEL, transcribeOnPhone } from "./phoneTranscript";
 
 /** "https://sokki.org/p#sokki1:…" or "sokki1:…" → the ticket. */
 function ticketOf(text: string) {
@@ -200,16 +194,9 @@ export default function App() {
         setMode("dictate");
     });
   }, []);
-  const [noMac, setNoMacState] = useState<NoMac>(getNoMac);
-  const chooseNoMac = (m: NoMac) => {
-    setNoMac(m);
-    setNoMacState(m);
-  };
   const pairingRef = useRef<link.Pairing | null>(null);
-  const noMacRef = useRef(noMac);
   useEffect(() => {
     pairingRef.current = pairing;
-    noMacRef.current = noMac;
   });
   const [list, setList] = useState<Recording[]>(loadList);
   const [recording, setRecording] = useState(false);
@@ -256,7 +243,7 @@ export default function App() {
     [update],
   );
 
-  /** No Mac (option A): the transcript is made on the phone. */
+  /** No Mac: the transcript is made on the phone. */
   const local = useCallback(
     async (r: Recording) => {
       const audio = await getAudio(r.localId);
@@ -286,7 +273,7 @@ export default function App() {
   );
 
   /** A finished recording: keep it on the phone, then send it to the Mac,
-   * or without a Mac (option A) transcribe it here. */
+   * or without a Mac transcribe it here. */
   const add = useCallback(
     async (audio: Blob, startedAt: Date, durationS: number) => {
       const r: Recording = {
@@ -306,7 +293,7 @@ export default function App() {
       listRef.current = next;
       setList(next);
       saveList(next);
-      if (!pairingRef.current && noMacRef.current === "phone") void local(r);
+      if (!pairingRef.current) void local(r);
       else void send(r);
       return r.localId;
     },
@@ -322,7 +309,7 @@ export default function App() {
     let open = 0;
     for (const r of listRef.current) {
       if (r.state === "waiting" || r.state === "uploading") {
-        if (!pairingRef.current && noMacRef.current === "phone") {
+        if (!pairingRef.current) {
           await local(r);
           continue;
         }
@@ -571,70 +558,32 @@ export default function App() {
         </>
       ) : (
         <>
-          {!pairing && noMac === "mac" && !recording ? (
-            <section className="kb">
-              <p className="kb-title">Meetings need Sokki on a Mac</p>
-              <p className="muted small">
-                Your Mac writes the notes: who said what, and a summary. The
-                phone records and sends.
+          <section className="recorder">
+            <button
+              className={`rec ${recording ? "on" : ""}`}
+              onClick={recording ? stop : start}
+              aria-label={recording ? "Stop recording" : "Start recording"}
+            >
+              <span className="rec-inner" />
+            </button>
+            <p className="rec-label">
+              {recording ? clock(elapsed) : "Tap to record a meeting"}
+            </p>
+            {recording && silenced && (
+              <p className="error">
+                Android mutes the microphone during calls: this part stays
+                silent
               </p>
-              <button
-                className="primary"
-                onClick={() => setView({ name: "setup" })}
-              >
-                Connect a Mac
-              </button>
-              <button
-                className="secondary"
-                onClick={() => void openUrl(inviteMailto("android"))}
-              >
-                Email me the setup
-              </button>
-              {journalAvailable() && (
-                <button
-                  className="link dev-link"
-                  onClick={() => chooseNoMac("phone")}
-                >
-                  Test: transcribe on the phone instead (option A)
-                </button>
-              )}
-            </section>
-          ) : (
-            <section className="recorder">
-              <button
-                className={`rec ${recording ? "on" : ""}`}
-                onClick={recording ? stop : start}
-                aria-label={recording ? "Stop recording" : "Start recording"}
-              >
-                <span className="rec-inner" />
-              </button>
-              <p className="rec-label">
-                {recording ? clock(elapsed) : "Tap to record a meeting"}
+            )}
+            {micError && <p className="error">{micError}</p>}
+            <p className="hint">Tell everyone you are recording.</p>
+            {!pairing && (
+              <p className="hint">
+                On this phone: a transcript. A Mac adds speakers and a
+                summary.
               </p>
-              {recording && silenced && (
-                <p className="error">
-                  Android mutes the microphone during calls: this part stays
-                  silent
-                </p>
-              )}
-              {micError && <p className="error">{micError}</p>}
-              <p className="hint">Tell everyone you are recording.</p>
-              {!pairing && (
-                <p className="hint">
-                  On this phone: a transcript. A Mac adds speakers and a
-                  summary.
-                </p>
-              )}
-              {!pairing && journalAvailable() && (
-                <button
-                  className="link dev-link"
-                  onClick={() => chooseNoMac("mac")}
-                >
-                  Test: meetings need a Mac instead (option B)
-                </button>
-              )}
-            </section>
-          )}
+            )}
+          </section>
 
           {list.some(
             (r) =>
@@ -656,8 +605,9 @@ export default function App() {
           <section className="list">
             {list.length === 0 && (
               <p className="empty">
-                Your recordings appear here. The Mac turns each one into a note
-                with a summary.
+                {pairing
+                  ? "Your recordings appear here. The Mac turns each one into a note with a summary."
+                  : "Your recordings appear here, with a transcript written on this phone."}
               </p>
             )}
             {list.map((r) => (

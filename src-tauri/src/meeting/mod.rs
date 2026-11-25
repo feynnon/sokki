@@ -28,7 +28,7 @@ pub mod mail;
 pub mod memguard;
 pub mod mic;
 #[cfg(target_os = "macos")]
-mod notify_macos;
+pub(crate) mod notify_macos;
 pub mod phone_link;
 pub mod priority;
 pub mod process;
@@ -36,9 +36,14 @@ pub mod prompt;
 pub mod pull;
 pub mod rate;
 pub mod sample;
+pub mod silence;
+pub mod slack;
 pub mod store;
 pub mod system_tap;
 pub mod title;
+pub mod voice_types;
+#[cfg(target_os = "macos")]
+pub mod voices;
 
 use anyhow::{bail, Context, Result};
 use mic::{MicCapture, MicRecording};
@@ -171,13 +176,23 @@ impl MeetingManager {
         SYSTEM_FIRST_US.store(0, std::sync::atomic::Ordering::Relaxed);
         SYSTEM_SOUND_US.store(0, std::sync::atomic::Ordering::Relaxed);
         SYSTEM_CALLBACK_US.store(0, std::sync::atomic::Ordering::Relaxed);
+        silence::reset();
         // System audio first: it is the step that can fail on permission.
         // Without it the meeting still records the microphone.
         let mut warnings = Vec::new();
         // Asked before the captures start, so the first samples go in too.
         let with_system = system_tap::is_supported() || sample::active();
         let live = app.and_then(|app| live::Live::start(app, with_system, dir));
-        let tee = |track| live.as_ref().map(|l| l.tee(track));
+        // Each writer feeds the live transcript and the silence hint.
+        let tee = |track| {
+            let watch = match track {
+                meeting_core::TrackKind::Mic => {
+                    silence::tee(&silence::MIC_SPEECH_US, Some(&silence::MIC_SOUND_US))
+                }
+                meeting_core::TrackKind::System => silence::tee(&silence::SYSTEM_SPEECH_US, None),
+            };
+            Some(silence::both(live.as_ref().map(|l| l.tee(track)), watch))
+        };
         let system_begun = std::time::Instant::now();
         let system = match SystemAudioCapture::start(
             dir.join(SYSTEM_FILE),
@@ -250,6 +265,24 @@ impl MeetingManager {
 
     pub fn active_id(&self) -> Option<String> {
         self.lock().as_ref().map(|m| m.meeting_id.clone())
+    }
+
+    /// The microphone the running meeting records from right now.
+    pub fn mic_name(&self) -> Option<String> {
+        self.lock().as_ref().and_then(|m| m.mic.device_name())
+    }
+
+    /// Moves the running meeting to another microphone (by name), for the
+    /// rest of the recording. The file goes on; the switch takes about a
+    /// second (the supervisor's tick).
+    pub fn switch_mic(&self, name: &str) -> Result<()> {
+        match self.lock().as_ref() {
+            Some(m) => {
+                m.mic.prefer(name);
+                Ok(())
+            }
+            None => bail!("No meeting is being recorded."),
+        }
     }
 
     /// What the running meeting's live transcript has heard so far.

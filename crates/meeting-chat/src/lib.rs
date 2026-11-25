@@ -25,8 +25,9 @@
 //!
 //! macOS only. Elsewhere [`post`] returns [`PostError::Unsupported`].
 
+/// The Accessibility wrapper, shared with `sokki-journal`.
 #[cfg(target_os = "macos")]
-mod ax;
+pub mod ax;
 #[cfg(target_os = "macos")]
 mod keys;
 #[cfg(target_os = "macos")]

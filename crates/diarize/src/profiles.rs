@@ -22,12 +22,38 @@ use crate::vector::{cosine, l2_normalize};
 /// Embeddings kept per name; enrolling more drops the oldest.
 pub const MAX_EMBEDDINGS_PER_NAME: usize = 16;
 
-/// One known person.
+/// One known person: a name, the addresses they're invited with, and,
+/// only when they agreed, their voice.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VoiceProfile {
     pub name: String,
-    /// L2-normalised embeddings, oldest first.
+    /// L2-normalised embeddings, oldest first. Empty for a person whose
+    /// voice isn't kept: they are never recognised by voice.
+    #[serde(default)]
     pub embeddings: Vec<Vec<f32>>,
+    /// The person's email addresses, so calendar invitees can be named.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub emails: Vec<String>,
+    /// When the user ticked that this person agrees to being recognised by
+    /// voice (RFC 3339). A voice is only kept with it (GDPR Art. 7(1)).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consent_at: Option<String>,
+    /// When the voice was last added or recognised (RFC 3339): voices
+    /// unused for a year are deleted ([`VoiceProfiles::forget_unused`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_heard: Option<String>,
+}
+
+impl VoiceProfile {
+    fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            embeddings: Vec::new(),
+            emails: Vec::new(),
+            consent_at: None,
+            last_heard: None,
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -123,12 +149,68 @@ impl VoiceProfiles {
                 let excess = p.embeddings.len().saturating_sub(MAX_EMBEDDINGS_PER_NAME);
                 p.embeddings.drain(..excess);
             }
-            None => self.profiles.push(VoiceProfile {
-                name: name.to_string(),
-                embeddings: vec![e],
-            }),
+            None => {
+                let mut p = VoiceProfile::new(name);
+                p.embeddings.push(e);
+                self.profiles.push(p);
+            }
         }
         self.save()
+    }
+
+    /// The person called `name`, if known.
+    pub fn person(&self, name: &str) -> Option<&VoiceProfile> {
+        self.profiles.iter().find(|p| p.name == name)
+    }
+
+    /// Changes the person called `name` (created if unknown) and saves.
+    pub fn update(&mut self, name: &str, f: impl FnOnce(&mut VoiceProfile)) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            bail!("voice profile name is empty");
+        }
+        let i = match self.profiles.iter().position(|p| p.name == name) {
+            Some(i) => i,
+            None => {
+                self.profiles.push(VoiceProfile::new(name));
+                self.profiles.len() - 1
+            }
+        };
+        f(&mut self.profiles[i]);
+        for e in &mut self.profiles[i].emails {
+            *e = e.trim().to_lowercase();
+        }
+        self.profiles[i].emails.retain(|e| e.contains('@'));
+        self.profiles[i].emails.dedup();
+        self.save()
+    }
+
+    /// The name of the person with this email address.
+    pub fn name_for_email(&self, email: &str) -> Option<&str> {
+        let email = email.trim().to_lowercase();
+        self.profiles
+            .iter()
+            .find(|p| p.emails.iter().any(|e| *e == email))
+            .map(|p| p.name.as_str())
+    }
+
+    /// Drops the voices of people not heard since `cutoff` (RFC 3339, so a
+    /// string comparison orders them). Their name and addresses stay.
+    /// Returns how many voices were dropped; saves when any were.
+    pub fn forget_unused(&mut self, cutoff: &str) -> Result<usize> {
+        let mut n = 0;
+        for p in &mut self.profiles {
+            let stale = p.last_heard.as_deref().is_some_and(|t| t < cutoff);
+            if stale && !p.embeddings.is_empty() {
+                p.embeddings.clear();
+                p.consent_at = None;
+                n += 1;
+            }
+        }
+        if n > 0 {
+            self.save()?;
+        }
+        Ok(n)
     }
 
     /// Removes `name`. Returns whether it existed. Saves when it did.
@@ -259,6 +341,7 @@ mod tests {
     #[test]
     fn caps_embeddings_per_name() {
         let mut p = VoiceProfiles::open(tmp_path("cap")).unwrap();
+        assert!(p.profiles().is_empty());
         for i in 0..(MAX_EMBEDDINGS_PER_NAME + 3) {
             p.enroll("X", &[1.0, i as f32]).unwrap();
         }
@@ -281,6 +364,54 @@ mod tests {
         );
         // Queries of another dimension never match.
         assert_eq!(p.identify(&[1.0, 0.0, 0.0]), None);
+    }
+
+    #[test]
+    fn people_without_a_voice_and_emails() {
+        let path = tmp_path("people");
+        let mut p = VoiceProfiles::open(&path).unwrap().with_threshold(0.5);
+        p.update("Mara Keller", |m| {
+            m.emails = vec![" Mara@Example.com ".into(), "not an address".into()]
+        })
+        .unwrap();
+        assert_eq!(
+            p.person("Mara Keller").unwrap().emails,
+            ["mara@example.com"]
+        );
+        assert_eq!(p.name_for_email("MARA@example.com"), Some("Mara Keller"));
+        // No voice: never recognised.
+        assert_eq!(p.identify(&[1.0, 0.0]), None);
+        p.enroll("Mara Keller", &[1.0, 0.0]).unwrap();
+        assert_eq!(p.identify(&[1.0, 0.1]).unwrap().0, "Mara Keller");
+        // Old files (no emails field) still load; new fields persist.
+        let q = VoiceProfiles::open(&path).unwrap();
+        assert_eq!(q.person("Mara Keller").unwrap().emails.len(), 1);
+        let old = tmp_path("old");
+        std::fs::create_dir_all(old.parent().unwrap()).unwrap();
+        std::fs::write(
+            &old,
+            r#"{"version":1,"profiles":[{"name":"A","embeddings":[[1.0,0.0]]}]}"#,
+        )
+        .unwrap();
+        assert_eq!(VoiceProfiles::open(&old).unwrap().names(), ["A"]);
+    }
+
+    #[test]
+    fn forgets_voices_unused_for_a_year() {
+        let mut p = VoiceProfiles::open(tmp_path("unused")).unwrap();
+        p.enroll("Old", &[1.0, 0.0]).unwrap();
+        p.enroll("New", &[0.0, 1.0]).unwrap();
+        p.update("Old", |o| {
+            o.last_heard = Some("2025-01-01T00:00:00Z".into())
+        })
+        .unwrap();
+        p.update("New", |o| {
+            o.last_heard = Some("2026-11-01T00:00:00Z".into())
+        })
+        .unwrap();
+        assert_eq!(p.forget_unused("2025-11-25T00:00:00Z").unwrap(), 1);
+        assert!(p.person("Old").unwrap().embeddings.is_empty());
+        assert_eq!(p.person("New").unwrap().embeddings.len(), 1);
     }
 
     #[test]

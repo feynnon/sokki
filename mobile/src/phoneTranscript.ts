@@ -1,33 +1,11 @@
-/** Without a Mac. Two ways to compare (Robin, 25.11.2026):
- *  "mac"   (B, default): meetings need Sokki on a Mac; without one the
- *          Meeting tab says so and doesn't record.
- *  "phone" (A): recordings get a transcript on the phone, with the same
- *          speech model as dictation (no speakers, no summary). A Mac
- *          connected later adds them.
+/** Without a Mac, recordings get a transcript on the phone (Robin,
+ * 25.11.2026: "A right away"), with the same speech model as dictation: no
+ * speakers, no summary. A Mac connected later adds them ("Send to the Mac").
  * The transcript uses the Dictate tab's engine (dictation_start/push/stop
  * and its "dictation-piece" / "dictation-done" events), fed from the
  * recorded file instead of the microphone. */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-
-export type NoMac = "mac" | "phone";
-const KEY = "sokki.noMac";
-
-export function getNoMac(): NoMac {
-  try {
-    return localStorage.getItem(KEY) === "phone" ? "phone" : "mac";
-  } catch {
-    return "mac";
-  }
-}
-
-export function setNoMac(m: NoMac) {
-  try {
-    localStorage.setItem(KEY, m);
-  } catch {
-    /* ignore */
-  }
-}
 
 const RATE = 16_000;
 const BLOCK = RATE * 5; // 5 s per push

@@ -26,6 +26,7 @@ import { LogDirectory } from "../debug/LogDirectory";
 import { KeepRecordings } from "./KeepRecordings";
 import { SoundGroup } from "./SoundPage";
 import { SharingGroup } from "./SharingGroup";
+import { DeveloperGroup } from "./DeveloperGroup";
 import { Page, PageHeader, Segmented } from "./parts";
 
 /** Classic / Mini / None, as Superwhisper calls it. */
@@ -214,6 +215,7 @@ export const SokkiSettingsPage: React.FC = () => {
         <AutostartToggle descriptionMode="inline" grouped />
         <KeepRecordings />
       </SettingsGroup>
+      <DeveloperGroup />
       <button
         type="button"
         onClick={() => setAdvanced(true)}

@@ -16,9 +16,18 @@ use objc2::{define_class, msg_send, AnyThread};
 use objc2_foundation::{NSBundle, NSError, NSString};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
-    UNNotificationPresentationOptions, UNNotificationRequest, UNUserNotificationCenter,
-    UNUserNotificationCenterDelegate,
+    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
+    UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
+
+/// What a click on one of Sokki's banners does (opens the window); set at
+/// startup ([`on_click`]).
+static ON_CLICK: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+
+/// Sets what a click on a banner does. Once; later calls are ignored.
+pub fn on_click(action: impl Fn() + Send + Sync + 'static) {
+    let _ = ON_CLICK.set(Box::new(action));
+}
 
 define_class!(
     // SAFETY: NSObject has no subclassing requirements; no ivars.
@@ -42,6 +51,22 @@ define_class!(
                 UNNotificationPresentationOptions::Banner.0
                     | UNNotificationPresentationOptions::List.0,
             ),));
+        }
+
+        // A click on a banner: without this macOS only activates Sokki,
+        // which shows no window (e.g. "Sokki can't hear you" mid-meeting
+        // should lead to the hint and its "Switch microphone").
+        #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
+        fn did_receive(
+            &self,
+            _center: &UNUserNotificationCenter,
+            _response: &UNNotificationResponse,
+            completion_handler: &block2::DynBlock<dyn Fn()>,
+        ) {
+            if let Some(action) = ON_CLICK.get() {
+                action();
+            }
+            completion_handler.call(());
         }
     }
 );

@@ -64,3 +64,44 @@ test.describe("notes by mail", () => {
     await shot(page, "einstellungen-gmail-verbunden");
   });
 });
+
+test.describe("notes to everyone, on by default", () => {
+  test("the switch is on and says what goes; off is remembered", async ({
+    page,
+  }) => {
+    await settings(page);
+    const toggle = page.getByRole("checkbox", {
+      name: "Nach jedem Meeting an alle senden",
+    });
+    await expect(toggle).toBeChecked();
+    await expect(
+      page.getByText(
+        "Zusammenfassung und Aufgaben, kein Transkript, an alle Eingeladenen.",
+      ),
+    ).toBeVisible();
+    await shot(page, "standard-an");
+    await toggle.click({ force: true });
+    const saved = await page.evaluate(() =>
+      (window as any).__args
+        .map(([, a]: [string, any]) => JSON.stringify(a ?? {}))
+        .filter((a: string) => a.includes("mail_notes_auto")),
+    );
+    expect(saved.join(" ")).toContain('"mail_notes_auto_set":true');
+    expect(saved.join(" ")).toContain('"mail_notes_auto":false');
+  });
+
+  test("the Gmail notice asks for sending only", async ({ page }) => {
+    await settings(page, {
+      gmail_status: { available: true, connected: null },
+    });
+    await page.getByRole("button", { name: "Verbinden" }).click();
+    await expect(
+      page.getByText(
+        "Sokki bittet Google, in deinem Namen Mails zu senden und deine Adresse zu sehen. Sokki kann deine Mails nicht lesen. Die Notizen gehen von diesem Mac direkt an Gmail.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Ankündigung|Absender und Betreff/),
+    ).toHaveCount(0);
+  });
+});

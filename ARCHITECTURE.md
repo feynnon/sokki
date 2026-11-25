@@ -53,6 +53,7 @@ A meeting, on any platform:
 | `crates/meeting-core` | The platform-independent pipeline. Defines the ports `Diarizer`, `Transcriber`, `Summarizer`, `SpeakerNamer`. No I/O except the language-model HTTP client in `summary.rs`. |
 | `crates/diarize` | `Diarizer` implementations (Sortformer via transcribe.cpp; sherpa-onnx), voice embeddings, `VoiceProfiles`, model downloads. |
 | `crates/meeting-detect` | Mic-client sources (`macos.rs`, `linux.rs`), the app table (`apps.rs`), the pure debounce `Detector` and the `Watcher` thread. |
+| `crates/sokki-slack` | Slack huddle notes: sign-in with OAuth and PKCE, the huddle's message, posting the summary and the transcript into its thread. |
 | `crates/meeting-mail` | Notes to everyone in a meeting: calendar events and which one a recording belongs to, recipients, the objection list, the mail text, and sending through Apple Mail (AppleScript) or Gmail (`gmail.send`). The calendar itself is read by the host (macOS: EventKit, `src-tauri/swift/calendar.swift`). |
 | `crates/meeting-chat` | The chat notice (macOS): find a meeting's chat field through Accessibility, post one line, watch for "stop". |
 | `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in models (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. `cleanup`: cleaning up a dictation while it is spoken. |
@@ -73,9 +74,11 @@ These hold everywhere; a change that breaks one is a bug.
   The prompt's timeout means no.
 - **Audio stays on the device.** The only network traffic: model downloads,
   the language model when the person picks a cloud provider, the phone
-  link, and Gmail when the person connects it to send notes. Each lives in
-  one named place (`diarize::models`, `meeting_core::summary`, `sokki-link`,
-  `crates/sokki/src/models.rs`, `meeting_mail::gmail`).
+  link, Gmail when the person connects it to send notes, and the notes
+  (summary and transcript text, never audio) posted to Slack after the
+  person connected it. Each lives in one named place (`diarize::models`,
+  `meeting_core::summary`, `sokki-link`, `crates/sokki/src/models.rs`,
+  `meeting_mail::gmail`, `sokki-slack`).
 - **The core has no platform code.** No Core Audio, PipeWire or Hyprland
   types in `meeting-core`, `diarize`, `sokki-engine`. Platform code sits in
   files compiled only on that platform.

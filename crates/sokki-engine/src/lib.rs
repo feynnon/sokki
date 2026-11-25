@@ -27,6 +27,7 @@ pub mod process;
 pub mod speakers;
 pub mod supporter;
 pub mod tracks;
+pub mod voices;
 
 pub use process::{
     provisional_title, run, summarize_note, Deps, Input, NoSpeech, Output, Settings, Stage,

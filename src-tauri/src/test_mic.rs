@@ -351,6 +351,8 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         match store.get(&id).map(|r| r.status) {
             Some(MeetingStatus::Done) => {
                 log_title(app, &id, "when done");
+                #[cfg(target_os = "macos")]
+                test_voices(app, &id);
                 info!(
                     "Test mode: meeting processed {:.1}s after the stop",
                     stopped.elapsed().as_secs_f64()
@@ -372,6 +374,69 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
             _ => {}
         }
     }
+}
+
+/// Speaker names (board card speaker-names), after a test meeting: logs
+/// its speakers, what Sokki proposes, a clip and the voices across the test
+/// meetings. `SOKKI_TEST_NAME_SPEAKER="Speaker 2=Lena Vogt"` then names one
+/// as a click would (`SOKKI_TEST_CONSENT=1`: with the person's consent) and
+/// logs the speakers again.
+#[cfg(target_os = "macos")]
+fn test_voices(app: &tauri::AppHandle, id: &str) {
+    use crate::meeting::{store::MeetingStore, voices};
+    use tauri::Manager;
+    let store = app.state::<std::sync::Arc<MeetingStore>>().inner().clone();
+    let speakers = || store.get(id).map(|r| r.speakers).unwrap_or_default();
+    info!("Test mode: speakers {:?}", speakers());
+    for p in voices::speaker_proposals(app, id) {
+        let names: Vec<&str> = p.candidates.iter().map(|c| c.name.as_str()).collect();
+        info!("Test mode: proposal for {}: {names:?}", p.speaker);
+    }
+    if let Some(sp) = speakers().into_iter().last() {
+        match voices::clip(app, id, &sp, None) {
+            Ok(url) => info!("Test mode: clip of {sp}: {} bytes", url.len()),
+            Err(e) => warn!("Test mode: no clip of {sp}: {e:#}"),
+        }
+    }
+    if let Some((from, to)) = std::env::var("SOKKI_TEST_NAME_SPEAKER").ok().and_then(|v| {
+        v.split_once('=')
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+    }) {
+        let consent = std::env::var_os("SOKKI_TEST_CONSENT").is_some();
+        let member = voices::VoiceMember {
+            meeting_id: id.to_string(),
+            speaker: from.clone(),
+        };
+        match voices::name_voice(app, &[member], &to, &[], consent) {
+            Ok(n) => info!(
+                "Test mode: named {from} {to:?} (consent {consent}), {n} change(s); speakers {:?}",
+                speakers()
+            ),
+            Err(e) => warn!("Test mode: naming {from} failed: {e:#}"),
+        }
+    }
+    if let Some(note) = store.get(id).and_then(|r| r.note_path) {
+        let md = std::fs::read_to_string(note).unwrap_or_default();
+        let lines: Vec<&str> = md
+            .lines()
+            .filter(|l| l.starts_with("**["))
+            .take(4)
+            .collect();
+        info!("Test mode: transcript starts {lines:?}");
+    }
+    let page = voices::page(app);
+    for v in &page.voices {
+        info!(
+            "Test mode: voice {:?} in {} meeting(s), {} unnamed, remembered {}, suggestion {:?}, {} line(s)",
+            v.name,
+            v.meetings,
+            v.unnamed,
+            v.remembered,
+            v.suggestion.as_ref().map(|s| (&s.name, s.invited, s.of)),
+            v.lines.len()
+        );
+    }
+    info!("Test mode: {} voice(s) heard once", page.once);
 }
 
 /// With `SOKKI_TEST_SAMPLE=1`: plays the sample meeting as its button does

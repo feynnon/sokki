@@ -2,8 +2,7 @@
 //! meeting, with their attendees, as `meeting_mail::calendar::CalendarEvent`.
 //!
 //! The base for every feature that needs to know who is in a meeting:
-//! mailing the notes afterwards (`meeting/mail.rs`) and the mail before a
-//! meeting (board card `pre-meeting-mail`).
+//! mailing the notes afterwards (`meeting/mail.rs`).
 //!
 //! Test mode: `SOKKI_TEST_CALENDAR=<events.json>` reads the events from
 //! that file instead of the calendar, and access counts as allowed, so the
@@ -93,9 +92,8 @@ pub fn events(from: f64, to: f64) -> Vec<CalendarEvent> {
     }
 }
 
-/// [`events`] for callers that need to tell "no access" from "no events"
-/// (the mail before a meeting, polled from a background thread). Never
-/// asks for access.
+/// [`events`] for callers that need to tell "no access" from "no events".
+/// Never asks for access.
 pub fn events_between(from: f64, to: f64) -> Result<Vec<CalendarEvent>, String> {
     match access() {
         CalendarAccess::Allowed => Ok(events(from, to)),

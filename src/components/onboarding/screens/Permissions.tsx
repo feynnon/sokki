@@ -1,14 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { relaunch } from "@tauri-apps/plugin-process";
-import {
-  AlertTriangle,
-  Keyboard,
-  Mail,
-  Mic,
-  Monitor,
-  Volume2,
-} from "lucide-react";
+import { Keyboard, Mail, Mic, Monitor, Volume2 } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { Spinner } from "../../ui/Spinner";
 import { TextLink } from "../../ui/TextLink";
@@ -127,9 +120,6 @@ interface PermissionsProps {
   onContinue: () => void;
   /** Gmail, offered with Meetings when this build can send through it. */
   gmail?: ReturnType<typeof useGmail>;
-  /** The Mac's region ("DE"): Germany gets the § 201 StGB notice when
-   * Gmail is left out. */
-  region?: string | null;
 }
 
 /** Number words for the title and hint, as in "Four permissions". */
@@ -147,12 +137,9 @@ export const Permissions: React.FC<PermissionsProps> = ({
   onBack,
   onContinue,
   gmail,
-  region,
 }) => {
   const { t } = useTranslation();
   const { welcomeBack, preview, set } = useOnboardingStore();
-  // Continue without Gmail, in Germany: the notice first.
-  const [notice, setNotice] = useState(false);
   const isMac = permissions.platform === "macos";
   type Row = "microphone" | "accessibility" | "systemSound" | "screen";
   const rows: Row[] = [
@@ -174,14 +161,6 @@ export const Permissions: React.FC<PermissionsProps> = ({
   const go = () => {
     if (welcomeBack) set({ welcomeBack: false });
     onContinue();
-  };
-  // Recording someone without consent is a crime in Germany (§ 201 StGB);
-  // the notice says so, once, before going on without Gmail (Robin,
-  // 2026-11-24; wording: privacy-google's chat-hinweis-recht.md).
-  const proceed = () => {
-    if (withGmail && !gmail?.connected && region === "DE" && !notice)
-      return setNotice(true);
-    go();
   };
   // Asking for the microphone opens the OS settings on Windows, and on macOS
   // once it has asked: then the row says what to turn on there.
@@ -220,80 +199,6 @@ export const Permissions: React.FC<PermissionsProps> = ({
     />
   );
 
-  // Connected from the notice: on, as if Continue had been pressed.
-  const connected = !!gmail?.connected;
-  useEffect(() => {
-    if (notice && connected) go();
-    // go() is the same step each render.
-  }, [notice, connected]);
-
-  if (notice && gmail) {
-    return (
-      <OnboardingShell
-        progress={progress}
-        onBack={() => setNotice(false)}
-        primary={
-          <span className="flex items-center gap-[8px]">
-            <Button
-              variant="outline"
-              size="lg"
-              className="whitespace-nowrap"
-              onClick={go}
-            >
-              {t("onboarding.permissions.gmail.without")}
-            </Button>
-            <Button
-              variant="primary"
-              size="lg"
-              className="whitespace-nowrap"
-              disabled={gmail.busy}
-              onClick={() => void gmail.connect()}
-            >
-              {t("onboarding.permissions.gmail.connectGmail")}
-            </Button>
-          </span>
-        }
-      >
-        <ScreenMain
-          header={
-            <ScreenHeader title={t("onboarding.permissions.consent.title")} />
-          }
-        >
-          <div
-            role="alert"
-            className="mx-auto flex w-full max-w-[500px] flex-col gap-[10px] rounded-panel border border-line-strong px-[22px] py-[18px] text-start"
-          >
-            <span className="flex items-start gap-[10px] font-semibold text-text">
-              <AlertTriangle
-                size={18}
-                className="mt-[3px] shrink-0 text-warning"
-                aria-hidden="true"
-              />
-              {t("onboarding.permissions.consent.law")}
-            </span>
-            <p className="m-0 ps-[28px] text-ink-2">
-              {t("onboarding.permissions.consent.body")}
-            </p>
-            <p className="m-0 ps-[28px] text-label text-ink-3">
-              {t(
-                gmail.withReplies
-                  ? "onboarding.permissions.gmail.notice"
-                  : "onboarding.permissions.gmail.noticeSend",
-              )}
-            </p>
-            {(gmail.busy || gmail.error) && (
-              <p
-                className={`m-0 ps-[28px] text-small ${gmail.error ? "text-warning" : "text-ink-3"}`}
-              >
-                {gmail.error ?? t("onboarding.permissions.gmail.inBrowser")}
-              </p>
-            )}
-          </div>
-        </ScreenMain>
-      </OnboardingShell>
-    );
-  }
-
   return (
     <OnboardingShell
       progress={progress}
@@ -312,12 +217,7 @@ export const Permissions: React.FC<PermissionsProps> = ({
             )
       }
       primary={
-        <Button
-          variant="primary"
-          size="lg"
-          disabled={!allGranted}
-          onClick={proceed}
-        >
+        <Button variant="primary" size="lg" disabled={!allGranted} onClick={go}>
           {t("onboarding.shell.continue")}
         </Button>
       }
@@ -422,11 +322,7 @@ export const Permissions: React.FC<PermissionsProps> = ({
               // page opens (card privacy-google).
               note={
                 !next && !gmail.connected
-                  ? t(
-                      gmail.withReplies
-                        ? "onboarding.permissions.gmail.notice"
-                        : "onboarding.permissions.gmail.noticeSend",
-                    )
+                  ? t("onboarding.permissions.gmail.noticeSend")
                   : undefined
               }
               next={!next}

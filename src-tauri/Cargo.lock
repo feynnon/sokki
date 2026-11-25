@@ -7430,9 +7430,11 @@ dependencies = [
  "signal-hook",
  "sokki-autocorrect",
  "sokki-engine",
+ "sokki-journal",
  "sokki-keys",
  "sokki-link",
  "sokki-recorder",
+ "sokki-slack",
  "specta",
  "specta-typescript",
  "strsim",
@@ -7522,6 +7524,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sokki-journal"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "log",
+ "meeting-chat",
+ "natural",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
+ "serde_json",
+ "strsim",
+]
+
+[[package]]
 name = "sokki-keys"
 version = "0.3.5"
 dependencies = [
@@ -7566,6 +7583,20 @@ dependencies = [
  "rubato",
  "sokki-cpal",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "sokki-slack"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "getrandom 0.2.17",
+ "log",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "ureq 3.2.0",
 ]
 
 [[package]]

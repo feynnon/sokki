@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "messages": [
+    {"type": "message", "user": "U0BOB", "text": "Danke euch!", "ts": "1764012100.000300"},
+    {"type": "message", "subtype": "huddle_thread", "user": "USLACKBOT", "channel": "C0TEST",
+     "ts": "1764010000.000200", "text": "", "no_notifications": true,
+     "room": {"id": "R0NEW", "name": "", "created_by": "U0ADA", "date_start": 1764010000, "date_end": 0,
+              "participants": ["U0ADA", "U0BOB"], "participant_history": ["U0ADA", "U0BOB"],
+              "canvas_thread_ts": "1764010000.000200", "thread_root_ts": "1764010000.000200",
+              "channels": ["C0TEST"], "is_dm_call": false, "has_ended": false, "call_family": "huddle"}},
+    {"type": "message", "user": "U0ADA", "text": "Kurzer Huddle?", "ts": "1764009990.000150"},
+    {"type": "message", "subtype": "huddle_thread", "user": "USLACKBOT", "channel": "C0TEST",
+     "ts": "1764000000.000100", "text": "",
+     "room": {"id": "R0OLD", "date_start": 1764000000, "date_end": 1764001800,
+              "participant_history": ["U0ADA"], "thread_root_ts": "", "has_ended": true}}
+  ],
+  "has_more": false
+}

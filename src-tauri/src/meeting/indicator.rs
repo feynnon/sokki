@@ -105,6 +105,10 @@ struct Levels {
     /// (ms; 0 while it has sound). A quiet call still has noise in it, so
     /// this means Sokki hears nothing, not that the other side is silent.
     system_dead_ms: u64,
+    /// "Sokki hears nothing" ([`super::silence`]), while it applies.
+    hint: Option<super::silence::Hint>,
+    /// The microphone the meeting records from, for the hint.
+    mic_name: Option<String>,
 }
 
 /// A stretch of exact zeros on the call track is logged once it is this long.
@@ -246,6 +250,18 @@ pub fn start_ticker(app: &AppHandle) {
             .clone();
         let mut last_title = String::new();
         let mut track_log = TrackLog::new(super::mono_us());
+        let source_app = manager.active_id().and_then(|id| {
+            handle
+                .state::<std::sync::Arc<super::store::MeetingStore>>()
+                .get(&id)
+                .and_then(|m| m.source_app)
+        });
+        let enabled = crate::settings::get_settings(&handle)
+            .meetings
+            .silence_hint_enabled;
+        let mut watch = super::silence::Watch::new(super::mono_us(), source_app.is_some(), enabled);
+        let mut mic_name = manager.mic_name();
+        let mut tick = 0u32;
         while manager.is_recording() {
             let mic = f32::from_bits(super::MIC_LEVEL.swap(0, Ordering::Relaxed));
             let system = f32::from_bits(super::SYSTEM_LEVEL.swap(0, Ordering::Relaxed));
@@ -255,10 +271,25 @@ pub fn start_ticker(app: &AppHandle) {
             for (level, line) in track_log.tick(now_us, mic, system, sound_us, callback_us) {
                 log::log!(level, "{line}");
             }
+            tick = tick.wrapping_add(1);
+            if tick.is_multiple_of(30) {
+                mic_name = manager.mic_name();
+            }
+            if let Some(change) = watch.tick(now_us, &super::silence::Marks::now()) {
+                on_hint(
+                    &handle,
+                    &change,
+                    at(now_us.saturating_sub(track_log.started_us)),
+                    mic_name.as_deref(),
+                    source_app.as_deref(),
+                );
+            }
             let levels = Levels {
                 mic,
                 system,
                 system_dead_ms: track_log.dead_us(now_us, sound_us) / 1000,
+                hint: watch.showing(),
+                mic_name: mic_name.clone(),
             };
             let _ = handle.emit_to(LABEL, "meeting-level", levels.clone());
             // The main window's recording bar shows the same levels.
@@ -277,6 +308,59 @@ pub fn start_ticker(app: &AppHandle) {
             log::info!("{line}");
         }
     });
+}
+
+/// Logs a hint coming or going, and when it comes while the Sokki window
+/// isn't in front, says it in a notification (the recording bar shows it
+/// either way).
+fn on_hint(
+    app: &AppHandle,
+    change: &super::silence::Change,
+    at: String,
+    mic: Option<&str>,
+    call_app: Option<&str>,
+) {
+    use super::silence::{Change, Hint};
+    let mic = mic.unwrap_or("?");
+    let call_app = call_app.unwrap_or("?");
+    let hint = match change {
+        Change::Gone(hint) => {
+            log::info!("Silence hint gone at {at}: {hint:?} (speech or sound arrived)");
+            return;
+        }
+        Change::Shown(hint) => *hint,
+    };
+    let german = crate::settings::get_settings(app)
+        .app_language
+        .to_lowercase()
+        .starts_with("de");
+    // Short, as Robin asked (2026-11-25): no "for 40 seconds", and no
+    // banner for the call; the strip in the window says that one.
+    let banner = match (hint, german) {
+        (Hint::Mic, true) => Some(("Sokki hört dich nicht", "Nimmst du mit dem richtigen Mikrofon auf?")),
+        (Hint::Mic, false) => Some(("Sokki can't hear you", "Are you recording with the right microphone?")),
+        (Hint::Call, _) => None,
+    };
+    let in_front = app
+        .get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false));
+    let how = match banner {
+        None => "the recording bar only",
+        Some(_) if crate::test_mic::active() => "test mode: notification logged, not shown",
+        Some(_) if in_front => "window in front: no notification",
+        Some(_) => "notification shown",
+    };
+    let text = banner
+        .map(|(title, body)| format!(": {title} — {body}"))
+        .unwrap_or_default();
+    log::info!(
+        "Silence hint at {at}: {hint:?} (microphone {mic}, call app {call_app}); {how}{text}"
+    );
+    if !crate::test_mic::active() && !in_front {
+        if let Some((title, body)) = banner {
+            super::detect::notify(title, body);
+        }
+    }
 }
 
 /// Text next to the menu bar icon (`None` clears it). Like Superwhisper's

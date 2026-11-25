@@ -36,6 +36,7 @@ import { deleteRetiredModel } from "@/lib/models/retired";
 import { NoticePanel } from "@/components/notices/NoticePanel";
 import { RecordBar } from "@/components/RecordBar";
 import { MessageDialog } from "@/components/MessageDialog";
+import { StarCard } from "@/components/StarCard";
 import { watchMeetings } from "@/stores/meetingStore";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
@@ -387,8 +388,9 @@ function App() {
           />
           {/* Content above the recording bar, which every view shares. */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {currentSection === "meetings" ? (
-              // Meetings is a split view: list and reader scroll apart.
+            {currentSection === "meetings" || currentSection === "speakers" ? (
+              // Meetings and Speakers are split views: list and reader
+              // scroll apart.
               <div className="flex-1 min-h-0 flex flex-col">
                 <SecureInputWarning />
                 {renderSettingsContent(
@@ -422,6 +424,7 @@ function App() {
         </div>
         <FileDropOverlay onDropped={showHistory} />
         <MessageDialog firstStart={firstStart.current} />
+        <StarCard firstStart={firstStart.current} />
       </div>
     );
   }

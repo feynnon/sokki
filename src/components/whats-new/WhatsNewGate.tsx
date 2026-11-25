@@ -4,12 +4,17 @@ import { useSettings } from "../../hooks/useSettings";
 import { findReleaseNoteToShow } from "./releaseNotes";
 import type { ReleaseNote } from "./releaseNotes";
 import { WhatsNewModal } from "./WhatsNewModal";
+import { useCardStore } from "@/stores/cardStore";
 
 export const WhatsNewGate: React.FC = () => {
   const { settings, isLoading, updateSetting } = useSettings();
   const [note, setNote] = useState<ReleaseNote | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const dismissedVersionRef = useRef<string | null>(null);
+  const setShown = useCardStore((s) => s.setShown);
+  useEffect(() => {
+    setShown("whatsNew", isOpen && note !== null);
+  }, [isOpen, note, setShown]);
 
   useEffect(() => {
     if (isLoading || !settings || !settings.show_whats_new_on_update) {

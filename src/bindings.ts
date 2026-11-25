@@ -344,6 +344,62 @@ async updateCustomWords(words: string[]) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async journalStats() : Promise<Result<JournalStats, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("journal_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async journalOpenFolder() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("journal_open_folder") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async journalDeleteAll() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("journal_delete_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeKeepWhatIWriteSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_keep_what_i_write_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async vocabularyForgetLearned(word: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vocabulary_forget_learned", { word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async vocabularyForgetHeardAs(heard: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vocabulary_forget_heard_as", { heard }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeLearnWordsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_learn_words_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Temporarily unregister all bindings while the user is recording a
  * shortcut in the UI. This avoids firing actions while keys are recorded.
@@ -840,6 +896,18 @@ async isMeetingRecording() : Promise<boolean> {
     return await TAURI_INVOKE("is_meeting_recording");
 },
 /**
+ * Moves the running meeting to another microphone ("Sokki hears nothing"
+ * hint in the recording bar). `name` as `get_available_microphones` lists it.
+ */
+async switchMeetingMicrophone(name: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_meeting_microphone", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Meetings, newest first.
  */
 async listMeetings() : Promise<Result<MeetingRecord[], string>> {
@@ -867,6 +935,28 @@ async getMilestone() : Promise<Result<Milestone | null, string>> {
 async closeMilestone(hours: number) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("close_milestone", { hours }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Whether the star card ("Enjoying Sokki?") shows now.
+ */
+async getStarAsk() : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_star_ask") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Closes the star card for good: starred, "Not now" or its X.
+ */
+async closeStarAsk() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("close_star_ask") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -913,6 +1003,41 @@ async renewPhoneLinkCode() : Promise<Result<string, string>> {
 async removePairedPhone(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("remove_paired_phone", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Whether Slack is connected, for Settings › Meetings.
+ */
+async slackStatus() : Promise<SlackStatus> {
+    return await TAURI_INVOKE("slack_status");
+},
+/**
+ * Signs in with Slack in the browser; returns once the person allowed it
+ * (or after five minutes, or when cancelled).
+ */
+async slackConnect() : Promise<Result<SlackStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("slack_connect") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stops a running Slack sign-in.
+ */
+async slackCancelConnect() : Promise<void> {
+    await TAURI_INVOKE("slack_cancel_connect");
+},
+/**
+ * Forgets the Slack sign-in (and revokes it at Slack).
+ */
+async slackDisconnect() : Promise<Result<SlackStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("slack_disconnect") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1452,6 +1577,63 @@ async listVoiceProfiles() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Every voice across meetings, for the Sprecher page.
+ */
+async listVoices() : Promise<Result<VoicesPage, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_voices") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Names Sokki proposes for the unnamed speakers of a meeting.
+ */
+async meetingSpeakerProposals(id: string) : Promise<Result<SpeakerProposal[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_speaker_proposals", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Gives speakers of one or more meetings a name. With `consent`, the
+ * person agreed and Sokki keeps their voice. Returns how many meetings
+ * changed.
+ */
+async nameVoice(members: VoiceMember[], name: string, emails: string[], consent: boolean) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("name_voice", { members, name, emails, consent }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sets a person's email addresses.
+ */
+async setPersonEmails(name: string, emails: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_person_emails", { name, emails }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * A few seconds of a speaker, as a WAV data URL.
+ */
+async speakerClip(id: string, speaker: string, startS: number | null) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("speaker_clip", { id, speaker, startS }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteVoiceProfile(name: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_voice_profile", { name }) };
@@ -1784,7 +1966,48 @@ selected_channel?: number | null; clamshell_microphone?: string | null; selected
  * Every language the person dictates in (codes, e.g. ["en", "zh"]),
  * picked during onboarding. Empty until then.
  */
-spoken_languages?: string[]; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
+spoken_languages?: string[]; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; 
+/**
+ * Developer mode, "Keep what I write": saves the text the user sends
+ * or leaves in any app, with the app and the time, in
+ * `<app data>/typing_log/` on this Mac only (`sokki-journal`). Never
+ * password fields, secure input, terminals or password managers.
+ * Off by default.
+ */
+keep_what_i_write?: boolean; 
+/**
+ * Apps "Keep what I write" never reads, as bundle ids, on top of the
+ * built-in list (password managers, terminals). E.g. ["com.apple.mail"].
+ */
+journal_excluded_apps?: string[]; 
+/**
+ * Learn names and terms from what "Keep what I write" keeps: once a
+ * day while the Mac is idle, a local language model checks each new
+ * word and Sokki speaks it to itself to hear how the speech model
+ * writes it (`learn_words.rs`). Does nothing while the journal is off.
+ */
+learn_words?: boolean; 
+/**
+ * Words learned from the user's writing (Vocabulary › Learned from
+ * your writing). They reach dictation and meeting summaries like the
+ * Vocabulary list.
+ */
+vocabulary_learned?: string[]; 
+/**
+ * How the speech model writes a word ("Fassel" for "Vercel"): from the
+ * hear test or from the user's own fixes. Dictations get these fixed
+ * exactly.
+ */
+vocabulary_heard_as?: HeardAs[]; 
+/**
+ * Learned words and "heard as" forms the user removed, lowercase:
+ * never learned again.
+ */
+vocabulary_rejected?: string[]; 
+/**
+ * When word learning last ran, ms since 1970.
+ */
+learn_words_last_run?: number; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
 /**
  * Experimental, macOS only: move a Bluetooth headset (AirPods) to this
  * Mac while recording, so its microphone does not return silence while
@@ -1890,6 +2113,23 @@ export type ChineseScript =
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
+/**
+ * One "heard as" form of a word.
+ */
+export type HeardAs = { 
+/**
+ * What the speech model writes, e.g. "Fassel".
+ */
+heard: string; 
+/**
+ * The word meant, e.g. "Vercel".
+ */
+word: string; 
+/**
+ * "hear_test" (Sokki spoke it to itself) or "correction" (the user
+ * fixed a dictation).
+ */
+source: string }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean; 
 /**
  * The name of the file this entry was transcribed from; `None` for a
@@ -1922,6 +2162,14 @@ export type ImplementationChangeResult = { success: boolean;
  * List of binding IDs that were reset to defaults due to incompatibility
  */
 reset_bindings: string[] }
+/**
+ * What Settings shows under "Keep what I write".
+ */
+export type JournalStats = { entries: number; bytes: number; 
+/**
+ * The first day with an entry, "YYYY-MM-DD".
+ */
+since: string | null }
 export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_pid: number | null; culprit_name: string | null; 
 /**
  * Counts only — key identity is deliberately never captured.
@@ -2177,7 +2425,9 @@ diarization_enabled: boolean;
  * Code"]. The summary prompt lists them, so the summary spells them
  * right where the transcript has a misheard form ("Cloud Code"). The
  * transcript itself stays as recognised. The dictation `custom_words`
- * are added automatically.
+ * are added automatically. Dictation uses these words too: exact
+ * "heard as" fixes, and the sound-and-spelling swap for words of 6+
+ * letters.
  */
 glossary: string[]; 
 /**
@@ -2238,10 +2488,17 @@ chat_notice_enabled: boolean;
 /**
  * After a meeting, send its notes (summary, decisions, action items; no
  * transcript) to everyone invited in the calendar, from the user's own
- * Apple Mail and in their name. Off by default; the note's "Send to
- * everyone" button works either way (`meeting/mail.rs`).
+ * Gmail or Apple Mail and in their name. On by default (Robin,
+ * 2026-11-25: "summaries sent to everyone is on by default, and can be
+ * deactivated"); the note's "Send to everyone" button works either way
+ * (`meeting/mail.rs`).
  */
 mail_notes_auto: boolean; 
+/**
+ * The person set `mail_notes_auto` themselves (Settings). Until then
+ * the default may change under them; after, never.
+ */
+mail_notes_auto_set: boolean; 
 /**
  * The Gmail address notes are sent from, once Gmail is connected
  * (Settings › Meetings › Notes by mail). Shown only; the token is in
@@ -2257,10 +2514,22 @@ gmail_address: string | null;
  */
 gmail_testing: boolean; 
 /**
+ * After a Slack huddle, post the summary (with the Sokki line) into the
+ * huddle's thread as the user, with the transcript as a file. Needs
+ * "Connect Slack"; connecting turns it on (`meeting/slack.rs`).
+ */
+slack_post_huddles: boolean; 
+/**
  * Accept recordings from the Sokki phone app on the local network
  * (direct and end-to-end encrypted, paired by QR code; `meeting/phone_link.rs`).
  */
-phone_link_enabled: boolean }
+phone_link_enabled: boolean; 
+/**
+ * While a meeting records: say so when the microphone brings no speech
+ * (muted, wrong device) or a detected call brings no sound, once per
+ * recording (`meeting/silence.rs`).
+ */
+silence_hint_enabled: boolean }
 /**
  * Where a meeting is in its life.
  */
@@ -2347,11 +2616,77 @@ hours: number;
  * All hours so far, rounded down.
  */
 total_hours: number }
+/**
+ * A name proposed for a speaker of a meeting, for the app.
+ */
+export type NameCandidate = { name: string; email: string | null; 
+/**
+ * "voice": the same voice has this name elsewhere; "invited".
+ */
+source: string }
+/**
+ * What Sokki proposes for one unnamed speaker, for the app.
+ */
+export type SpeakerProposal = { speaker: string; candidates: NameCandidate[] }
+/**
+ * One voice on the Sprecher page.
+ */
+export type VoiceInfo = { id: string; name: string | null; is_user: boolean; meetings: number; 
+/**
+ * Meetings where the voice is still "Speaker N".
+ */
+unnamed: number; last: string; members: VoiceMember[]; emails: string[]; 
+/**
+ * Sokki keeps this voice (the person agreed) and recognises it.
+ */
+remembered: boolean; suggestion: VoiceSuggestion | null; lines: VoiceLine[] }
+/**
+ * Something a voice said, to recognise it by.
+ */
+export type VoiceLine = { meeting_id: string; meeting_title: string; started_at: string; speaker: string; start_s: number; text: string; 
+/**
+ * The meeting's audio is still there, so the line can be played.
+ */
+audio: boolean }
+export type VoiceMember = { meeting_id: string; speaker: string }
+/**
+ * A name proposed for a voice, with why.
+ */
+export type VoiceSuggestion = { name: string; email: string | null; 
+/**
+ * Meetings of this voice the person was invited to.
+ */
+invited: number; 
+/**
+ * Meetings of this voice with a known guest list.
+ */
+of: number }
+export type VoicesPage = { 
+/**
+ * Voices with a name, and voices without one heard in 2+ meetings.
+ */
+voices: VoiceInfo[]; 
+/**
+ * Voices without a name heard in one meeting only (named there).
+ */
+once: number }
 export type MeetingNoteParts = { summary: string; transcript: string }
 /**
  * What the settings page shows for pairing.
  */
 export type PairedPhone = { id: string; name: string; paired_at: string }
+/**
+ * Slack's state for Settings › Meetings (`meeting/slack.rs`).
+ */
+export type SlackStatus = { 
+/**
+ * Slack is set up in this build (the Slack app's client id is in).
+ */
+available: boolean; connected: boolean; 
+/**
+ * The workspace's name, when connected.
+ */
+team: string | null }
 export type PhoneLinkInfo = { enabled: boolean; running: boolean; 
 /**
  * "sokki1:<this Mac's key>:<code>": what the phone scans or pastes.

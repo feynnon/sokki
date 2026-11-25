@@ -238,7 +238,7 @@ test.describe("main window", () => {
     ).toHaveCount(0);
   });
 
-  test("recording: red bar, timer, levels, and the no-sound warning (C2, D1)", async ({
+  test("recording: red bar, timer, levels, and the silence hints (C2, D1–D3)", async ({
     page,
   }) => {
     await page.clock.install();
@@ -247,6 +247,13 @@ test.describe("main window", () => {
       theme: "dark",
       recording: true,
       section: "meetings",
+      extra: {
+        get_available_microphones: [
+          { index: "default", name: "Default", is_default: true },
+          { index: "1", name: "MacBook Pro-Mikrofon", is_default: false },
+          { index: "2", name: "AirPods Pro", is_default: false },
+        ],
+      },
     });
     await expect(page.getByText("Aufnahme läuft · Zoom")).toBeVisible();
     await expect(page.getByRole("button", { name: "Beenden" })).toBeVisible();
@@ -260,35 +267,96 @@ test.describe("main window", () => {
     }
     await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
     await shot(page, "c2-aufnahme");
-    // The other side is quiet for 22 s (call audio far below the meter's
-    // floor, but not exact zeros): Sokki hears the call, no warning.
-    for (let i = 0; i < 22; i++) {
-      await page.evaluate(() =>
-        (window as any).__emit("meeting-level", {
-          mic: 0.05,
-          system: 0.0005,
-          system_dead_ms: 0,
-        }),
-      );
-      await page.clock.runFor(1000);
-    }
-    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
-    // The call track is exact zeros for 21 s while the microphone hears
-    // someone: the warning appears.
-    for (let i = 1; i <= 22; i++) {
-      await page.evaluate(
-        (ms) =>
+    // Rust decides the hint (meeting/silence.rs); the bar shows what it says.
+    const level = (hint: string | null, micName = "MacBook Pro-Mikrofon") =>
+      page.evaluate(
+        ([hint, micName]) =>
           (window as any).__emit("meeting-level", {
-            mic: 0.05,
-            system: 0,
-            system_dead_ms: ms,
+            // The call hint: the user speaks, the call track is dead; the
+            // mic hint: the call speaks, the microphone brings nothing.
+            mic: hint === "call" ? 0.05 : 0,
+            system: hint === "call" ? 0 : 0.04,
+            system_dead_ms: hint === "call" ? 40_000 : 0,
+            hint,
+            mic_name: micName,
           }),
-        i * 1000,
+        [hint, micName] as const,
       );
-      await page.clock.runFor(1000);
-    }
+    await level("call");
     await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeVisible();
     await shot(page, "d1-kein-ton");
+    await level("mic");
+    const hint = page.getByTestId("silence-hint");
+    await expect(
+      hint.getByText(
+        "Sokki hört keine Sprache von „MacBook Pro-Mikrofon“. Richtiges Mikrofon?",
+      ),
+    ).toBeVisible();
+    await shot(page, "d2-keine-sprache");
+    // Switching: the menu lists the microphones, the choice shows at once.
+    await hint.getByRole("button", { name: "Mikrofon wechseln" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "AirPods Pro" }),
+    ).toBeVisible();
+    await shot(page, "d3-mikrofon-wechseln");
+    await page.getByRole("menuitem", { name: "AirPods Pro" }).click();
+    await expect(
+      hint.getByText(
+        "Sokki hört keine Sprache von „AirPods Pro“. Richtiges Mikrofon?",
+      ),
+    ).toBeVisible();
+    const args = await page.evaluate(() => (window as any).__args);
+    expect(args).toContainEqual([
+      "switch_meeting_microphone",
+      { name: "AirPods Pro" },
+    ]);
+    // Speech arrives: Rust drops the hint.
+    await level(null, "AirPods Pro");
+    await expect(hint).toBeHidden();
+    // The X hides a hint for the rest of the meeting.
+    await level("call");
+    await page.getByRole("button", { name: "Ausblenden" }).click();
+    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
+    await level("call");
+    await page.clock.runFor(1000);
+    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
+  });
+
+  test("recording: the no-speech hint in English", async ({ page }) => {
+    await open(page, {
+      lang: "en",
+      theme: "dark",
+      recording: true,
+      section: "meetings",
+      extra: {
+        get_available_microphones: [
+          { index: "default", name: "Default", is_default: true },
+          { index: "1", name: "MacBook Pro Microphone", is_default: false },
+          { index: "2", name: "AirPods Pro", is_default: false },
+        ],
+      },
+    });
+    await expect(page.getByText("Recording · Zoom")).toBeVisible();
+    await page.evaluate(() =>
+      (window as any).__emit("meeting-level", {
+        mic: 0,
+        system: 0.04,
+        hint: "mic",
+        mic_name: "MacBook Pro Microphone",
+      }),
+    );
+    const hint = page.getByTestId("silence-hint");
+    await expect(
+      hint.getByText(
+        "Sokki hears no speech from “MacBook Pro Microphone”. Right microphone?",
+      ),
+    ).toBeVisible();
+    await shot(page, "d2-no-speech-en");
+    await hint.getByRole("button", { name: "Switch microphone" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "MacBook Pro Microphone" }),
+    ).toBeVisible();
+    await shot(page, "d3-switch-microphone-en");
   });
 
   test("an important message is a window the user answers (D)", async ({

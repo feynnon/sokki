@@ -44,6 +44,7 @@ Most useful keys:
 | Dictation shortcut | `bindings.transcribe.current_binding` |
 | Speech model | `selected_model` |
 | Custom words for dictation | `custom_words` |
+| Developer mode: Keep what I write | `keep_what_i_write`, `learn_words` |
 | Clean up dictations | `dictation_cleanup_enabled` |
 | Fix typos as you type (macOS) | `autocorrect_enabled` |
 
@@ -55,7 +56,7 @@ Most useful keys:
 | `meetings.notes_dir` | `Option<String>` | `null` | Folder the Markdown notes are written to. `None`: ~/Documents/Sokki. |
 | `meetings.user_name` | `String` | `"Ich"` | How the user is named in transcripts (the main voice on the microphone). |
 | `meetings.diarization_enabled` | `bool` | `true` | Separate speakers within each track. |
-| `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude Code"]. The summary prompt lists them, so the summary spells them right where the transcript has a misheard form ("Cloud Code"). The transcript itself stays as recognised. The dictation `custom_words` are added automatically. |
+| `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude Code"]. The summary prompt lists them, so the summary spells them right where the transcript has a misheard form ("Cloud Code"). The transcript itself stays as recognised. The dictation `custom_words` are added automatically. Dictation uses these words too: exact "heard as" fixes, and the sound-and-spelling swap for words of 6+ letters. |
 | `meetings.summary_enabled` | `bool` | `true` | Write a summary, decisions and action items with a language model. |
 | `meetings.footer_enabled` | `bool` | `true` | End every summary (note, app, phone, copy) with the Sokki line ("Summarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org"). Only a supporter (`supporter_code`) can turn it off; without a valid code the line stays even when this is false. |
 | `meetings.supporter_code` | `String` | `""` | Supporter code: proof of at least €20 paid for Sokki, checked offline (`sokki_engine::supporter`). Empty: none. |
@@ -66,10 +67,13 @@ Most useful keys:
 | `meetings.keep_audio_days` | `u32` | `0` | Keep the recorded audio for this many days after the note is written. 0 deletes it as soon as processing succeeds. |
 | `meetings.detection_enabled` | `bool` | `true` | Offer to record when a meeting app starts using the microphone. |
 | `meetings.chat_notice_enabled` | `bool` | `false` | When Sokki records a detected call (Zoom, Teams, Google Meet in Chrome, Arc, Edge or Brave), post one line into the meeting's chat, once per call, from the user's account: that Sokki records, locally, and that "stop" in the chat stops and deletes the recording. Uses Accessibility. |
-| `meetings.mail_notes_auto` | `bool` | `false` | After a meeting, send its notes (summary, decisions, action items; no transcript) to everyone invited in the calendar, from the user's own Apple Mail and in their name. Off by default; the note's "Send to everyone" button works either way. |
+| `meetings.mail_notes_auto` | `bool` | `true` | After a meeting, send its notes (summary, decisions, action items; no transcript) to everyone invited in the calendar, from the user's own Gmail or Apple Mail and in their name. On by default since 2026-11-25 (older installs: turned on once, unless `mail_notes_auto_set`); the note's "Send to everyone" button works either way. |
+| `meetings.mail_notes_auto_set` | `bool` | `false` | The person set the switch above themselves; a later default never changes it. |
 | `meetings.gmail_address` | `Option<String>` | `null` | The Gmail address notes are sent from, once Gmail is connected (Settings › Meetings › Notes by mail). Shown only; the token is in the Keychain. None: Apple Mail sends. |
 | `meetings.gmail_testing` | `bool` | `false` | Offer Gmail before Google has reviewed Sokki (test mode: only the Google project's test users can connect; everyone else would see Google's "Access blocked"). For Robin's test Mac; set by hand in the settings file. Off: Apple Mail only, until the review passes. |
+| `meetings.slack_post_huddles` | `bool` | `false` | After a Slack huddle, post the summary (with the Sokki line) into the huddle's thread as the user, with the transcript as a file. Needs "Connect Slack"; connecting turns it on. |
 | `meetings.phone_link_enabled` | `bool` | `false` | Accept recordings from the Sokki phone app: direct and end-to-end encrypted from any network, paired by QR code. Pairing state (this Mac's key, code, paired phones) is in `phone_link.json` in the app data folder. |
+| `meetings.silence_hint_enabled` | `bool` | `true` | While a meeting records: say so when the microphone brings no speech (muted, wrong device) or a detected call brings no sound, once per recording (`meeting/silence.rs`). |
 
 ## All other settings
 
@@ -101,6 +105,13 @@ Most useful keys:
 | `debug_mode` | `bool` | `false` | Show the debug page and extra logging. |
 | `log_level` | `LogLevel` | `"debug"` | `trace`, `debug`, `info`, `warn` or `error`. |
 | `custom_words` | `Vec<String>` | `["Sokki"]` | Words to prefer in dictation (names, jargon), e.g. `["Kelasur"]`. Starts with `Sokki`. |
+| `keep_what_i_write` | `bool` | `false` | Developer mode, "Keep what I write": saves the text the user sends or leaves in any app, with the app and the time, in `<app data>/typing_log/` on this Mac only (`sokki-journal`). Never password fields, secure input, terminals or password managers. Off by default. |
+| `journal_excluded_apps` | `Vec<String>` | `[]` | Apps "Keep what I write" never reads, as bundle ids, on top of the built-in list (password managers, terminals). E.g. ["com.apple.mail"]. |
+| `learn_words` | `bool` | `true` | Learn names and terms from what "Keep what I write" keeps: once a day while the Mac is idle, a local language model checks each new word and Sokki speaks it to itself to hear how the speech model writes it (`learn_words.rs`). Does nothing while the journal is off. |
+| `vocabulary_learned` | `Vec<String>` | `[]` | Words learned from the user's writing (Vocabulary › Learned from your writing). They reach dictation and meeting summaries like the Vocabulary list. |
+| `vocabulary_heard_as` | `Vec<HeardAs>` | `[]` | How the speech model writes a word, e.g. `{"heard": "Fassel", "word": "Vercel", "source": "hear_test"}` (`source`: `hear_test` or `correction`). Dictations get these fixed exactly. |
+| `vocabulary_rejected` | `Vec<String>` | `[]` | Learned words and "heard as" forms the user removed, lowercase: never learned again. |
+| `learn_words_last_run` | `u64` | `0` | When word learning last ran, ms since 1970. |
 | `model_unload_timeout` | `ModelUnloadTimeout` | `"min5"` | Unload the model after inactivity: `never`, `immediately`, `min2`, `min5`, `min10`, `min15`, `hour1`. |
 | `word_correction_threshold` | `f64` | `0.18` | How close a transcribed word must be to a custom word to be replaced (0–1; lower = stricter). |
 | `history_limit` | `usize` | `5` | Dictations kept in History. |
@@ -161,7 +172,7 @@ These sit in the same folder but are not part of `settings_store.json`.
 | File | What | Editing |
 |---|---|---|
 | `voice-data/config.json` | "Your data": `improve` (Help improve Sokki), `buyers` (Ask me when there's a buyer) and `support` (Share all my recordings), each `true`/`false`. Read each time it is used, so an edit applies on the next use. | These three are the user's consent to share data: change them only when the user asks for exactly that. Leave every other field (`install_id`, counters, dates) alone. |
-| `voice-profiles.json` | Remembered voices: `profiles[].name` with `embeddings`. Read when a meeting is processed. | Removing a profile forgets that voice. Embeddings come only from the app. |
+| `voice-profiles.json` | People: `profiles[].name`, their `emails` (calendar invitees get named by address), and only with the person's consent (`consent_at`) their voice `embeddings`, dropped a year after `last_heard`. Read when a meeting is processed and by the Sprecher page. | Adding or fixing `emails` by hand is fine. Removing a profile forgets that person. Embeddings come only from the app. |
 | `phone_link.json` | This Mac's key, the pairing code and paired phones. | Don't edit; pair and remove phones in the app. |
 | `history.db` | Dictation history (SQLite). | Read only. |
 | `meetings/` | `index.json` (every meeting) and each meeting's audio. | Read only; delete meetings in the app. |

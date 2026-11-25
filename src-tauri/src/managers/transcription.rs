@@ -1,7 +1,7 @@
 use crate::audio_toolkit::chunking;
 use crate::audio_toolkit::{
-    apply_custom_words, detect_output_language, normalize_transcription_output,
-    remove_filler_words, OutputLanguageEvidence,
+    apply_custom_words, apply_heard_as, detect_output_language, normalize_transcription_output,
+    remove_filler_words, swap_words, OutputLanguageEvidence,
 };
 use crate::chinese_script::{chinese_variety_for_text, convert_chinese_script};
 use crate::engine_supervisor::{
@@ -1014,6 +1014,7 @@ impl TranscriptionManager {
             self.maybe_unload_immediately("empty audio");
             return Ok(Transcription {
                 text: String::new(),
+                raw: String::new(),
                 language: None,
             });
         }
@@ -1026,6 +1027,7 @@ impl TranscriptionManager {
         let language = outcome
             .setup
             .spoken_language(outcome.model_detected_language.as_deref());
+        let raw = outcome.text.trim().to_string();
         let final_result = finish_text(outcome, &settings);
 
         let translation_note = if settings.translate_to_english {
@@ -1057,6 +1059,7 @@ impl TranscriptionManager {
 
         Ok(Transcription {
             text: final_result,
+            raw,
             language: Some(language),
         })
     }
@@ -1246,6 +1249,8 @@ struct BatchContext {
 /// A finished transcription.
 pub struct Transcription {
     pub text: String,
+    /// The speech model's own text, before filler removal and word fixes.
+    pub raw: String,
     /// The language it ran in and how that was chosen; `None` when there was
     /// no audio to run.
     pub language: Option<LanguageDecision>,
@@ -1380,7 +1385,7 @@ fn run_setup(info: &LoadedInfo, settings: &AppSettings, language: LanguageDecisi
         task: run_plan.task,
         language: run_plan.language,
         target_language: run_plan.target_language,
-        vocabulary: vocabulary_for_model(info.supports_vocabulary, &settings.custom_words),
+        vocabulary: vocabulary_for_model(info.supports_vocabulary, &settings.all_vocabulary()),
         ..Default::default()
     };
 
@@ -1725,12 +1730,16 @@ fn post_process_transcription_text(
             None => raw,
         };
 
-        let corrected = if !settings.custom_words.is_empty() && !custom_words_already_prompted {
-            apply_custom_words(
-                &raw,
-                &settings.custom_words,
-                settings.word_correction_threshold,
-            )
+        // Exact "heard as" fixes first (learned, never fuzzy), then the swap
+        // by sound and spelling, unless the model got the words as a prompt.
+        let raw = apply_heard_as(&raw, &settings.heard_as_pairs());
+        let swap = swap_words(
+            &settings.custom_words,
+            &settings.meetings.glossary,
+            &settings.vocabulary_learned,
+        );
+        let corrected = if !swap.is_empty() && !custom_words_already_prompted {
+            apply_custom_words(&raw, &swap, settings.word_correction_threshold)
         } else {
             raw
         };

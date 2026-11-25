@@ -71,6 +71,7 @@ ureq = { version = "3", default-features = false, features = ["rustls", "json"] 
 meeting-detect = { path = "../crates/meeting-detect" }
 meeting-chat = { path = "../crates/meeting-chat" }
 meeting-mail = { path = "../crates/meeting-mail" }
+sokki-slack = { path = "../crates/sokki-slack" }
 log = "0.4.25"
 env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["process", "time"] }
@@ -115,6 +116,7 @@ transcribe-cpp = { version = "0.4.2", default-features = false, features = [
   "serde",
 ] }
 sokki-keys = { path = "../crates/sokki-keys" }
+sokki-journal = { path = "../crates/sokki-journal" }
 ferrous-opencc = "0.2.3"
 clap = { version = "4", features = ["derive"] }
 specta = "=2.0.0-rc.22"
@@ -206,7 +208,7 @@ objc2-service-management = "0.3.2"
 # Fixes typos as you type (autocorrect.rs).
 sokki-autocorrect = { path = "../crates/sokki-autocorrect" }
 # Notifications with Sokki's own name and icon (osascript shows Script Editor).
-objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationSettings"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationResponse", "UNNotificationSettings"] }
 block2 = "0.6"
 # The Gmail token in the Keychain (meeting/gmail_account.rs); already in the tree.
 security-framework = "3"

@@ -1,0 +1,486 @@
+{
+ "about": "Qwen3.5 dictation layout tests, 2026-11-23/24, Apple M1 Pro 32 GB, mlx-lm 0.32.2, 38 private dictations (30-484 words; texts not included). Sampling: temperature 1.0, top-k 20, top-p 1.0, thinking off. Ratings: blind, 1-5 per layout plus 'bad' (clearly wrong break), by separate AI raters; per-text data omitted because it quotes the dictations.",
+ "ratings": {
+  "round 2: model sizes, one full pass": {
+   "Qwen3.5-0.8B-8bit v2": {
+    "mean": 2.87,
+    "bad": 4,
+    "better": 6,
+    "same": 7,
+    "slightly_worse": 20,
+    "clearly_worse": 5
+   },
+   "Qwen3.5-2B-8bit v2": {
+    "mean": 3.16,
+    "bad": 9,
+    "better": 5,
+    "same": 19,
+    "slightly_worse": 8,
+    "clearly_worse": 6
+   },
+   "Qwen3.5-4B-4bit v2": {
+    "mean": 3.32,
+    "bad": 7,
+    "better": 7,
+    "same": 18,
+    "slightly_worse": 9,
+    "clearly_worse": 4
+   },
+   "Qwen3.5-4B-8bit v1": {
+    "mean": 3.05,
+    "bad": 13,
+    "better": 0,
+    "same": 31,
+    "slightly_worse": 0,
+    "clearly_worse": 7
+   },
+   "Qwen3.5-4B-8bit v2": {
+    "mean": 3.53,
+    "bad": 6,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   }
+  },
+  "round 7 rater 1: vote": {
+   "4B win3": {
+    "mean": 3.18,
+    "bad": 10,
+    "better": 4,
+    "same": 26,
+    "slightly_worse": 3,
+    "clearly_worse": 5
+   },
+   "full pass, seed1": {
+    "mean": 3.21,
+    "bad": 9,
+    "better": 7,
+    "same": 15,
+    "slightly_worse": 12,
+    "clearly_worse": 4
+   },
+   "recommended": {
+    "mean": 3.42,
+    "bad": 6,
+    "better": 3,
+    "same": 33,
+    "slightly_worse": 0,
+    "clearly_worse": 2
+   },
+   "today (full pass)": {
+    "mean": 3.39,
+    "bad": 7,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "vote": {
+    "mean": 3.53,
+    "bad": 3,
+    "better": 6,
+    "same": 28,
+    "slightly_worse": 4,
+    "clearly_worse": 0
+   }
+  },
+  "round 7 rater 2: vote": {
+   "4B win3": {
+    "mean": 3.16,
+    "bad": 11,
+    "better": 4,
+    "same": 26,
+    "slightly_worse": 3,
+    "clearly_worse": 5
+   },
+   "full pass, seed1": {
+    "mean": 3.26,
+    "bad": 8,
+    "better": 7,
+    "same": 16,
+    "slightly_worse": 11,
+    "clearly_worse": 4
+   },
+   "recommended": {
+    "mean": 3.45,
+    "bad": 7,
+    "better": 4,
+    "same": 32,
+    "slightly_worse": 0,
+    "clearly_worse": 2
+   },
+   "today (full pass)": {
+    "mean": 3.39,
+    "bad": 8,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "vote": {
+    "mean": 3.58,
+    "bad": 4,
+    "better": 7,
+    "same": 28,
+    "slightly_worse": 3,
+    "clearly_worse": 0
+   }
+  },
+  "round 8 rater 1: window and focus, 4B": {
+   "focus middle": {
+    "mean": 3.16,
+    "bad": 9,
+    "better": 8,
+    "same": 18,
+    "slightly_worse": 6,
+    "clearly_worse": 6
+   },
+   "focus vote": {
+    "mean": 3.16,
+    "bad": 9,
+    "better": 8,
+    "same": 18,
+    "slightly_worse": 6,
+    "clearly_worse": 6
+   },
+   "recommended": {
+    "mean": 3.47,
+    "bad": 4,
+    "better": 3,
+    "same": 32,
+    "slightly_worse": 2,
+    "clearly_worse": 1
+   },
+   "today (full pass)": {
+    "mean": 3.45,
+    "bad": 4,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "vote (round 7)": {
+    "mean": 3.61,
+    "bad": 2,
+    "better": 6,
+    "same": 29,
+    "slightly_worse": 3,
+    "clearly_worse": 0
+   },
+   "win3 vote": {
+    "mean": 3.26,
+    "bad": 7,
+    "better": 2,
+    "same": 28,
+    "slightly_worse": 5,
+    "clearly_worse": 3
+   }
+  },
+  "round 8 rater 2: window and focus, 4B": {
+   "focus middle": {
+    "mean": 3.18,
+    "bad": 9,
+    "better": 6,
+    "same": 22,
+    "slightly_worse": 4,
+    "clearly_worse": 6
+   },
+   "focus vote": {
+    "mean": 3.18,
+    "bad": 9,
+    "better": 6,
+    "same": 22,
+    "slightly_worse": 4,
+    "clearly_worse": 6
+   },
+   "recommended": {
+    "mean": 3.47,
+    "bad": 5,
+    "better": 2,
+    "same": 34,
+    "slightly_worse": 1,
+    "clearly_worse": 1
+   },
+   "today (full pass)": {
+    "mean": 3.45,
+    "bad": 6,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "vote (round 7)": {
+    "mean": 3.61,
+    "bad": 2,
+    "better": 5,
+    "same": 31,
+    "slightly_worse": 2,
+    "clearly_worse": 0
+   },
+   "win3 vote": {
+    "mean": 3.24,
+    "bad": 7,
+    "better": 3,
+    "same": 26,
+    "slightly_worse": 6,
+    "clearly_worse": 3
+   }
+  },
+  "round 9 rater 1: 9B vs 4B": {
+   "4B today": {
+    "mean": 3.37,
+    "bad": 8,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "4B vote": {
+    "mean": 3.53,
+    "bad": 5,
+    "better": 8,
+    "same": 27,
+    "slightly_worse": 3,
+    "clearly_worse": 0
+   },
+   "9B fixed window": {
+    "mean": 3.03,
+    "bad": 14,
+    "better": 6,
+    "same": 17,
+    "slightly_worse": 7,
+    "clearly_worse": 8
+   },
+   "9B focus middle": {
+    "mean": 2.74,
+    "bad": 17,
+    "better": 7,
+    "same": 12,
+    "slightly_worse": 7,
+    "clearly_worse": 12
+   },
+   "9B recommended": {
+    "mean": 3.05,
+    "bad": 12,
+    "better": 7,
+    "same": 18,
+    "slightly_worse": 5,
+    "clearly_worse": 8
+   },
+   "9B today": {
+    "mean": 3.11,
+    "bad": 10,
+    "better": 7,
+    "same": 18,
+    "slightly_worse": 7,
+    "clearly_worse": 6
+   },
+   "9B vote": {
+    "mean": 3.05,
+    "bad": 11,
+    "better": 6,
+    "same": 19,
+    "slightly_worse": 6,
+    "clearly_worse": 7
+   }
+  },
+  "round 9 rater 2: 9B vs 4B": {
+   "4B today": {
+    "mean": 3.29,
+    "bad": 8,
+    "better": 0,
+    "same": 38,
+    "slightly_worse": 0,
+    "clearly_worse": 0
+   },
+   "4B vote": {
+    "mean": 3.53,
+    "bad": 4,
+    "better": 9,
+    "same": 27,
+    "slightly_worse": 2,
+    "clearly_worse": 0
+   },
+   "9B fixed window": {
+    "mean": 3,
+    "bad": 14,
+    "better": 8,
+    "same": 15,
+    "slightly_worse": 8,
+    "clearly_worse": 7
+   },
+   "9B focus middle": {
+    "mean": 2.76,
+    "bad": 15,
+    "better": 9,
+    "same": 10,
+    "slightly_worse": 7,
+    "clearly_worse": 12
+   },
+   "9B recommended": {
+    "mean": 3.05,
+    "bad": 12,
+    "better": 8,
+    "same": 17,
+    "slightly_worse": 6,
+    "clearly_worse": 7
+   },
+   "9B today": {
+    "mean": 3.16,
+    "bad": 10,
+    "better": 10,
+    "same": 16,
+    "slightly_worse": 6,
+    "clearly_worse": 6
+   },
+   "9B vote": {
+    "mean": 3.13,
+    "bad": 11,
+    "better": 10,
+    "same": 16,
+    "slightly_worse": 5,
+    "clearly_worse": 7
+   }
+  }
+ },
+ "timing": {
+  "0.8B-8bit full pass, no prompt cache": {
+   "final_median_s": 1.05
+  },
+  "2B-8bit full pass, no prompt cache": {
+   "final_median_s": 2.23
+  },
+  "4B-4bit full pass, no prompt cache": {
+   "final_median_s": 3.54
+  },
+  "4B-8bit full pass, no prompt cache": {
+   "final_median_s": 4.72
+  },
+  "4B-8bit full pass, prompt cache": {
+   "texts": 38,
+   "final_median_s": 3.36,
+   "final_max_s": 22.8,
+   "by_words": {
+    "<50": 1.89,
+    "50-100": 3.49,
+    "100-200": 5.37,
+    "200+": 19.06
+   },
+   "out_tok_per_s": 29.2,
+   "peak_gib": 5.2
+  },
+  "9B-4bit full pass, prompt cache": {
+   "texts": 38,
+   "final_median_s": 3.86,
+   "final_max_s": 24.83,
+   "by_words": {
+    "<50": 2.13,
+    "50-100": 4.11,
+    "100-200": 6.32,
+    "200+": 19.97
+   },
+   "out_tok_per_s": 25.5,
+   "peak_gib": 5.69
+  },
+  "4B-8bit live 60-word pieces, 2 open (long texts, last step only)": {
+   "texts": 10,
+   "final_median_s": 5.38,
+   "final_max_s": 9.13,
+   "by_words": {
+    "<50": null,
+    "50-100": null,
+    "100-200": 4.97,
+    "200+": 8.06
+   },
+   "out_tok_per_s": 28.7,
+   "peak_gib": 5.07
+  },
+  "9B-4bit live 60-word pieces, 2 open (long texts, last step only)": {
+   "texts": 10,
+   "final_median_s": 5.83,
+   "final_max_s": 11.62,
+   "by_words": {
+    "<50": null,
+    "50-100": null,
+    "100-200": 5.82,
+    "200+": 9.79
+   },
+   "out_tok_per_s": 24.8,
+   "peak_gib": 5.6
+  },
+  "4B-8bit live 40-word pieces, 1 open (last step only)": {
+   "texts": 38,
+   "final_median_s": 2.83,
+   "final_max_s": 5.38,
+   "by_words": {
+    "<50": 1.88,
+    "50-100": 3.25,
+    "100-200": 4.01,
+    "200+": 4.83
+   },
+   "out_tok_per_s": 27.5,
+   "peak_gib": 4.94
+  },
+  "4B-8bit growing 3-piece window (last step only)": {
+   "texts": 38,
+   "final_median_s": 4.24,
+   "final_max_s": 13.43,
+   "by_words": {
+    "<50": 2.52,
+    "50-100": 4.51,
+    "100-200": 6.99,
+    "200+": 11.75
+   },
+   "out_tok_per_s": 21.2,
+   "peak_gib": 5.06
+  },
+  "4B-8bit prompt lookup": {
+   "texts": 38,
+   "final_median_s": 7.58,
+   "final_max_s": 42.88,
+   "by_words": {
+    "<50": 4.29,
+    "50-100": 7.94,
+    "100-200": 10.4,
+    "200+": 34.59
+   },
+   "out_tok_per_s": 14.2,
+   "peak_gib": 5.78
+  }
+ },
+ "timing_with_queue_note": "Waits replayed at 2.8 words/s with steps queued on one GPU: see the findings file.",
+ "call_cost_fit": {
+  "4B-8bit": "0.25 s + 3.06 ms per input token + 31.5 ms per output token (R2 0.986, 232 calls; 387-token system prompt cached)",
+  "9B-4bit": "0.37 s + 5.04 ms per input token + 31.5 ms per output token (R2 0.982, 233 calls; same)"
+ },
+ "contention": {
+  "parakeet_14s_audio_ms": {
+   "alone": 300,
+   "while_qwen_4b_runs": 545
+  },
+  "parakeet_64s_audio_ms": {
+   "alone": 1405,
+   "while_qwen_4b_runs": 2741
+  },
+  "qwen_4b_120_words_s": {
+   "alone": 7.4,
+   "while_transcribing": 8.6
+  }
+ },
+ "batch_of_3": {
+  "60 words": "one call 4.1-4.4 s, three in one batch 8.8-9.2 s",
+  "120 words": "one call 7.3-7.5 s, three in one batch 13.9 s",
+  "peak_gib": 5.72
+ },
+ "sokki_9b_memory": {
+  "model": "Qwen3.5-9B-Q4_K_M.gguf via llama-server, ctx 16384",
+  "model_file_gb": 5.68,
+  "kv_cache_mib": 512,
+  "recurrent_state_mib": 50,
+  "compute_mib": 153,
+  "process_footprint_mb_excl_mapped_model": 721,
+  "total_gb_approx": 6.4,
+  "decode_tok_per_s": 20
+ }
+}

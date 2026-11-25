@@ -132,6 +132,18 @@ pub fn is_meeting_recording(meetings: State<'_, Arc<MeetingManager>>) -> bool {
     meetings.is_recording()
 }
 
+/// Moves the running meeting to another microphone ("Sokki hears nothing"
+/// hint in the recording bar). `name` as `get_available_microphones` lists it.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn switch_meeting_microphone(
+    meetings: State<'_, Arc<MeetingManager>>,
+    name: String,
+) -> Result<(), String> {
+    meetings.switch_mic(&name).map_err(|e| e.to_string())
+}
+
 /// Meetings, newest first.
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -744,6 +756,76 @@ pub fn delete_voice_profile(app: AppHandle, name: String) -> Result<(), String> 
     Ok(())
 }
 
+/// Every voice across meetings, for the Sprecher page.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn list_voices(app: AppHandle) -> Result<meeting::voices::VoicesPage, String> {
+    tauri::async_runtime::spawn_blocking(move || meeting::voices::page(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Names Sokki proposes for the unnamed speakers of a meeting.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_speaker_proposals(
+    app: AppHandle,
+    id: String,
+) -> Result<Vec<meeting::voices::SpeakerProposal>, String> {
+    tauri::async_runtime::spawn_blocking(move || meeting::voices::speaker_proposals(&app, &id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Gives speakers of one or more meetings a name. With `consent`, the
+/// person agreed and Sokki keeps their voice. Returns how many meetings
+/// changed.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn name_voice(
+    app: AppHandle,
+    members: Vec<meeting::voices::VoiceMember>,
+    name: String,
+    emails: Vec<String>,
+    consent: bool,
+) -> Result<u32, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        meeting::voices::name_voice(&app, &members, &name, &emails, consent)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}
+
+/// Sets a person's email addresses.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn set_person_emails(app: AppHandle, name: String, emails: Vec<String>) -> Result<(), String> {
+    meeting::voices::set_emails(&app, &name, emails).map_err(|e| format!("{e:#}"))
+}
+
+/// A few seconds of a speaker, as a WAV data URL.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn speaker_clip(
+    app: AppHandle,
+    id: String,
+    speaker: String,
+    start_s: Option<f64>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        meeting::voices::clip(&app, &id, &speaker, start_s)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}
+
 // ------------------------------------------------------------ other OSes
 
 #[cfg(not(target_os = "macos"))]
@@ -768,6 +850,13 @@ pub fn stop_meeting_recording() -> Result<String, String> {
 #[specta::specta]
 pub fn is_meeting_recording() -> bool {
     false
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn switch_meeting_microphone(_name: String) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -959,6 +1048,52 @@ pub fn delete_voice_profile(_name: String) -> Result<(), String> {
     Err(UNAVAILABLE.to_string())
 }
 
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn list_voices() -> Result<crate::meeting::voice_types::VoicesPage, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_speaker_proposals(
+    _id: String,
+) -> Result<Vec<crate::meeting::voice_types::SpeakerProposal>, String> {
+    Ok(Vec::new())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn name_voice(
+    _members: Vec<crate::meeting::voice_types::VoiceMember>,
+    _name: String,
+    _emails: Vec<String>,
+    _consent: bool,
+) -> Result<u32, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn set_person_emails(_name: String, _emails: Vec<String>) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn speaker_clip(
+    _id: String,
+    _speaker: String,
+    _start_s: Option<f64>,
+) -> Result<String, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::obsidian_url;
@@ -998,4 +1133,86 @@ pub fn sokki_line(app: AppHandle, german: bool) -> String {
         meeting_core::lang::Language::English
     };
     meeting_core::note::sokki_line(language, settings.note_options().cloud_summary).to_string()
+}
+
+// ------------------------------------------------------------------ Slack
+
+/// Slack's state for Settings › Meetings (`meeting/slack.rs`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct SlackStatus {
+    /// Slack is set up in this build (the Slack app's client id is in).
+    pub available: bool,
+    pub connected: bool,
+    /// The workspace's name, when connected.
+    pub team: Option<String>,
+}
+
+#[cfg(not(target_os = "macos"))]
+const NO_SLACK: SlackStatus = SlackStatus {
+    available: false,
+    connected: false,
+    team: None,
+};
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn slack_status() -> SlackStatus {
+    NO_SLACK
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn slack_connect() -> Result<SlackStatus, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn slack_cancel_connect() {}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn slack_disconnect() -> Result<SlackStatus, String> {
+    Ok(NO_SLACK)
+}
+
+/// Whether Slack is connected, for Settings › Meetings.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn slack_status(app: AppHandle) -> meeting::slack::SlackStatus {
+    meeting::slack::status(&app)
+}
+
+/// Signs in with Slack in the browser; returns once the person allowed it
+/// (or after five minutes, or when cancelled).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn slack_connect(app: AppHandle) -> Result<meeting::slack::SlackStatus, String> {
+    tokio::task::spawn_blocking(move || meeting::slack::connect(&app).map_err(|e| format!("{e:#}")))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Stops a running Slack sign-in.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn slack_cancel_connect(app: AppHandle) {
+    meeting::slack::cancel_connect(&app);
+}
+
+/// Forgets the Slack sign-in (and revokes it at Slack).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn slack_disconnect(app: AppHandle) -> Result<meeting::slack::SlackStatus, String> {
+    tokio::task::spawn_blocking(move || meeting::slack::disconnect(&app))
+        .await
+        .map_err(|e| e.to_string())
 }

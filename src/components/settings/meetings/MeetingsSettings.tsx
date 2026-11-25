@@ -37,7 +37,9 @@ import { useMeetingStore } from "@/stores/meetingStore";
 import { useFormatLocale } from "./useFormatLocale";
 import { PhoneLink } from "./PhoneLink";
 import { MailSettings } from "./MailSettings";
+import { SpeakerChips } from "./SpeakerChips";
 import { LiveTranscript, SampleCard, SampleTag } from "./SampleMeeting";
+import { SlackHuddles } from "./SlackHuddles";
 import {
   commands,
   events,
@@ -205,133 +207,6 @@ const SokkiLine: React.FC<{
         </div>
       )}
     </div>
-  );
-};
-
-/** Speaker names of a meeting; click one to rename it (and remember the voice). */
-const Speakers: React.FC<{ record: MeetingRecord; onDone: () => void }> = ({
-  record,
-  onDone,
-}) => {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  // Invented voices aren't worth remembering.
-  const [remember, setRemember] = useState(!record.sample);
-  const [error, setError] = useState<string | null>(null);
-  if (record.speakers.length === 0 || record.status.kind !== "done")
-    return null;
-
-  const save = async () => {
-    if (!editing) return;
-    const result = await commands.renameMeetingSpeaker(
-      record.id,
-      editing,
-      name,
-      remember,
-    );
-    if (result.status === "ok") {
-      setEditing(null);
-      setError(null);
-      onDone();
-    } else {
-      setError(result.error);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5">
-        {record.speakers.map((sp) => (
-          <button
-            key={sp}
-            type="button"
-            className="h-[22px] px-2 inline-flex items-center rounded-md bg-wash text-[11px] font-medium text-ink-2 hover:text-text cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
-            title={t("meetings.renameSpeaker")}
-            onClick={() => {
-              setEditing(sp);
-              setName(sp.startsWith("Speaker ") ? "" : sp);
-              setError(null);
-            }}
-          >
-            {sp}
-          </button>
-        ))}
-      </div>
-      {editing && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-ink-3">{editing} →</span>
-          <Input
-            autoFocus
-            value={name}
-            placeholder={t("meetings.newName")}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void save();
-              if (e.key === "Escape") setEditing(null);
-            }}
-          />
-          <label className="flex items-center gap-1 text-xs">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
-            {t("meetings.rememberVoice")}
-          </label>
-          <Button size="sm" onClick={() => void save()} disabled={!name.trim()}>
-            {t("meetings.save")}
-          </Button>
-        </div>
-      )}
-      {error && <div className="text-xs text-red-500">{error}</div>}
-    </div>
-  );
-};
-
-/** Remembered voices, with delete. */
-const VoiceProfiles: React.FC = () => {
-  const { t } = useTranslation();
-  const [names, setNames] = useState<string[]>([]);
-  const load = useCallback(async () => {
-    const r = await commands.listVoiceProfiles();
-    if (r.status === "ok") setNames(r.data);
-  }, []);
-  useEffect(() => {
-    void load();
-    const unlisten = events.meetingChanged.listen(() => void load());
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [load]);
-  return (
-    <SettingsGroup title={t("meetings.voices.title")}>
-      <div className="px-4 py-3 space-y-2">
-        <p className="text-sm text-ink-3">{t("meetings.voices.description")}</p>
-        {names.length === 0 && (
-          <p className="text-sm text-ink-3">{t("meetings.voices.empty")}</p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {names.map((n) => (
-            <span
-              key={n}
-              className="flex items-center gap-1 text-sm px-2 py-0.5 rounded-full border border-line"
-            >
-              {n}
-              <button
-                type="button"
-                title={t("meetings.voices.forget")}
-                onClick={() =>
-                  void commands.deleteVoiceProfile(n).then(() => load())
-                }
-              >
-                <Trash2 width={12} height={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      </div>
-    </SettingsGroup>
   );
 };
 
@@ -517,6 +392,14 @@ const MeetingSettingsView: React.FC<{
             description={t("meetings.settings.chatNoticeDescription")}
             grouped
           />
+          <ToggleSwitch
+            checked={meetingSettings.silence_hint_enabled}
+            onChange={(v) => void save({ silence_hint_enabled: v })}
+            label={t("meetings.settings.silenceHint")}
+            description={t("meetings.settings.silenceHintDescription")}
+            grouped
+          />
+          <SlackHuddles meetingSettings={meetingSettings} save={save} />
           <SokkiLine meetingSettings={meetingSettings} save={save} />
         </SettingsGroup>
 
@@ -530,8 +413,6 @@ const MeetingSettingsView: React.FC<{
         <MailSettings meetingSettings={meetingSettings} save={save} />
 
         <PhoneLink meetingSettings={meetingSettings} save={save} />
-
-        <VoiceProfiles />
       </div>
     </div>
   );
@@ -795,7 +676,7 @@ const Reader: React.FC<{
             <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
           </div>
           {rec && record.sample && <LiveTranscript record={record} />}
-          <Speakers record={record} onDone={onChanged} />
+          <SpeakerChips record={record} onDone={onChanged} />
           {!rec && <StatusLine record={record} />}
           <Warnings record={record} />
           {shown && <p className="text-xs text-red-500 select-text">{shown}</p>}

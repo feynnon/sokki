@@ -15,6 +15,19 @@ Status: open unless marked.
 | A6 | Parakeet has no vocabulary biasing (checked: neither v3 nor Ultra supports `Feature::Vocabulary`) | – | correction after ASR is the only lever, or a model that supports vocabulary |
 | A7 | Test metric counts digit formatting as errors ("18" vs "achtzehn") | inflates WER by a few points | normalise numbers in the metric |
 
+## Dictionary and "Keep what I write" (2026-11-24)
+
+| # | Problem | Example | Fix idea |
+|---|---|---|---|
+| V1 | The sound-and-spelling swap overwrites normal words with short dictionary words | a 4-letter word turned "mit" into "Meta" 28 times in 36 real dictations; a short first name replaced "Mac" | fixed: Vocabulary and learned words swap only from 6 letters (`swap_words`) |
+| V2 | The swap let a correct word swallow its neighbour | "to Kubernetes" → "Kubernetes" | fixed in `apply_custom_words` |
+| V3 | Far-off mishearings are out of the swap's reach | "Vercel" → "Fassel", "OVDA" → "Off-Dar", "Quandtmüller" (ü: the swap is ASCII only) | "heard as" pairs from the hear test and from the user's own fixes (`learn_words.rs`) |
+| V4 | The hear test uses the Mac's voices, not the user's | a pair can be missing or not match the user's accent | the user's own fixes after a dictation confirm or add pairs |
+| V5 | Chrome and Electron fields not tested yet with "Keep what I write" | Electron shows its fields after `AXManualAccessibility`; Chrome's switch (`AXEnhancedUserInterface`) upsets window managers and is never set | test in Slack, VS Code, Chrome on a real Mac session |
+| V6 | Parakeet takes no word list (A6), but a CTC word spotter could add one | FluidAudio: Parakeet CTC 110M next to TDT finds 85 % of listed words, 99 % precision (Earnings22) | check whether transcribe-cpp can run it |
+| V8 | "Typed" is judged by key count vs. text growth (at most one character per key press between reads) | macOS autocorrect replacing a typed word, or a word finished from a suggestion, counts as not typed; so does text typed in a burst faster than the reads (40–80 ms) only if it outruns the key count | conservative on purpose: such words are never learned. The phone keyboard can mark the source of each character exactly |
+| V7 | Measurements are small | 14 TTS sentences, 30 terms, 36 real dictations | re-measure on real dictations once the journal has pairs |
+
 ## Summary (Qwen 3.5 9B)
 
 | # | Problem | Example | Fix idea |
@@ -53,6 +66,11 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 | P3 | Sortformer handles at most 4 speakers per track | fallback to sherpa clustering for larger meetings |
 | P4 | Voice profiles tested only on synthetic voices; phone vs. clean voice similarity only 0.78 | test with real recordings |
 | P5 | Renaming a real name ("Ich") only changes structured spots in the note, not running text | fine for now |
+| P6 | Names from the call app (who is speaking in Zoom, Teams, Meet) not built yet: needs a test call per app first (research in side-session notes `speaker-names.md`) | read the active-speaker marker via Accessibility, lay it over the diarized turns |
+| P7 | Names said in the meeting ("Danke, Lena") aren't used yet | let the summary model propose, as a suggestion only |
+| P8 | Slack huddle members aren't proposed yet: branch `slack-huddle` isn't merged | after the merge, write the huddle's members to `invitees.json` |
+| P9 | A name given from a guess (the last invitee left) is applied without asking; if the guest list is wrong (someone uninvited spoke), the name is wrong until the user renames it | wait for a real case before adding a check |
+| P10 | Grouping voices across meetings compares every speaker with every other: fine for hundreds of speakers, slow for many thousands | cache groups, or compare only against group centroids |
 
 ## Echo and dedup
 
@@ -84,7 +102,7 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 | X7 | Processing starts only after the meeting ends (21-min call: ready ~3 min after stopping) | live transcription measured and rejected, see F3 |
 | X8 | **Fixed 2026-11-19:** keyboard and mouse froze Mac-wide (13:3x, forced restart; 15:02, 5 min). Onboarding ran `tccutil reset` before asking for a permission. A second copy (started from a shell, or a test copy with a fresh data folder) reads "not granted" and resets while the running Sokki holds an active keyboard event tap; revoking that grant hangs all input (Apple FB24619068, developer.apple.com/forums/thread/844416) | reset removed (onboarding only asks; a stale grant after a signature change is fixed by the user in System Settings). Still open: a listen-only tap when no shortcut needs blocking |
 | X9 | **Partly fixed 2026-11-19:** an in-person meeting recorded in front of the laptop was cut off when the Mac went to idle sleep. Every recording now keeps the device awake: macOS a `PreventUserIdleSystemSleep` assertion (`src-tauri/src/meeting/keep_awake.rs`; the display may still turn off), Linux/Omarchy a logind sleep inhibitor (`crates/sokki/src/keep_awake.rs`; screen may still lock and turn off), Android keeps the screen on while recording (`MainActivity.kt`, `SokkiScreen`; with the screen off a background app records only silence). Still open: closing the lid sleeps a laptop and ends the capture (Mac: with no external display; only the admin-level `pmset disablesleep` prevents it; Linux: logind's `LidSwitchIgnoreInhibited=yes`); on Android, pressing the power button cuts the recording; Windows holds nothing | warn when the lid closes during a recording; Android: record in a foreground service; Windows: `PowerSetRequest` |
-| X10 | **Fixed 2026-11-23:** Android: a recording made during a phone call or internet call is silent, but the app showed a normal recording with a running clock (emulator, Android 15: `dumpsys audio` shows Sokki's capture `silenced` from call accept to hang-up). Android gives no app but the call app the microphone during a call | while Android silences the recording, a line under the clock says so (`SokkiRecorder.silenced()` in `MainActivity.kt`, `isClientSilenced`). The part itself stays silent: Android offers no way around it. Sokki makes no notes of phone calls (Robin, 2026-11-24; MEETINGS.md "Other people's voices") |
+| X10 | **Fixed 2026-11-23:** Android: a recording made during a phone call or internet call is silent, but the app showed a normal recording with a running clock (emulator, Android 15: `dumpsys audio` shows Sokki's capture `silenced` from call accept to hang-up). Android gives no app but the call app the microphone during a call | while Android silences the recording, a line under the clock says so (`SokkiRecorder.silenced()` in `MainActivity.kt`, `isClientSilenced`). The part itself stays silent: Android offers no way around it. So calls can't be recorded on the phone (Robin, 2026-11-24); on the Mac Sokki asks to record an iPhone call taken there (Robin, 2026-11-25; MEETINGS.md "Other people's voices") |
 | X11 | Android: the first recording sent after Sokki starts takes 15–45 s to reach the Mac, once it hung until "Check again" (emulator, 2026-11-23, with the tile and with the button); a ping right after answers in 150 ms | connect to the Mac when a recording starts, so the link is up when it stops |
 | X12 | **Fixed 2026-11-24:** Android: Sokki couldn't be installed next to HeliBoard, nor a debug `org.sokki.app` next to the old `dev.verbatim.mobile` (emulator, 2026-11-24: `INSTALL_FAILED_CONFLICTING_PROVIDER`). The keyboard's two file providers had HeliBoard's fixed names (`helium314.keyboard.clipprovider` and `helium314.keyboard.provider`, debug `helium314.keyboard.debug.*`), which HeliBoard itself uses | both names follow the app ID: `org.sokki.app.clipprovider` and `org.sokki.app.gesturedata` (`mobile/keyboard/src/main/AndroidManifest.xml`, read back from `context.packageName` in `ClipboardHistoryEntry.kt` and `gesturedata/Share.kt`) |
 | X13 | Call audio went silent mid-call: in the 2026-11-24 09:30 call the system track turned to exact zeros at 10:02:20, during a coreaudiod IO overload (other jobs were running sessions' model tests), and stayed silent for the last 13 min although the other side was talking. The tap kept delivering callbacks, just zeros. The afternoon meetings 14:19–15:20 (all system tracks silent) were mostly a session's own test calls with no far side, so they prove nothing either way. Sokki ran without restart from 2026-11-23 16:12 until the 0.2.12 install on 2026-11-24 15:42 | detect stuck zeros while an output runs and rebuild the tap, warn if that fails (board card "Anrufton darf nicht still wegbleiben", `src-tauri/swift/system_audio_tap.swift`); check the next real call after the restart |
@@ -193,6 +211,57 @@ Chrome (posted in 2.1 s; "stop" → same).
   an objection arriving in a mailbox Mail doesn't show is missed.
 - A blocked Mail (a dialog open, offline account) makes sending wait up to
   90 s before it fails.
+- On by default (2026-11-25): installs from before turn it on once, also
+  for someone who had turned it on and off again in 0.2.13 (that wasn't
+  recorded).
+- Gmail connected before 2026-11-25 also granted `gmail.metadata` (for the
+  dropped mail before a meeting); Sokki no longer uses it. Disconnect and
+  connect again to grant only sending.
+
+## Notes into the Slack huddle's thread (2026-11-24)
+
+- Tried against a real huddle on 2026-11-24 (alone in a private test
+  channel): the profile gives `in_a_huddle` and the call id, but its
+  `huddle_state_channel_id` stays empty, and `calls.info` answers
+  `internal_error` for a huddle. The channel therefore comes from the
+  Slack Mac app's log (`Created huddle_<channel> child window`). If Slack
+  changes that line, Sokki finds no channel and says so; Slack in a
+  browser has no such log. Fix idea then: the huddle window's title
+  ("Huddle in #name") through Accessibility, resolved with
+  `conversations.list`.
+- Unverified: that `room.participant_history` lists everyone (one person
+  so far).
+- Slack deletes the message of a huddle once it ends if nobody wrote in
+  its thread (seen alone in a test channel; with two or more people not
+  yet tried). A post into that thread is accepted but lands in the
+  channel as a normal message, so Sokki checks first that the message
+  still exists and otherwise posts nothing ("no thread to post into").
+  Fix idea: post the chat notice ("Ich schreibe lokal mit Sokki mit …")
+  into the thread while the huddle runs; that keeps the thread and tells
+  everyone.
+- Only a huddle Sokki detected as a Slack call is posted; a recording
+  started by hand during a huddle has no channel. Fix idea: ask the
+  profile on a manual start too.
+- The huddle's message must be among the newest 15 messages before Sokki
+  started recording, else up to three more pages, a minute apart (the
+  limit for apps outside the Marketplace).
+- The sign-in comes back to `http://localhost:47821`. Slack asks for HTTPS
+  redirects before an app may be installed in other workspaces; whether
+  localhost counts with PKCE is not documented. Fix idea if not: a
+  `sokki://` link (custom schemes are always "desktop" redirects).
+- Workspaces where admins approve apps: the first sign-in waits for an
+  admin.
+- The summary's Markdown becomes Slack mrkdwn (headings bold, `- [ ]` as
+  ☐); tables and images aren't converted.
+- Other languages than German and English: the post's file name uses the
+  English "Transcript".
+- Notes mail after a huddle: Sokki reads who is in the huddle once a
+  minute while it records, so someone who joined in the last minute can be
+  missing. Everyone who was in the huddle gets the mail, also someone who
+  joined for ten seconds. Slack shows an address only if the workspace
+  lets apps see it (Slack's default) and only for people in the same
+  workspace; guests from other companies in a Slack Connect channel may
+  have none and are left out ("no address").
 
 ## Keyboard (Android)
 

@@ -10,6 +10,7 @@ export { SokkiSettingsPage } from "./sokki/SettingsPage";
 export { SokkiSoundPage } from "./sokki/SoundPage";
 export { SokkiVocabularyPage } from "./sokki/VocabularyPage";
 export { SokkiVoicePage } from "./sokki/VoicePage";
+export { SpeakersPage } from "./speakers/SpeakersPage";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

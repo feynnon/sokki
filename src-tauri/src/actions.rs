@@ -859,6 +859,7 @@ impl ShortcutAction for TranscribeAction {
                     match transcription_result {
                         Ok(Transcription {
                             text: transcription,
+                            raw: raw_transcription,
                             language,
                         }) => {
                             debug!(
@@ -988,6 +989,12 @@ impl ShortcutAction for TranscribeAction {
                                         // UI while this paste ran.
                                         let owns_ui =
                                             || RECORDING_SESSION.load(Ordering::SeqCst) == session;
+                                        // "Keep what I write" notes what was dictated
+                                        // into the field (nothing when it's off).
+                                        crate::journal::note_dictation(
+                                            &raw_transcription,
+                                            &final_text,
+                                        );
                                         let pasted = if crate::test_mic::active() {
                                             log::info!(
                                                 "Test mode, not pasted ({:?} after the stop): {final_text}",

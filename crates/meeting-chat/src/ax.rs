@@ -131,6 +131,14 @@ impl Element {
         e
     }
 
+    /// The application element of a process, each call waiting at most
+    /// `seconds` for the app to answer.
+    pub fn app_with_timeout(pid: i32, seconds: f32) -> Element {
+        let e = Element(unsafe { AXUIElementCreateApplication(pid) });
+        unsafe { AXUIElementSetMessagingTimeout(e.0, seconds) };
+        e
+    }
+
     /// The process of the app in front (the one that gets key presses).
     pub fn frontmost_pid() -> Option<i32> {
         let sys = Element(unsafe { AXUIElementCreateSystemWide() });

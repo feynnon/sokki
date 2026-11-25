@@ -317,7 +317,8 @@ fn has_summary(summary: Option<&MeetingSummary>) -> bool {
 }
 
 /// Whether a line is the note footer, in any language, old ones included.
-pub(crate) fn is_footer(line: &str) -> bool {
+/// The line is a Sokki line (any version, local or cloud).
+pub fn is_footer(line: &str) -> bool {
     let t = line.trim();
     OLD_FOOTERS.contains(&t)
         || [DE, EN]

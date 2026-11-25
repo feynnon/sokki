@@ -11,6 +11,13 @@ pub const SPEAKERS_FILE: &str = "speakers.json";
 pub struct SavedSpeaker {
     pub name: String,
     pub embedding: Option<Vec<f32>>,
+    /// The track the voice is on: "mic" or "system". Missing in meetings
+    /// processed before 2026-11-26.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track: Option<String>,
+    /// Speech time in the transcript, seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speech_s: Option<f64>,
 }
 
 pub fn save(dir: &Path, speakers: &[SpeakerInfo]) {
@@ -19,6 +26,14 @@ pub fn save(dir: &Path, speakers: &[SpeakerInfo]) {
         .map(|s| SavedSpeaker {
             name: s.name.clone(),
             embedding: s.embedding.clone(),
+            track: Some(
+                match s.track {
+                    meeting_core::TrackKind::Mic => "mic",
+                    meeting_core::TrackKind::System => "system",
+                }
+                .to_string(),
+            ),
+            speech_s: Some(s.speech_s),
         })
         .collect();
     if let Ok(text) = serde_json::to_string(&saved) {
@@ -47,8 +62,8 @@ pub fn rename(
         anyhow::bail!("The new name is empty.");
     }
     if let Some(path) = note {
-        let md = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let md =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let renamed = meeting_core::note::rename_speaker_in_markdown(&md, from, to);
         std::fs::write(path, renamed).with_context(|| format!("saving {}", path.display()))?;
     }

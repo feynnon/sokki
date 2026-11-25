@@ -1,7 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
-import { AlertTriangle, ChevronUp, FileUp, Mic, Monitor } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronUp,
+  FileUp,
+  Mic,
+  Monitor,
+  X,
+} from "lucide-react";
 import { commands } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import { useOsType } from "@/hooks/useOsType";
@@ -9,10 +17,10 @@ import { usePressAway } from "@/hooks/usePressAway";
 import { keycapLabels } from "@/lib/utils/keyboard";
 import { notify } from "@/stores/noticeStore";
 import {
-  NO_SOUND_AFTER_MS,
   levelHeight,
   recordingMeeting,
   useMeetingStore,
+  type SilenceHint,
 } from "@/stores/meetingStore";
 import { pickAndTranscribeFiles } from "./settings/history/transcribeFiles";
 
@@ -56,6 +64,120 @@ const Meter: React.FC<{ level: number; flat: boolean }> = ({ level, flat }) => {
   );
 };
 
+/** "Sokki hears nothing": the microphone brings no speech, or the detected
+ * call no sound (`meeting/silence.rs` decides, once per recording). The
+ * microphone hint offers the other microphones; choosing one moves the
+ * meeting to it within a second. Its X hides the hint for this meeting. */
+const SilenceHintRow: React.FC<{
+  hint: SilenceHint;
+  mic: string | null;
+  app: string | null;
+  onDismiss: () => void;
+}> = ({ hint, mic, app, onDismiss }) => {
+  const { t } = useTranslation();
+  const [menu, setMenu] = useState(false);
+  const [devices, setDevices] = useState<string[] | null>(null);
+  // Shown at once; the meeting reports the new name a second later.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  usePressAway(menu, menuRef, () => setMenu(false));
+  const name = chosen ?? mic;
+  useEffect(() => {
+    if (chosen && chosen === mic) setChosen(null);
+  }, [chosen, mic]);
+
+  const openMenu = () => {
+    setMenu((m) => !m);
+    void commands.getAvailableMicrophones().then((r) => {
+      if (r.status === "ok")
+        setDevices(
+          r.data.filter((d) => d.index !== "default").map((d) => d.name),
+        );
+    });
+  };
+  const choose = (device: string) => {
+    setMenu(false);
+    setChosen(device);
+    void commands.switchMeetingMicrophone(device).then((r) => {
+      if (r.status === "error") {
+        setChosen(null);
+        notify({ title: t("sokki.bar.switchFailed") });
+      }
+    });
+  };
+  const item =
+    "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] text-start hover:bg-wash cursor-pointer focus:outline-none focus-visible:bg-wash";
+
+  return (
+    <div
+      data-testid="silence-hint"
+      role="alert"
+      className="h-11 shrink-0 flex items-center gap-2.5 ps-5 pe-4 text-[13px] font-medium text-warning bg-background"
+      style={{ borderTop: "1px solid var(--vb-rec-line)" }}
+    >
+      <AlertTriangle width={16} height={16} className="shrink-0" />
+      <span className="min-w-0 truncate">
+        {hint === "call"
+          ? t("sokki.bar.noSound", { app })
+          : name
+            ? t("sokki.bar.micSilent", { mic: name })
+            : t("sokki.bar.micSilentUnnamed")}
+      </span>
+      {hint === "mic" && (
+        <div ref={menuRef} className="relative shrink-0">
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            onClick={openMenu}
+            className="h-7 px-2.5 flex items-center gap-1 rounded-lg border border-line bg-background text-[12px] font-medium text-text whitespace-nowrap cursor-pointer hover:bg-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+          >
+            {t("sokki.bar.switchMic")}
+            <ChevronUp width={14} height={14} />
+          </button>
+          {menu && (
+            <div
+              role="menu"
+              className="absolute start-0 bottom-full z-30 mb-1.5 w-64 rounded-xl border border-line bg-background p-1 shadow-lg"
+            >
+              {(devices ?? []).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  role="menuitem"
+                  className={item}
+                  onClick={() => choose(d)}
+                >
+                  <span className="w-4 shrink-0">
+                    {d === name && <Check width={14} height={14} />}
+                  </span>
+                  <span className="flex-1 truncate font-normal text-text">
+                    {d}
+                  </span>
+                </button>
+              ))}
+              {devices && devices.length === 0 && (
+                <div className="px-2 py-1.5 text-[12px] text-ink-3">
+                  {t("sokki.bar.noOtherMic")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      <button
+        type="button"
+        aria-label={t("sokki.bar.hideHint")}
+        title={t("sokki.bar.hideHint")}
+        onClick={onDismiss}
+        className="ms-auto shrink-0 size-6 flex items-center justify-center rounded-md text-ink-3 cursor-pointer hover:bg-wash hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+      >
+        <X width={14} height={14} />
+      </button>
+    </div>
+  );
+};
+
 const Recording: React.FC = () => {
   const { t } = useTranslation();
   const meetings = useMeetingStore((s) => s.meetings);
@@ -65,7 +187,10 @@ const Recording: React.FC = () => {
   const system = useMeetingStore((s) => s.system);
   const micHeardAt = useMeetingStore((s) => s.micHeardAt);
   const systemHeardAt = useMeetingStore((s) => s.systemHeardAt);
-  const systemDeadMs = useMeetingStore((s) => s.systemDeadMs);
+  const hint = useMeetingStore((s) => s.hint);
+  const micName = useMeetingStore((s) => s.micName);
+  // Hints the user closed in this meeting.
+  const [hidden, setHidden] = useState<SilenceHint[]>([]);
   const record = recordingMeeting(meetings);
   const app = record?.source_app ?? null;
   const [now, setNow] = useState(Date.now());
@@ -74,62 +199,61 @@ const Recording: React.FC = () => {
     return () => window.clearInterval(timer);
   }, []);
   const startedAt = record ? Date.parse(record.started_at) : null;
-  // Only with a call app: in a room there is no call audio to miss. Only
-  // when the call track is exact zeros, never when the call is just quiet.
-  const noSound =
-    !!app &&
-    systemDeadMs > NO_SOUND_AFTER_MS &&
-    now - micHeardAt < NO_SOUND_AFTER_MS;
+  const shownHint = hint && !hidden.includes(hint) ? hint : null;
 
   return (
-    <div
-      role="status"
-      className="h-14 shrink-0 flex items-center gap-5 ps-5 pe-4"
-      style={{
-        background: "var(--vb-rec-bar)",
-        borderTop: "1px solid var(--vb-rec-line)",
-      }}
-    >
-      <div
-        className="flex items-center gap-2 text-[15px] font-semibold"
-        style={{ color: "var(--vb-rec)" }}
-      >
-        <span
-          className="vb-pulse size-2.5 shrink-0 rounded-full"
-          style={{ background: "var(--vb-rec)" }}
+    <div className="shrink-0 flex flex-col">
+      {shownHint && (
+        <SilenceHintRow
+          hint={shownHint}
+          mic={micName}
+          app={app}
+          onDismiss={() => setHidden((h) => [...h, shownHint])}
         />
-        {t("meetings.recording")}
-        <span className="font-mono text-[13px] font-medium tabular-nums">
-          {startedAt ? clock(now - startedAt) : "0:00"}
-        </span>
-        {app && <span className="font-normal text-ink-2">· {app}</span>}
-      </div>
-      <div className="flex items-center gap-2 text-[12px] text-ink-2">
-        {t("sokki.bar.mic")}
-        <Meter level={mic} flat={now - micHeardAt > 1000} />
-      </div>
-      {app && (
-        <div className="flex items-center gap-2 text-[12px] text-ink-2">
-          {app}
-          <Meter level={system} flat={now - systemHeardAt > 1000} />
-        </div>
       )}
-      {noSound && (
-        <div className="flex items-center gap-1.5 text-[13px] font-medium text-warning">
-          <AlertTriangle width={16} height={16} className="shrink-0" />
-          {t("sokki.bar.noSound", { app })}
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => void stop()}
-        disabled={busy}
-        className="ms-auto h-8 px-3.5 flex items-center gap-2 rounded-[10px] text-[13px] font-medium text-white cursor-pointer disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-        style={{ background: "var(--vb-rec-fill)" }}
+      <div
+        role="status"
+        className="h-14 shrink-0 flex items-center gap-5 ps-5 pe-4"
+        style={{
+          background: "var(--vb-rec-bar)",
+          borderTop: "1px solid var(--vb-rec-line)",
+        }}
       >
-        <span className="size-2.5 rounded-[2px] bg-white" />
-        {t("sokki.bar.stop")}
-      </button>
+        <div
+          className="shrink-0 whitespace-nowrap flex items-center gap-2 text-[15px] font-semibold"
+          style={{ color: "var(--vb-rec)" }}
+        >
+          <span
+            className="vb-pulse size-2.5 shrink-0 rounded-full"
+            style={{ background: "var(--vb-rec)" }}
+          />
+          {t("meetings.recording")}
+          <span className="font-mono text-[13px] font-medium tabular-nums">
+            {startedAt ? clock(now - startedAt) : "0:00"}
+          </span>
+          {app && <span className="font-normal text-ink-2">· {app}</span>}
+        </div>
+        <div className="shrink-0 flex items-center gap-2 text-[12px] text-ink-2">
+          {t("sokki.bar.mic")}
+          <Meter level={mic} flat={now - micHeardAt > 1000} />
+        </div>
+        {app && (
+          <div className="shrink-0 flex items-center gap-2 text-[12px] text-ink-2">
+            {app}
+            <Meter level={system} flat={now - systemHeardAt > 1000} />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => void stop()}
+          disabled={busy}
+          className="ms-auto shrink-0 h-8 px-3.5 flex items-center gap-2 rounded-[10px] text-[13px] font-medium text-white cursor-pointer disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          style={{ background: "var(--vb-rec-fill)" }}
+        >
+          <span className="size-2.5 rounded-[2px] bg-white" />
+          {t("sokki.bar.stop")}
+        </button>
+      </div>
     </div>
   );
 };

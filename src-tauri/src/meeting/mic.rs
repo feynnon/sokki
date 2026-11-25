@@ -88,6 +88,8 @@ pub struct MicCapture {
     hooks: Hooks,
     stop_flag: Arc<AtomicBool>,
     supervisor: Option<JoinHandle<()>>,
+    /// The microphone to use; the supervisor moves to it.
+    preferred: Arc<Mutex<Option<String>>>,
 }
 
 impl MicCapture {
@@ -131,12 +133,13 @@ impl MicCapture {
             dropped_frames: 0,
         }));
         let stop_flag = Arc::new(AtomicBool::new(false));
+        let preferred = Arc::new(Mutex::new(preferred_name));
 
         let supervisor = Supervisor {
             inner: Arc::clone(&inner),
             stop_flag: Arc::clone(&stop_flag),
             hooks: hooks.clone(),
-            preferred_name,
+            preferred: Arc::clone(&preferred),
         };
         let handle = std::thread::Builder::new()
             .name("meeting-mic-supervisor".into())
@@ -150,7 +153,21 @@ impl MicCapture {
             hooks: Hooks { tx, ..hooks },
             stop_flag,
             supervisor: Some(handle),
+            preferred,
         })
+    }
+
+    /// The device recording right now.
+    pub fn device_name(&self) -> Option<String> {
+        lock(&self.inner).device_name.clone()
+    }
+
+    /// Records from `name` from now on (when it is there; otherwise as if
+    /// it were lost). Wakes the supervisor, so it moves at once.
+    pub fn prefer(&self, name: &str) {
+        log::info!("Meeting microphone: switching to {name}, chosen by the user");
+        *self.preferred.lock().unwrap_or_else(|e| e.into_inner()) = Some(name.to_string());
+        let _ = self.hooks.tx.send(());
     }
     /// Stops the recording, finalizes the file and closes the microphone.
     pub fn stop(mut self) -> Result<MicRecording> {
@@ -213,7 +230,7 @@ struct Supervisor {
     inner: Arc<Mutex<Inner>>,
     stop_flag: Arc<AtomicBool>,
     hooks: Hooks,
-    preferred_name: Option<String>,
+    preferred: Arc<Mutex<Option<String>>>,
 }
 
 impl Supervisor {
@@ -240,7 +257,12 @@ impl Supervisor {
                 return;
             }
         };
-        let Some(target) = pick_device(&devices, self.preferred_name.as_deref()) else {
+        let preferred = self
+            .preferred
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let Some(target) = pick_device(&devices, preferred.as_deref()) else {
             // No microphone at all right now: keep waiting for one.
             return;
         };

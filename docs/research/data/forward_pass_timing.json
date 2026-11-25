@@ -1,0 +1,237 @@
+{
+ "mlx-community/Qwen3.5-0.8B-8bit": {
+  "prefill": {
+   "100": {
+    "secs": 0.087,
+    "tok_per_s": 1155
+   },
+   "400": {
+    "secs": 0.274,
+    "tok_per_s": 1462
+   },
+   "1000": {
+    "secs": 0.673,
+    "tok_per_s": 1486
+   },
+   "2000": {
+    "secs": 1.35,
+    "tok_per_s": 1482
+   },
+   "4000": {
+    "secs": 2.753,
+    "tok_per_s": 1453
+   }
+  },
+  "decode": {
+   "100": {
+    "ms_per_token": 8.4,
+    "tok_per_s": 119.0
+   },
+   "400": {
+    "ms_per_token": 8.6,
+    "tok_per_s": 115.8
+   },
+   "1000": {
+    "ms_per_token": 8.7,
+    "tok_per_s": 114.6
+   },
+   "2000": {
+    "ms_per_token": 8.9,
+    "tok_per_s": 112.9
+   },
+   "4000": {
+    "ms_per_token": 8.9,
+    "tok_per_s": 112.5
+   }
+  },
+  "peak_gb": 2.0
+ },
+ "mlx-community/Qwen3.5-2B-8bit": {
+  "prefill": {
+   "100": {
+    "secs": 0.197,
+    "tok_per_s": 508
+   },
+   "400": {
+    "secs": 0.61,
+    "tok_per_s": 656
+   },
+   "1000": {
+    "secs": 1.515,
+    "tok_per_s": 660
+   },
+   "2000": {
+    "secs": 3.027,
+    "tok_per_s": 661
+   },
+   "4000": {
+    "secs": 5.875,
+    "tok_per_s": 681
+   }
+  },
+  "decode": {
+   "100": {
+    "ms_per_token": 16.2,
+    "tok_per_s": 61.8
+   },
+   "400": {
+    "ms_per_token": 15.7,
+    "tok_per_s": 63.7
+   },
+   "1000": {
+    "ms_per_token": 16.4,
+    "tok_per_s": 60.9
+   },
+   "2000": {
+    "ms_per_token": 15.8,
+    "tok_per_s": 63.4
+   },
+   "4000": {
+    "ms_per_token": 16.0,
+    "tok_per_s": 62.3
+   }
+  },
+  "peak_gb": 3.16
+ },
+ "mlx-community/Qwen3.5-4B-4bit": {
+  "prefill": {
+   "100": {
+    "secs": 0.429,
+    "tok_per_s": 233
+   },
+   "400": {
+    "secs": 1.364,
+    "tok_per_s": 293
+   },
+   "1000": {
+    "secs": 3.384,
+    "tok_per_s": 296
+   },
+   "2000": {
+    "secs": 6.436,
+    "tok_per_s": 311
+   },
+   "4000": {
+    "secs": 12.903,
+    "tok_per_s": 310
+   }
+  },
+  "decode": {
+   "100": {
+    "ms_per_token": 19.4,
+    "tok_per_s": 51.6
+   },
+   "400": {
+    "ms_per_token": 19.4,
+    "tok_per_s": 51.5
+   },
+   "1000": {
+    "ms_per_token": 19.4,
+    "tok_per_s": 51.5
+   },
+   "2000": {
+    "ms_per_token": 19.6,
+    "tok_per_s": 51.0
+   },
+   "4000": {
+    "ms_per_token": 19.8,
+    "tok_per_s": 50.6
+   }
+  },
+  "peak_gb": 3.75
+ },
+ "mlx-community/Qwen3.5-4B-8bit": {
+  "prefill": {
+   "100": {
+    "secs": 0.422,
+    "tok_per_s": 237
+   },
+   "400": {
+    "secs": 1.346,
+    "tok_per_s": 297
+   },
+   "1000": {
+    "secs": 3.337,
+    "tok_per_s": 300
+   },
+   "2000": {
+    "secs": 6.588,
+    "tok_per_s": 304
+   },
+   "4000": {
+    "secs": 13.252,
+    "tok_per_s": 302
+   }
+  },
+  "decode": {
+   "100": {
+    "ms_per_token": 31.4,
+    "tok_per_s": 31.8
+   },
+   "400": {
+    "ms_per_token": 31.6,
+    "tok_per_s": 31.6
+   },
+   "1000": {
+    "ms_per_token": 31.9,
+    "tok_per_s": 31.4
+   },
+   "2000": {
+    "ms_per_token": 31.8,
+    "tok_per_s": 31.5
+   },
+   "4000": {
+    "ms_per_token": 32.3,
+    "tok_per_s": 31.0
+   }
+  },
+  "peak_gb": 5.74
+ },
+ "mlx-community/Qwen3.5-9B-4bit": {
+  "prefill": {
+   "100": {
+    "secs": 0.773,
+    "tok_per_s": 129
+   },
+   "400": {
+    "secs": 2.414,
+    "tok_per_s": 166
+   },
+   "1000": {
+    "secs": 6.074,
+    "tok_per_s": 165
+   },
+   "2000": {
+    "secs": 12.096,
+    "tok_per_s": 165
+   },
+   "4000": {
+    "secs": 24.467,
+    "tok_per_s": 163
+   }
+  },
+  "decode": {
+   "100": {
+    "ms_per_token": 31.4,
+    "tok_per_s": 31.8
+   },
+   "400": {
+    "ms_per_token": 31.3,
+    "tok_per_s": 31.9
+   },
+   "1000": {
+    "ms_per_token": 31.9,
+    "tok_per_s": 31.4
+   },
+   "2000": {
+    "ms_per_token": 32.0,
+    "tok_per_s": 31.3
+   },
+   "4000": {
+    "ms_per_token": 32.5,
+    "tok_per_s": 30.7
+   }
+  },
+  "peak_gb": 6.33
+ }
+}

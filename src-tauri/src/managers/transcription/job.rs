@@ -45,6 +45,7 @@ impl TranscriptionManager {
         if total == 0 {
             return Ok(Some(Transcription {
                 text: String::new(),
+                raw: String::new(),
                 language: None,
             }));
         }
@@ -130,8 +131,10 @@ impl TranscriptionManager {
             elapsed_secs,
             real_time_factor(audio_secs, elapsed_secs)
         );
+        let text = paragraphs.join("\n\n");
         Ok(Some(Transcription {
-            text: paragraphs.join("\n\n"),
+            raw: text.clone(),
+            text,
             language: Some(language),
         }))
     }

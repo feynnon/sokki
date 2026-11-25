@@ -100,15 +100,14 @@ pub fn granted_scopes() -> Vec<String> {
 
 /// Opens Google's consent page in the browser and waits (up to 5 min) for
 /// the answer. Returns the connected address.
-/// Asks for sending and, for the mail before a meeting (card
-/// pre-meeting-mail), reading the headers of its own notices' threads:
-/// Robin's decision, one sign-in for both (card privacy-google).
+/// Asks for sending and the address only (`gmail::SCOPES`): the mail
+/// before a meeting, which also wanted to see replies, was dropped (Robin,
+/// 2026-11-25), so Google's review covers `gmail.send` alone.
 pub fn connect(app: &AppHandle) -> Result<String, String> {
-    connect_with(app, &[gmail::METADATA_SCOPE])
+    connect_with(app, &[])
 }
 
-/// [`connect`] asking for `extra_scopes` too (the mail before a meeting
-/// asks for `gmail::METADATA_SCOPE` when its switch is turned on).
+/// [`connect`] asking for `extra_scopes` too.
 pub fn connect_with(app: &AppHandle, extra_scopes: &[&str]) -> Result<String, String> {
     if !offered(app) {
         return Err("Gmail isn't available yet: Google is still reviewing Sokki.".into());

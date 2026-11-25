@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { commands, type Milestone } from "@/bindings";
+import { useCardStore } from "@/stores/cardStore";
 
 /** Where "Chip in tokens" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
 const SPONSOR_URL = "https://sokki.org/sponsor/?s=stats";
@@ -73,6 +74,12 @@ export const MilestoneCard: React.FC = () => {
   const [milestone, setMilestone] = useState<Milestone | null>(null);
   const [picture, setPicture] = useState("");
   const [saved, setSaved] = useState(false);
+  const setShown = useCardStore((s) => s.setShown);
+  const visible = !!milestone && !!picture;
+  useEffect(() => {
+    setShown("milestone", visible);
+    return () => setShown("milestone", false);
+  }, [visible, setShown]);
 
   useEffect(() => {
     void commands.getMilestone().then((r) => {

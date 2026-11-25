@@ -45,6 +45,19 @@ Icons are drawn as SVG in
    - Two tracks: microphone and system audio (the remote side of a call on
      this Mac). Without system audio (no permission, no call) the meeting
      is mic-only; this is detected automatically.
+   - **"Sokki hears nothing"** (`meeting/silence.rs`; switch
+     `meetings.silence_hint_enabled`, on): each track also feeds a small
+     voice detector (Earshot). After 40 s without speech on the microphone
+     (and none on the call either, or a microphone sending only exact
+     zeros), a strip above the recording bar names the microphone and
+     offers "Switch microphone" (`switch_meeting_microphone`: the meeting
+     moves to it within a second). The same strip says "Sokki hears nothing
+     from {app}" when a detected call brings no sound at all for 40 s. Each
+     at most once per recording; for the microphone also a macOS notification
+     ("Sokki hört dich nicht – Nimmst du mit dem richtigen Mikrofon auf?") when the window
+     isn't in front. Listening quietly while others speak on the call
+     shows nothing. Why: on 2026-11-25 a whole meeting was recorded with a
+     muted microphone and only the flat level bars showed it.
    - Recording code from [Mandy](https://github.com/yuri-research-ai/Mandy) (MIT).
 3. **Meeting detection** – when Zoom, Teams, Meet in a browser, FaceTime,
    Slack, … start using the mic, a dialog asks whether to record. When the
@@ -69,7 +82,8 @@ Icons are drawn as SVG in
      mixed call audio, so it deletes all of it.
    - **Notes to everyone** (`meeting/mail.rs`, crate `meeting-mail`,
      calendar bridge `swift/calendar.swift`; button "Send to everyone" on
-     the note, switch `meetings.mail_notes_auto`, off by default): the
+     the note, switch `meetings.mail_notes_auto`, on by default since
+     2026-11-25, schema 8 turns it on once for older installs): the
      note's summary, decisions and action items (no transcript, ending with
      the note's Sokki line) go to everyone invited in the calendar event,
      from the user's own mailbox in their name: Gmail when connected
@@ -85,9 +99,45 @@ Icons are drawn as SVG in
      next send, BGH VI ZR 134/15). AppleScript makes the message with
      `visible:false` and sends it; a Mail that was closed is quit again once
      the outbox is empty. Automatic only for meetings from the last day,
-     once. Test app: `SOKKI_TEST_CALENDAR=<events.json>` replaces the
+     once, and never while a meeting records: the calendar and Mail
+     (Automation) prompts come up after the first meeting ends, not at
+     start. A declined prompt, no event or nobody to send to skips the
+     mail with one log line; only a send that failed puts a line on the
+     meeting's card. After a Slack huddle (Slack connected) the people come from
+     Slack instead of the calendar: everyone else in the huddle's
+     `participant_history`, with their Slack addresses (`users.info`,
+     scope `users:read.email`), through the same filters
+     (`meeting/slack.rs::huddle_event`). Test app: `SOKKI_TEST_CALENDAR=<events.json>` replaces the
      calendar, and nothing is sent unless `SOKKI_TEST_MAIL_TO` names the one
      address every mail then goes to.
+   - **Notes into the Slack huddle's thread** (`meeting/slack.rs`, crate
+     `sokki-slack`; switch `meetings.slack_post_huddles`, on after
+     "Connect Slack" in Settings › Meetings): after a huddle, Sokki posts
+     the summary with the Sokki line into the thread of the huddle's own
+     message, from the user's account, with the transcript as a `.txt`
+     file in the same message. Sign-in: Slack OAuth with PKCE (no client
+     secret, no server), redirect `http://localhost:47821/slack`, user
+     scopes only; the token sits in `slack_auth.json` (0600) in the data
+     folder, refreshed when it runs out (12 h) and once a week at launch
+     (a PKCE refresh token lasts 30 days). Which huddle:
+     while a detected Slack call records, `users.profile.get` every 15 s
+     gives `huddle_state_call_id`; the channel comes from the Slack Mac
+     app's own log (`Created huddle_<channel> child window` in
+     `webapp-console.log`, only its end is read), because the profile's
+     `huddle_state_channel_id` stayed empty in a real huddle and
+     `calls.info` fails for huddles (both tried 2026-11-24). Both are kept in the
+     meeting folder's `slack.json`. When the note has its summary (also a
+     summary added later), one `conversations.history` call (15 messages;
+     apps outside the Marketplace get one a minute) finds the message with
+     `subtype: huddle_thread` whose `room.id` is the call id; then
+     `files.getUploadURLExternal` + `files.completeUploadExternal` with
+     `thread_ts` and the summary as `initial_comment` (Markdown turned into
+     Slack's mrkdwn). Once per meeting (`slack.json` records the post). A
+     banner says when it's posted or why not. Only in builds made with the
+     Slack app's client id (`SOKKI_SLACK_CLIENT_ID`, see
+     `crates/sokki-slack/SLACK_APP.md`); releases leave it out until the
+     app is publicly distributed. Test by hand without Sokki:
+     `cargo run --example slack` in `crates/sokki-slack`.
 4. **During the recording** (`sokki-engine/src/live.rs`): both tracks go,
    sample for sample as written to their files, to one worker at low
    priority. It lines them up, removes the echo from the mic as a stream
@@ -210,15 +260,13 @@ Language model:
   small and pointed to Ollama or an own key.
 - **Gmail in setup** (`screens/Permissions.tsx`, `onboarding/useGmail.ts`;
   Robin, 2026-11-24): with Meetings, Permissions also offers Gmail,
-  optional, after the macOS permissions, so Sokki can tell everyone before
-  the meeting and send them the notes. Leaving it out on a Mac whose region
-  is Germany shows the § 201 StGB notice once, with "Connect Gmail" and
-  "Continue without". With the mail before a meeting in the build
-  (`premeeting_mail_status` exists), one sign-in asks for sending and for
-  the sender and subject of mails (`gmail.metadata`: a guest's reply stops
-  the recording), `gmail_connect_for_meetings`; without it, send only,
-  `gmail_connect`. Google's notice beside Connect names exactly what that
-  sign-in asks for. A build without `gmail_status` has no Gmail row.
+  optional, after the macOS permissions, so Sokki can send everyone the
+  notes after the meeting. The sign-in asks for sending only
+  (`gmail_connect`: `gmail.send`, `openid email`); Google's notice beside
+  Connect says exactly that. The mail before a meeting, its
+  `gmail.metadata` sign-in and the § 201 notice on going on without Gmail
+  were dropped (Robin, 2026-11-25: "too spammy"). A build without
+  `gmail_status` has no Gmail row.
 - **Sample meeting** (`meeting/sample.rs`, `meetings/SampleMeeting.tsx`):
   on an empty Meetings page, a two-minute call between three invented
   people (`resources/sample-meeting/call.flac`, from
@@ -241,8 +289,8 @@ advice, and the second point is not built yet.
    - a line in the meeting chat when recording starts; anyone who types
      "stop" stops Sokki and deletes the recording (branch `chat-notice`,
      Sokki Board card "Hinweis im Meeting-Chat");
-   - planned: a mail to outside guests before the meeting (card "Mail vor
-     dem Meeting").
+   - dropped (Robin, 2026-11-25, "too spammy"): a mail to outside guests
+     before the meeting.
    - In a room, the app asks the user to tell everyone.
 2. **Only your own voice is kept.** During the meeting Sokki saves both
    tracks (`mic.flac`, `system.flac`), because transcription and speaker
@@ -256,14 +304,18 @@ advice, and the second point is not built yet.
 3. **Others' voices only with their OK.** Keeping someone else's voice
    needs that person's OK. Sokki can't yet tell who said OK, or take one
    voice out of the call sound, so for now it keeps no one else's voice.
-4. **No phone calls.** Sokki makes no notes of phone calls (Robin,
-   2026-11-24).
-   - On Android no app hears the call (KNOWN_ISSUES X10).
-   - The ways around it (rooting the phone, the Mac posing as the phone's
-     Bluetooth headset) were dropped.
-   - German law needs the other side's OK, and a phone call has no chat
-     for Sokki's notice.
-   - Details: `mobile/README.md`.
+4. **Phone calls: on the Mac yes, on Android not possible.**
+   - Mac: an iPhone call taken on the Mac (Continuity) runs through
+     FaceTime's call service (`avconferenced`), so Sokki asks to record it
+     like a FaceTime call (Robin, 2026-11-25). macOS doesn't tell other
+     apps which kind of call it is (tested 2026-11-25: `callservicesd`
+     gives call state only to Apple's own apps).
+   - A phone call has no chat for Sokki's notice: you tell the other side
+     yourself.
+   - Android gives no app the call audio (KNOWN_ISSUES X10), so a call
+     can't be recorded on the phone. The ways around it (rooting the
+     phone, the Mac posing as the phone's Bluetooth headset) were dropped
+     (Robin, 2026-11-24). Details: `mobile/README.md`.
 
 Why this is enough for Robin:
 - § 201 StGB punishes saving someone's non-public words without their OK.
@@ -284,10 +336,44 @@ Open, not covered by this decision:
   room, the microphone hears everyone.
 - A meeting with screen keeps the call sound in its `.mp4`.
 - Remembered voices (`voice-profiles.json`) store other people's voice
-  embeddings.
-- FaceTime on the Mac also carries iPhone phone calls (Continuity), and
-  Sokki offers to record FaceTime calls. Not checked: whether those should
-  be left out under point 4.
+  embeddings: only after the user ticked that the person agrees (GDPR
+  Art. 9(2)(a), Art. 7(1): the date is kept), and dropped after a year
+  unused. See "Speakers with real names".
+
+## Speakers with real names (board card speaker-names, 2026-11-25)
+
+Goal (Robin): every speaker named in transcripts and summaries.
+
+- **Sprecher page** (sidebar, design C): every voice across meetings,
+  grouped by voice (`sokki_engine::voices::group`, average-link at the
+  voice-profile threshold 0.6, never two speakers of one meeting, never two
+  names). On Robin's 46 meetings the user's own voice landed 16 of 17 times
+  in one group. A voice heard in one meeting only is named there. Each
+  voice: what it said (three lines, each playable), a suggestion (the
+  invitee who was in most of its meetings), name, email addresses, consent.
+- **In a meeting**: unnamed speakers show what Sokki proposes ("Lena oder
+  Jonas?"): the name the same voice has elsewhere, then who was invited
+  (`invitees.json`, from the calendar). One click names it; when that
+  leaves one unnamed speaker and one invitee, Sokki names that one too
+  (`voices::propose`, `left`). Also right after processing, before the
+  note is mailed (a 1:1 call is named without a click).
+- **Naming** changes the note (transcript, summary, tasks: generic
+  "Speaker N" is replaced everywhere), `speakers.json` and the list. Sent
+  mails and Slack posts stay as they were.
+- **People** (`voice-profiles.json`): a name, several email addresses
+  (invitees are named after the known person with that address), and a
+  voice only with consent. Names from the guest list alone keep no voice.
+- **Privacy**: voice groups are computed when asked and never stored; a
+  voice is kept only with consent; nothing of this leaves the Mac or goes
+  into "Help improve Sokki". Legal research and sources: side-session notes
+  `speaker-names.md`.
+- **Not yet**: who is speaking in Zoom, Teams, Meet (Accessibility; needs a
+  test call per app), names said in the meeting, Slack huddle members. See
+  KNOWN_ISSUES P6–P8.
+- Tests: `cargo test voices` (sokki-engine), `cargo test --lib profiles`
+  (diarize), `tests/speakers.spec.ts` (Playwright), and a Sokki Test run
+  with made-up voices: `CALENDAR=events.json NAME_SPEAKER="Speaker 2=…"
+  CONSENT=1 KEEP_MEETINGS=1 scripts/test-meeting.sh mic.wav system.wav`.
 
 ## Meeting with screen
 

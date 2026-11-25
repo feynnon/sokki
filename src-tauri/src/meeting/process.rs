@@ -120,7 +120,7 @@ fn clear_menu_bar_status(app: &AppHandle) {
 pub fn engine_settings(all: &crate::settings::AppSettings) -> sokki_engine::Settings {
     let m = &all.meetings;
     let mut glossary = m.glossary.clone();
-    for w in &all.custom_words {
+    for w in all.custom_words.iter().chain(&all.vocabulary_learned) {
         if !glossary.contains(w) {
             glossary.push(w.clone());
         }
@@ -303,10 +303,22 @@ fn process(
         crate::milestones::add_meeting(app, id, out.duration_s);
         usage_done(app, id, &settings, out.summary_missing.is_none());
     }
+    // Names from the guest list before the note goes out by mail.
+    #[cfg(target_os = "macos")]
+    if !record.sample {
+        let recognised: Vec<String> = out
+            .speaker_info
+            .iter()
+            .filter(|s| s.named_by_hook)
+            .map(|s| s.name.clone())
+            .collect();
+        super::voices::after_processing(app, id, &recognised);
+    }
     emit_changed(app, id);
     notify_done(app, &out.note_path);
     #[cfg(target_os = "macos")]
     super::mail::after_note(app, id);
+    super::slack::note_ready(app, id);
     Ok(())
 }
 
@@ -483,6 +495,7 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
             );
             #[cfg(target_os = "macos")]
             super::mail::after_note(app, id);
+            super::slack::note_ready(app, id);
         }
         Err(e) => log::warn!("Meeting {id}: adding the summary failed: {e:#}"),
     }

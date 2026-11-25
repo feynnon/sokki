@@ -12,6 +12,11 @@ Read @AGENTS.md
   Regenerate with `scripts/gen_config_docs.py` after changing `settings.rs`.
 - `KNOWN_ISSUES.md`: every known problem. Add new ones there; don't wave
   quality problems away.
+- `docs/research/`: the measurements behind the choice of language model,
+  prompt, live mode and runtime (dictation cleanup, summaries, Müsli). Read
+  it before changing any of these, and add every new measurement there with
+  its numbers (no transcript text). Robin (2026-11-25): "This information
+  needs to be kept."
 - Releases: `scripts/release.sh`. It uploads the update feed (`latest.json`)
   that installed apps update from; a release made by hand has none.
 

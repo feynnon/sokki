@@ -1,0 +1,22 @@
+[package]
+name = "sokki-journal"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "\"Keep what I write\": the text the user sends or leaves in any app, with the app and the time, kept on this Mac only"
+
+[dependencies]
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+strsim = "0.11"
+natural = "0.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+meeting-chat = { path = "../meeting-chat" }
+objc2-app-kit = "0.3"
+objc2-foundation = "0.3"
+
+[dev-dependencies]
+tempfile = "3"

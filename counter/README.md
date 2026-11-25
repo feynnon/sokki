@@ -24,6 +24,8 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   ids wait and the hourly cron retries. Only reports with the `usage` part
   (apps whose "What's shared" names PostHog) are relayed; older apps'
   reports stay in D1 only. Tests: `node --test counter/test/counter.test.mjs`.
+  Dashboard "Sokki app" in PostHog: `python3 counter/posthog-dashboard.py`
+  (recreates it; key in `~/.config/posthog/personal.key`).
 - "I'm interested" on a buyer message sends the id, the message's id, the
   language and the matching hours (`POST /interest`).
 - With **Share all my recordings** on, an install uploads every recording of

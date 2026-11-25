@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { commands, type MessageView } from "@/bindings";
 import { useMeetingStore } from "@/stores/meetingStore";
+import { useCardStore } from "@/stores/cardStore";
 
 /**
  * An important message from Sokki: a window in the app the user answers
@@ -39,9 +40,11 @@ export const MessageDialog: React.FC<{ firstStart: boolean }> = ({
   }, [firstStart, load]);
 
   const shown = message && !recording && !firstStart;
+  const setShown = useCardStore((s) => s.setShown);
   useEffect(() => {
     if (shown) primary.current?.focus();
-  }, [shown]);
+    setShown("message", !!shown);
+  }, [shown, setShown]);
 
   if (!shown || !message) return null;
 

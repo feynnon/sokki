@@ -110,19 +110,13 @@
       "optional": "Optional",
       "gmail": {
         "name": "Gmail",
-        "why": "Tells everyone before you record, and sends them the notes.",
+        "why": "Sends everyone the notes after the meeting.",
         "connect": "Connect",
         "connectGmail": "Connect Gmail",
         "connected": "Connected",
         "inBrowser": "Finish in your browser. Google may say Sokki isn't verified yet.",
         "without": "Continue without",
-        "notice": "Sokki asks Google to send email for you, see your address, and see the sender and subject of your emails, so it notices when a guest replies to its notice. Sokki only looks at replies to its own notices and can't read what any email says. Everything goes from this Mac straight to Gmail.",
         "noticeSend": "Sokki asks Google to send email on your behalf and to see your address. Sokki can't read your mail. Notes go from this Mac straight to Gmail."
-      },
-      "consent": {
-        "title": "Recording needs everyone's OK",
-        "law": "In Germany you may not record anyone without their consent (§ 201 StGB).",
-        "body": "With Gmail, Sokki tells everyone before the meeting and stops if anyone objects. Without it, telling them is up to you."
       }
     },
     "shell": {
@@ -1110,6 +1104,17 @@
       "detectionDescription": "Offers to record when a call starts.",
       "chatNotice": "Notice in the meeting chat",
       "chatNoticeDescription": "When Sokki records a call, it posts one line in the chat, from your account. If someone types “stop”, Sokki stops and deletes the recording.",
+      "silenceHint": "Warn when Sokki hears nothing",
+      "silenceHintDescription": "While a meeting records: if Sokki hears nothing from your microphone (muted, wrong device) or from the call, it says so, once per meeting.",
+      "slack": "Slack",
+      "slackDescription": "After a huddle, Sokki posts the summary into the huddle’s thread, from your account, with the transcript as a file.",
+      "slackConnect": "Connect Slack",
+      "slackWaiting": "Waiting for Slack in your browser…",
+      "slackCancel": "Cancel",
+      "slackConnected": "Connected to {{team}}.",
+      "slackPost": "Post into the thread after every huddle",
+      "slackDisconnect": "Disconnect",
+      "slackFailed": "Couldn’t connect: {{error}}",
       "footer": "Sokki line",
       "footerDescription": "Appears under every summary:",
       "footerSupporters": "Supporters who gave €20 or more can switch it off.",
@@ -1263,6 +1268,7 @@
     "mail": {
       "title": "Notes by mail",
       "auto": "Send to everyone after each meeting",
+      "autoHint": "Summary and action items, no transcript, to everyone invited.",
       "noCalendar": "Sokki can't read your calendar: System Settings › Privacy › Calendars.",
       "objections": "No mail to",
       "remove": "Remove",
@@ -1281,7 +1287,7 @@
         "no_recipients": "Nobody in the event but you."
       },
       "gmail": "Gmail",
-      "gmailNotice": "Sokki asks Google to send email for you, see your address, and see the sender and subject of your emails, so it notices when a guest replies to its notice. Sokki only looks at replies to its own notices and can't read what any email says. Everything goes from this Mac straight to Gmail.",
+      "gmailNotice": "Sokki asks Google to send email on your behalf and to see your address. Sokki can't read your mail. Notes go from this Mac straight to Gmail.",
       "gmailConnect": "Connect",
       "gmailWaiting": "Waiting for Google …",
       "gmailDisconnect": "Disconnect",
@@ -1296,7 +1302,8 @@
       "sound": "Sound",
       "voice": "Your data",
       "sponsor": "Sponsor",
-      "dictations": "Dictations"
+      "dictations": "Dictations",
+      "speakers": "Speakers"
     },
     "keep": {
       "title": "Keep recordings for",
@@ -1356,12 +1363,14 @@
     },
     "vocabulary": {
       "title": "Vocabulary",
-      "description": "Names and terms from your work, spelled right in meeting summaries.",
+      "description": "Names and terms from your work, spelled right in dictations and meeting summaries.",
       "placeholder": "Add a word, or several separated by commas",
       "add": "Add words",
       "empty": "No words yet. Add the names that the transcript gets wrong.",
       "remove": "Remove {{word}}",
-      "note": "Used for meetings. Dictation leaves your words as spoken: swapping words there directly turned „Lied“ into „Lead“ in a test."
+      "learned": "Learned from your writing",
+      "heardAs": "Heard as",
+      "heardAsNote": "How the speech model writes these words. Sokki said each one to itself, or saw you fix it after a dictation. Dictations get them fixed exactly."
     },
     "voice": {
       "title": "Your data",
@@ -1434,6 +1443,13 @@
       "pictureHours": "{{hours}} hours",
       "pictureLine": "transcribed on my Mac with Sokki"
     },
+    "star": {
+      "title": "Enjoying Sokki?",
+      "body": "A star on GitHub helps others find it.",
+      "star": "Star on GitHub",
+      "notNow": "Not now",
+      "close": "Close"
+    },
     "phoneCard": {
       "title": "Sokki on your phone too",
       "body": "Record the room and dictate in any app. Notes land here on your Mac.",
@@ -1453,7 +1469,13 @@
       "transcribeFile": "Transcribe file…",
       "stop": "Stop",
       "mic": "Microphone",
-      "noSound": "Sokki hears nothing from {{app}}."
+      "noSound": "Sokki hears nothing from {{app}}.",
+      "micSilent": "Sokki hears no speech from “{{mic}}”. Right microphone?",
+      "micSilentUnnamed": "Sokki hears no speech from your microphone. Right microphone?",
+      "switchMic": "Switch microphone",
+      "noOtherMic": "No other microphone found",
+      "hideHint": "Hide",
+      "switchFailed": "Couldn't switch the microphone"
     },
     "dictations": {
       "title": "Dictations",
@@ -1487,6 +1509,69 @@
     "message": {
       "later": "Later",
       "ok": "OK"
+    },
+    "developer": {
+      "title": "Developer mode",
+      "keep": "Keep what I write",
+      "keepDescription": "Saves what you type and dictate, with the app and time, on this Mac only. Never passwords. For improving Sokki on your own data.",
+      "kept": "Kept",
+      "keptText": "The text of a field when you send it or leave it. The app's name. The time.",
+      "never": "Never kept",
+      "neverText": "Password fields. Anything typed while macOS hides your keys, as in password managers. Terminals. Sokki itself.",
+      "where": "Where",
+      "whereText": "In Sokki's folder on this Mac. Never uploaded, never shared.",
+      "entries_one": "{{count}} entry",
+      "entries_other": "{{count}} entries",
+      "since": "Since {{date}} · {{size}}",
+      "showFiles": "Show files",
+      "deleteAll": "Delete all",
+      "deleteAsk_one": "Delete {{count}} entry for good?",
+      "deleteAsk_other": "Delete all {{count}} entries for good?",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "learn": "Learn my words",
+      "learnDescription": "Names and terms you write go into your Vocabulary. A model on this Mac checks each word first."
     }
+  },
+  "speakers": {
+    "title": "Speakers",
+    "intro": "Sokki recognises voices across all your meetings. A name applies in every transcript and summary.",
+    "unnamed": "No name yet",
+    "named": "Named",
+    "voice": "Voice {{letter}}",
+    "you": "You",
+    "meetings_one": "{{count}} meeting",
+    "meetings_other": "{{count}} meetings",
+    "inMeetings": "In {{meetings}}, last on {{date}}",
+    "stillUnnamed_one": "Still “Speaker” in {{count}} meeting",
+    "stillUnnamed_other": "Still “Speaker” in {{count}} meetings",
+    "nameEverywhere": "Name everywhere",
+    "whoIsThis": "Who is this?",
+    "name": "Name",
+    "emails": "Email addresses",
+    "emailsHint": "Separate several with commas. Sokki then knows who’s invited.",
+    "nameButton": "Name",
+    "save": "Save",
+    "suggestion": "Suggestion:",
+    "invitedOf": "invited to {{invited}} of {{of}}",
+    "consent": "{{name}} agrees that Sokki recognises their voice",
+    "consentAnyone": "Agrees that Sokki recognises their voice",
+    "remembered": "Sokki recognises this voice.",
+    "forget": "Forget voice",
+    "said": "What {{name}} said",
+    "play": "Play",
+    "noAudio": "The audio of this meeting is deleted.",
+    "privacy": "Voices stay on this Mac and can be deleted at any time.",
+    "once_one": "{{count}} voice heard in one meeting only: name it there.",
+    "once_other": "{{count}} voices heard in one meeting only: name them there.",
+    "empty": "No voices yet. After your first meeting with others they show up here.",
+    "namedIn_one": "Named in {{count}} meeting.",
+    "namedIn_other": "Named in {{count}} meetings.",
+    "is": "{{speaker}} is …",
+    "someoneElse": "Someone else …",
+    "fromVoice": "same voice",
+    "invited": "invited",
+    "hint": "Click a speaker to name them. Sokki changes the transcript and the summary.",
+    "or": "or"
   }
 }

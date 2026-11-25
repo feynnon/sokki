@@ -36,6 +36,7 @@ pub fn recording_started(app: &AppHandle, meeting_id: &str) {
         .or_else(crate::test_mic::call);
     if let Some(call) = call {
         super::chat_notice::recording_started(app, meeting_id, &call);
+        super::slack::recording_started(app, meeting_id, &call);
     }
 }
 

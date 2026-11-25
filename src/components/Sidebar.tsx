@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
   AudioLines,
   Heart,
+  Users,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
@@ -24,6 +25,7 @@ import {
   SokkiSoundPage,
   SokkiVocabularyPage,
   SokkiVoicePage,
+  SpeakersPage,
 } from "./settings";
 
 /** Sokki's "Sponsor" entry: sokki.org/sponsor/ forwards to GitHub Sponsors. */
@@ -34,7 +36,7 @@ export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 /** Sokki's sidebar: your data first (the start view), what you use, then
  * how the app behaves (debug last). Design C4, Robin 2026-11-21. */
 const SOKKI_ORDER: SidebarSection[][] = [
-  ["voice", "meetings", "history", "vocabulary"],
+  ["voice", "meetings", "speakers", "history", "vocabulary"],
   // Sound lives on the Settings page; Models keeps its own place.
   ["settings", "models"],
   ["debug"],
@@ -68,6 +70,13 @@ export const SECTIONS_CONFIG = {
     icon: Mic,
     component: MeetingsSettings,
     // Meeting recording uses macOS system audio capture.
+    enabled: () => platform() === "macos",
+  },
+  speakers: {
+    labelKey: "sokki.nav.speakers",
+    icon: Users,
+    component: SpeakersPage,
+    // Voices come from meetings, which are macOS only.
     enabled: () => platform() === "macos",
   },
   models: {

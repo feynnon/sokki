@@ -1,0 +1,2772 @@
+{
+ "note": "Blind ratings of dictation cleanups against 15 hand-written ideal corrections (8 phone, 7 Mac dictations). 1-5 scores; meaning_errors = count of changed, dropped or added content. Texts are private and not in the repo.",
+ "text_words": {
+  "phone86": 30,
+  "phone23": 43,
+  "phone52": 37,
+  "phone56": 49,
+  "phone93": 85,
+  "phone22": 140,
+  "phone88": 188,
+  "phone91": 343,
+  "mac29": 36,
+  "mac34": 47,
+  "mac45": 61,
+  "mac50": 92,
+  "mac43": 122,
+  "mac24": 177,
+  "mac59": 484
+ },
+ "rounds": {
+  "round1_models": {
+   "Qwen 4B v4": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 2
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 4
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 5
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac50": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 4
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 2
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 4
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 2
+      },
+      "phone56": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 4
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 6
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac50": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 4
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 2
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 4
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 5
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 2.53,
+     "judge2": 2.4
+    },
+    "meaning_errors": {
+     "judge1": 28,
+     "judge2": 33
+    }
+   },
+   "Qwen 4B split": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 1
+      },
+      "phone93": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 1,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 1
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 1
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 1,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 2.47,
+     "judge2": 2.47
+    },
+    "meaning_errors": {
+     "judge1": 4,
+     "judge2": 4
+    }
+   },
+   "Qwen 9B v2": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 4
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 2
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 4
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 2.93,
+     "judge2": 2.87
+    },
+    "meaning_errors": {
+     "judge1": 17,
+     "judge2": 19
+    }
+   },
+   "Gemma 4 E4B v4": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 5,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 5,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 2
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 5,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 2
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 3,
+     "judge2": 3
+    },
+    "meaning_errors": {
+     "judge1": 9,
+     "judge2": 7
+    }
+   },
+   "Qwen 9B v4": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 2
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 4
+      },
+      "mac59": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 4
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 2
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac45": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 4
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 2.93,
+     "judge2": 2.8
+    },
+    "meaning_errors": {
+     "judge1": 27,
+     "judge2": 26
+    }
+   },
+   "Qwen 4B v2": {
+    "raters": {
+     "judge1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 3
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 1
+      }
+     },
+     "judge2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 3
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 4
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 1,
+       "layout": 3,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judge1": 2.93,
+     "judge2": 2.87
+    },
+    "meaning_errors": {
+     "judge1": 13,
+     "judge2": 15
+    }
+   }
+  },
+  "round2_speed_setups": {
+   "E4B live": {
+    "raters": {
+     "judgeL1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 1,
+       "cleanup": 1,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 6
+      }
+     },
+     "judgeL2": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 1,
+       "cleanup": 1,
+       "layout": 1,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 4
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeL1": 2.93,
+     "judgeL2": 2.87
+    },
+    "meaning_errors": {
+     "judgeL1": 14,
+     "judgeL2": 13
+    }
+   },
+   "E4B live k1": {
+    "raters": {
+     "judgeL1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 6
+      }
+     },
+     "judgeL2": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 3
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeL1": 3,
+     "judgeL2": 3.07
+    },
+    "meaning_errors": {
+     "judgeL1": 14,
+     "judgeL2": 13
+    }
+   },
+   "E2B full": {
+    "raters": {
+     "judgeL1": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 7
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 2
+      }
+     },
+     "judgeL2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "phone91": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 7
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeL1": 2.73,
+     "judgeL2": 2.8
+    },
+    "meaning_errors": {
+     "judgeL1": 17,
+     "judgeL2": 19
+    }
+   },
+   "E4B full": {
+    "raters": {
+     "judgeL1": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      }
+     },
+     "judgeL2": {
+      "phone86": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 4
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeL1": 3,
+     "judgeL2": 2.93
+    },
+    "meaning_errors": {
+     "judgeL1": 13,
+     "judgeL2": 14
+    }
+   }
+  },
+  "round3_shipped_setup": {
+   "Sokki MTP live": {
+    "raters": {
+     "judgeS1": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      }
+     },
+     "judgeS2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeS1": 3.07,
+     "judgeS2": 2.93
+    },
+    "meaning_errors": {
+     "judgeS1": 10,
+     "judgeS2": 11
+    }
+   },
+   "Sokki MTP full": {
+    "raters": {
+     "judgeS1": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 2
+      }
+     },
+     "judgeS2": {
+      "phone86": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 1,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 3
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeS1": 3,
+     "judgeS2": 3
+    },
+    "meaning_errors": {
+     "judgeS1": 10,
+     "judgeS2": 12
+    }
+   },
+   "MLX live k1": {
+    "raters": {
+     "judgeS1": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 5
+      }
+     },
+     "judgeS2": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 1,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 2,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 4,
+       "cleanup": 4,
+       "layout": 4,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 2,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 5
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeS1": 3.13,
+     "judgeS2": 3
+    },
+    "meaning_errors": {
+     "judgeS1": 15,
+     "judgeS2": 13
+    }
+   },
+   "MLX full": {
+    "raters": {
+     "judgeS1": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 1
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 3
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      }
+     },
+     "judgeS2": {
+      "phone86": {
+       "overall": 5,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone23": {
+       "overall": 3,
+       "cleanup": 4,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone52": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 5,
+       "meaning_errors": 1
+      },
+      "phone56": {
+       "overall": 4,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "phone93": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "phone22": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 2,
+       "meaning_errors": 0
+      },
+      "phone88": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "phone91": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 2
+      },
+      "mac29": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 5,
+       "meaning_errors": 0
+      },
+      "mac34": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 0
+      },
+      "mac45": {
+       "overall": 3,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac50": {
+       "overall": 2,
+       "cleanup": 2,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac43": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 0
+      },
+      "mac24": {
+       "overall": 3,
+       "cleanup": 3,
+       "layout": 3,
+       "meaning_errors": 1
+      },
+      "mac59": {
+       "overall": 1,
+       "cleanup": 2,
+       "layout": 4,
+       "meaning_errors": 1
+      }
+     }
+    },
+    "mean_overall": {
+     "judgeS1": 3.07,
+     "judgeS2": 2.87
+    },
+    "meaning_errors": {
+     "judgeS1": 11,
+     "judgeS2": 9
+    }
+   }
+  }
+ }
+}

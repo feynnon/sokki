@@ -53,9 +53,6 @@ bundle="$(find "$tmp/unzipped" -maxdepth 1 -name '*.app' | head -1)"
 [[ -n "$bundle" ]] || fail "The download contains no app."
 rm -rf "$APP" "$OLD_APP"
 mv "$bundle" "$APP"
-# Downloaded with curl, so macOS has not quarantined it; clear it just in case.
-# Remove this line once releases are notarised (board card `notarize`).
-xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
 open "$APP"
 say "Sokki is installed and open."

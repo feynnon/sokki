@@ -68,6 +68,12 @@ Prefer Terminal? This installs Sokki, and updates it when run again. Settings an
 curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash
 ```
 
+Or with Homebrew:
+
+```bash
+brew install feynnon/sokki/sokki
+```
+
 ## How it works
 
 | Step | Default | Options |

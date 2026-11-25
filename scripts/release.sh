@@ -138,4 +138,21 @@ if [[ "$PUBLISH" == "--publish" ]]; then
   gh release create "$TAG" -R "$GH_REPO" --title "Sokki $VERSION" --notes-file "$NOTES" \
     "$OUT/$ZIP" "$OUT/Sokki-arm64.zip" "$OUT/$TGZ" "$OUT/latest.json"
   echo "Published https://github.com/$GH_REPO/releases/tag/$TAG"
+
+  # The Homebrew tap (`brew install feynnon/sokki/sokki`): point its cask at
+  # this release. Skipped without the tap's clone ($SOKKI_TAP) or a gh login.
+  TAP="${SOKKI_TAP:-$HOME/PycharmProjects/homebrew-sokki}"
+  CASK="$TAP/Casks/sokki.rb"
+  if [[ -f "$CASK" ]] && gh auth status >/dev/null 2>&1; then
+    SHA="$(shasum -a 256 "$OUT/$ZIP" | cut -d' ' -f1)"
+    git -C "$TAP" pull -q --ff-only \
+      && sed -i '' -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+                   -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" "$CASK" \
+      && git -C "$TAP" -c user.name="Robin Dehde" \
+           -c user.email=18052826+feynnon@users.noreply.github.com \
+           commit -q -m "Sokki $VERSION" Casks/sokki.rb \
+      && git -C "$TAP" push -q \
+      && echo "Homebrew cask now at $VERSION." \
+      || echo "WARNING: the Homebrew cask is not updated; bump $CASK by hand."
+  fi
 fi

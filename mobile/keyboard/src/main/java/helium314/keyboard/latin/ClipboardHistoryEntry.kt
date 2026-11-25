@@ -38,7 +38,7 @@ class ClipboardHistoryEntry(
 
     fun getContentUri(context: Context) = filename?.let { FileProvider.getUriForFile(
         context,
-        context.getString(R.string.clipboard_provider_authority),
+        context.packageName + ".clipprovider", // Sokki: follows the app ID, as in the manifest (X12)
         File(ClipboardDao.clipFilesDir, it)
     ) }
 

@@ -220,7 +220,10 @@ fn busy(app: &AppHandle) -> Option<&'static str> {
         return Some("a meeting is recording");
     }
     let processing = app.state::<Arc<MeetingStore>>().list().iter().any(|m| {
-        matches!(m.status, MeetingStatus::Recording | MeetingStatus::Processing { .. })
+        matches!(
+            m.status,
+            MeetingStatus::Recording | MeetingStatus::Processing { .. }
+        )
     });
     processing.then_some("a meeting is being processed")
 }
@@ -232,7 +235,11 @@ fn window_open(app: &AppHandle) -> bool {
 }
 
 fn day_file(app: &AppHandle) -> Option<PathBuf> {
-    Some(crate::portable::app_data_dir(app).ok()?.join("update-day.txt"))
+    Some(
+        crate::portable::app_data_dir(app)
+            .ok()?
+            .join("update-day.txt"),
+    )
 }
 
 fn today() -> String {
@@ -290,11 +297,8 @@ fn screen_locked() -> bool {
         if dict.is_null() {
             return true;
         }
-        let key = CFStringCreateWithCString(
-            std::ptr::null(),
-            c"CGSSessionScreenIsLocked".as_ptr(),
-            UTF8,
-        );
+        let key =
+            CFStringCreateWithCString(std::ptr::null(), c"CGSSessionScreenIsLocked".as_ptr(), UTF8);
         let value = CFDictionaryGetValue(dict, key);
         let locked = !value.is_null() && CFBooleanGetValue(value);
         CFRelease(key);

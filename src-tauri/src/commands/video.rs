@@ -11,7 +11,9 @@ pub use crate::video::{VideoChanged, VideoMeta};
 mod stubs {
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
     pub struct VideoMeta {}
-    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+    #[derive(
+        Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event,
+    )]
     pub struct VideoChanged {
         pub folder: String,
     }

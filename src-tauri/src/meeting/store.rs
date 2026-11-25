@@ -80,6 +80,24 @@ pub struct MeetingRecord {
     /// summary names the meeting.
     #[serde(default)]
     pub title_provisional: bool,
+    /// The sample meeting (`meeting::sample`): invented people, shown as a
+    /// sample, left out of "Your data" and the milestones.
+    #[serde(default)]
+    pub sample: bool,
+    /// The notes went to the meeting's attendees (`meeting/mail.rs`).
+    #[serde(default)]
+    pub mailed: Option<Mailed>,
+}
+
+/// When the notes were mailed, and to whom.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+pub struct Mailed {
+    /// RFC 3339.
+    pub at: String,
+    /// The addresses, lower case.
+    pub to: Vec<String>,
+    /// Sent by the automatic setting, not the button.
+    pub auto: bool,
 }
 
 /// The meeting index, safe to share between threads.
@@ -91,7 +109,8 @@ pub struct MeetingStore {
 impl MeetingStore {
     /// Opens (or creates) the index under `root`. Meetings left in
     /// `Recording` or `Processing` by a crash are marked failed, so they can
-    /// be reprocessed from their audio.
+    /// be reprocessed from their audio. Old meetings without speech go to
+    /// the Trash ([`trash_no_speech`]).
     pub fn open(root: &Path) -> Result<Self> {
         std::fs::create_dir_all(root).with_context(|| format!("creating {}", root.display()))?;
         let path = root.join("index.json");
@@ -114,6 +133,7 @@ impl MeetingStore {
                 };
             }
         }
+        trash_no_speech(root, &mut records);
         let store = Self {
             root: root.to_path_buf(),
             records: Mutex::new(records),
@@ -171,6 +191,17 @@ impl MeetingStore {
         self.save()
     }
 
+    /// Moves the meeting's audio folder to the Trash (the person can put it
+    /// back) and removes the record. The note, if any, is left alone.
+    pub fn trash(&self, id: &str) -> Result<()> {
+        let dir = self.audio_dir(id);
+        if dir.starts_with(&self.root) && dir != self.root && dir.exists() {
+            move_to_trash(&dir)?;
+        }
+        self.lock().retain(|r| r.id != id);
+        self.save()
+    }
+
     fn save(&self) -> Result<()> {
         let text = serde_json::to_string_pretty(&*self.lock())?;
         let tmp = self.root.join("index.json.tmp");
@@ -182,6 +213,77 @@ impl MeetingStore {
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<MeetingRecord>> {
         self.records.lock().unwrap_or_else(|e| e.into_inner())
     }
+}
+
+/// Meetings whose note says nobody spoke, from before Sokki stopped writing
+/// such notes (2026-11-25; Robin: "Would be great to delete them anyways"):
+/// their audio and note go to the Trash, where Finder can put them back, and
+/// they leave the list. A meeting the person named stays. When the Trash
+/// refuses the audio, the meeting stays too.
+fn trash_no_speech(root: &Path, records: &mut Vec<MeetingRecord>) {
+    records.retain(|r| {
+        if r.status != MeetingStatus::Done || r.sample || r.title_by_hand {
+            return true;
+        }
+        let Some(note) = r.note_path.as_deref().map(Path::new) else {
+            return true;
+        };
+        let Ok(md) = std::fs::read_to_string(note) else {
+            return true;
+        };
+        if !meeting_core::note::is_no_speech_note(&md) {
+            return true;
+        }
+        let dir = root.join(&r.id);
+        if dir.starts_with(root) && dir != root && dir.exists() {
+            if let Err(e) = move_to_trash(&dir) {
+                log::warn!("Meeting {}: no speech, but kept: {e:#}", r.id);
+                return true;
+            }
+        }
+        if let Err(e) = move_to_trash(note) {
+            log::warn!("Meeting {}: its empty note stays: {e:#}", r.id);
+        }
+        log::info!(
+            "Meeting {} ({:.0} s, {}): no speech; moved to the Trash",
+            r.id,
+            r.duration_s,
+            r.source_app.as_deref().unwrap_or("no app")
+        );
+        false
+    });
+}
+
+/// Moves a file or folder to the Trash, where Finder can put it back.
+#[cfg(all(target_os = "macos", not(test)))]
+pub fn move_to_trash(path: &Path) -> Result<()> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    NSFileManager::defaultManager()
+        .trashItemAtURL_resultingItemURL_error(&url, None)
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "moving {} to the Trash: {}",
+                path.display(),
+                e.localizedDescription()
+            )
+        })
+}
+
+/// Tests leave the person's Trash alone: "trash" next to the item instead.
+#[cfg(test)]
+pub fn move_to_trash(path: &Path) -> Result<()> {
+    let name = path.file_name().context("nothing to move")?;
+    let trash = path.parent().context("no parent")?.join("trash");
+    std::fs::create_dir_all(&trash)?;
+    std::fs::rename(path, trash.join(name))?;
+    Ok(())
+}
+
+/// Moves a file or folder to the Trash, where Finder can put it back.
+#[cfg(all(not(target_os = "macos"), not(test)))]
+pub fn move_to_trash(path: &Path) -> Result<()> {
+    anyhow::bail!("no Trash for {} on this system", path.display())
 }
 
 /// Records written before 0.2.5 kept raw error text in `warnings` (model
@@ -283,6 +385,8 @@ mod tests {
             online: None,
             title_by_hand: false,
             title_provisional: false,
+            sample: false,
+            mailed: None,
         }
     }
 
@@ -290,6 +394,65 @@ mod tests {
         let d = std::env::temp_dir().join(format!("hm-store-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
+    }
+
+    #[test]
+    fn old_meetings_without_speech_go_to_the_trash() {
+        let dir = tempdir("nospeech");
+        let notes = dir.join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        let empty = "# Meeting 2026-11-24 14:43\n\n## Transkript\n\n_Keine Sprache erkannt._\n";
+        let spoken = "# Plan\n\n## Transkript\n\n**[00:03] Anna:** Hallo.\n";
+        let mut records = Vec::new();
+        for (id, md, by_hand) in [
+            ("e", empty, false),
+            ("s", spoken, false),
+            ("named", empty, true),
+        ] {
+            let note = notes.join(format!("{id}.md"));
+            std::fs::write(&note, md).unwrap();
+            std::fs::create_dir_all(dir.join(id)).unwrap();
+            std::fs::write(dir.join(id).join("mic.flac"), b"x").unwrap();
+            let mut r = record(id, "2026-11-24T14:43:00+01:00", MeetingStatus::Done);
+            r.note_path = Some(note.to_string_lossy().into_owned());
+            r.title_by_hand = by_hand;
+            records.push(r);
+        }
+        std::fs::write(
+            dir.join("index.json"),
+            serde_json::to_string(&records).unwrap(),
+        )
+        .unwrap();
+        let s = MeetingStore::open(&dir).unwrap();
+        let ids: Vec<String> = s.list().into_iter().map(|r| r.id).collect();
+        assert_eq!(ids.len(), 2);
+        assert!(!ids.contains(&"e".to_string()), "{ids:?}");
+        // Moved, not deleted.
+        assert!(!dir.join("e").exists() && dir.join("trash").join("e").join("mic.flac").exists());
+        assert!(!notes.join("e.md").exists() && notes.join("trash").join("e.md").exists());
+        assert!(notes.join("s.md").exists() && notes.join("named.md").exists());
+        // Saved: the next start finds the same list.
+        drop(s);
+        assert_eq!(MeetingStore::open(&dir).unwrap().list().len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn trash_moves_the_audio_and_forgets_the_meeting() {
+        let dir = tempdir("trash");
+        let s = MeetingStore::open(&dir).unwrap();
+        s.insert(record(
+            "a",
+            "2026-11-17T09:00:00+01:00",
+            MeetingStatus::Done,
+        ))
+        .unwrap();
+        std::fs::create_dir_all(s.audio_dir("a")).unwrap();
+        std::fs::write(s.audio_dir("a").join("mic.flac"), b"x").unwrap();
+        s.trash("a").unwrap();
+        assert!(s.get("a").is_none());
+        assert!(dir.join("trash").join("a").join("mic.flac").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

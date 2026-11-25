@@ -4,9 +4,13 @@ import { commands, events, type MeetingRecord } from "@/bindings";
 
 /** Below this RMS (-55 dBFS, the pill's floor) a track counts as silent. */
 export const SILENCE_RMS = 10 ** (-55 / 20);
-/** "No sound from {app}" after this long without call audio while the
- * microphone hears someone (Robin approved the warning, 2026-11-23; the
- * delay is the brief's suggestion). */
+/** "Sokki hears nothing from {app}" after the call track has been exact
+ * zeros (or had no audio at all) this long while the microphone hears
+ * someone (Robin approved the warning, 2026-11-23; the delay is the brief's
+ * suggestion). Only exact zeros count: a quiet call still has noise in it,
+ * and the old test (no sound above -55 dBFS) blamed the call when the
+ * other side was just quiet. Sokki rebuilds a dead tap after 3 s, so this
+ * shows when that did not help. */
 export const NO_SOUND_AFTER_MS = 20_000;
 
 /** A level as a bar height 0…1, as the pill draws it. */
@@ -32,6 +36,8 @@ interface MeetingState {
   /** While recording: when each track last had sound (ms), or the start. */
   micHeardAt: number;
   systemHeardAt: number;
+  /** How long the call track has been exact zeros or empty (ms). */
+  systemDeadMs: number;
   reload: () => Promise<void>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
@@ -50,6 +56,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   system: 0,
   micHeardAt: 0,
   systemHeardAt: 0,
+  systemDeadMs: 0,
 
   reload: async () => {
     const [list, recording] = await Promise.all([
@@ -63,7 +70,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       loaded: true,
       recording,
       ...(recording && !was ? { micHeardAt: now, systemHeardAt: now } : {}),
-      ...(!recording ? { mic: 0, system: 0 } : {}),
+      ...(!recording ? { mic: 0, system: 0, systemDeadMs: 0 } : {}),
     });
   },
 
@@ -135,20 +142,22 @@ export function watchMeetings(): () => void {
   const offChanged = events.meetingChanged.listen(
     () => void store.getState().reload(),
   );
-  const offLevel = listen<{ mic: number; system: number }>(
-    "meeting-level",
-    (e) => {
-      if (!store.getState().recording) return;
-      const now = Date.now();
-      const { mic, system } = e.payload;
-      store.setState((s) => ({
-        mic,
-        system,
-        micHeardAt: mic > SILENCE_RMS ? now : s.micHeardAt,
-        systemHeardAt: system > SILENCE_RMS ? now : s.systemHeardAt,
-      }));
-    },
-  );
+  const offLevel = listen<{
+    mic: number;
+    system: number;
+    system_dead_ms?: number;
+  }>("meeting-level", (e) => {
+    if (!store.getState().recording) return;
+    const now = Date.now();
+    const { mic, system, system_dead_ms } = e.payload;
+    store.setState((s) => ({
+      mic,
+      system,
+      systemDeadMs: system_dead_ms ?? 0,
+      micHeardAt: mic > SILENCE_RMS ? now : s.micHeardAt,
+      systemHeardAt: system > SILENCE_RMS ? now : s.systemHeardAt,
+    }));
+  });
   return () => {
     offChanged.then((fn) => fn());
     offLevel.then((fn) => fn());

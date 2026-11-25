@@ -23,7 +23,10 @@ fn main() {
     let _ = transcribe_cpp::init_backends_default();
     let mut r = hound::WavReader::open(wav).expect("wav");
     let spec = r.spec();
-    assert!(spec.sample_rate == 16_000 && spec.channels == 1, "need 16 kHz mono");
+    assert!(
+        spec.sample_rate == 16_000 && spec.channels == 1,
+        "need 16 kHz mono"
+    );
     let samples: Vec<f32> = r
         .samples::<i16>()
         .map(|s| s.unwrap() as f32 / 32768.0)
@@ -39,7 +42,165 @@ fn main() {
     let mut session = model.session().expect("session");
     let load_s = t.elapsed().as_secs_f64();
 
-    let opts = transcribe_cpp::RunOptions::default();
+    // VB_LANG=de: the language, instead of detecting it.
+    let opts = transcribe_cpp::RunOptions {
+        language: std::env::var("VB_LANG").ok(),
+        ..Default::default()
+    };
+
+    // VB_PAGEOUT=1: after the warm-up, push this process's memory out of RAM
+    // (model pages dropped, buffers to swap), as Android does to an idle
+    // keyboard. Then the first dictation pays for reading it back.
+    let pageout = || {
+        if std::env::var("VB_PAGEOUT").is_ok() {
+            let t = Instant::now();
+            let n = page_out();
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            println!("paged out {n} MB in {} ms", t.elapsed().as_millis());
+        }
+    };
+
+    // Streaming, as the Mac does it with a streaming model: 200 ms blocks
+    // in real time into the model's own stream, which keeps its context.
+    // Prints when the text changes and how far it lags behind the speech.
+    // VB_RIGHT=n: lookahead frames (cache-aware models, 80 ms each);
+    // VB_BUF="left_ms:chunk_ms:right_ms": buffered streaming (other
+    // Parakeets). VB_THREADS: CPU threads. VB_SHOW=1 prints the text.
+    if args.get(3).map(String::as_str) == Some("--stream") {
+        use transcribe_cpp::{
+            ParakeetBufferedStreamOptions, ParakeetStreamOptions, StreamExtension, StreamOptions,
+        };
+        let env_i = |k: &str| std::env::var(k).ok().and_then(|v| v.parse::<i32>().ok());
+        let family = if let Ok(b) = std::env::var("VB_BUF") {
+            let x: Vec<i32> = b.split(':').map(|n| n.parse().unwrap()).collect();
+            Some(StreamExtension::ParakeetBuffered(
+                ParakeetBufferedStreamOptions {
+                    left_ms: Some(x[0]),
+                    chunk_ms: Some(x[1]),
+                    right_ms: Some(x[2]),
+                },
+            ))
+        } else {
+            env_i("VB_RIGHT").map(|r| {
+                StreamExtension::ParakeetStream(ParakeetStreamOptions {
+                    att_context_right: Some(r),
+                })
+            })
+        };
+        let so = StreamOptions {
+            family,
+            ..Default::default()
+        };
+        if let Some(n) = env_i("VB_THREADS") {
+            session = model
+                .session_with(&transcribe_cpp::SessionOptions {
+                    n_threads: n,
+                    ..Default::default()
+                })
+                .expect("session");
+        }
+        // VB_BLOCK_MS: audio per feed (default 200 ms).
+        let block = env_i("VB_BLOCK_MS").unwrap_or(200) as usize * 16;
+        let show = std::env::var("VB_SHOW").is_ok();
+        let tail: f32 = std::env::var("VB_TAIL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.8);
+        let mut samples = samples.clone();
+        samples.extend(
+            (0..(tail * 16_000.0) as usize).map(|i| 0.0005 * ((i * 7919 % 13) as f32 - 6.0)),
+        );
+        let audio_s = samples.len() as f64 / 16_000.0;
+        // Warm-up, as on keyboard open.
+        {
+            let mut st = session.stream(&opts, &so).expect("stream");
+            for b in vec![0.0f32; 16_000].chunks(3_200) {
+                st.feed(b).expect("feed");
+            }
+            st.finalize().expect("finalize");
+        }
+        pageout();
+        // Where speech starts and the words' ends, from the script timing: the
+        // lag is measured against the audio fed so far.
+        let mut st = session.stream(&opts, &so).expect("stream");
+        let start = Instant::now();
+        let now = || start.elapsed().as_secs_f64();
+        let (mut fed, mut first, mut lags, mut busy) =
+            (0usize, None::<f64>, Vec::<f64>::new(), 0.0f64);
+        let mut last_words = 0usize;
+        let mut feeds = 0usize;
+        let (mut prev, mut rewrites) = (String::new(), 0usize);
+        let mut slowest = 0.0f64;
+        while fed < samples.len() {
+            // Real time: wait until the next 200 ms block has been "spoken".
+            let next = (fed + block).min(samples.len());
+            let due = next as f64 / 16_000.0;
+            let t = now();
+            if t < due {
+                std::thread::sleep(std::time::Duration::from_secs_f64(due - t));
+            }
+            let t0 = now();
+            st.feed(&samples[fed..next]).expect("feed");
+            let took = now() - t0;
+            busy += took;
+            slowest = slowest.max(took);
+            feeds += 1;
+            fed = next;
+            let text = st.text();
+            // Words already shown that changed afterwards (the last, growing one aside).
+            let shown = text.display();
+            let done_words = |t: &str| t.rsplit_once(' ').map_or("", |(a, _)| a).to_string();
+            let old_done = done_words(&prev);
+            if !shown.starts_with(&old_done) {
+                rewrites += 1;
+                if show {
+                    println!("        rewrite: {old_done:?} -> {shown:?}");
+                }
+            }
+            prev = shown;
+            let words = text.display().split_whitespace().count();
+            if words != last_words {
+                let t = now();
+                let lag = t - fed as f64 / 16_000.0;
+                if words > last_words {
+                    first.get_or_insert(t);
+                    lags.push(lag);
+                }
+                last_words = words;
+                println!(
+                    "{t:6.2} s  {words:3} words (committed {:3})  lag {lag:4.2} s  {}",
+                    text.committed.split_whitespace().count(),
+                    if show { text.display() } else { String::new() }
+                );
+            }
+        }
+        let t0 = now();
+        st.finalize().expect("finalize");
+        let text = st.text().display();
+        println!(
+            "after stop: {:.2} s (finalize {:.2} s)",
+            now() - audio_s,
+            now() - t0
+        );
+        if show {
+            println!("final: {text}");
+        }
+        if let Some(p) = std::env::var("VB_SCRIPT").ok() {
+            let script = std::fs::read_to_string(p).unwrap_or_default();
+            println!("vs script: {:.1} % off", wer(&script, &text) * 100.0);
+        }
+        lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!(
+            "first words at {:.2} s; text lags speech by median {:.2} s, worst {:.2} s; engine busy {:.0} % of the time, slowest feed {:.2} s; {rewrites} rewrites of shown words",
+            first.unwrap_or(f64::NAN),
+            lags.get(lags.len() / 2).copied().unwrap_or(f64::NAN),
+            lags.last().copied().unwrap_or(f64::NAN),
+            busy / audio_s * 100.0,
+            slowest
+        );
+        let _ = feeds;
+        return;
+    }
 
     // Chunking: how much accuracy do pieces cost? Whole recording vs pieces,
     // word error rate against the whole transcript (and against the script
@@ -47,13 +208,23 @@ fn main() {
     if args.get(3).map(String::as_str) == Some("--chunking") {
         use dictation_core::{Mode, Params, Segmenter};
         let mut run = |audio: &[f32]| -> String {
-            session.run(audio, &opts).expect("run").text.trim().to_string()
+            session
+                .run(audio, &opts)
+                .expect("run")
+                .text
+                .trim()
+                .to_string()
         };
         // "Whole": 30 s windows (the model's comfortable maximum).
         let whole: Vec<String> = samples.chunks(16_000 * 30).map(|c| run(c)).collect();
         let whole = whole.join(" ");
-        let script = args.get(4).map(|p| std::fs::read_to_string(p).unwrap_or_default());
-        println!("{:<34} {:>8} {:>9} {:>7} {:>9}", "mode", "pieces", "avg len", "vs whole", "vs script");
+        let script = args
+            .get(4)
+            .map(|p| std::fs::read_to_string(p).unwrap_or_default());
+        println!(
+            "{:<34} {:>8} {:>9} {:>7} {:>9}",
+            "mode", "pieces", "avg len", "vs whole", "vs script"
+        );
         // VB_MODES="f:5,p:4:240:10" = fixed 5 s, pauses with min 4 s, 240 ms, max 10 s.
         let spec = std::env::var("VB_MODES").unwrap_or("f:5,f:3,p:1.5:240:8,p:1:160:8".into());
         let modes: Vec<(String, Mode)> = spec
@@ -61,22 +232,40 @@ fn main() {
             .map(|m| {
                 let v: Vec<&str> = m.split(':').collect();
                 if v[0] == "f" {
-                    (format!("fixed {} s", v[1]), Mode::Fixed(v[1].parse().unwrap()))
+                    (
+                        format!("fixed {} s", v[1]),
+                        Mode::Fixed(v[1].parse().unwrap()),
+                    )
                 } else {
-                    let (min_s, pause_ms, max_s) =
-                        (v[1].parse().unwrap(), v[2].parse().unwrap(), v[3].parse().unwrap());
+                    let (min_s, pause_ms, max_s) = (
+                        v[1].parse().unwrap(),
+                        v[2].parse().unwrap(),
+                        v[3].parse().unwrap(),
+                    );
                     // Optional 5th field: the margin above the background level.
-                    let margin = v.get(4).map(|m| m.parse().unwrap()).unwrap_or(Params::default().margin);
+                    let margin = v
+                        .get(4)
+                        .map(|m| m.parse().unwrap())
+                        .unwrap_or(Params::default().margin);
                     (
                         format!("pauses min {min_s} s, {pause_ms} ms, max {max_s} s, +{margin}"),
-                        Mode::Pauses(Params { min_s, pause_ms, max_s, margin, ..Params::default() }),
+                        Mode::Pauses(Params {
+                            min_s,
+                            pause_ms,
+                            max_s,
+                            margin,
+                            ..Params::default()
+                        }),
                     )
                 }
             })
             .collect();
         let wer_script = |hyp: &str| script.as_ref().map(|s| wer(s, hyp) * 100.0);
         if let Some(w) = wer_script(&whole) {
-            println!("{:<34} {:>8} {:>9} {:>7} {:>8.1}%", "whole (reference)", "-", "-", "-", w);
+            println!(
+                "{:<34} {:>8} {:>9} {:>7} {:>8.1}%",
+                "whole (reference)", "-", "-", "-", w
+            );
         }
         for (name, mode) in &modes {
             let mode = *mode;
@@ -86,21 +275,24 @@ fn main() {
                 pieces.extend(seg.push(block));
             }
             let tail = seg.finish();
-            let tail_s = tail.as_ref().map(|t| t.len() as f64 / 16_000.0).unwrap_or(0.0);
+            let tail_s = tail
+                .as_ref()
+                .map(|t| t.len() as f64 / 16_000.0)
+                .unwrap_or(0.0);
             pieces.extend(tail);
             let n = pieces.len();
             let avg = samples.len() as f64 / 16_000.0 / n as f64;
             // Stopping at a random moment leaves the audio since the last cut:
             // on average sum(L²) / (2·sum(L)), at most the longest piece.
             let lens: Vec<f64> = pieces.iter().map(|p| p.len() as f64 / 16_000.0).collect();
-            let left_avg = lens.iter().map(|l| l * l).sum::<f64>() / (2.0 * lens.iter().sum::<f64>());
+            let left_avg =
+                lens.iter().map(|l| l * l).sum::<f64>() / (2.0 * lens.iter().sum::<f64>());
             let left_max = lens.iter().cloned().fold(0.0, f64::max);
-            let text: Vec<String> = pieces
-                .iter()
-                .map(|p| run(p))
-                .collect();
+            let text: Vec<String> = pieces.iter().map(|p| run(p)).collect();
             let text = text.join(" ");
-            let ws = wer_script(&text).map(|w| format!("{w:.1}%")).unwrap_or("-".into());
+            let ws = wer_script(&text)
+                .map(|w| format!("{w:.1}%"))
+                .unwrap_or("-".into());
             println!(
                 "{:<34} {:>8} {:>8.1}s {:>6.1}% {:>9}   (last piece {:.1} s; left at a random stop: avg {:.1} s, max {:.1} s)",
                 name, n, avg, wer(&whole, &text) * 100.0, ws, tail_s, left_avg, left_max
@@ -126,19 +318,40 @@ fn main() {
         let (first, step) = ((cfg[2] * 16_000.0) as usize, (cfg[3] * 16_000.0) as usize);
         let show = std::env::var("VB_SHOW").is_ok();
         // People tap stop a moment after their last word: VB_TAIL seconds of quiet (default 0.8).
-        let tail: f32 = std::env::var("VB_TAIL").ok().and_then(|v| v.parse().ok()).unwrap_or(0.8);
+        let tail: f32 = std::env::var("VB_TAIL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.8);
         let mut samples = samples.clone();
-        samples.extend((0..(tail * 16_000.0) as usize).map(|i| 0.0005 * ((i * 7919 % 13) as f32 - 6.0)));
+        samples.extend(
+            (0..(tail * 16_000.0) as usize).map(|i| 0.0005 * ((i * 7919 % 13) as f32 - 6.0)),
+        );
         let audio_s = samples.len() as f64 / 16_000.0;
         let _ = session.run(&vec![0.0f32; 16_000], &opts); // warm-up, as on keyboard open
         let previews = cfg[2] > 0.0;
-        let normal = Mode::Pauses(Params { min_s: cfg[0], max_s: cfg[1], ..Params::default() });
+        let normal = Mode::Pauses(Params {
+            min_s: cfg[0],
+            max_s: cfg[1],
+            ..Params::default()
+        });
         let first_min = cfg.get(4).copied().unwrap_or(cfg[0]);
         // First piece: from first_min at a pause, at the latest 2 s later (quietest spot).
-        let first_max = if cfg.len() > 4 { first_min + 2.0 } else { cfg[1] };
-        let mut seg = Segmenter::new(Mode::Pauses(Params { min_s: first_min, max_s: first_max, ..Params::default() }));
+        let first_max = if cfg.len() > 4 {
+            first_min + 2.0
+        } else {
+            cfg[1]
+        };
+        let mut seg = Segmenter::new(Mode::Pauses(Params {
+            min_s: first_min,
+            max_s: first_max,
+            ..Params::default()
+        }));
         let whole = std::env::var("VB_WER").is_ok().then(|| {
-            samples.chunks(16_000 * 30).map(|c| session.run(c, &opts).expect("run").text.trim().to_string()).collect::<Vec<_>>().join(" ")
+            samples
+                .chunks(16_000 * 30)
+                .map(|c| session.run(c, &opts).expect("run").text.trim().to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
         });
         let mut finals: Vec<String> = Vec::new();
         // Snippet mode, VB_CHUNK="min_s:max_s": live text from short snippets,
@@ -154,7 +367,11 @@ fn main() {
         fn quietest(audio: &[f32], lo: usize, hi: usize) -> usize {
             let rms = |f: &[f32]| f.iter().map(|s| s * s).sum::<f32>();
             (lo / 320..hi / 320)
-                .min_by(|&a, &b| rms(&audio[a * 320..a * 320 + 320]).partial_cmp(&rms(&audio[b * 320..b * 320 + 320])).unwrap())
+                .min_by(|&a, &b| {
+                    rms(&audio[a * 320..a * 320 + 320])
+                        .partial_cmp(&rms(&audio[b * 320..b * 320 + 320]))
+                        .unwrap()
+                })
                 .map_or(hi, |f| f * 320 + 160)
         }
         // (end in the recording, piece, where its speech ends)
@@ -162,7 +379,8 @@ fn main() {
         let mut last_preview: Option<(usize, String)> = None;
         let mut stopped = false;
         let (mut reused, mut reran) = (0, 0);
-        let (mut fed, mut cut_at, mut cuts, mut done, mut previewed) = (0usize, 0usize, 0usize, 0usize, 0usize);
+        let (mut fed, mut cut_at, mut cuts, mut done, mut previewed) =
+            (0usize, 0usize, 0usize, 0usize, 0usize);
         let mut first_words: Option<f64> = None;
         let mut lags: Vec<f64> = Vec::new();
         // VB_PAR="t1:t2": final pieces on a second session (own thread, t2 CPU
@@ -173,17 +391,27 @@ fn main() {
         });
         let (job_tx, res_rx) = match par {
             Some((t1, t2)) => {
-                let so = |n| transcribe_cpp::SessionOptions { n_threads: n, ..Default::default() };
+                let so = |n| transcribe_cpp::SessionOptions {
+                    n_threads: n,
+                    ..Default::default()
+                };
                 session = model.session_with(&so(t1)).expect("session");
                 let _ = session.run(&vec![0.0f32; 16_000], &opts);
                 let mut s2 = model.session_with(&so(t2)).expect("session");
-                let _ = s2.run(&vec![0.0f32; 16_000], &transcribe_cpp::RunOptions::default());
+                let _ = s2.run(
+                    &vec![0.0f32; 16_000],
+                    &transcribe_cpp::RunOptions::default(),
+                );
                 let (jt, jr) = std::sync::mpsc::channel::<(usize, Vec<f32>, usize)>();
                 let (rt, rr) = std::sync::mpsc::channel::<(usize, usize, String)>();
                 std::thread::spawn(move || {
                     let o = transcribe_cpp::RunOptions::default();
                     for (end, piece, speech_end) in jr {
-                        let text = if speech_end == 0 { String::new() } else { s2.run(&piece, &o).expect("run").text.trim().to_string() };
+                        let text = if speech_end == 0 {
+                            String::new()
+                        } else {
+                            s2.run(&piece, &o).expect("run").text.trim().to_string()
+                        };
                         let _ = rt.send((end, piece.len(), text));
                     }
                 });
@@ -192,6 +420,7 @@ fn main() {
             None => (None, None),
         };
         let mut results = 0usize;
+        pageout();
         let start = Instant::now();
         let now = || start.elapsed().as_secs_f64();
         loop {
@@ -213,11 +442,24 @@ fn main() {
                     let pending = seg.pending();
                     if seg.speech_end(&pending[chunked.min(pending.len())..]) > 0 {
                         let audio = pending[chunked..].to_vec();
-                        let text = session.run(&audio, &opts).expect("run").text.trim().to_string();
+                        let text = session
+                            .run(&audio, &opts)
+                            .expect("run")
+                            .text
+                            .trim()
+                            .to_string();
                         snippets.push(text.clone());
                         chunked = pending.len();
-                        println!("{:6.2} s  snippet {:4.1} s audio (at stop)  {}", now(), audio.len() as f64 / 16_000.0,
-                            if show { text } else { format!("{} chars", text.chars().count()) });
+                        println!(
+                            "{:6.2} s  snippet {:4.1} s audio (at stop)  {}",
+                            now(),
+                            audio.len() as f64 / 16_000.0,
+                            if show {
+                                text
+                            } else {
+                                format!("{} chars", text.chars().count())
+                            }
+                        );
                     }
                     println!("all words shown {:.2} s after stop", now() - audio_s);
                 }
@@ -237,8 +479,15 @@ fn main() {
                     let t = now();
                     let lag = t - end as f64 / 16_000.0;
                     final_lags.push(lag);
-                    println!("{t:6.2} s  final   {:4.1} s audio  text lags {lag:4.2} s  {}", len as f64 / 16_000.0,
-                        if show { text.clone() } else { format!("{} chars", text.chars().count()) });
+                    println!(
+                        "{t:6.2} s  final   {:4.1} s audio  text lags {lag:4.2} s  {}",
+                        len as f64 / 16_000.0,
+                        if show {
+                            text.clone()
+                        } else {
+                            format!("{} chars", text.chars().count())
+                        }
+                    );
                     finals.push(text);
                     results += 1;
                     reran += 1;
@@ -254,12 +503,21 @@ fn main() {
             if let Some((cmin, cmax)) = chunk {
                 let pending = seg.pending();
                 // The first snippet comes sooner: 0.6–1 s.
-                let (cmin, cmax) = if snippets.is_empty() { (9_600, 16_000) } else { (cmin, cmax) };
+                let (cmin, cmax) = if snippets.is_empty() {
+                    (9_600, 16_000)
+                } else {
+                    (cmin, cmax)
+                };
                 if !finished && pending.len() >= chunked + cmax {
                     let cut = quietest(pending, chunked + cmin, pending.len());
                     let audio = pending[chunked..cut].to_vec();
                     let abs_end = cut_at + cut;
-                    let text = session.run(&audio, &opts).expect("run").text.trim().to_string();
+                    let text = session
+                        .run(&audio, &opts)
+                        .expect("run")
+                        .text
+                        .trim()
+                        .to_string();
                     let t = now();
                     let lag = t - abs_end as f64 / 16_000.0;
                     chunked = cut;
@@ -267,8 +525,15 @@ fn main() {
                         lags.push(lag);
                         first_words.get_or_insert(t);
                     }
-                    println!("{t:6.2} s  snippet {:4.1} s audio  text lags {lag:4.2} s  {}", audio.len() as f64 / 16_000.0,
-                        if show { text.clone() } else { format!("{} chars", text.chars().count()) });
+                    println!(
+                        "{t:6.2} s  snippet {:4.1} s audio  text lags {lag:4.2} s  {}",
+                        audio.len() as f64 / 16_000.0,
+                        if show {
+                            text.clone()
+                        } else {
+                            format!("{} chars", text.chars().count())
+                        }
+                    );
                     snippets.push(text);
                     continue;
                 }
@@ -279,14 +544,37 @@ fn main() {
                     Some((len, text)) if len >= speech_end => Some(text),
                     _ => None,
                 };
-                if reuse.is_some() { reused += 1 } else { reran += 1 }
-                let text = reuse.unwrap_or_else(|| session.run(&piece, &opts).expect("run").text.trim().to_string());
+                if reuse.is_some() {
+                    reused += 1
+                } else {
+                    reran += 1
+                }
+                let text = reuse.unwrap_or_else(|| {
+                    session
+                        .run(&piece, &opts)
+                        .expect("run")
+                        .text
+                        .trim()
+                        .to_string()
+                });
                 finals.push(text.clone());
                 let t = now();
                 let lag = t - end as f64 / 16_000.0;
-                if chunk.is_some() { final_lags.push(lag) } else { lags.push(lag); first_words.get_or_insert(t); }
-                println!("{t:6.2} s  final   {:4.1} s audio  text lags {lag:4.2} s  {}", piece.len() as f64 / 16_000.0,
-                    if show { text } else { format!("{} chars", text.chars().count()) });
+                if chunk.is_some() {
+                    final_lags.push(lag)
+                } else {
+                    lags.push(lag);
+                    first_words.get_or_insert(t);
+                }
+                println!(
+                    "{t:6.2} s  final   {:4.1} s audio  text lags {lag:4.2} s  {}",
+                    piece.len() as f64 / 16_000.0,
+                    if show {
+                        text
+                    } else {
+                        format!("{} chars", text.chars().count())
+                    }
+                );
                 done += 1;
                 previewed = 0;
                 if finished && queue.is_empty() {
@@ -301,10 +589,20 @@ fn main() {
             let pending = seg.pending();
             let speech_end = seg.quiet_from();
             let pausing = pending.len() >= speech_end + 1_600;
-            if previews && cuts == done && speech_end > previewed && pending.len() >= first && (pausing || pending.len() >= previewed + step) {
+            if previews
+                && cuts == done
+                && speech_end > previewed
+                && pending.len() >= first
+                && (pausing || pending.len() >= previewed + step)
+            {
                 let audio = pending.to_vec();
                 let end = fed;
-                let text = session.run(&audio, &opts).expect("run").text.trim().to_string();
+                let text = session
+                    .run(&audio, &opts)
+                    .expect("run")
+                    .text
+                    .trim()
+                    .to_string();
                 let t = now();
                 let lag = t - end as f64 / 16_000.0;
                 previewed = audio.len();
@@ -313,21 +611,38 @@ fn main() {
                     lags.push(lag);
                     first_words.get_or_insert(t);
                 }
-                println!("{t:6.2} s  preview {:4.1} s audio  text lags {lag:4.2} s  {}", audio.len() as f64 / 16_000.0,
-                    if show { text } else { format!("{} chars", text.chars().count()) });
+                println!(
+                    "{t:6.2} s  preview {:4.1} s audio  text lags {lag:4.2} s  {}",
+                    audio.len() as f64 / 16_000.0,
+                    if show {
+                        text
+                    } else {
+                        format!("{} chars", text.chars().count())
+                    }
+                );
                 continue;
             }
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         if let Some(whole) = &whole {
-            println!("vs whole recording: {:.1} % off", wer(whole, &finals.join(" ")) * 100.0);
+            println!(
+                "vs whole recording: {:.1} % off",
+                wer(whole, &finals.join(" ")) * 100.0
+            );
             if chunk.is_some() {
-                println!("live snippets alone vs whole: {:.1} % off", wer(whole, &snippets.join(" ")) * 100.0);
+                println!(
+                    "live snippets alone vs whole: {:.1} % off",
+                    wer(whole, &snippets.join(" ")) * 100.0
+                );
             }
         }
         if !final_lags.is_empty() {
             final_lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            println!("final text after each cut: median {:.2} s, worst {:.2} s", final_lags[final_lags.len() / 2], final_lags[final_lags.len() - 1]);
+            println!(
+                "final text after each cut: median {:.2} s, worst {:.2} s",
+                final_lags[final_lags.len() / 2],
+                final_lags[final_lags.len() - 1]
+            );
         }
         lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
         println!(
@@ -385,13 +700,68 @@ fn main() {
     println!("{}", text.join(" "));
 }
 
+/// Asks the kernel to page out every private or file mapping of this
+/// process (MADV_PAGEOUT, Linux 5.4+): file pages are dropped, anonymous
+/// ones go to swap. Returns the MB asked for.
+#[cfg(target_os = "linux")]
+fn page_out() -> usize {
+    page_out_maps()
+}
+#[cfg(target_os = "android")]
+fn page_out() -> usize {
+    page_out_maps()
+}
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+fn page_out() -> usize {
+    0
+}
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn page_out_maps() -> usize {
+    unsafe extern "C" {
+        fn madvise(addr: *mut std::ffi::c_void, len: usize, advice: i32) -> i32;
+    }
+    const MADV_PAGEOUT: i32 = 21;
+    let maps = std::fs::read_to_string("/proc/self/maps").unwrap_or_default();
+    let mut total = 0;
+    for line in maps.lines() {
+        let mut it = line.split_whitespace();
+        let (Some(range), Some(perms)) = (it.next(), it.next()) else {
+            continue;
+        };
+        let name = line.split_whitespace().nth(5).unwrap_or("");
+        // The model file, and the heap / anonymous buffers; not the stack or code.
+        let wanted = name.ends_with(".gguf")
+            || (perms.starts_with("rw") && (name.is_empty() || name.starts_with("[anon")));
+        if !wanted {
+            continue;
+        }
+        let Some((a, b)) = range.split_once('-') else {
+            continue;
+        };
+        let (a, b) = (
+            usize::from_str_radix(a, 16).unwrap_or(0),
+            usize::from_str_radix(b, 16).unwrap_or(0),
+        );
+        if b > a && unsafe { madvise(a as *mut _, b - a, MADV_PAGEOUT) } == 0 {
+            total += b - a;
+        }
+    }
+    total / 1_048_576
+}
+
 /// Word error rate of `hyp` against `reference`, lower-cased, punctuation
 /// removed.
 fn wer(reference: &str, hyp: &str) -> f64 {
     let norm = |t: &str| -> Vec<String> {
         t.to_lowercase()
             .chars()
-            .map(|c| if c.is_alphanumeric() || c.is_whitespace() { c } else { ' ' })
+            .map(|c| {
+                if c.is_alphanumeric() || c.is_whitespace() {
+                    c
+                } else {
+                    ' '
+                }
+            })
             .collect::<String>()
             .split_whitespace()
             .map(str::to_string)

@@ -3,85 +3,65 @@
 //! itself and calls these functions over JNI: start, push audio, stop, and
 //! poll for text.
 //!
-//! Two passes, on two sessions of the same model, in parallel:
-//! - Live: every 1–1.5 s the newest audio becomes a snippet (cut at its
-//!   quietest spot), transcribed once and shown right away as provisional
-//!   (composing) text. Nothing is read twice, so this keeps up easily.
-//! - Final: pieces are cut at pauses after 6–15 s (`dictation-core`, as in
-//!   the Dictate tab) and each is transcribed whole, with full context; that
-//!   text replaces the piece's snippets, so corrections show up.
-//! Measured on a Pixel 7 (`asr-bench --live`, 2026-11-19): first words after
-//! ~1.4 s, live text ~0.7 s behind the speech, every word visible when the
-//! person stops; final text as accurate as before (6.5 % off the whole
-//! recording, vs 8.3 % for 4–8 s pieces). Snippets alone are rough
-//! (~38 % off) until their piece is final, 2–4 s after each pause.
+//! One pass, as the Mac does it: the audio goes into the streaming model
+//! (Nemotron Streaming) as it arrives, 200 ms at a time. The model keeps its
+//! context and adds words about every half second; words it has moved past
+//! never change, so the keyboard types them for good right away. At the stop
+//! only the last half second is left.
+//!
+//! Before (two passes on Parakeet Ultra, 1–1.5 s snippets read without
+//! context plus 6–15 s pieces read again at pauses), measured on Robin's
+//! Pixel 7 on 2026-11-24: first words 2.9 s after the tap, live text frozen
+//! ~3 s at every pause (both passes fought over the CPU), 3.6 s from stop
+//! to done. Numbers for this version: `mobile/asr-bench/README.md`.
 
-use std::collections::VecDeque;
 use std::path::Path;
-use std::sync::mpsc::{channel, Sender};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use dictation_core::{Mode, Params, Segmenter, RATE};
 use jni::objects::{JClass, JShortArray, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
+use transcribe_cpp::{ParakeetStreamOptions, RunOptions, Session, StreamExtension, StreamOptions};
 
-use crate::dictation::engine_at;
+use crate::dictation::{engine_at, threads};
 
-/// What `poll` returns once the last piece is final, or for an error.
+/// What `poll` returns once the final text is out, or for an error.
 const DONE: &str = "\u{0}done";
 const ERROR: &str = "\u{0}error:";
-/// "\0snip:<piece>:<text>": live text to add to piece <piece>.
-const SNIP: &str = "\u{0}snip:";
-/// "\0final:<piece>:<text>": the final text of piece <piece>.
+/// "\0text:<text>": everything heard so far in this dictation.
+const TEXT: &str = "\u{0}text:";
+/// "\0final:<text>": the whole dictation, final.
 const FINAL: &str = "\u{0}final:";
 
-/// Snippets: cut at the quietest spot between `min` and `max` of new audio.
-const SNIP_MIN: usize = RATE;
-const SNIP_MAX: usize = RATE * 3 / 2;
-/// The first one comes sooner.
-const FIRST_MIN: usize = RATE * 6 / 10;
-const FIRST_MAX: usize = RATE;
-/// CPU threads per session (4 + 4 was best on a Pixel 7: 2+4 lagged).
-const THREADS: i32 = 4;
+const RATE: usize = 16_000;
+/// How far the model listens ahead before it writes a word, in 80 ms
+/// frames: 6 adds words every ~0.56 s, as accurate as 13 (~1.1 s) on our
+/// clips and 0.5 s sooner; 0 was less accurate (asr-bench `--stream`).
+const LOOKAHEAD: i32 = 6;
 
-enum Job {
-    Piece { index: usize, audio: Vec<f32>, speech_end: usize },
+enum Msg {
+    Audio(Vec<f32>),
     End,
 }
 
-struct Live {
-    segmenter: Segmenter,
-    finals: Sender<Job>,
-    /// Pieces cut so far (= index of the growing piece).
-    cuts: usize,
-    /// Samples of the growing piece already in snippets.
-    snipped: usize,
-    snippets: usize,
-    stopped: bool,
-}
-
-/// The two sessions, made once per process (the keyboard has its own).
-struct Sessions {
-    live: Mutex<transcribe_cpp::Session>,
-    last: Mutex<transcribe_cpp::Session>,
-}
-
-static LIVE: Mutex<Option<Live>> = Mutex::new(None);
-static SESSIONS: Mutex<Option<Arc<Sessions>>> = Mutex::new(None);
+/// The model's session, made once per process (the keyboard has its own).
+static SESSION: Mutex<Option<Arc<Mutex<Session>>>> = Mutex::new(None);
+/// Audio for the current dictation's stream.
+static FEED: Mutex<Option<Sender<Msg>>> = Mutex::new(None);
 /// Text for the keyboard, oldest first.
-static OUT: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
-/// The current dictation; threads of an earlier one (a snippet still
-/// running after it ended) must not write into the next one.
+static OUT: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// The current dictation; a thread of an earlier one must not write into
+/// the next one.
 static DICTATION: AtomicUsize = AtomicUsize::new(0);
 
 /// Hands `msg` to the keyboard if dictation `mine` is still the current one.
 fn send(mine: usize, msg: String) {
     let mut out = OUT.lock().unwrap();
     if DICTATION.load(Ordering::SeqCst) == mine {
-        out.push_back(msg);
+        out.push(msg);
     }
 }
 
@@ -109,53 +89,75 @@ fn log(msg: &str) {
     eprintln!("SokkiVoice: {msg}");
 }
 
-fn secs(samples: usize) -> f64 {
-    samples as f64 / RATE as f64
+fn stream_options() -> StreamOptions {
+    StreamOptions {
+        family: Some(StreamExtension::ParakeetStream(ParakeetStreamOptions {
+            att_context_right: Some(LOOKAHEAD),
+        })),
+        ..Default::default()
+    }
 }
 
-fn run(session: &Mutex<transcribe_cpp::Session>, audio: &[f32]) -> String {
-    let opts = transcribe_cpp::RunOptions::default();
-    session
-        .lock()
-        .unwrap()
-        .run(audio, &opts)
-        .map(|r| r.text.trim().to_string())
-        .unwrap_or_default()
+/// Runs half a second of silence through a stream: touches the model and
+/// the session's buffers, so the next dictation finds them in memory.
+fn warm(session: &mut Session) {
+    let Ok(mut st) = session.stream(&RunOptions::default(), &stream_options()) else {
+        return;
+    };
+    let _ = st.feed(&vec![0.0f32; RATE / 2]);
+    let _ = st.finalize();
 }
 
-/// Loads the model (once per process) and makes the two sessions, each
-/// warmed up on a second of silence.
-fn sessions(path: &str) -> Result<Arc<Sessions>, String> {
-    let mut slot = SESSIONS.lock().unwrap();
+/// Asks the kernel to read the model file back into memory in the
+/// background (MADV_WILLNEED on its mapping). Android drops the pages of an
+/// idle keyboard: on Robin's Pixel none of the 723 MB was left after a day,
+/// and the first words then waited for the flash.
+fn prefetch_model() {
+    #[cfg(target_os = "android")]
+    {
+        unsafe extern "C" {
+            fn madvise(addr: *mut std::ffi::c_void, len: usize, advice: i32) -> i32;
+        }
+        const MADV_WILLNEED: i32 = 3;
+        let maps = std::fs::read_to_string("/proc/self/maps").unwrap_or_default();
+        for line in maps.lines().filter(|l| l.ends_with(".gguf")) {
+            let Some((a, b)) = line
+                .split_whitespace()
+                .next()
+                .and_then(|r| r.split_once('-'))
+            else {
+                continue;
+            };
+            if let (Ok(a), Ok(b)) = (usize::from_str_radix(a, 16), usize::from_str_radix(b, 16)) {
+                unsafe { madvise(a as *mut _, b - a, MADV_WILLNEED) };
+            }
+        }
+    }
+}
+
+/// Loads the model (once per process) and makes the session, warmed up.
+fn session(path: &str) -> Result<Arc<Mutex<Session>>, String> {
+    let mut slot = SESSION.lock().unwrap();
     if let Some(s) = slot.as_ref() {
         return Ok(s.clone());
     }
     let t = Instant::now();
     let engine = engine_at(Path::new(path))?;
     let loaded = t.elapsed().as_millis();
-    let s = Arc::new(Sessions {
-        live: Mutex::new(engine.new_session(THREADS)?),
-        last: Mutex::new(engine.new_session(THREADS)?),
-    });
-    let silence = vec![0.0f32; RATE];
-    run(&s.live, &silence);
-    run(&s.last, &silence);
-    log(&format!("ready: model {loaded} ms, sessions warm {} ms", t.elapsed().as_millis() - loaded));
+    let mut s = engine.new_session(threads())?;
+    warm(&mut s);
+    log(&format!(
+        "ready: model {loaded} ms, warm {} ms, {} threads",
+        t.elapsed().as_millis() - loaded,
+        threads()
+    ));
+    let s = Arc::new(Mutex::new(s));
     *slot = Some(s.clone());
     Ok(s)
 }
 
-/// Where to end a snippet: the quietest 20 ms in `audio[lo..]`.
-fn quietest(audio: &[f32], lo: usize) -> usize {
-    const F: usize = RATE / 50;
-    let energy = |i: usize| audio[i * F..(i + 1) * F].iter().map(|s| s * s).sum::<f32>();
-    (lo / F..audio.len() / F)
-        .min_by(|&a, &b| energy(a).partial_cmp(&energy(b)).unwrap())
-        .map_or(audio.len(), |i| i * F + F / 2)
-}
-
-/// The keyboard opened: load the model and warm up, so the first dictation
-/// doesn't wait for it.
+/// The keyboard opened: load the model and warm up, or, when it is loaded
+/// already, bring it back into memory, so the first words don't wait.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeWarmUp(
     mut env: JNIEnv,
@@ -165,12 +167,105 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeWarmUp(
     let Ok(path) = env.get_string(&model_path).map(String::from) else {
         return;
     };
-    if let Err(e) = sessions(&path) {
-        log(&format!("warm-up failed: {e}"));
+    let loaded = SESSION.lock().unwrap().clone();
+    match loaded {
+        Some(s) => {
+            let t = Instant::now();
+            prefetch_model();
+            // A dictation holds the session: it's warm then anyway.
+            if let Ok(mut s) = s.try_lock() {
+                warm(&mut s);
+                log(&format!("rewarmed in {} ms", t.elapsed().as_millis()));
+            }
+        }
+        None => {
+            if let Err(e) = session(&path) {
+                log(&format!("warm-up failed: {e}"));
+            }
+        }
     }
 }
 
-/// Starts listening right away; the threads load the model if needed
+/// The stream of one dictation: feeds the audio as it comes and hands the
+/// keyboard the text whenever it grows.
+fn transcribe(mine: usize, path: &str, rx: Receiver<Msg>, started: Instant) {
+    let s = match session(path) {
+        Ok(s) => s,
+        Err(e) => {
+            log(&format!("start failed: {e}"));
+            send(mine, format!("{ERROR}{e}"));
+            return;
+        }
+    };
+    let mut guard = s.lock().unwrap();
+    let mut st = match guard.stream(&RunOptions::default(), &stream_options()) {
+        Ok(st) => st,
+        Err(e) => {
+            log(&format!("stream failed: {e}"));
+            send(mine, format!("{ERROR}{e}"));
+            return;
+        }
+    };
+    let (mut shown, mut heard, mut slowest, mut first) = (String::new(), 0usize, 0u128, None);
+    let mut stopped = None;
+    // Block by block (200 ms each, as the keyboard sends them), also when a
+    // backlog waits (audio recorded while the model loaded): one big feed is
+    // much slower than small ones (2 s at once: 3.9 s; asr-bench
+    // VB_BLOCK_MS), so it would only fall further behind.
+    for msg in rx.iter() {
+        let audio = match msg {
+            Msg::Audio(a) => a,
+            Msg::End => {
+                stopped = Some(Instant::now());
+                break;
+            }
+        };
+        heard += audio.len();
+        let t = Instant::now();
+        if let Err(e) = st.feed(&audio) {
+            log(&format!("feed failed: {e}"));
+            send(mine, format!("{ERROR}{e}"));
+            return;
+        }
+        slowest = slowest.max(t.elapsed().as_millis());
+        let text = st.text().display().trim().to_string();
+        if text != shown {
+            if first.is_none() {
+                first = Some(started.elapsed().as_millis());
+                log(&format!(
+                    "first words {} ms after start ({:.1} s heard)",
+                    started.elapsed().as_millis(),
+                    heard as f64 / RATE as f64
+                ));
+            }
+            log(&format!(
+                "text {} chars at {} ms, {:.2} s heard, feed {} ms",
+                text.chars().count(),
+                started.elapsed().as_millis(),
+                heard as f64 / RATE as f64,
+                t.elapsed().as_millis()
+            ));
+            send(mine, format!("{TEXT}{text}"));
+            shown = text;
+        }
+    }
+    let t = Instant::now();
+    if let Err(e) = st.finalize() {
+        log(&format!("finalize failed: {e}"));
+    }
+    let text = st.text().display().trim().to_string();
+    send(mine, format!("{FINAL}{text}"));
+    send(mine, DONE.to_string());
+    log(&format!(
+        "done {} ms after stop (finalize {} ms): {:.1} s heard, {} chars, slowest feed {slowest} ms",
+        stopped.map_or(0, |s| s.elapsed().as_millis()),
+        t.elapsed().as_millis(),
+        heard as f64 / RATE as f64,
+        text.chars().count()
+    ));
+}
+
+/// Starts listening right away; the thread loads the model if needed
 /// (audio waits meanwhile). A failure arrives through `poll` as
 /// "\0error:<message>".
 #[unsafe(no_mangle)]
@@ -179,108 +274,22 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeStart(
     _class: JClass,
     model_path: JString,
 ) {
-    let path: String = env.get_string(&model_path).map(String::from).unwrap_or_default();
+    let path: String = env
+        .get_string(&model_path)
+        .map(String::from)
+        .unwrap_or_default();
     let mine = {
         let mut out = OUT.lock().unwrap();
         out.clear();
         DICTATION.fetch_add(1, Ordering::SeqCst) + 1
     };
-    let (tx, rx) = channel::<Job>();
+    let (tx, rx) = channel::<Msg>();
+    // An earlier dictation's stream ends now, if it hadn't.
+    if let Some(old) = FEED.lock().unwrap().replace(tx) {
+        let _ = old.send(Msg::End);
+    }
     let started = Instant::now();
-    *LIVE.lock().unwrap() = Some(Live {
-        segmenter: Segmenter::new(Mode::Pauses(Params::default())),
-        finals: tx,
-        cuts: 0,
-        snipped: 0,
-        snippets: 0,
-        stopped: false,
-    });
-
-    // Final passes: each finished piece, whole.
-    let p = path.clone();
-    std::thread::spawn(move || {
-        let s = match sessions(&p) {
-            Ok(s) => s,
-            Err(e) => {
-                log(&format!("start failed: {e}"));
-                send(mine, format!("{ERROR}{e}"));
-                return;
-            }
-        };
-        for job in rx {
-            match job {
-                Job::Piece { index, audio, speech_end } => {
-                    let t = Instant::now();
-                    let text = if speech_end == 0 { String::new() } else { run(&s.last, &audio) };
-                    log(&format!(
-                        "final {index}: {:.1} s -> {} chars in {} ms ({} ms after start)",
-                        secs(audio.len()),
-                        text.chars().count(),
-                        t.elapsed().as_millis(),
-                        started.elapsed().as_millis()
-                    ));
-                    send(mine, format!("{FINAL}{index}:{text}"));
-                }
-                Job::End => break,
-            }
-        }
-        send(mine, DONE.to_string());
-        log(&format!("done {} ms after start", started.elapsed().as_millis()));
-    });
-
-    // Live snippets: the newest audio, each bit once.
-    std::thread::spawn(move || {
-        let Ok(s) = sessions(&path) else { return };
-        loop {
-            // Take the next snippet (or, once stopped, the rest) under the lock.
-            let job = {
-                let mut guard = LIVE.lock().unwrap();
-                let Some(live) = guard.as_mut() else { return };
-                let pending = live.segmenter.pending();
-                let (min, max) = if live.snippets == 0 { (FIRST_MIN, FIRST_MAX) } else { (SNIP_MIN, SNIP_MAX) };
-                let from = live.snipped.min(pending.len());
-                if live.stopped {
-                    // The words not in a snippet yet, then the piece goes to its final pass.
-                    let rest = (live.segmenter.speech_end(&pending[from..]) > 0).then(|| pending[from..].to_vec());
-                    let index = live.cuts;
-                    let mut live = guard.take().unwrap();
-                    if let Some(audio) = live.segmenter.finish() {
-                        let speech_end = live.segmenter.speech_end(&audio);
-                        let _ = live.finals.send(Job::Piece { index, audio, speech_end });
-                    }
-                    let _ = live.finals.send(Job::End);
-                    rest.map(|audio| (index, audio, true))
-                } else if pending.len() >= from + max {
-                    let cut = quietest(pending, from + min);
-                    live.snipped = cut;
-                    live.snippets += 1;
-                    Some((live.cuts, pending[from..cut].to_vec(), false))
-                } else {
-                    None
-                }
-            };
-            match job {
-                Some((index, audio, last)) => {
-                    let t = Instant::now();
-                    let text = run(&s.live, &audio);
-                    log(&format!(
-                        "snippet {index}: {:.1} s -> {} chars in {} ms ({} ms after start)",
-                        secs(audio.len()),
-                        text.chars().count(),
-                        t.elapsed().as_millis(),
-                        started.elapsed().as_millis()
-                    ));
-                    if !text.is_empty() {
-                        send(mine, format!("{SNIP}{index}:{text}"));
-                    }
-                    if last {
-                        return;
-                    }
-                }
-                None => std::thread::sleep(Duration::from_millis(40)),
-            }
-        }
-    });
+    std::thread::spawn(move || transcribe(mine, &path, rx, started));
 }
 
 /// Microphone audio: 16 kHz mono, 16-bit.
@@ -298,39 +307,35 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativePush(
         return;
     }
     let samples: Vec<f32> = buf.iter().map(|&v| v as f32 / 32768.0).collect();
-    let mut guard = LIVE.lock().unwrap();
-    if let Some(live) = guard.as_mut() {
-        if live.stopped {
-            return;
-        }
-        for audio in live.segmenter.push(&samples) {
-            let speech_end = live.segmenter.speech_end(&audio);
-            // Snippets that ran past the cut are in the pause: not taken again.
-            live.snipped = live.snipped.saturating_sub(audio.len());
-            let _ = live.finals.send(Job::Piece { index: live.cuts, audio, speech_end });
-            live.cuts += 1;
-        }
+    if let Some(tx) = FEED.lock().unwrap().as_ref() {
+        let _ = tx.send(Msg::Audio(samples));
     }
 }
 
-/// The person stopped: the snippet thread shows the last words, then the
-/// last piece gets its final pass; `poll` returns the done marker after it.
+/// The person stopped: the stream reads the rest and `poll` returns the
+/// final text, then the done marker.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeStop(_env: JNIEnv, _class: JClass) {
-    if let Some(live) = LIVE.lock().unwrap().as_mut() {
-        live.stopped = true;
+    if let Some(tx) = FEED.lock().unwrap().take() {
+        let _ = tx.send(Msg::End);
     }
 }
 
-/// The next message: "\0snip:<piece>:<text>", "\0final:<piece>:<text>",
-/// "\0done", "\0error:<message>", or null.
+/// The next message: "\0text:<text>", "\0final:<text>", "\0done",
+/// "\0error:<message>", or null. Of several "\0text:" in a row only the
+/// newest counts, so the older ones are skipped.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativePoll(
     mut env: JNIEnv,
     _class: JClass,
 ) -> jstring {
-    match OUT.lock().unwrap().pop_front() {
-        Some(s) => to_jstring(&mut env, &s),
-        None => std::ptr::null_mut(),
+    let mut out = OUT.lock().unwrap();
+    if out.is_empty() {
+        return std::ptr::null_mut();
     }
+    while out.len() > 1 && out[0].starts_with(TEXT) && out[1].starts_with(TEXT) {
+        out.remove(0);
+    }
+    let s = out.remove(0);
+    to_jstring(&mut env, &s)
 }

@@ -96,11 +96,140 @@ fn position(app: &AppHandle) -> (f64, f64) {
     }
 }
 
-/// Levels sent to the indicator about 12 times a second.
+/// Levels sent to the indicator about 30 times a second.
 #[derive(Clone, serde::Serialize)]
 struct Levels {
     mic: f32,
     system: f32,
+    /// How long the call track has had only exact zeros or no audio at all
+    /// (ms; 0 while it has sound). A quiet call still has noise in it, so
+    /// this means Sokki hears nothing, not that the other side is silent.
+    system_dead_ms: u64,
+}
+
+/// A stretch of exact zeros on the call track is logged once it is this long.
+const ZERO_STRETCH_US: u64 = 2_000_000;
+const LEVELS_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What the ticker logs while a meeting records: both tracks' peaks once a
+/// minute, and when the call track starts and stops being exact zeros. On
+/// 2026-11-24 the call track went dead for 13 minutes and the log said
+/// nothing; this makes that visible.
+struct TrackLog {
+    started_us: u64,
+    minute: u32,
+    minute_started_us: u64,
+    mic_peak: f32,
+    call_peak: f32,
+    /// Start of the current stretch of exact zeros, once logged.
+    zeros_since_us: Option<u64>,
+}
+
+/// "-23 dBFS", or "exact zeros".
+fn dbfs(rms: f32) -> String {
+    if rms <= 0.0 {
+        "exact zeros".into()
+    } else {
+        format!("{:.0} dBFS", 20.0 * rms.log10())
+    }
+}
+
+/// "12:34" into the meeting.
+fn at(us: u64) -> String {
+    let s = us / 1_000_000;
+    format!("{}:{:02}", s / 60, s % 60)
+}
+
+impl TrackLog {
+    fn new(started_us: u64) -> Self {
+        Self {
+            started_us,
+            minute: 0,
+            minute_started_us: started_us,
+            mic_peak: 0.0,
+            call_peak: 0.0,
+            zeros_since_us: None,
+        }
+    }
+
+    /// How long the call track has been dead at `now_us` (0 = it has sound).
+    fn dead_us(&self, now_us: u64, sound_us: u64) -> u64 {
+        now_us.saturating_sub(sound_us.max(self.started_us))
+    }
+
+    /// One tick. Returns the lines to log.
+    fn tick(
+        &mut self,
+        now_us: u64,
+        mic: f32,
+        call: f32,
+        sound_us: u64,
+        callback_us: u64,
+    ) -> Vec<(log::Level, String)> {
+        let mut lines = Vec::new();
+        self.mic_peak = self.mic_peak.max(mic);
+        self.call_peak = self.call_peak.max(call);
+        if now_us.saturating_sub(self.minute_started_us) >= LEVELS_EVERY.as_micros() as u64 {
+            self.minute += 1;
+            lines.push((
+                log::Level::Info,
+                format!(
+                    "Meeting levels, minute {}: mic peak {}, call peak {}",
+                    self.minute,
+                    dbfs(self.mic_peak),
+                    dbfs(self.call_peak)
+                ),
+            ));
+            self.minute_started_us = now_us;
+            self.mic_peak = 0.0;
+            self.call_peak = 0.0;
+        }
+        match self.zeros_since_us {
+            Some(since) if sound_us > since => {
+                lines.push((
+                    log::Level::Info,
+                    format!(
+                        "Call track: sound again at {} after {:.1} s of exact zeros",
+                        at(sound_us - self.started_us),
+                        (sound_us - since) as f64 / 1e6
+                    ),
+                ));
+                self.zeros_since_us = None;
+            }
+            Some(_) => {}
+            None if self.dead_us(now_us, sound_us) >= ZERO_STRETCH_US => {
+                let since = sound_us.max(self.started_us);
+                let arriving = callback_us > 0 && now_us.saturating_sub(callback_us) < 1_000_000;
+                // Info, not a warning: in a room with no call this is normal.
+                lines.push((
+                    log::Level::Info,
+                    format!(
+                        "Call track: exact zeros since {} ({})",
+                        at(since - self.started_us),
+                        if arriving {
+                            "the tap delivers silence"
+                        } else {
+                            "no audio arrives"
+                        }
+                    ),
+                ));
+                self.zeros_since_us = Some(since);
+            }
+            None => {}
+        }
+        lines
+    }
+
+    /// The meeting stopped: an open stretch ends here.
+    fn finish(&self, now_us: u64) -> Option<String> {
+        self.zeros_since_us.map(|since| {
+            format!(
+                "Call track: exact zeros from {} to the end ({})",
+                at(since - self.started_us),
+                at(now_us.saturating_sub(self.started_us))
+            )
+        })
+    }
 }
 
 /// While the meeting records: send live levels to the indicator and show
@@ -116,12 +245,24 @@ pub fn start_ticker(app: &AppHandle) {
             .inner()
             .clone();
         let mut last_title = String::new();
+        let mut track_log = TrackLog::new(super::mono_us());
         while manager.is_recording() {
             let mic = f32::from_bits(super::MIC_LEVEL.swap(0, Ordering::Relaxed));
             let system = f32::from_bits(super::SYSTEM_LEVEL.swap(0, Ordering::Relaxed));
-            let _ = handle.emit_to(LABEL, "meeting-level", Levels { mic, system });
+            let now_us = super::mono_us();
+            let sound_us = super::SYSTEM_SOUND_US.load(Ordering::Relaxed);
+            let callback_us = super::SYSTEM_CALLBACK_US.load(Ordering::Relaxed);
+            for (level, line) in track_log.tick(now_us, mic, system, sound_us, callback_us) {
+                log::log!(level, "{line}");
+            }
+            let levels = Levels {
+                mic,
+                system,
+                system_dead_ms: track_log.dead_us(now_us, sound_us) / 1000,
+            };
+            let _ = handle.emit_to(LABEL, "meeting-level", levels.clone());
             // The main window's recording bar shows the same levels.
-            let _ = handle.emit_to("main", "meeting-level", Levels { mic, system });
+            let _ = handle.emit_to("main", "meeting-level", levels);
             #[cfg(target_os = "macos")]
             track_hover(&handle);
             let secs = started.elapsed().as_secs();
@@ -131,6 +272,9 @@ pub fn start_ticker(app: &AppHandle) {
                 last_title = title;
             }
             std::thread::sleep(std::time::Duration::from_millis(33));
+        }
+        if let Some(line) = track_log.finish(super::mono_us()) {
+            log::info!("{line}");
         }
     });
 }
@@ -248,4 +392,63 @@ fn track_hover(app: &AppHandle) {
             let _ = handle.emit_to(LABEL, "meeting-indicator-hover", over);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const S: u64 = 1_000_000;
+
+    #[test]
+    fn logs_a_zero_stretch_once_and_its_end() {
+        let start = 10 * S;
+        let mut log = TrackLog::new(start);
+        // Sound until 5 s in, then exact zeros from the tap.
+        let sound = start + 5 * S;
+        assert!(log
+            .tick(start + 6 * S, 0.1, 0.0, sound, start + 6 * S)
+            .is_empty());
+        let lines = log.tick(start + 7 * S, 0.1, 0.0, sound, start + 7 * S);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].0, log::Level::Info);
+        assert!(lines[0].1.contains("since 0:05"), "{}", lines[0].1);
+        assert!(lines[0].1.contains("delivers silence"), "{}", lines[0].1);
+        assert!(log
+            .tick(start + 9 * S, 0.1, 0.0, sound, start + 9 * S)
+            .is_empty());
+        assert_eq!(log.dead_us(start + 9 * S, sound), 4 * S);
+        let back = start + 20 * S;
+        let lines = log.tick(back, 0.1, 0.2, back, back);
+        assert!(
+            lines[0].1.contains("sound again at 0:20 after 15.0 s"),
+            "{}",
+            lines[0].1
+        );
+        assert_eq!(log.dead_us(back, back), 0);
+        assert!(log.finish(back).is_none());
+    }
+
+    #[test]
+    fn logs_peaks_once_a_minute_and_an_open_stretch_at_the_end() {
+        let mut log = TrackLog::new(0);
+        assert!(log.tick(S, 0.1, 0.01, S, S).is_empty());
+        let lines = log.tick(60 * S, 0.05, 0.0, 60 * S, 60 * S);
+        assert_eq!(
+            lines[0].1,
+            "Meeting levels, minute 1: mic peak -20 dBFS, call peak -40 dBFS"
+        );
+        // Nothing arrives at all from 60 s on.
+        let lines = log.tick(63 * S, 0.0, 0.0, 60 * S, 60 * S);
+        assert!(lines[0].1.contains("no audio arrives"), "{}", lines[0].1);
+        let lines = log.tick(120 * S, 0.0, 0.0, 60 * S, 60 * S);
+        assert_eq!(
+            lines[0].1,
+            "Meeting levels, minute 2: mic peak exact zeros, call peak exact zeros"
+        );
+        assert_eq!(
+            log.finish(125 * S).unwrap(),
+            "Call track: exact zeros from 1:00 to the end (2:05)"
+        );
+    }
 }

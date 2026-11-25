@@ -2,7 +2,7 @@
 // the Sokki Android app, so one install has the app and the keyboard.
 // Changed from HeliBoard's app/build.gradle.kts: library instead of
 // application, build values the code reads (BuildConfig) set by hand, our
-// NDK, no test setup.
+// NDK, no HeliBoard tests (Sokki's own are in src/test).
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -28,7 +28,8 @@ android {
         consumerProguardFiles("proguard-rules.pro")
         // HeliBoard reads these from BuildConfig; libraries don't get them.
         // Must match the app's applicationId (src-tauri/gen/android/app).
-        buildConfigField("String", "APPLICATION_ID", "\"org.sokki.app\"")
+        // The standalone keyboard (standalone/, its own repo) sets sokki.appId.
+        buildConfigField("String", "APPLICATION_ID", "\"${providers.gradleProperty("sokki.appId").getOrElse("org.sokki.app")}\"")
         buildConfigField("int", "VERSION_CODE", "4201")
         buildConfigField("String", "VERSION_NAME", "\"4.2-sokki\"")
     }
@@ -86,4 +87,6 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("sh.calvin.reorderable:reorderable:3.1.0")
     implementation("com.github.skydoves:colorpicker-compose:1.1.3")
+    // Sokki: plain JVM tests for Sokki's own logic (src/test), e.g. Spacing.
+    testImplementation("junit:junit:4.13.2")
 }

@@ -15,6 +15,15 @@ database_id = "3773fb37-4532-4cca-a953-e27c7bd70570"
 binding = "AUDIO"
 id = "0bc2f193b454456086d86025fc6db9d4"
 
+# Shared audio in R2 (10 GB free, deletes free), EU jurisdiction: the files
+# stay in the EU. From `npx wrangler r2 bucket create sokki-audio
+# --jurisdiction eu` (2026-11-25). New uploads go here; the hourly run moves
+# the older files over from KV (AUDIO) within KV's daily limits.
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "sokki-audio"
+jurisdiction = "eu"
+
 # Writes per IP address and minute (Cloudflare's rate limiting, in memory).
 [[ratelimits]]
 name = "WRITE_LIMIT"
@@ -25,3 +34,27 @@ simple = { limit = 20, period = 60 }
 name = "DONATE_LIMIT"
 namespace_id = "1002"
 simple = { limit = 120, period = 60 }
+
+# "Help improve" reports go on to PostHog EU (same project as sokki.org),
+# sent from here so PostHog never sees users' IP addresses.
+[vars]
+POSTHOG_HOST = "https://eu.i.posthog.com"
+POSTHOG_API = "https://eu.posthog.com"
+# Public by design: it can only send events.
+POSTHOG_KEY = "phc_vmeSsQgxZs8aeprLvJCpdxLvNVYCzZUmtXHYYehcJ379"
+POSTHOG_PROJECT = "367071"
+# Daily Workers KV operations the counter allows itself (free plan: 1,000
+# each a day). Uploads above KV_WRITE_BUDGET get "try later"; deletions wait
+# for the next day. With Workers Paid, raise them (e.g. 30000).
+KV_WRITE_BUDGET = "900"
+KV_DELETE_BUDGET = "900"
+KV_LIST_BUDGET = "100"
+# R2's free tier: 1M writes a month, 10 GB. Uploads stop at AUDIO_CAP_MB
+# (default 9000 with R2, 900 with KV only).
+R2_WRITE_BUDGET = "30000"
+# Secret, set with `wrangler secret put POSTHOG_PERSONAL_KEY`: a personal API
+# key with person read/write, for "Delete what was shared".
+
+# Deletes queued audio (within the KV budget) and retries deletions at PostHog.
+[triggers]
+crons = ["23 * * * *"]

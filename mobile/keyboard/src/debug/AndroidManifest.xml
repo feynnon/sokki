@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sokki (debug builds only): a preview of the dictation status, for design checks,
+     and the typing test opened from adb. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity android:name="dev.verbatim.sokki.VoiceStatusPreviewActivity"
+            android:theme="@style/platformActivityTheme"
+            android:exported="true" />
+        <activity android:name="dev.verbatim.sokki.TypingTestActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

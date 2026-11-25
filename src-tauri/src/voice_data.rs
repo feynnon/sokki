@@ -9,9 +9,11 @@
 //!
 //! Three choices, all off until the user turns them on:
 //! - **Help improve Sokki**: once a day, under a random id, a report of
-//!   how Sokki is used, problems it hit, how much data of which kind the
+//!   how Sokki is used (with setup, features, crashes and speed from
+//!   [`crate::usage`]), problems it hit, how much data of which kind the
 //!   user has, and the Mac's model and macOS version (never the Mac's name
-//!   or serial number, never anyone's words).
+//!   or serial number, never anyone's words). The counter passes it on to
+//!   PostHog EU for charts, without the user's IP address.
 //! - **Ask me when there's a buyer**: Sokki reads a message from the counter
 //!   (a plain download) and matches it against the hours kept here; nothing
 //!   leaves the Mac unless the user answers "I'm interested".
@@ -96,6 +98,10 @@ struct Config {
     /// The latest important message from Sokki, shown as a window in the app.
     #[serde(default)]
     message: Option<StoredMessage>,
+    /// Unix seconds: the counter said "try later" to uploads (its daily
+    /// budget); none before this.
+    #[serde(default)]
+    uploads_paused_until: i64,
 }
 
 /// Looks for a new message from Sokki this often.
@@ -500,16 +506,42 @@ fn agent() -> ureq::Agent {
 }
 
 /// Sends `body` to the counter, with the proof of work for its `id`.
-fn post(dir: &Path, path: &str, mut body: serde_json::Value) -> Result<()> {
+fn post(dir: &Path, path: &str, body: serde_json::Value) -> Result<()> {
+    post_json(dir, path, body).map(|_| ())
+}
+
+/// [`post`], returning the counter's answer (`null` if it isn't JSON).
+fn post_json(dir: &Path, path: &str, mut body: serde_json::Value) -> Result<serde_json::Value> {
     let url = counter_url().context("no counter service in this build")?;
     if let Some(id) = body.get("id").and_then(|v| v.as_str()).map(str::to_owned) {
         body["pow"] = serde_json::Value::String(pow_for(dir, &id));
     }
-    agent()
+    let mut res = agent()
         .post(&format!("{}/{path}", url.trim_end_matches('/')))
         .send_json(body)
         .with_context(|| format!("counter /{path}"))?;
-    Ok(())
+    Ok(res
+        .body_mut()
+        .read_json::<serde_json::Value>()
+        .unwrap_or(serde_json::Value::Null))
+}
+
+/// The counter's "try later" (503): its daily budget of uploads to the
+/// audio store (Workers KV's free limit) is used up until 00:00 UTC.
+fn is_try_later(e: &anyhow::Error) -> bool {
+    matches!(
+        e.downcast_ref::<ureq::Error>(),
+        Some(ureq::Error::StatusCode(503))
+    )
+}
+
+/// Unix seconds of the next 00:00 UTC after `now`, when the counter takes
+/// uploads again; plus a few minutes, so not every install comes at once.
+fn next_upload_day(now: i64, install_id: &str) -> i64 {
+    let spread = install_id
+        .bytes()
+        .fold(0i64, |a, b| (a * 31 + i64::from(b)) % 3600);
+    now - now.rem_euclid(86_400) + 86_400 + 60 + spread
 }
 
 fn update_config(dir: &Path, f: impl FnOnce(&mut Config)) {
@@ -561,12 +593,15 @@ fn sync_in_background(app: AppHandle, force: bool) {
             }
         }
         if config.improve && now - config.last_usage >= USAGE_EVERY_S {
-            let body = usage_report(&app, &d, &config);
+            let (body, taken) = usage_report(&app, &d, &config);
             match post(&d, "usage", body) {
-                Ok(()) => update_config(&d, |c| {
-                    c.last_usage = now;
-                    c.shared = true;
-                }),
+                Ok(()) => {
+                    crate::usage::sent(&app, taken);
+                    update_config(&d, |c| {
+                        c.last_usage = now;
+                        c.shared = true;
+                    })
+                }
                 Err(e) => log::warn!("Your data: daily report not sent: {e:#}"),
             }
         }
@@ -590,7 +625,7 @@ fn sync_in_background(app: AppHandle, force: bool) {
                 Err(e) => log::warn!("Your data: paid tasks tick not sent: {e:#}"),
             }
         }
-        if config.support {
+        if config.support && now >= config.uploads_paused_until {
             donate_pending(&d);
         }
     });
@@ -614,12 +649,22 @@ fn task_languages(app: &AppHandle, dir: &Path) -> Vec<String> {
 }
 
 /// "Delete what was shared": removes everything the counter holds under this
-/// install's id, then starts over with a new id.
-pub fn forget(app: &AppHandle) -> Result<()> {
+/// install's id, then starts over with a new id. `true`: the counter took it,
+/// but some audio is still being deleted (it deletes within Workers KV's
+/// daily limit and finishes over the next days on its own).
+pub fn forget(app: &AppHandle) -> Result<bool> {
     let d = dir(app)?;
     let config = read_config(&d);
+    let mut pending = false;
     if !config.install_id.is_empty() {
-        post(&d, "forget", serde_json::json!({ "id": config.install_id }))?;
+        let answer = post_json(&d, "forget", serde_json::json!({ "id": config.install_id }))?;
+        pending = answer["pending"].as_u64().is_some_and(|n| n > 0);
+        if pending {
+            log::info!(
+                "Your data: shared data is being deleted ({} audio files left)",
+                answer["pending"]
+            );
+        }
     }
     update_config(&d, |c| {
         c.install_id = new_install_id();
@@ -629,20 +674,26 @@ pub fn forget(app: &AppHandle) -> Result<()> {
         c.tasks_reported = false;
         // Otherwise the new id would upload everything again.
         c.support = false;
+        c.uploads_paused_until = 0;
     });
     // The counter deleted the uploads too.
     let _ = std::fs::remove_file(d.join(DONATED));
     // With a choice still on, the new id starts reporting again.
     sync_in_background(app.clone(), true);
-    Ok(())
+    Ok(pending)
 }
 
 /// Test mode (`SOKKI_TEST_FORGET`): turns sharing on under a new id, without
 /// uploading anything, presses "Delete what was shared" and logs whether
-/// sharing is off afterwards.
+/// sharing is off afterwards. `SOKKI_TEST_FORGET=current` keeps the id and
+/// what it already shared, so the counter has audio to delete.
 pub fn test_forget(app: &AppHandle) {
     let Ok(d) = dir(app) else { return };
-    let id = new_install_id();
+    let current = std::env::var("SOKKI_TEST_FORGET").is_ok_and(|v| v == "current");
+    let id = match read_config(&d).install_id {
+        old if current && !old.is_empty() => old,
+        _ => new_install_id(),
+    };
     update_config(&d, |c| {
         c.support = true;
         c.install_id = id.clone();
@@ -884,6 +935,17 @@ fn donate_pending(dir: &Path) {
                 mark_donated(dir, &clip.file, "sent");
                 sent += 1;
             }
+            Err(e) if is_try_later(&e) => {
+                let until = next_upload_day(chrono::Utc::now().timestamp(), &config.install_id);
+                update_config(dir, |c| c.uploads_paused_until = until);
+                log::info!(
+                    "Your data: Sokki's uploads for today are used up; the rest goes after {}",
+                    chrono::DateTime::from_timestamp(until, 0)
+                        .map(|t| t.to_rfc3339())
+                        .unwrap_or_default()
+                );
+                break;
+            }
             Err(e) => {
                 // Offline, rate limited or the store is full: try again at
                 // the next sync.
@@ -1085,13 +1147,18 @@ fn meetings_since(_app: &AppHandle, _since: i64) -> serde_json::Value {
     serde_json::json!([])
 }
 
-fn usage_report(app: &AppHandle, dir: &Path, config: &Config) -> serde_json::Value {
+fn usage_report(
+    app: &AppHandle,
+    dir: &Path,
+    config: &Config,
+) -> (serde_json::Value, crate::usage::Taken) {
     // The first report after turning "Help improve" on covers everything
     // that happened before; later ones only the time since the last.
     let since = config.last_usage.max(0);
     let settings = crate::settings::get_settings(app);
     let s = stats_in(dir);
-    serde_json::json!({
+    let (usage, taken) = crate::usage::report(app);
+    let report = serde_json::json!({
         "id": config.install_id,
         "app": {
             // The app's own version (0.2.0), not the crate's (0.10.1, from upstream).
@@ -1109,7 +1176,9 @@ fn usage_report(app: &AppHandle, dir: &Path, config: &Config) -> serde_json::Val
         "since": since,
         "activity": activity(app, dir, since),
         "problems": problems(app, since),
-    })
+        "usage": usage,
+    });
+    (report, taken)
 }
 
 // ----- Messages from Sokki -----
@@ -1430,7 +1499,10 @@ mod tests {
         assert_eq!(v.text, "Long meetings could get lost.");
         assert_eq!(v.action_label.as_deref(), Some("Jetzt aktualisieren"));
         assert!(v.action_update);
-        assert_eq!(due_message(&m, 1000, "2026-11-23", false).unwrap().title, "Please update Sokki.");
+        assert_eq!(
+            due_message(&m, 1000, "2026-11-23", false).unwrap().title,
+            "Please update Sokki."
+        );
         // The last day still shows; the day after doesn't.
         assert!(due_message(&m, 1000, "2026-12-31", true).is_some());
         assert!(due_message(&m, 1000, "2027-01-01", true).is_none());
@@ -1516,8 +1588,7 @@ mod tests {
             buyer_message("de", 12, false),
             (
                 "Someone wants German data".to_string(),
-                "12 hours of your recordings fit. You'd get a share of the profit."
-                    .to_string()
+                "12 hours of your recordings fit. You'd get a share of the profit.".to_string()
             )
         );
         assert_eq!(
@@ -1582,5 +1653,25 @@ mod tests {
             ),
             "de"
         );
+    }
+
+    #[test]
+    fn uploads_resume_after_the_next_utc_midnight() {
+        // 2026-11-25 20:00 UTC
+        let now = 1_795_636_800;
+        let t = next_upload_day(now, "0123456789abcdef0123456789abcdef");
+        let midnight = 1_795_651_200; // 2026-11-26 00:00 UTC
+        assert!(t > midnight && t <= midnight + 60 + 3600, "{t}");
+        // Exactly at midnight: the day after.
+        assert!(next_upload_day(midnight, "ab") > midnight + 86_400);
+    }
+
+    #[test]
+    fn only_a_503_is_try_later() {
+        let busy = anyhow::Error::from(ureq::Error::StatusCode(503)).context("counter /donate");
+        assert!(is_try_later(&busy));
+        let full = anyhow::Error::from(ureq::Error::StatusCode(507)).context("counter /donate");
+        assert!(!is_try_later(&full));
+        assert!(!is_try_later(&anyhow::anyhow!("offline")));
     }
 }

@@ -63,8 +63,8 @@ impl<'a> LiveSession<'a> {
             LiveDecode::Chunked | LiveDecode::Preview => {
                 let backend = settings.vad_backend;
                 let live_text = settings.overlay_style == OverlayStyle::Live;
-                let preview = live_text
-                    .then(|| Preview::new(plan.clone(), info.clone(), settings.clone()));
+                let preview =
+                    live_text.then(|| Preview::new(plan.clone(), info.clone(), settings.clone()));
                 let mut chunks = ChunkedDecode::new(
                     tm,
                     tm.engine.cancel_mark(),
@@ -82,7 +82,10 @@ impl<'a> LiveSession<'a> {
                     tm.stream_active.store(true, Ordering::Release);
                 }
                 if mode == LiveDecode::Chunked {
-                    info!("Live long-form chunking started (model '{}', live text: {})", model_id, live_text);
+                    info!(
+                        "Live long-form chunking started (model '{}', live text: {})",
+                        model_id, live_text
+                    );
                     LiveDecoder::Chunked(Box::new(chunks))
                 } else {
                     info!("Live text started (model '{}')", model_id);

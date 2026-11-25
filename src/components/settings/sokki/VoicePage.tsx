@@ -1,11 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen, Trash2 } from "lucide-react";
-import {
-  commands,
-  events,
-  type VoiceDataStats,
-} from "@/bindings";
+import { commands, events, type VoiceDataStats } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { Overview } from "./Overview";
 import { SHARING_ANCHOR } from "./SharingGroup";
@@ -78,10 +74,14 @@ export const SokkiVoicePage: React.FC = () => {
   const forget = async () => {
     const r = await commands.voiceDataForget();
     setAsking(null);
+    // The counter deletes within its daily limit; a large share finishes
+    // over the next days on its own.
     setStatus(
-      r.status === "ok"
-        ? t("sokki.voice.deleteSharedDone")
-        : t("sokki.voice.failed"),
+      r.status !== "ok"
+        ? t("sokki.voice.failed")
+        : r.data
+          ? t("sokki.voice.deleteSharedPending")
+          : t("sokki.voice.deleteSharedDone"),
     );
     void load();
   };

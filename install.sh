@@ -54,6 +54,7 @@ bundle="$(find "$tmp/unzipped" -maxdepth 1 -name '*.app' | head -1)"
 rm -rf "$APP" "$OLD_APP"
 mv "$bundle" "$APP"
 # Downloaded with curl, so macOS has not quarantined it; clear it just in case.
+# Remove this line once releases are notarised (board card `notarize`).
 xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
 open "$APP"
@@ -71,7 +72,4 @@ elif mkdir -p "$BIN" && curl -fsSL "https://raw.githubusercontent.com/$REPO/main
   echo "In the terminal: sokki transcribe FILE, sokki ask \"…\""
   case ":$PATH:" in *":$BIN:"*) ;; *) echo "Add $BIN to your PATH to use it." ;; esac
 fi
-if ! command -v ollama >/dev/null 2>&1 && [[ ! -d /Applications/Ollama.app ]]; then
-  echo "For summaries on your Mac, Sokki uses Ollama (free): https://ollama.com/download"
-  echo "The app offers this too, under Models → Language model."
-fi
+echo "Summaries on your Mac: Sokki offers its built-in model under Models → Language model."

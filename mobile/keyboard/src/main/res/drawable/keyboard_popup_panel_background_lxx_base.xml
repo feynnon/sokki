@@ -82,7 +82,7 @@
     <!-- Popup background -->
     <item>
         <shape>
-            <corners android:radius="5dp" />
+            <corners android:radius="8dp" />
             <solid android:color="#ffffff" />
         </shape>
     </item>

@@ -133,6 +133,17 @@ pub async fn link_upload(
     v["id"].as_str().map(str::to_string).ok_or("The Mac sent no id.".into())
 }
 
+/// One day of the keyboard's journal to the Mac (developer page "Keep what I write").
+#[tauri::command]
+pub async fn link_send_journal(
+    app: AppHandle,
+    link: State<'_, Link>,
+    file: String,
+    text: String,
+) -> Result<Value, String> {
+    call(&app, &link, Request::Journal { file }, text.as_bytes()).await
+}
+
 #[tauri::command]
 pub async fn link_status(app: AppHandle, link: State<'_, Link>, id: String) -> Result<Value, String> {
     call(&app, &link, Request::Status { id }, &[]).await

@@ -60,7 +60,21 @@ fn emit_transcription_complete(
         sample_count as f64 / crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE as f64;
     if matches!(outcome, TranscriptionOutcome::Typed) {
         crate::milestones::add_dictation(app, audio_seconds);
+        crate::usage::time(
+            app,
+            crate::usage::Timing::DictationTyped,
+            stop_time.elapsed(),
+        );
     }
+    crate::usage::count(
+        app,
+        match outcome {
+            TranscriptionOutcome::Typed => crate::usage::Count::DictationTyped,
+            TranscriptionOutcome::Empty => crate::usage::Count::DictationEmpty,
+            TranscriptionOutcome::Silent => crate::usage::Count::DictationSilent,
+            TranscriptionOutcome::Failed => crate::usage::Count::DictationFailed,
+        },
+    );
     let event = TranscriptionCompleteEvent {
         outcome,
         audio_seconds,
@@ -661,6 +675,11 @@ impl ShortcutAction for TranscribeAction {
 
                     debug!("Microphone is receiving samples; recording is ready");
                     utils::emit_recording_ready(&app_clone);
+                    crate::usage::time(
+                        &app_clone,
+                        crate::usage::Timing::DictationReady,
+                        start_time.elapsed(),
+                    );
 
                     // The start chime is a readiness cue, so it must follow the
                     // first real input callback rather than Stream::play() or a
@@ -686,6 +705,11 @@ impl ShortcutAction for TranscribeAction {
         if recording_error.is_none() {
             // Dynamically register the cancel shortcut in a separate task to avoid deadlock
             shortcut::register_cancel_shortcut(app);
+            // Post Process has its own model and prompt; everything else is
+            // cleaned up as it is spoken.
+            if !self.post_process {
+                crate::dictation_cleanup::begin(app);
+            }
         } else {
             // Starting failed (for example due to blocked microphone permissions).
             // Revert UI state so we don't stay stuck in the recording overlay.
@@ -747,6 +771,9 @@ impl ShortcutAction for TranscribeAction {
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
         let cancel_generation = rm.cancel_generation();
+        // Taken now, before the next dictation can begin its own. Dropped
+        // unused on every early return below, which cancels it.
+        let cleanup = crate::dictation_cleanup::take();
 
         tauri::async_runtime::spawn(async move {
             let _guard = FinishGuard(ah.clone(), Arc::clone(&tm));
@@ -840,17 +867,40 @@ impl ShortcutAction for TranscribeAction {
                                 utils::redact_text(&transcription)
                             );
 
-                            if post_process {
+                            let cleaning = cleanup.is_some();
+                            if post_process || cleaning {
                                 if use_streaming_overlay {
                                     tm.emit_stream_working(StreamWorkKind::Polishing);
                                 } else {
                                     show_processing_overlay(&ah);
                                 }
                             }
-                            let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
-                                || rm.was_cancelled_since(cancel_generation),
-                            )
+                            let output = async {
+                                match cleanup {
+                                    Some(cleanup) => {
+                                        let cleaned = cleanup.finish(transcription.clone()).await;
+                                        ProcessedTranscription {
+                                            final_text: cleaned
+                                                .clone()
+                                                .unwrap_or_else(|| transcription.clone()),
+                                            post_process_failed: cleaned.is_none(),
+                                            post_processed_text: cleaned,
+                                            post_process_prompt: None,
+                                        }
+                                    }
+                                    None => {
+                                        process_transcription_output(
+                                            &ah,
+                                            &transcription,
+                                            post_process,
+                                        )
+                                        .await
+                                    }
+                                }
+                            };
+                            let Some(processed) = complete_unless_cancelled(output, || {
+                                rm.was_cancelled_since(cancel_generation)
+                            })
                             .await
                             else {
                                 debug!("Transcription operation cancelled during output handling");
@@ -871,6 +921,8 @@ impl ShortcutAction for TranscribeAction {
                                 match hm.save_entry(
                                     file_name,
                                     transcription,
+                                    // Not set for the cleanup: a retry would
+                                    // run Post Process on the entry.
                                     post_process,
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
@@ -1119,7 +1171,7 @@ impl ShortcutAction for TestAction {
 }
 
 /// True while a meeting recording is running (macOS only).
-fn meeting_recording(app: &AppHandle) -> bool {
+pub(crate) fn meeting_recording(app: &AppHandle) -> bool {
     #[cfg(target_os = "macos")]
     {
         app.state::<std::sync::Arc<crate::meeting::MeetingManager>>()

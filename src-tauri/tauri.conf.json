@@ -27,7 +27,13 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": "all",
-    "resources": ["resources/**/*"],
+    "resources": [
+      "resources/**/*",
+      "../mobile/keyboard/src/main/assets/sokki/words.bin",
+      "../mobile/keyboard/src/main/assets/sokki/bigrams.bin",
+      "../crates/sokki-typos/data/lexicon-de.txt",
+      "../crates/sokki-typos/data/lexicon-en.txt"
+    ],
     "license": "MIT",
     "icon": [
       "brands/sokki/icons/32x32.png",

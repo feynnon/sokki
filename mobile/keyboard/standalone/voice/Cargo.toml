@@ -1,0 +1,20 @@
+# The keyboard's speech engine (voice typing), on its own. src/lib.rs is a
+# copy of mobile/src-tauri/src/keyboard_voice.rs from the Sokki monorepo.
+[package]
+name = "sokki-keyboard-voice"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+name = "mobile_lib" # SokkiVoice.kt loads libmobile_lib.so
+crate-type = ["cdylib"]
+
+[dependencies]
+transcribe-cpp = { version = "0.4.2", default-features = false }
+dictation-core = { path = "dictation-core" }
+jni = "0.21"
+
+[profile.release]
+opt-level = 3

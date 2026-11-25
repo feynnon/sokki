@@ -11,6 +11,10 @@ pub fn run() {
     builder
         .manage(dictation::Dictation::default())
         .manage(link::Link::default())
+        .setup(|app| {
+            dictation::update_model(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             dictation::dictation_model,
             dictation::dictation_download,
@@ -24,6 +28,7 @@ pub fn run() {
             link::link_ping,
             link::link_upload,
             link::link_status,
+            link::link_send_journal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

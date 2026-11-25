@@ -29,4 +29,4 @@ Kurzer Abgleich der Kampagnenzahlen; die Kosten pro Lead liegen über dem Ziel.
 
 **[1:02:05] Speaker 3:** Über eine Stunde später: Größe, Maß, Übermaß.
 
-Transkribiert auf meinem Mac mit sokki.org
+Von KI zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und Meeting-Notetaker: sokki.org

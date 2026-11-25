@@ -34,6 +34,10 @@ export interface Permissions {
   allGrantedFor: (uses: Uses) => boolean;
   /** Asked once already: asking again opens the OS settings instead. */
   microphoneAsked: boolean;
+  /** Accessibility was asked for and is still not allowed on return from
+   * System Settings: macOS likely holds an older Sokki's entry (another
+   * signature, e.g. 0.2.12's), and switching that entry on never helps. */
+  accessibilityRetry: boolean;
   requestMicrophone: () => Promise<void>;
   requestAccessibility: () => Promise<void>;
   requestScreen: () => Promise<void>;
@@ -78,6 +82,7 @@ export const usePermissions = (preview: boolean): Permissions => {
     sound: boolean;
   } | null>(null);
   const [microphoneAsked, setMicrophoneAsked] = useState(false);
+  const [accessibilityRetry, setAccessibilityRetry] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /** What was asked for: polling ends once those are allowed. */
   const askedRef = useRef({ mic: false, acc: false, scr: false });
@@ -240,9 +245,11 @@ export const usePermissions = (preview: boolean): Permissions => {
       }
       if (!isMacOS) return;
       const [acc, mic] = await readMac();
-      setAccessibility((prev) =>
-        prev === "waiting" ? (acc ? "granted" : "needed") : prev,
-      );
+      setAccessibility((prev) => {
+        if (prev !== "waiting") return prev;
+        if (!acc) setAccessibilityRetry(true);
+        return acc ? "granted" : "needed";
+      });
       setMicrophone((prev) =>
         prev === "waiting" ? (mic ? "granted" : "needed") : prev,
       );
@@ -349,6 +356,7 @@ export const usePermissions = (preview: boolean): Permissions => {
     neededFor,
     allGrantedFor,
     microphoneAsked,
+    accessibilityRetry,
     requestMicrophone,
     requestAccessibility,
     requestScreen,

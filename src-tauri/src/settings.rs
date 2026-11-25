@@ -534,6 +534,20 @@ pub struct AppSettings {
     pub external_script_path: Option<String>,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
+    /// Clean up each dictation with the built-in cleanup model before it
+    /// is pasted (`dictation_cleanup`): fillers, repetitions and
+    /// self-corrections out, misheard words and grammar fixed, paragraphs
+    /// and lists in. Only while the model is downloaded. Off until Robin
+    /// has tried it (release manager, 25.11.2026).
+    #[serde(default)]
+    pub dictation_cleanup_enabled: bool,
+    /// Fix typos as you type, in the apps where macOS doesn't (Chrome, Slack,
+    /// Claude …), with the phone keyboard's model (`autocorrect`). Backspace
+    /// right after a fix undoes it. Never in Apple's apps, terminals, code
+    /// editors, password managers or password fields. macOS only. Off until
+    /// the user turns it on (Robin, 25.11.2026: for everyone, off by default).
+    #[serde(default)]
+    pub autocorrect_enabled: bool,
     #[serde(default)]
     pub custom_filler_words: Option<Vec<String>>,
     /// Fresh installs default from the OS locale; existing stores are migrated
@@ -598,9 +612,14 @@ pub struct MeetingSettings {
     pub glossary: Vec<String>,
     /// Write a summary, decisions and action items with a language model.
     pub summary_enabled: bool,
-    /// End every note, and the summary shown in the app and on the phone,
-    /// with "Transcribed on my Mac with sokki.org".
+    /// End every summary (note, app, phone, copy) with the Sokki line
+    /// ("Summarized by AI. Local, free, open source. Dictation app and
+    /// meeting notetaker: sokki.org"). Only a supporter (`supporter_code`) can turn it off;
+    /// without a valid code the line stays even when this is false.
     pub footer_enabled: bool,
+    /// Supporter code: proof of at least €20 paid for Sokki, checked offline
+    /// (`sokki_engine::supporter`). Empty: none.
+    pub supporter_code: String,
     /// Which language model summarises: "builtin" (Qwen 3.5
     /// 9B run by llama.cpp inside Sokki, on Macs with Apple silicon),
     /// "local" (the server at `llm_base_url`, normally Ollama; nothing
@@ -622,6 +641,27 @@ pub struct MeetingSettings {
     pub keep_audio_days: u32,
     /// Offer to record when a meeting app starts using the microphone.
     pub detection_enabled: bool,
+    /// When Sokki records a detected call (Zoom, Teams, Google Meet in
+    /// Chrome, Arc, Edge or Brave), post one line into the meeting's chat,
+    /// once per call, from the user's account: that Sokki records, locally,
+    /// and that "stop" in the chat stops and deletes the recording. Uses
+    /// Accessibility (`meeting/chat_notice.rs`).
+    pub chat_notice_enabled: bool,
+    /// After a meeting, send its notes (summary, decisions, action items; no
+    /// transcript) to everyone invited in the calendar, from the user's own
+    /// Apple Mail and in their name. Off by default; the note's "Send to
+    /// everyone" button works either way (`meeting/mail.rs`).
+    pub mail_notes_auto: bool,
+    /// The Gmail address notes are sent from, once Gmail is connected
+    /// (Settings › Meetings › Notes by mail). Shown only; the token is in
+    /// the Keychain (`meeting/gmail_account.rs`). None: Apple Mail sends.
+    pub gmail_address: Option<String>,
+    /// Offer Gmail before Google has reviewed Sokki (test mode: only the
+    /// Google project's test users can connect; everyone else would see
+    /// Google's "Access blocked"). For Robin's test Mac; set by hand in the
+    /// settings file. Off: Apple Mail only, until the review passes
+    /// (`meeting/gmail_account.rs`, `GOOGLE_VERIFIED`).
+    pub gmail_testing: bool,
     /// Accept recordings from the Sokki phone app: direct and end-to-end
     /// encrypted from any network, paired by QR code (`meeting/phone_link.rs`).
     pub phone_link_enabled: bool,
@@ -636,12 +676,17 @@ impl Default for MeetingSettings {
             glossary: Vec::new(),
             summary_enabled: true,
             footer_enabled: true,
+            supporter_code: String::new(),
             llm_provider: sokki_engine::llm::DEFAULT_PROVIDER.to_string(),
             cloud_model: String::new(),
             llm_base_url: "http://localhost:11434".to_string(),
             llm_model: "qwen3.5:9b".to_string(),
             keep_audio_days: 0,
             detection_enabled: true,
+            chat_notice_enabled: false,
+            mail_notes_auto: false,
+            gmail_address: None,
+            gmail_testing: false,
             phone_link_enabled: false,
         }
     }
@@ -689,7 +734,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 6;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 7;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -1198,6 +1243,8 @@ pub fn get_default_settings() -> AppSettings {
         typing_tool: default_typing_tool(),
         external_script_path: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
+        dictation_cleanup_enabled: false,
+        autocorrect_enabled: false,
         custom_filler_words: None,
         chinese_script: default_chinese_script(),
         transcribe_accelerator: TranscribeAcceleratorSetting::default(),
@@ -1359,6 +1406,31 @@ fn move_default_ollama_to_builtin(m: &mut MeetingSettings) {
     }
 }
 
+/// The Mac's meeting shortcut used to be ⌥⇧M and is ⌥M now (Robin,
+/// 2026-11-24: three keys were too many). Whoever still has the old default
+/// gets the new one; a shortcut the user picked stays as it is. Skipped when
+/// another binding already holds ⌥M, so two actions never share a key.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn move_old_meeting_shortcut_default(bindings: &mut HashMap<String, ShortcutBinding>) {
+    const OLD_DEFAULT: &str = "option+shift+m";
+    const NEW_DEFAULT: &str = "option+m";
+    let taken = bindings
+        .iter()
+        .any(|(id, b)| id != "meeting" && b.current_binding == NEW_DEFAULT);
+    if taken {
+        return;
+    }
+    if let Some(meeting) = bindings.get_mut("meeting") {
+        if meeting.current_binding == OLD_DEFAULT {
+            meeting.current_binding = NEW_DEFAULT.to_string();
+            meeting.default_binding = NEW_DEFAULT.to_string();
+        } else if meeting.default_binding == OLD_DEFAULT {
+            // A custom shortcut stays; only "Reset" now leads to ⌥M.
+            meeting.default_binding = NEW_DEFAULT.to_string();
+        }
+    }
+}
+
 fn apply_settings_migrations(
     settings: &mut AppSettings,
     settings_value: &serde_json::Value,
@@ -1510,6 +1582,12 @@ fn apply_settings_migrations(
     }
     if stored_schema_version < 6 {
         move_default_ollama_to_builtin(&mut settings.meetings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
+    if stored_schema_version < 7 {
+        #[cfg(target_os = "macos")]
+        move_old_meeting_shortcut_default(&mut settings.bindings);
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
@@ -2428,5 +2506,85 @@ mod tests {
         ));
         assert!(!linux_self_update_possible(Some(BundleKind::Other), all));
         assert!(!linux_self_update_possible(None, all));
+    }
+
+    /// A v6 Mac store (before ⌥M) with the given meeting binding.
+    #[cfg(target_os = "macos")]
+    fn v6_store_with_meeting(current: &str, default: &str) -> (AppSettings, serde_json::Value) {
+        let mut settings = get_default_settings();
+        settings.settings_schema_version = 6;
+        let meeting = settings.bindings.get_mut("meeting").unwrap();
+        meeting.current_binding = current.to_string();
+        meeting.default_binding = default.to_string();
+        let raw = serde_json::to_value(&settings).unwrap();
+        let settings: AppSettings = serde_json::from_value(raw.clone()).unwrap();
+        (settings, raw)
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn old_meeting_default_moves_to_option_m() {
+        let (mut settings, raw) = v6_store_with_meeting("option+shift+m", "option+shift+m");
+        assert!(apply_settings_migrations(&mut settings, &raw));
+        let meeting = &settings.bindings["meeting"];
+        assert_eq!(meeting.current_binding, "option+m");
+        assert_eq!(meeting.default_binding, "option+m");
+        assert_eq!(
+            settings.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn custom_meeting_shortcut_stays() {
+        let (mut settings, raw) = v6_store_with_meeting("command+shift+r", "option+shift+m");
+        apply_settings_migrations(&mut settings, &raw);
+        let meeting = &settings.bindings["meeting"];
+        assert_eq!(meeting.current_binding, "command+shift+r");
+        // Reset now leads to the new default.
+        assert_eq!(meeting.default_binding, "option+m");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn old_meeting_default_stays_when_option_m_is_taken() {
+        let (mut settings, _) = v6_store_with_meeting("option+shift+m", "option+shift+m");
+        settings
+            .bindings
+            .get_mut("transcribe")
+            .unwrap()
+            .current_binding = "option+m".into();
+        let raw = serde_json::to_value(&settings).unwrap();
+        apply_settings_migrations(&mut settings, &raw);
+        assert_eq!(
+            settings.bindings["meeting"].current_binding,
+            "option+shift+m"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn new_install_gets_option_m_and_migration_leaves_it() {
+        let mut settings = get_default_settings();
+        assert_eq!(settings.bindings["meeting"].current_binding, "option+m");
+        assert_eq!(settings.bindings["meeting"].default_binding, "option+m");
+        let raw = serde_json::to_value(&settings).unwrap();
+        assert!(!apply_settings_migrations(&mut settings, &raw));
+        assert_eq!(settings.bindings["meeting"].current_binding, "option+m");
+    }
+
+    #[test]
+    fn default_bindings_never_share_a_key() {
+        let settings = get_default_settings();
+        let mut keys: Vec<&str> = settings
+            .bindings
+            .values()
+            .map(|b| b.default_binding.as_str())
+            .collect();
+        keys.sort();
+        let before = keys.len();
+        keys.dedup();
+        assert_eq!(keys.len(), before, "two default bindings share a key");
     }
 }

@@ -26,6 +26,23 @@ Status: open unless marked.
 | S5 | Misattributed action items (seen once, fixed by a prompt rule) | agency confirmation credited to the wrong speaker | keep the live test |
 | S6 | Ollama's MLX runner rejects structured output (HTTP 501) | JSON comes from the prompt only | retry logic exists; watch failure rate |
 | S7 | Built-in model: the GGUF carries no sampling settings, so llama-server would use its own (temperature 0.8, top-k 40, min-p 0.05) | Ollama's model uses Qwen's: 1.0, top-k 20, top-p 0.95, presence penalty 1.5 | fixed 2026-11-20: llama-server starts with Qwen's values (`BuiltinModel::sampling`, Robin: "Nimm Qwens Werte"); requests still send none |
+| S8 | Speaker names in the summary vary from run to run: the same sample meeting (`resources/sample-meeting/`), where two of three people are named in the call, gave "Daniel" and "Priya" in one run and only "Speaker 1/2/3" in the next (2026-11-24) | the summary model at its own default temperature | renaming speakers in the app fixes one meeting; none yet in the prompt |
+
+## Dictation cleanup (Gemma 4 E4B, 2026-11-24)
+
+Test set: 15 of Robin's dictations with his own ideal corrections (texts private, not in this repo); numbers in `reports/Dictation formatting with Qwen.md` (local).
+
+| # | Problem | Example | Fix idea |
+|---|---|---|---|
+| C1 | Meaning errors remain: 13–14 per 15 dictations by two blind raters (changed, dropped or added content) | a dropped "not", a dropped priority clause, dropped closing requests | a check that every content word of the transcript survives; a bigger model once it fits |
+| C2 | A list heading was written twice where two live pieces meet (1 of 15) | heading final, its list still open, the next step began with the heading again | fixed: a block equal to the previous block's first line is dropped (`cleanup::Live::step`) |
+| C3 | When the final transcript does not start with what was cleaned live (a stream that revised itself), the whole dictation is cleaned again at the stop, which can pass the 20 s limit on long dictations; then the transcript is pasted uncleaned | not seen yet | clean only from the first word that differs |
+| C4 | Live cleanup needs live text: with the overlay off, the decoded chunks are not handed on, so the whole dictation is cleaned at the stop | – | hand decoded chunks to the cleanup without the preview |
+| C5 | Memory next to meetings: the cleanup model (4.5–5 GB) next to the 9B summary model would be ~11 GB for Sokki | – | fixed 25.11.: it stops 2 min after the last dictation, stops when a meeting starts or is processed or a local summary model opens, and does not start then (those dictations are pasted uncleaned) |
+| C9 | Off by default: the cleanup changes every dictated text and adds 3.5–4 s before the paste, and its meaning errors (C1) are real | – | Robin tries it with the switch on and decides the default |
+| C6 | A failed or slow cleanup shows Post Process's notice ("Pasted Without Post-Processing") | – | its own notice text |
+| C7 | Not measured on the phone; Android does not clean dictations yet | – | out of scope for the Mac build |
+| C8 | Transcribing a History entry again gives the transcript uncleaned (the retry runs no cleanup) | – | run the cleanup in the retry job too |
 
 ## Speakers
 
@@ -69,9 +86,9 @@ Status: open unless marked.
 | X9 | **Partly fixed 2026-11-19:** an in-person meeting recorded in front of the laptop was cut off when the Mac went to idle sleep. Every recording now keeps the device awake: macOS a `PreventUserIdleSystemSleep` assertion (`src-tauri/src/meeting/keep_awake.rs`; the display may still turn off), Linux/Omarchy a logind sleep inhibitor (`crates/sokki/src/keep_awake.rs`; screen may still lock and turn off), Android keeps the screen on while recording (`MainActivity.kt`, `SokkiScreen`; with the screen off a background app records only silence). Still open: closing the lid sleeps a laptop and ends the capture (Mac: with no external display; only the admin-level `pmset disablesleep` prevents it; Linux: logind's `LidSwitchIgnoreInhibited=yes`); on Android, pressing the power button cuts the recording; Windows holds nothing | warn when the lid closes during a recording; Android: record in a foreground service; Windows: `PowerSetRequest` |
 | X10 | **Fixed 2026-11-23:** Android: a recording made during a phone call or internet call is silent, but the app showed a normal recording with a running clock (emulator, Android 15: `dumpsys audio` shows Sokki's capture `silenced` from call accept to hang-up). Android gives no app but the call app the microphone during a call | while Android silences the recording, a line under the clock says so (`SokkiRecorder.silenced()` in `MainActivity.kt`, `isClientSilenced`). The part itself stays silent: Android offers no way around it. Sokki makes no notes of phone calls (Robin, 2026-11-24; MEETINGS.md "Other people's voices") |
 | X11 | Android: the first recording sent after Sokki starts takes 15–45 s to reach the Mac, once it hung until "Check again" (emulator, 2026-11-23, with the tile and with the button); a ping right after answers in 150 ms | connect to the Mac when a recording starts, so the link is up when it stops |
-| X12 | Android: Sokki can't be installed next to HeliBoard, nor a debug `org.sokki.app` next to the old `dev.verbatim.mobile` (emulator, 2026-11-24: `INSTALL_FAILED_CONFLICTING_PROVIDER`). The keyboard's clipboard provider has a fixed name (`helium314.keyboard.clipprovider`, debug `helium314.keyboard.debug.clipprovider`, `keyboard/src/*/res/values/clip_provider.xml`) that HeliBoard itself also uses | name it after the app ID (`${applicationId}.clipprovider`), e.g. by overriding `clipboard_provider_authority` in the app's resources |
-| X13 | No call audio since 2026-11-24 10:02: every desktop meeting after the coreaudiod overload at 10:02:20 has an all-zero system track (Zoom 14:19–15:20 and Chrome 14:43–15:07 alike, 98–100 % exact zeros), although a new tap is created per recording and the log says it started at 48 kHz with 0 dropped samples. The 09:30 call lost its system audio mid-call at 10:02. The same Sokki process has run since 2026-11-23 16:12. In the 14:29 Zoom call the mic heard three speakers, so remote voices played on the speakers but the tap gave silence. Ruled out: the permission (tccd: allowed), no output running, the default output. Not Zoom-specific, as first thought | restart Sokki and check the next call's system track; if it comes back, the broken state lives in the process. Fix: detect a dead tap (stuck zeros while output runs) and rebuild it, see the card "call audio must recover" (`src-tauri/swift/system_audio_tap.swift`) |
-| X14 | Not a bug, for the record: 7 desktop meetings ended with an empty note and the title "Meeting <date> <time>" (17.11. 15:32/15:42, 19.11. 21:02/21:08, 24.11. 14:42/14:43/14:51). None had speech: 0 words from Parakeet on each track, also 25 dB louder; mic never above -40 dB for a second, system track zeros. The note says "Keine Sprache erkannt" | the log now says "No speech found on any track" and how many live pieces had words |
+| X12 | **Fixed 2026-11-24:** Android: Sokki couldn't be installed next to HeliBoard, nor a debug `org.sokki.app` next to the old `dev.verbatim.mobile` (emulator, 2026-11-24: `INSTALL_FAILED_CONFLICTING_PROVIDER`). The keyboard's two file providers had HeliBoard's fixed names (`helium314.keyboard.clipprovider` and `helium314.keyboard.provider`, debug `helium314.keyboard.debug.*`), which HeliBoard itself uses | both names follow the app ID: `org.sokki.app.clipprovider` and `org.sokki.app.gesturedata` (`mobile/keyboard/src/main/AndroidManifest.xml`, read back from `context.packageName` in `ClipboardHistoryEntry.kt` and `gesturedata/Share.kt`) |
+| X13 | Call audio went silent mid-call: in the 2026-11-24 09:30 call the system track turned to exact zeros at 10:02:20, during a coreaudiod IO overload (other jobs were running sessions' model tests), and stayed silent for the last 13 min although the other side was talking. The tap kept delivering callbacks, just zeros. The afternoon meetings 14:19–15:20 (all system tracks silent) were mostly a session's own test calls with no far side, so they prove nothing either way. Sokki ran without restart from 2026-11-23 16:12 until the 0.2.12 install on 2026-11-24 15:42 | detect stuck zeros while an output runs and rebuild the tap, warn if that fails (board card "Anrufton darf nicht still wegbleiben", `src-tauri/swift/system_audio_tap.swift`); check the next real call after the restart |
+| X14 | Not a bug, for the record: 7 desktop meetings ended with an empty note and the title "Meeting <date> <time>" (17.11. 15:32/15:42, 19.11. 21:02/21:08, 24.11. 14:42/14:43/14:51). None had speech: 0 words from Parakeet on each track, also 25 dB louder; mic never above -40 dB for a second, system track zeros. The note said "Keine Sprache erkannt" | **fixed** (2026-11-25): a meeting without a word on any track gets no note; its audio goes to the Trash and the record bar says "No speech, nothing saved." (`sokki_engine::NoSpeech`). At start, older meetings whose note is only "Keine Sprache erkannt" go to the Trash with their audio (`meeting/store.rs` `trash_no_speech`) |
 
 ## Found in the first real call (2026-11-17)
 
@@ -121,6 +138,101 @@ Status: open unless marked.
   no way to read the answer, so the row says "Asked", not "Allowed".
 - Setup without Meetings turns off "Notice meetings"; picking Meetings
   leaves it as it was.
+
+## Notice in the meeting chat (2026-11-24)
+
+- Teams has not been tried: it isn't installed on the test Mac. Its
+  meeting window and chat field are found by the same generic rules
+  (a "leave" button, a field named like "Type a message").
+- Meet only when its tab is the active tab of a window: Chromium shows
+  background tabs to Accessibility not at all. Sokki retries for 2 min.
+- Zoom posts to whoever the chat's "To:" is set to; usually Everyone.
+- "stop" is seen only while the chat panel stays open (Sokki leaves it
+  open after posting). Closed, Sokki stops watching and says so in the log.
+- Someone without the chat (phone dial-in, mobile with the chat hidden)
+  sees neither the line nor a way to type "stop"; they can still tell
+  the user.
+- A screen video moved to the Trash on "stop" may still be rendering.
+- Accessibility sees only windows on the current desktop (Space). Zoom or
+  Teams on another desktop: Sokki brings the app here, at most once a
+  minute, and gives the front back after posting. A browser is never
+  brought here (its window in front need not be the call's), so Meet on
+  another desktop fails after 2 min with the banner.
+- Chrome rejects both accessibility switches (AXManualAccessibility
+  -25205, AXEnhancedUserInterface -25208) yet shows Meet's page anyway
+  once another assistive app has woken it; on a Mac with none, untested.
+
+- Sokki brings the call app to the front for about a second to post.
+  It first waits for a 1.5 s pause in typing (at most 15 s); keys typed
+  in that second still land in the meeting chat.
+
+Tested 2026-11-24 in own test calls, Sokki in English: Zoom (posted in
+0.8 s; "stop" → stopped, deleted, "Stopped and deleted.") and Meet in
+Chrome (posted in 2.1 s; "stop" → same).
+
+## Notes to everyone (2026-11-24)
+
+- Sending needs Gmail connected or Apple Mail with an account; Outlook and
+  other mail apps don't work yet. Until Google's review (card
+  `privacy-google`) is through, the Gmail option is hidden
+  (`GOOGLE_VERIFIED = false`) except with `meetings.gmail_testing` on, for
+  the project's test users; they see "Google hasn't verified this app",
+  and their consent runs out after 7 days.
+- With Gmail, "stop" replies land in the person's inbox, but Sokki can't
+  read them (`gmail.send` only; reading needs a restricted scope with a
+  paid security audit): the person adds the sender under "No mail to".
+- Attendees come from the Mac calendar. A calendar that lives only in a
+  browser (Google Calendar not added to the Mac's Calendar app) has no
+  attendees for Sokki, and the button says "No calendar event".
+- Everyone invited gets the mail, also people who never joined; only a
+  "declined" answer keeps someone out.
+- Two events at the same time with links for the same app (two Meet
+  invitations, a browser call): the one that overlaps the recording most
+  wins, which can be the wrong one.
+- "Stop" replies are read from Mail's inbox only when Sokki sends next;
+  an objection arriving in a mailbox Mail doesn't show is missed.
+- A blocked Mail (a dialog open, offline account) makes sending wait up to
+  90 s before it fails.
+
+## Keyboard (Android)
+
+Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2026-11-23).
+
+| # | Problem | Fix idea |
+|---|---|---|
+| K1 | Autocorrect only runs in fields that ask for it or are multi-line (HeliBoard/AOSP rule): a single-line field without the autocorrect flag changes no word on space | decide whether to autocorrect plain single-line text fields too |
+| K2 | After "das"/"die" used as a pronoun, an English verb gets a capital: "lass uns das Push", "kann ich das Skip", "war das Fine" | a small German part-of-speech tagger |
+| K3 | A third of lower-case nouns stay lower case: words German writes both ways (die kosten, die suche), English nouns with no article before (sales call) | same tagger; capitals after articles measured and rejected (half wrong in chat) |
+| K4 | One-slip typos with two plausible fixes are left alone (fot: for/got, wiel: weil/viel): 18% of his typos | correct the previous word once the next is typed (77.5% instead of 74.6%) |
+| K5 | His own names and terms get changed, about one per 4,000 words (tool, product and people's names, e.g. a name like Jovan → Johan) | learn a word after an undone autocorrection |
+| K6 | **Fixed 2026-11-24:** a word typed right after "." or "," stuck to it (like "done.we", "klar,dass"): 15 times in Robin's journal 19.–24.11. (2,700 words), plus "z.B." which must stay. HeliBoard adds no space after typed punctuation | the space goes in when the next word ends (`Spacing.kt`); replayed on the journal: 15 fixed, nothing else changed. After a dictation the next typed word gets a space (`InputLogic.sokkiAfterDictation`) |
+| K7 | **Fixed 2026-11-25, check on real dictations:** Android dictation: a pause inside a sentence ended a piece, and Parakeet ended it with a period, so the next piece started lower case (like "…the meeting is. ready by noon", 14 times in 6 days of Robin's journal) | the keyboard now streams the whole dictation into Nemotron Streaming (`keyboard_voice.rs`): no pieces, one punctuation pass. Test clips with pauses between sentences come out right; a real pause inside a sentence is not tested yet |
+| K8 | Android dictation keeps English fillers ("um", a few times a day); the Mac removes them | the Mac's filler filter on the phone too |
+| K9 | Robin's Pixel runs the old debug app `dev.verbatim.mobile`; its journal (since 19.11.) and keyboard settings stay with that app when `org.sokki.app` is installed | copy `files/typing_log` over by adb before switching, or "Send to Mac" from the old app's developer page once it has one |
+| K10 | Android: keys typed while a dictation is still finishing (strip shows the dots) can land at the start of the field: the keyboard ignores cursor updates while Sokki types, so it works from an old cursor position (emulator, 2026-11-24: "Bus." landed before the dictated sentence). Since 2026-11-25 finishing takes 0.2 s instead of ~3 s (Robin's Pixel), so the window is small, but still there | let the keyboard catch up before the first key after a dictation, or end the dictation on that key |
+| K11 | Android dictation: Nemotron Streaming leaves out the period at the very end of a dictation ("… bis später und liebe Grüße" for "… liebe Grüße.", 1 of 1 German test clips on the Pixel, 2026-11-25); the keyboard then underlines the last word, as it does for any word the cursor touches | wait for a real dictation that shows it; then end the text with a period when the model gives none |
+
+## Typing on the Mac: autocorrect (2026-11-25)
+
+`crates/sokki-autocorrect`, the phone keyboard's model (`crates/sokki-typos`). Off by default.
+
+| # | Problem | Fix idea |
+|---|---|---|
+| M1 | Not yet tried in a real app: tested only in a simulated text field (Sokki Test has no Accessibility since its new certificate, 24.11.). Electron apps (Slack, Claude, Notion) hide their fields until asked: Sokki asks each running app once with `AXManualAccessibility` while autocorrect is on (`mac.rs`, `ask_for_fields`), unverified in a real app. Chrome may still hide its fields without its full screen-reader mode (`AXEnhancedUserInterface`), which Sokki doesn't switch on (it upsets window managers) | try it; the log says once per app and role when the focused element isn't a text field ("autocorrect: <app>: focused element is …"); if Chrome shows none, measure what its screen-reader mode costs before switching it on |
+| M2 | Cmd-Z after a fix: unknown whether apps undo a word replaced through Accessibility (a 2008 report says TextEdit doesn't). Backspace right after a fix works | try it in Chrome, Slack, Claude |
+| M3 | Third-party apps built on Apple's text fields (not Chromium/Electron) get macOS's autocorrect and Sokki's: two correctors on one word | exclude them once a real case shows up |
+| M4 | The same open cases as the phone (K2–K5): two plausible fixes are left alone, the user's own names can get changed until undone once | as K4, K5 |
+
+## Usage data, "Help improve Sokki" (2026-11-24)
+
+| # | Problem | Example | Fix idea |
+|---|---|---|---|
+| U1 | Setup is counted only from people who turn the switch on (setup step 5); quitters and people who say no are never counted | – | compare with sokki.org's `zip_downloads` in PostHog; no tracking without consent |
+| U2 | The frontend's call per setup screen is checked by the type check only; the Rust side by `scripts/test-usage.sh` (`SOKKI_TEST_SETUP` replays setup, as the test app never shows the setup window) | – | test it once in a fresh test app when a window on screen is fine |
+| U3 | Notes sent by mail or Slack, Ask and History search are not counted yet (mail and Slack aren't in `meetings` yet) | – | `usage::count` with a new `Count` where they land |
+| U4 | Deleting at PostHog needs a personal API key (`POSTHOG_PERSONAL_KEY`); until Robin sets it, ids wait in `posthog_forget` | – | Robin creates the key; the hourly cron then deletes |
+| U5 | The counter read ~700,000 rows a day for one sharing install: every upload summed all earlier ones (`SUM(bytes) FROM donations`); 5M a day is the free limit | 874 rows × 227 uploads | fixed 2026-11-25: running total in `cache` (`storedBytes`), one row per upload |
+| U6 | Workers KV's free plan allows 1,000 writes, deletes and lists a day, and 1 GB. On 24.11. one `/forget` used up the deletes and stopped halfway | 874 clips of one install | fixed 2026-11-25: deletes in stages within a daily budget, uploads "try later" above one (`kv_ops`). fixed 2026-11-25: audio in R2 (EU, 10 GB free, deletes free); older files move over from KV hourly |
 
 ## Planned
 

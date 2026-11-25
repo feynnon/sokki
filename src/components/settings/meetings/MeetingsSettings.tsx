@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   languageModelName,
   selectedLanguageModel,
@@ -23,19 +24,20 @@ import {
   useMeetingNote,
 } from "./MeetingDetails";
 import {
-  dayGroup,
-  listWhen,
+  byDay,
+  dayHeader,
   meetingPlace,
   isDateTitle,
   minutes,
   otherSpeakers,
   readerWhen,
   time,
-  type DayGroup,
 } from "./meetingDates";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { useFormatLocale } from "./useFormatLocale";
 import { PhoneLink } from "./PhoneLink";
+import { MailSettings } from "./MailSettings";
+import { LiveTranscript, SampleCard, SampleTag } from "./SampleMeeting";
 import {
   commands,
   events,
@@ -48,6 +50,7 @@ import { formatDateTime } from "@/utils/dateFormat";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { Switch } from "../../ui/Switch";
 import { Input } from "../../ui/Input";
 import { Button } from "../../ui/Button";
 import { Tooltip } from "../../ui/Tooltip";
@@ -67,7 +70,8 @@ const SavedInput: React.FC<{
   placeholder?: string;
   type?: string;
   className?: string;
-}> = ({ value, onSave, placeholder, type, className }) => {
+  ariaLabel?: string;
+}> = ({ value, onSave, placeholder, type, className, ariaLabel }) => {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
@@ -79,12 +83,128 @@ const SavedInput: React.FC<{
       type={type}
       placeholder={placeholder}
       className={className}
+      aria-label={ariaLabel}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") commit();
       }}
     />
+  );
+};
+
+/** Where "Support Sokki" leads; sokki.org/sponsor/ forwards to the sponsor page. */
+const SUPPORT_URL = "https://sokki.org/sponsor/?s=line";
+
+/**
+ * The Sokki line under every summary, shown as it will read. On for
+ * everyone; only a supporter (at least €20 paid, proven by a code) gets a
+ * switch. Processing checks the stored code itself, so this only shows it.
+ */
+const SokkiLine: React.FC<{
+  meetingSettings: MeetingSettingsType;
+  save: (patch: Partial<MeetingSettingsType>) => Promise<void>;
+}> = ({ meetingSettings, save }) => {
+  const { t, i18n } = useTranslation();
+  const [supporter, setSupporter] = useState(false);
+  const [line, setLine] = useState("");
+  const [entering, setEntering] = useState(false);
+  const [invalid, setInvalid] = useState(false);
+  const german = i18n.language.startsWith("de");
+  useEffect(() => {
+    void commands
+      .isSupporterCode(meetingSettings.supporter_code)
+      .then(setSupporter);
+  }, [meetingSettings.supporter_code]);
+  // The line drops "local, free" for a cloud model, so ask again on a change.
+  useEffect(() => {
+    void commands
+      .sokkiLine(german)
+      .then((l) => setLine(l ?? ""))
+      .catch(() => setLine(""));
+  }, [german, meetingSettings.llm_provider]);
+  const enterCode = async (code: string) => {
+    const c = code.trim();
+    const ok = c !== "" && (await commands.isSupporterCode(c));
+    setInvalid(c !== "" && !ok);
+    if (ok) await save({ supporter_code: c });
+  };
+  const SITE = "sokki.org";
+  const site = line.lastIndexOf(SITE);
+  return (
+    <div className="flex items-start justify-between gap-8 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[14px] font-medium leading-5">
+          {t("meetings.settings.footer")}
+        </h3>
+        <p className="text-[12.5px] leading-[18px] text-ink-3 mt-0.5">
+          {t("meetings.settings.footerDescription")}
+        </p>
+        <p className="mt-2 rounded-lg bg-wash px-3 py-2 text-[12.5px] leading-[18px] text-ink-2 select-text">
+          {site < 0 ? (
+            line
+          ) : (
+            <>
+              {line.slice(0, site)}
+              <span className="text-logo-primary">{SITE}</span>
+              {line.slice(site + SITE.length)}
+            </>
+          )}
+        </p>
+        {supporter ? (
+          <p className="text-[12.5px] leading-[18px] text-ink-3 mt-1.5">
+            {t("meetings.settings.supporterThanks")}
+          </p>
+        ) : (
+          <>
+            <p className="text-[12.5px] leading-[18px] text-ink-3 mt-1.5">
+              {t("meetings.settings.footerSupporters")}{" "}
+              {!entering && (
+                <button
+                  type="button"
+                  className="text-logo-primary hover:underline"
+                  onClick={() => setEntering(true)}
+                >
+                  {t("meetings.settings.supporterEnter")}
+                </button>
+              )}
+            </p>
+            {entering && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <SavedInput
+                  value=""
+                  placeholder="sokki-…"
+                  ariaLabel={t("meetings.settings.supporterCode")}
+                  className="w-[var(--vb-control-w)] h-[var(--vb-control-h)] text-[13px]"
+                  onSave={(v) => void enterCode(v)}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void openUrl(SUPPORT_URL)}
+                >
+                  {t("meetings.settings.supporterLink")}
+                </Button>
+              </div>
+            )}
+            {invalid && (
+              <p className="text-xs text-red-500 mt-1">
+                {t("meetings.settings.supporterCodeInvalid")}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+      {supporter && (
+        <div className="shrink-0 pt-0.5">
+          <Switch
+            checked={meetingSettings.footer_enabled}
+            onChange={(v) => void save({ footer_enabled: v })}
+            ariaLabel={t("meetings.settings.footer")}
+          />
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -96,7 +216,8 @@ const Speakers: React.FC<{ record: MeetingRecord; onDone: () => void }> = ({
   const { t } = useTranslation();
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [remember, setRemember] = useState(true);
+  // Invented voices aren't worth remembering.
+  const [remember, setRemember] = useState(!record.sample);
   const [error, setError] = useState<string | null>(null);
   if (record.speakers.length === 0 || record.status.kind !== "done")
     return null;
@@ -229,10 +350,15 @@ const StatusLine: React.FC<{ record: MeetingRecord }> = ({ record }) => {
   if (s.kind === "processing") {
     const pct = s.progress != null ? ` ${Math.round(s.progress * 100)}%` : "";
     return (
-      <span className="flex items-center gap-2 text-sm text-ink-3">
-        <Loader2 width={14} height={14} className="animate-spin" />
-        {t(`meetings.stage.${s.stage}`, { defaultValue: s.stage })}
-        {pct}
+      <span className="flex flex-col gap-0.5">
+        <span className="flex items-center gap-2 text-sm text-ink-3">
+          <Loader2 width={14} height={14} className="animate-spin" />
+          {t(`meetings.stage.${s.stage}`, { defaultValue: s.stage })}
+          {pct}
+        </span>
+        <span className="ps-[22px] text-xs text-ink-3">
+          {t(record.sample ? "meetings.sample.soon" : "meetings.notesWhen")}
+        </span>
       </span>
     );
   }
@@ -385,12 +511,13 @@ const MeetingSettingsView: React.FC<{
             grouped
           />
           <ToggleSwitch
-            checked={meetingSettings.footer_enabled}
-            onChange={(v) => void save({ footer_enabled: v })}
-            label={t("meetings.settings.footer")}
-            description={t("meetings.settings.footerDescription")}
+            checked={meetingSettings.chat_notice_enabled}
+            onChange={(v) => void save({ chat_notice_enabled: v })}
+            label={t("meetings.settings.chatNotice")}
+            description={t("meetings.settings.chatNoticeDescription")}
             grouped
           />
+          <SokkiLine meetingSettings={meetingSettings} save={save} />
         </SettingsGroup>
 
         <SettingsGroup
@@ -400,6 +527,8 @@ const MeetingSettingsView: React.FC<{
           <ModelSetting meetingSettings={meetingSettings} />
         </SettingsGroup>
 
+        <MailSettings meetingSettings={meetingSettings} save={save} />
+
         <PhoneLink meetingSettings={meetingSettings} save={save} />
 
         <VoiceProfiles />
@@ -408,11 +537,10 @@ const MeetingSettingsView: React.FC<{
   );
 };
 
-const GROUPS: DayGroup[] = ["today", "yesterday", "thisWeek", "earlier"];
-
 /** Where the meeting took place, in the app's words. */
 function usePlace(record: MeetingRecord): string | null {
   const { t } = useTranslation();
+  if (record.sample) return t("meetings.sample.place");
   return meetingPlace(record, {
     phone: t("meetings.place.phone"),
     online: t("meetings.place.online"),
@@ -429,6 +557,7 @@ function useShownTitle(record: MeetingRecord): string {
   const dates = useFormatLocale();
   const place = usePlace(record);
   if (record.title && !isDateTitle(record.title)) return record.title;
+  if (record.sample) return t("meetings.sample.title");
   const at = time(new Date(Date.parse(record.started_at)), dates);
   return place
     ? t("meetings.placeholder", { place, time: at })
@@ -490,15 +619,14 @@ const SpeakerCircles: React.FC<{ record: MeetingRecord; userName: string }> = ({
   );
 };
 
-/** One row of the list: title, then date · time · place · length (red
- * while it records); who spoke on the right. */
+/** One row of the list: title, then time · place · length (red while it
+ * records; the day's header has the date); who spoke on the right. */
 const ListItem: React.FC<{
   record: MeetingRecord;
   selected: boolean;
-  now: Date;
   userName: string;
   onSelect: () => void;
-}> = ({ record, selected, now, userName, onSelect }) => {
+}> = ({ record, selected, userName, onSelect }) => {
   const { t, i18n } = useTranslation();
   const dates = useFormatLocale();
   const at = new Date(Date.parse(record.started_at));
@@ -507,11 +635,7 @@ const ListItem: React.FC<{
   const shown = useShownTitle(record);
   const meta = rec
     ? [t("meetings.recording"), place].filter(Boolean).join(" · ")
-    : [
-        ...listWhen(at, now, dates),
-        place,
-        minutes(record.duration_s, i18n.language),
-      ]
+    : [time(at, dates), place, minutes(record.duration_s, i18n.language)]
         .filter(Boolean)
         .join(" · ");
   const guess =
@@ -662,9 +786,15 @@ const Reader: React.FC<{
         <div className="max-w-[720px] flex flex-col gap-3">
           {hints}
           <div>
+            {record.sample && (
+              <div className="mb-2 flex">
+                <SampleTag />
+              </div>
+            )}
             <Title record={record} title={title} onError={setError} />
             <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
           </div>
+          {rec && record.sample && <LiveTranscript record={record} />}
           <Speakers record={record} onDone={onChanged} />
           {!rec && <StatusLine record={record} />}
           <Warnings record={record} />
@@ -698,6 +828,7 @@ const Reader: React.FC<{
  * the recording bar under every view. */
 export const MeetingsSettings: React.FC = () => {
   const { t } = useTranslation();
+  const dates = useFormatLocale();
   const { settings, refreshSettings } = useSettings();
   const meetings = useMeetingStore((s) => s.meetings);
   const loaded = useMeetingStore((s) => s.loaded);
@@ -752,12 +883,16 @@ export const MeetingsSettings: React.FC = () => {
   );
   const selected =
     ordered.find((m) => m.id === selectedId) ?? ordered[0] ?? null;
-  const groups = GROUPS.map((g) => ({
-    g,
-    items: ordered.filter(
-      (m) => dayGroup(new Date(Date.parse(m.started_at)), now) === g,
-    ),
-  })).filter((x) => x.items.length > 0);
+  // One group per day, its header with the date (Robin, 2026-11-25).
+  const groups = byDay(ordered, (m) => new Date(Date.parse(m.started_at))).map(
+    ({ day, items }) => ({
+      day,
+      items,
+      header: dayHeader(new Date(day), now, dates, (g, date) =>
+        t(`meetings.group.${g}On`, { date }),
+      ),
+    }),
+  );
 
   const hints = (
     <>
@@ -813,16 +948,15 @@ export const MeetingsSettings: React.FC = () => {
               {t("meetings.empty")}
             </p>
           )}
-          {groups.map(({ g, items }) => (
-            <section key={g} aria-label={t(`meetings.group.${g}`)}>
+          {groups.map(({ day, items, header }) => (
+            <section key={day} aria-label={header}>
               <h2 className="px-2 pt-3 pb-1 text-[12px] font-medium text-ink-3">
-                {t(`meetings.group.${g}`)}
+                {header}
               </h2>
               {items.map((m) => (
                 <ListItem
                   key={m.id}
                   record={m}
-                  now={now}
                   userName={meetingSettings.user_name}
                   selected={selected?.id === m.id}
                   onSelect={() => select(m.id)}
@@ -840,7 +974,15 @@ export const MeetingsSettings: React.FC = () => {
           onChanged={() => void reload()}
         />
       ) : (
-        <div className="flex-1 min-w-0 px-12 pt-[52px]">{hints}</div>
+        <div className="flex-1 min-w-0 overflow-y-auto px-12 pt-[52px] pb-6 flex flex-col gap-4">
+          {/* The card says what the sample needs, setup hints included. */}
+          {loaded && (
+            <SampleCard
+              llmReady={llm?.state === "ready"}
+              onSetUp={openLanguageModels}
+            />
+          )}
+        </div>
       )}
     </div>
   );

@@ -10,14 +10,35 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
 - With **Help improve** on, an install sends one report a day
   (`POST /usage`): usage counts, problems from the log (quoted words and
   paths blanked), the Mac's model, chip, memory, disk, macOS version and
-  region. Never names, audio or anyone's words. One row per install and day.
+  region; also setup steps, feature counts, settings switches,
+  crashes and speed (`usage` in the report, from the app's `usage.rs`).
+  Never names, audio or anyone's words. One row per install and day.
+  The counter passes each report on to **PostHog EU** (project 367071, the
+  same as sokki.org's, `$lib: "sokki-app"`) as events: `app_daily`,
+  `first_start`, `setup_step`, `first_dictation`, `first_meeting`,
+  `app_updated`, `crash`, `app_problem`. Sent from the Worker, so PostHog
+  never sees users' IP addresses. `/forget` queues the id in
+  `posthog_forget` and deletes the person and its events there; that needs
+  the secret `POSTHOG_PERSONAL_KEY` (a personal API key with person
+  read/write: `wrangler secret put POSTHOG_PERSONAL_KEY`). Until it's set,
+  ids wait and the hourly cron retries. Only reports with the `usage` part
+  (apps whose "What's shared" names PostHog) are relayed; older apps'
+  reports stay in D1 only. Tests: `node --test counter/test/counter.test.mjs`.
 - "I'm interested" on a buyer message sends the id, the message's id, the
   language and the matching hours (`POST /interest`).
 - With **Share all my recordings** on, an install uploads every recording of
-  the user's (`POST /donate`): FLAC audio into
-  Workers KV (`<id>/<clip>.flac`), the transcript and length into D1
-  (`donations`), unchanged, names and numbers included. The store stops taking uploads at 900 MB (KV's free
-  1 GB; beyond it Cloudflare returns errors, never a bill).
+  the user's (`POST /donate`): FLAC audio into R2 (binding `FILES`,
+  bucket `sokki-audio`, EU jurisdiction; Workers KV `AUDIO` before 26.11.), as
+  `<id>/<clip>.flac`, the transcript and length into D1 (`donations`),
+  unchanged, names and numbers included. Only the user's own voice:
+  dictations, and their own microphone segments of a meeting (about 6 s
+  each, so one upload per sentence). FLAC is about 15 KB a second, 54 MB per
+  hour of speech. The store stops taking uploads at `AUDIO_CAP_MB` (9 GB with
+  R2, whose first 10 GB are free; 900 MB with KV only).
+- **Moving to R2**: once `FILES` is bound, new uploads go to R2 and the hourly
+  cron moves the older files over from KV, 100 per run within the KV delete
+  budget, then stops (`cache` key `kv_moved`). Deletes in R2 are free and go
+  1,000 per call, so "Delete what was shared" finishes in the request.
 - **Tell me about paid recording tasks** sends the id and the languages of the
   user's own recordings (`POST /tasks`); unticking removes it. See who ticked it:
   `wrangler d1 execute verbatim-counter --remote --command "SELECT languages, count(*) FROM tasks GROUP BY languages"`.
@@ -25,8 +46,23 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   the link's tag (`?s=`), so the launch shows which link brings people.
   Nothing about the visitor. See them:
   `wrangler d1 execute verbatim-counter --remote --command "SELECT source, page, sum(views) FROM visits GROUP BY source, page ORDER BY 3 DESC"`.
-- **Delete what was shared** removes every row of the id and its audio
-  (`POST /forget`).
+- **Delete what was shared** removes every row of the id at once and its
+  audio in stages (`POST /forget`, answers `{"ok", "pending"}`): Workers KV
+  allows 1,000 deletes a day on the free plan, so the audio keys go into
+  `forget_audio`; R2 files are deleted at once, KV files within a daily
+  budget (`kv_ops`), 200 in the request, the rest by the hourly cron, until
+  none is left; then one listing of the id's prefix in each store
+  (`forget_sweep`) catches files D1 never knew. The app
+  says "being deleted" while `pending` > 0.
+- **Daily KV budgets** (`KV_WRITE_BUDGET`, `KV_DELETE_BUDGET`,
+  `KV_LIST_BUDGET` in `wrangler.toml`; free plan: 1,000 of each a day): every
+  KV operation is counted per UTC day in `kv_ops`. Above the write budget
+  `/donate` answers `503 {"error": "try later", "retry_after": s}`, and the
+  app keeps the recording and uploads it after 00:00 UTC. With Workers Paid,
+  raise the budgets. See today's use:
+  `wrangler d1 execute verbatim-counter --remote --command "SELECT * FROM kv_ops ORDER BY day DESC LIMIT 9"`.
+  Tests: `node --test counter/test/forget.test.mjs`, and against a local
+  counter with a test app, `scripts/test-kv-limits.sh`.
 
 ### Against fake data
 
@@ -55,7 +91,7 @@ It runs on Cloudflare's free plan: installs report at most once an hour, and the
 npm install -g wrangler
 wrangler login
 wrangler d1 create verbatim-counter          # paste the printed id into wrangler.toml
-wrangler d1 execute verbatim-counter --remote --file schema.sql
+wrangler d1 execute verbatim-counter --remote --file schema.sql   # also after schema changes
 wrangler kv namespace create sokki-donations  # paste the id into wrangler.toml (AUDIO)
 wrangler deploy                               # prints https://verbatim-counter.<you>.workers.dev
 ```

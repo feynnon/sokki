@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import {
+  byDay,
   dayGroup,
+  dayHeader,
+  headerDate,
   isDateTitle,
-  listDate,
-  listWhen,
   meetingPlace,
   minutes,
   otherSpeakers,
@@ -38,27 +39,58 @@ assert.equal(minutes(20, "de"), "1 Min.");
 assert.equal(minutes(34 * 60, "de"), "34 Min.");
 assert.equal(minutes(34 * 60, "en"), "34 min");
 
-// The date first in every group, then the time.
-assert.deepEqual(listWhen(new Date(2025, 10, 26, 10, 0), now, "de"), [
-  "26.11.",
-  "10:00",
-]);
-assert.deepEqual(listWhen(new Date(2025, 10, 24, 9, 0), now, "de"), [
-  "24.11.",
-  "09:00",
-]);
+// One header per day, always with the date (Robin, 2026-11-25).
+const named = (g: "today" | "yesterday", date: string) =>
+  `${g === "today" ? "Heute" : "Gestern"}, ${date}`;
+assert.equal(
+  dayHeader(new Date(2025, 10, 26, 10), now, "de", named),
+  "Heute, 26. Nov.",
+);
+assert.equal(
+  dayHeader(new Date(2025, 10, 25, 9), now, "de", named),
+  "Gestern, 25. Nov.",
+);
+assert.equal(
+  dayHeader(new Date(2025, 10, 23, 9), now, "de", named),
+  "23. Nov.",
+);
+assert.equal(dayHeader(new Date(2025, 10, 2, 9), now, "de", named), "2. Nov.");
 // The Mac's region decides, not the app language: Robin's Mac is en_DE.
+assert.equal(headerDate(new Date(2025, 10, 23), now, "en-DE"), "23. Nov");
+assert.equal(headerDate(new Date(2025, 10, 23), now, "en-US"), "Nov 23");
+assert.equal(headerDate(new Date(2025, 10, 23), now, "en-GB"), "23 Nov");
+// Older than this year: with the year.
+assert.equal(headerDate(new Date(2024, 10, 23), now, "de"), "23. Nov. 2024");
+assert.equal(headerDate(new Date(2024, 10, 23), now, "en-US"), "Nov 23, 2024");
+
+// A day per group, newest first; a day's own order is kept (a recording
+// meeting first).
+const at = (d: number, h: number) => ({ at: new Date(2025, 10, d, h) });
+const days = byDay(
+  [at(26, 9), at(26, 15), at(25, 23), at(23, 1), at(25, 8)],
+  (x) => x.at,
+);
+assert.deepEqual(
+  days.map((g) => [
+    new Date(g.day).getDate(),
+    g.items.map((x) => x.at.getHours()),
+  ]),
+  [
+    [26, [9, 15]],
+    [25, [23, 8]],
+    [23, [1]],
+  ],
+);
+// A meeting just after midnight belongs to its own day.
+assert.equal(byDay([at(26, 0), at(25, 23)], (x) => x.at).length, 2);
+
 const nine = new Date(2025, 10, 26, 9, 5);
-assert.deepEqual(listWhen(nine, now, "en-DE"), ["26.11.", "09:05"]);
-assert.deepEqual(listWhen(nine, now, "de-DE"), ["26.11.", "09:05"]);
-// A US Mac: its own order and a 12-hour clock without the leading zero
-// (ICU versions differ in the space before "AM").
-assert.equal(listDate(nine, now, "en-US"), "11/26");
+// A US Mac: a 12-hour clock without the leading zero (ICU versions differ
+// in the space before "AM").
 assert.match(time(nine, "en-US"), /^9:05\sAM$/);
 // The 24-hour switch in System Settings ("en-US-u-hc-h23").
 assert.equal(time(nine, "en-US-u-hc-h23"), "09:05");
-assert.equal(listDate(new Date(2024, 10, 26), now, "en-US"), "11/26/24");
-assert.equal(listDate(new Date(2024, 10, 26), now, "de"), "26.11.24");
+assert.equal(time(nine, "en-DE"), "09:05");
 
 const words = { phone: "Handy", online: "Online", inPerson: "Vor Ort" };
 assert.equal(

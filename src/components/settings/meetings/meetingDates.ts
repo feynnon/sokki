@@ -1,5 +1,5 @@
-/** Where a meeting sits in the list: today, yesterday, this week (since
- * Monday) or earlier. Local time. */
+/** How the reader names a meeting's day: today, yesterday, this week
+ * (since Monday) or earlier. Local time. */
 export type DayGroup = "today" | "yesterday" | "thisWeek" | "earlier";
 
 function midnight(d: Date): number {
@@ -58,21 +58,47 @@ export function minutes(seconds: number, locale: string): string {
   }).format(m);
 }
 
-/** The day as the list shows it, in the region's own order: "24.11."
- * (Germany), "11/24" (US), "24/11" (UK), with the year when it isn't this
- * year's ("24.11.25"). */
-export function listDate(at: Date, now: Date, locale: string): string {
+/** The day's date as a list header shows it, in the region's own format:
+ * "25. Nov." (Germany), "Nov 25" (US), "25 Nov" (UK), with the year when
+ * it isn't this year's ("23. Nov. 2025"). */
+export function headerDate(at: Date, now: Date, locale: string): string {
   return new Intl.DateTimeFormat(locale, {
     day: "numeric",
-    month: "2-digit",
-    year: at.getFullYear() === now.getFullYear() ? undefined : "2-digit",
+    month: "short",
+    year: at.getFullYear() === now.getFullYear() ? undefined : "numeric",
   }).format(at);
 }
 
-/** When, as the list shows it: the date first, then the time ("24.11. ·
- * 10:00"), in every group (Robin, 2026-11-24). */
-export function listWhen(at: Date, now: Date, locale: string): string[] {
-  return [listDate(at, now, locale), time(at, locale)];
+/** A day's header in the list, always with its date (Robin, 2026-11-25):
+ * "Heute, 25. Nov.", "Gestern, 24. Nov.", then "23. Nov." (`named` puts
+ * the group's word for today and yesterday around the date). */
+export function dayHeader(
+  at: Date,
+  now: Date,
+  locale: string,
+  named: (g: "today" | "yesterday", date: string) => string,
+): string {
+  const g = dayGroup(at, now);
+  const date = headerDate(at, now, locale);
+  return g === "today" || g === "yesterday" ? named(g, date) : date;
+}
+
+/** The meetings by day, one group per local day, newest day first; the
+ * order within a day is kept. `day` is that day's midnight. */
+export function byDay<T>(
+  items: T[],
+  startedAt: (x: T) => Date,
+): { day: number; items: T[] }[] {
+  const days = new Map<number, T[]>();
+  for (const x of items) {
+    const d = midnight(startedAt(x));
+    const list = days.get(d);
+    if (list) list.push(x);
+    else days.set(d, [x]);
+  }
+  return [...days.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([day, items]) => ({ day, items }));
 }
 
 /** Where a meeting took place, as the list and the reader show it: the

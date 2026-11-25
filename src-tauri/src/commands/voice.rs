@@ -24,6 +24,14 @@ pub fn voice_data_set_choices(
     voice_data::set_choices(&app, improve, support, buyers).map_err(|e| format!("{e:#}"))
 }
 
+/// A setup screen was shown: counted on this Mac for "Help improve Sokki"
+/// (`crate::usage`). Names other than setup's screens are ignored.
+#[tauri::command]
+#[specta::specta]
+pub fn usage_setup_step(app: AppHandle, step: String) {
+    crate::usage::setup_step(&app, &step);
+}
+
 /// Deletes every kept recording on this Mac.
 #[tauri::command]
 #[specta::specta]
@@ -31,10 +39,11 @@ pub fn voice_data_delete(app: AppHandle) -> Result<(), String> {
     voice_data::delete_all(&app).map_err(|e| format!("{e:#}"))
 }
 
-/// Deletes everything the counter holds of this install.
+/// Deletes everything the counter holds of this install. `true`: some of it
+/// is still being deleted (the counter finishes over the next days).
 #[tauri::command]
 #[specta::specta]
-pub async fn voice_data_forget(app: AppHandle) -> Result<(), String> {
+pub async fn voice_data_forget(app: AppHandle) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || voice_data::forget(&app))
         .await
         .map_err(|e| e.to_string())?

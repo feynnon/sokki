@@ -97,6 +97,14 @@ const FileReadRow: React.FC<{ read: FileRead }> = ({ read }) => {
   );
 };
 
+/** What a history entry shows and copies: the cleaned-up text that was
+ * pasted (dictation cleanup or Post Process), else the transcript. */
+function shownText(entry: HistoryEntry): string {
+  return entry.post_processed_text?.trim()
+    ? entry.post_processed_text
+    : entry.transcription_text;
+}
+
 export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
   const osType = useOsType();
@@ -268,7 +276,7 @@ export const HistorySettings: React.FC = () => {
                 entry={entry}
                 job={jobs[entry.id]}
                 onReveal={() => void revealAudio(entry.file_name)}
-                onCopyText={() => copyToClipboard(entry.transcription_text)}
+                onCopyText={() => copyToClipboard(shownText(entry))}
                 getAudioUrl={getAudioUrl}
                 deleteAudio={deleteAudioEntry}
                 retryTranscription={commands.retryHistoryEntryTranscription}
@@ -330,7 +338,8 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   useEffect(() => {
     if (!retrying) setCancelling(false);
   }, [retrying]);
-  const hasTranscription = entry.transcription_text.trim().length > 0;
+  const text = shownText(entry);
+  const hasTranscription = text.trim().length > 0;
   const folded = hasTranscription && !retrying && !expanded;
 
   // Offer "Show more" only when the folded text is actually cut off.
@@ -342,7 +351,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [folded, entry.transcription_text]);
+  }, [folded, text]);
 
   const handleLoadAudio = useCallback(
     () => getAudioUrl(entry.file_name),
@@ -482,7 +491,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           {retrying
             ? progressText
             : hasTranscription
-              ? entry.transcription_text
+              ? text
               : entry.source_name
                 ? // Cancelled, interrupted by a quit, or failed.
                   t("settings.history.notTranscribed")

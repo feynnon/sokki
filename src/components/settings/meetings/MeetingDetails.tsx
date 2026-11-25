@@ -1,14 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  AlignLeft,
   Check,
   Copy,
   FileText,
   FolderOpen,
   Globe,
+  Loader2,
   Monitor,
   MoreHorizontal,
   RotateCcw,
+  Send,
   Trash2,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -16,6 +19,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   commands,
   events,
+  type MailPreview,
   type MeetingNoteParts,
   type MeetingRecord,
   type VideoMeta,
@@ -23,6 +27,7 @@ import {
 import { usePressAway } from "@/hooks/usePressAway";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { copyToClipboard } from "../history/clipboard";
+import { ErrorBoundary } from "../../ErrorBoundary";
 
 /** "**bold**" inside a line becomes <strong>. */
 function inline(text: string): React.ReactNode[] {
@@ -188,6 +193,126 @@ const useScreenVideo = (meetingId: string): VideoMeta | null => {
   return video;
 };
 
+/** What "Send to everyone" would do for this meeting; reloaded when it changes. */
+const useMailPreview = (record: MeetingRecord, done: boolean) => {
+  const [preview, setPreview] = useState<MailPreview | null>(null);
+  const key = `${record.id}|${record.status.kind}|${record.note_path}|${record.mailed?.at ?? ""}`;
+  useEffect(() => {
+    if (!done) return setPreview(null);
+    let live = true;
+    void commands
+      .meetingMailPreview(record.id)
+      .then((r) => {
+        if (live && r?.status === "ok") setPreview(r.data ?? null);
+      })
+      .catch(() => {
+        if (live) setPreview(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [key, done]);
+  return preview;
+};
+
+/**
+ * "Send to everyone": the note's summary, decisions and action items, from
+ * the person's own Mail, to everyone in the meeting's calendar event. One
+ * click sends; the tooltip names who gets it.
+ */
+const SendToAll: React.FC<{
+  record: MeetingRecord;
+  done: boolean;
+  /** Icon only (narrow window); the label moves to the tooltip. */
+  compact: boolean;
+  onError: (e: string) => void;
+}> = ({ record, done, compact, onError }) => {
+  const { t } = useTranslation();
+  const preview = useMailPreview(record, done);
+  const [sending, setSending] = useState(false);
+  if (!done || record.sample || !preview || preview.problem === "no_summary")
+    return null;
+  const mailed = record.mailed ?? preview.mailed;
+  const busy = sending || preview.sending;
+  const names = (preview.to ?? []).map((r) => r.name || r.email).join(", ");
+  const blocked =
+    preview.problem === "no_event" ||
+    preview.problem === "no_recipients" ||
+    preview.problem === "calendar_denied";
+  const hint = mailed
+    ? t("meetings.mail.sentTo", { names: (mailed.to ?? []).join(", ") })
+    : preview.problem
+      ? t(`meetings.mail.problem.${preview.problem}`)
+      : t("meetings.mail.sendHint", { names, count: preview.to.length });
+  const send = async () => {
+    setSending(true);
+    try {
+      const r = await commands.meetingMailSend(record.id);
+      if (r?.status === "error") onError(r.error);
+    } catch (e) {
+      onError(String(e));
+    }
+    setSending(false);
+  };
+  const label = busy
+    ? t("meetings.mail.sending")
+    : mailed
+      ? t("meetings.mail.sent", { count: (mailed.to ?? []).length })
+      : t("meetings.mail.send");
+  return (
+    <button
+      type="button"
+      title={compact ? `${label}: ${hint}` : hint}
+      aria-label={compact ? label : undefined}
+      disabled={busy || blocked || !!mailed}
+      onClick={() => void send()}
+      className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-line-strong text-[13px] text-text cursor-pointer hover:bg-wash disabled:cursor-default disabled:hover:bg-transparent disabled:text-ink-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${compact ? "w-7" : "px-2.5"}`}
+    >
+      {busy ? (
+        <Loader2 width={14} height={14} className="animate-spin" />
+      ) : mailed ? (
+        <Check width={16} height={16} className="text-moss" />
+      ) : (
+        <Send width={14} height={14} />
+      )}
+      {!compact && label}
+    </button>
+  );
+};
+
+/**
+ * How much of the toolbar shows its labels, by the space it has: 0 all, 1
+ * the secondary buttons as icons, 2 every button as an icon. `row` holds
+ * the buttons at their natural width; `room` is the space for them.
+ * Remembers the width each tier needed, to step back up when it fits.
+ */
+function useToolbarTier(deps: unknown[]) {
+  const room = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLDivElement>(null);
+  const [tier, setTier] = useState(0);
+  const need = useRef<number[]>([]);
+  const fit = () => {
+    const r = room.current;
+    const w = row.current;
+    if (!r || !w) return;
+    const free = r.clientWidth;
+    setTier((t) => {
+      need.current[t] = w.offsetWidth;
+      if (w.offsetWidth > free + 0.5 && t < 2) return t + 1;
+      if (t > 0 && (need.current[t - 1] ?? Infinity) <= free) return t - 1;
+      return t;
+    });
+  };
+  useLayoutEffect(fit, [tier, ...deps]);
+  useEffect(() => {
+    const o = new ResizeObserver(fit);
+    if (room.current) o.observe(room.current);
+    if (row.current) o.observe(row.current);
+    return () => o.disconnect();
+  }, []);
+  return { room, row, tier };
+}
+
 /** The reader's toolbar: copy transcript (accent), copy summary, and "…". */
 export const ReaderToolbar: React.FC<{
   record: MeetingRecord;
@@ -196,7 +321,7 @@ export const ReaderToolbar: React.FC<{
   onDeleted: () => void;
   onError: (e: string) => void;
 }> = ({ record, title, date, onDeleted, onError }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { copied, copy } = useCopyNote(record.id);
   const screenVideo = useScreenVideo(record.id);
   const [menu, setMenu] = useState(false);
@@ -227,34 +352,69 @@ export const ReaderToolbar: React.FC<{
     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] text-start hover:bg-wash cursor-pointer focus:outline-none focus-visible:bg-wash";
   const check = <Check width={16} height={16} className="text-moss" />;
 
+  const transcriptLabel =
+    copied === "transcript"
+      ? t("meetings.details.copied")
+      : t("meetings.details.copyTranscript");
+  const summaryLabel =
+    copied === "summary"
+      ? t("meetings.details.copied")
+      : t("meetings.details.copySummary");
+  // Buttons never wrap: when the labels don't fit, the secondary buttons
+  // become icons first, then the primary one too (Robin, 2026-11-25).
+  const { room, row, tier } = useToolbarTier([done, copied, i18n.language]);
+  const iconSecondary = tier >= 1;
+  const iconPrimary = tier >= 2;
+
   return (
-    <div className="h-[52px] shrink-0 flex items-center justify-end gap-2 px-4">
-      {done && (
-        <>
-          <button
-            type="button"
-            onClick={() => void copy("transcript")}
-            className="h-7 px-3 inline-flex items-center gap-1.5 rounded-[10px] text-[13px] font-medium text-logo-primary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
-            style={{ background: "var(--vb-accent-wash)" }}
-          >
-            {copied === "transcript" ? check : <Copy width={16} height={16} />}
-            {copied === "transcript"
-              ? t("meetings.details.copied")
-              : t("meetings.details.copyTranscript")}
-          </button>
-          <button
-            type="button"
-            onClick={() => void copy("summary")}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-[10px] border border-line-strong text-[13px] text-text cursor-pointer hover:bg-wash focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
-          >
-            {copied === "summary" && check}
-            {copied === "summary"
-              ? t("meetings.details.copied")
-              : t("meetings.details.copySummary")}
-          </button>
-        </>
-      )}
-      <div ref={menuRef} className="relative">
+    <div
+      data-reader-toolbar
+      className="h-[52px] shrink-0 flex items-center justify-end gap-2 px-4"
+    >
+      <div ref={room} className="flex-1 min-w-0 flex justify-end">
+        <div ref={row} className="w-max shrink-0 flex items-center gap-2">
+          {done && (
+            <>
+              <button
+                type="button"
+                onClick={() => void copy("transcript")}
+                title={iconPrimary ? transcriptLabel : undefined}
+                aria-label={iconPrimary ? transcriptLabel : undefined}
+                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium text-logo-primary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconPrimary ? "w-7" : "px-3"}`}
+                style={{ background: "var(--vb-accent-wash)" }}
+              >
+                {copied === "transcript" ? (
+                  check
+                ) : (
+                  <Copy width={16} height={16} />
+                )}
+                {!iconPrimary && transcriptLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => void copy("summary")}
+                title={iconSecondary ? summaryLabel : undefined}
+                aria-label={iconSecondary ? summaryLabel : undefined}
+                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-line-strong text-[13px] text-text cursor-pointer hover:bg-wash focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconSecondary ? "w-7" : "px-2.5"}`}
+              >
+                {copied === "summary"
+                  ? check
+                  : iconSecondary && <AlignLeft width={16} height={16} />}
+                {!iconSecondary && summaryLabel}
+              </button>
+              <ErrorBoundary context="Send to everyone">
+                <SendToAll
+                  record={record}
+                  done={done}
+                  compact={iconSecondary}
+                  onError={onError}
+                />
+              </ErrorBoundary>
+            </>
+          )}
+        </div>
+      </div>
+      <div ref={menuRef} className="relative shrink-0">
         <button
           type="button"
           aria-label={t("meetings.group.more")}

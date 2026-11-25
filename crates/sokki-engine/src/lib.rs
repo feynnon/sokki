@@ -9,6 +9,9 @@
 //!   tail is left after the call.
 //! - [`llm`]: language-model settings, status, starting Ollama and
 //!   downloading a model.
+//! - [`cleanup`]: cleaning up a dictation with a local model while it is
+//!   spoken.
+//! - [`supporter`]: supporter codes (who may switch off the Sokki line).
 //! - [`tracks`], [`speakers`]: small shared pieces (track alignment, the
 //!   speakers file).
 //!
@@ -16,14 +19,16 @@
 
 #[cfg(feature = "asr")]
 pub mod asr;
+pub mod cleanup;
 pub mod lifecycle;
 pub mod live;
 pub mod llm;
 pub mod process;
 pub mod speakers;
+pub mod supporter;
 pub mod tracks;
 
 pub use process::{
-    provisional_title, run, summarize_note, Deps, Input, Output, Settings, Stage, Summarized,
-    SummaryMissing, SUMMARY_FAILED, SUMMARY_WAITING,
+    provisional_title, run, summarize_note, Deps, Input, NoSpeech, Output, Settings, Stage,
+    Summarized, SummaryMissing, SUMMARY_FAILED, SUMMARY_WAITING,
 };

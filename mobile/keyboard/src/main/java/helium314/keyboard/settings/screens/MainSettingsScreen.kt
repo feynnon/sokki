@@ -26,6 +26,7 @@ import helium314.keyboard.latin.utils.Theme
 import helium314.keyboard.settings.initPreview
 import helium314.keyboard.settings.preferences.Preference
 import helium314.keyboard.latin.utils.previewDark
+import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.settings.screens.gesturedata.END_DATE_EPOCH_MILLIS
 import helium314.keyboard.settings.screens.gesturedata.TWO_WEEKS_IN_MILLIS
 
@@ -113,6 +114,18 @@ fun MainSettingsScreen(
                     onClick = onClickAbout,
                     icon = R.drawable.ic_settings_about
                 ) { NextScreenIcon() }
+                // Sokki: typing test (records taps in its own field, to tune key edges).
+                // Its switches turn on tap logging and the journal, so store users
+                // only see it after turning on debug settings (About, tap the version).
+                val ctx = LocalContext.current
+                if (helium314.keyboard.latin.BuildConfig.DEBUG || ctx.prefs().getBoolean(
+                        helium314.keyboard.latin.settings.DebugSettings.PREF_SHOW_DEBUG_SETTINGS,
+                        helium314.keyboard.latin.settings.Defaults.PREF_SHOW_DEBUG_SETTINGS))
+                    Preference(
+                        name = stringResource(R.string.sokki_typing_test),
+                        onClick = { ctx.startActivity(android.content.Intent(ctx, dev.verbatim.sokki.TypingTestActivity::class.java)) },
+                        icon = R.drawable.ic_settings_correction
+                    ) { NextScreenIcon() }
             }
         }
     }

@@ -1,0 +1,112 @@
+{
+ "lines": [
+  {
+   "speaker": "Maya",
+   "start_s": 0.6,
+   "end_s": 8.92,
+   "text": "Okay, I think we're all here. Thanks for joining, both of you. This is our last check-in before the checkout launch, so let's keep it short."
+  },
+  {
+   "speaker": "Daniel",
+   "start_s": 9.42,
+   "end_s": 20.87,
+   "text": "Sounds good, Maya. Quick update from my side: the new checkout works on every phone we tested, except one thing. Apple Pay still fails on older iPhones."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 21.29,
+   "end_s": 23.64,
+   "text": "How long would it take to fix that?"
+  },
+  {
+   "speaker": "Daniel",
+   "start_s": 24.28,
+   "end_s": 30.43,
+   "text": "Honestly, at least a week. Apple has to review the change, and that's out of our hands."
+  },
+  {
+   "speaker": "Priya",
+   "start_s": 30.81,
+   "end_s": 37.44,
+   "text": "Then I'd launch without Apple Pay. Card payments work fine, and we can add Apple Pay in the next release."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 38.03,
+   "end_s": 41.06,
+   "text": "I agree. Daniel, are you okay with that?"
+  },
+  {
+   "speaker": "Daniel",
+   "start_s": 41.57,
+   "end_s": 46.02,
+   "text": "Yes, that works for me. I'll hide the Apple Pay button for now."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 46.4,
+   "end_s": 51.85,
+   "text": "Great. So we ship on Thursday, with cards only. Priya, how is the design side looking?"
+  },
+  {
+   "speaker": "Priya",
+   "start_s": 52.42,
+   "end_s": 62.27,
+   "text": "Almost done. The only screen left is the empty cart. Right now it just says zero items, which feels a bit cold. I'll add a short line and a button back to the shop."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 62.64,
+   "end_s": 66.97,
+   "text": "Can you have that ready by Wednesday, so Daniel can still build it in?"
+  },
+  {
+   "speaker": "Priya",
+   "start_s": 67.51,
+   "end_s": 69.86,
+   "text": "Wednesday morning, yes."
+  },
+  {
+   "speaker": "Daniel",
+   "start_s": 70.24,
+   "end_s": 78.82,
+   "text": "One more thing. The delivery address field still drops the apartment number when you paste an address. I'll fix that tomorrow."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 79.21,
+   "end_s": 88.41,
+   "text": "Good catch. Customers would hate that. Okay, then on my side, I'll write to our twenty beta testers on Friday and ask how the new checkout feels."
+  },
+  {
+   "speaker": "Priya",
+   "start_s": 88.95,
+   "end_s": 94.07,
+   "text": "Could you ask them about the empty cart too? I'd love to know if the new line helps."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 94.8,
+   "end_s": 98.75,
+   "text": "Sure, I'll add that question. Anything else before we wrap up?"
+  },
+  {
+   "speaker": "Daniel",
+   "start_s": 99.15,
+   "end_s": 101.73,
+   "text": "No, I think that's everything."
+  },
+  {
+   "speaker": "Priya",
+   "start_s": 102.18,
+   "end_s": 103.68,
+   "text": "Same here."
+  },
+  {
+   "speaker": "Maya",
+   "start_s": 104.31,
+   "end_s": 119.54,
+   "text": "Perfect. So: launch on Thursday without Apple Pay. Daniel fixes the address field tomorrow and hides the button. Priya finishes the empty cart by Wednesday morning. And I email the beta testers on Friday. Thanks, everyone!"
+  }
+ ]
+}

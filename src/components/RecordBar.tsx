@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { listen } from "@tauri-apps/api/event";
 import { AlertTriangle, ChevronUp, FileUp, Mic, Monitor } from "lucide-react";
 import { commands } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
@@ -64,6 +65,7 @@ const Recording: React.FC = () => {
   const system = useMeetingStore((s) => s.system);
   const micHeardAt = useMeetingStore((s) => s.micHeardAt);
   const systemHeardAt = useMeetingStore((s) => s.systemHeardAt);
+  const systemDeadMs = useMeetingStore((s) => s.systemDeadMs);
   const record = recordingMeeting(meetings);
   const app = record?.source_app ?? null;
   const [now, setNow] = useState(Date.now());
@@ -72,10 +74,11 @@ const Recording: React.FC = () => {
     return () => window.clearInterval(timer);
   }, []);
   const startedAt = record ? Date.parse(record.started_at) : null;
-  // Only with a call app: in a room there is no call audio to miss.
+  // Only with a call app: in a room there is no call audio to miss. Only
+  // when the call track is exact zeros, never when the call is just quiet.
   const noSound =
     !!app &&
-    now - systemHeardAt > NO_SOUND_AFTER_MS &&
+    systemDeadMs > NO_SOUND_AFTER_MS &&
     now - micHeardAt < NO_SOUND_AFTER_MS;
 
   return (
@@ -146,12 +149,35 @@ export async function transcribeFileIntoDictations(failed: string) {
   }
 }
 
+/** How long the bar says "No speech, nothing saved." */
+const NO_SPEECH_SHOWN_MS = 20_000;
+
+/** A meeting without speech was just removed (`no_speech` in
+ * src-tauri/src/meeting/process.rs): true for a moment. */
+function useNoSpeech(): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = listen("meeting-no-speech", () => {
+      setShown(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setShown(false), NO_SPEECH_SHOWN_MS);
+    });
+    return () => {
+      clearTimeout(timer);
+      void off.then((fn) => fn());
+    };
+  }, []);
+  return shown;
+}
+
 const Idle: React.FC = () => {
   const { t } = useTranslation();
   const busy = useMeetingStore((s) => s.busy);
   const start = useMeetingStore((s) => s.start);
   const startWithScreen = useMeetingStore((s) => s.startWithScreen);
   const screenHint = useMeetingStore((s) => s.screenHint);
+  const noSpeech = useNoSpeech();
   const keys = useMeetingKeys();
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -164,7 +190,9 @@ const Idle: React.FC = () => {
     <div className="h-14 shrink-0 flex items-center gap-3 ps-5 pe-4 border-t border-line bg-background">
       <div className="shrink-0 whitespace-nowrap flex items-center gap-2 text-[13px] font-medium text-ink-2">
         <span className="size-2.5 rounded-full border-2 border-ink-3" />
-        {t("sokki.bar.idle")}
+        <span role="status">
+          {noSpeech ? t("sokki.bar.noSpeech") : t("sokki.bar.idle")}
+        </span>
       </div>
       {screenHint && (
         <div className="min-w-0 flex items-center gap-1.5 text-[12px] leading-tight text-warning">

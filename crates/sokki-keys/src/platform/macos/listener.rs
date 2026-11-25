@@ -298,6 +298,8 @@ unsafe extern "C-unwind" fn event_tap_callback(
 
         match event_type {
             CGEventType::KeyDown => {
+                // "Keep what I write": a count only, never the key.
+                crate::key_count::note_key_down();
                 let keycode = CGEvent::integer_value_field(
                     Some(cg_event),
                     CGEventField::KeyboardEventKeycode,

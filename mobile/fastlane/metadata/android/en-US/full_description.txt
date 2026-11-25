@@ -1,0 +1,20 @@
+Every word. Yours.
+
+Sokki turns speech into text on your phone. No account. No cloud.
+
+<b>Dictation</b>
+Speak, and the words appear while you talk. Copy them anywhere. Offline after a one-time 750 MB download. 28 languages.
+
+<b>Keyboard</b>
+The Sokki keyboard dictates into any app: tap the mic, speak, tap again. Autocorrect fixes typos only. German and English side by side, no switching.
+
+<b>Meetings</b>
+Record a meeting on your phone, or with one tap from Quick Settings. Sokki on your Mac turns it into a note with speakers, summary, tasks and transcript, and sends it back. Phone and Mac connect directly, encrypted end to end. Needs Sokki for Mac, free at sokki.org.
+
+<b>Private</b>
+Recordings and text stay on your phone or go to your own Mac. Sokki collects nothing.
+Microphone: to hear you. Camera: only to scan your Mac's pairing code.
+
+<b>Free</b>
+Open source, GPL-3.0: github.com/feynnon/sokki
+The app speaks English for now.

@@ -175,6 +175,7 @@ pub fn start(app: &AppHandle, source_app: Option<String>) -> Result<String, Stri
         }
     };
 
+    crate::usage::count(app, crate::usage::Count::MeetingWithScreen);
     let meeting_id = match crate::meeting::start_meeting(app, source_app) {
         Ok(id) => id,
         Err(e) => {
@@ -413,10 +414,11 @@ pub fn resume(app: &AppHandle) {
                 let folder = Path::new(&meta.folder);
                 if meta.screen.is_none() && folder.join(SCREEN_FILE).exists() {
                     // The writer notes its first frame's time next to the file.
-                    let first_us = std::fs::read_to_string(folder.join(format!("{SCREEN_FILE}.first_us")))
-                        .ok()
-                        .and_then(|t| t.trim().parse().ok())
-                        .unwrap_or(0);
+                    let first_us =
+                        std::fs::read_to_string(folder.join(format!("{SCREEN_FILE}.first_us")))
+                            .ok()
+                            .and_then(|t| t.trim().parse().ok())
+                            .unwrap_or(0);
                     meta.screen = Some(VideoTrack {
                         file: SCREEN_FILE.into(),
                         first_us,

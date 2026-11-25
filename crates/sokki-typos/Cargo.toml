@@ -1,0 +1,22 @@
+[package]
+name = "sokki-typos"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Sokki's typo fixer: the phone keyboard's autocorrect, for the Mac"
+publish = false
+
+[features]
+# the command-line tool: measurements on journal files
+cli = ["dep:serde_json"]
+
+[dependencies]
+serde_json = { version = "1", optional = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "sokki-typos"
+path = "src/bin/sokki-typos.rs"
+required-features = ["cli"]

@@ -135,12 +135,14 @@
 //! (e.g. Flatpak) cannot use this backend.
 
 mod error;
+mod key_count;
 mod listener;
 mod manager;
 mod platform;
 mod types;
 
 pub use error::{Error, Result};
+pub use key_count::key_downs;
 pub use listener::{BlockingHotkeys, KeyboardListener};
 pub use manager::HotkeyManager;
 pub use types::{Hotkey, HotkeyEvent, HotkeyId, HotkeyState, Key, KeyEvent, Modifiers};

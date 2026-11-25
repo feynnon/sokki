@@ -5,7 +5,10 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         build_system_audio_bridge();
         build_video_bridge();
+        build_calendar_bridge();
     }
+
+    google_oauth_client();
 
     generate_tray_translations();
 
@@ -789,4 +792,117 @@ fn build_video_bridge() {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
     println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");
+}
+
+/// Compiles `swift/calendar.swift` (the Mac calendar through EventKit, for
+/// mailing a meeting's notes to its attendees) into a static library and
+/// links it.
+fn build_calendar_bridge() {
+    use std::env;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    const SWIFT_FILE: &str = "swift/calendar.swift";
+    const BRIDGE_HEADER: &str = "swift/calendar.h";
+    println!("cargo:rerun-if-changed={SWIFT_FILE}");
+    println!("cargo:rerun-if-changed={BRIDGE_HEADER}");
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
+    let object_path = out_dir.join("sokki_calendar.o");
+    let static_lib_path = out_dir.join("libsokki_calendar.a");
+    let xcrun = |args: &[&str], what: &str| {
+        String::from_utf8(
+            Command::new("xcrun")
+                .args(args)
+                .output()
+                .unwrap_or_else(|_| panic!("Failed to locate {what}"))
+                .stdout,
+        )
+        .expect("xcrun output is not valid UTF-8")
+        .trim()
+        .to_string()
+    };
+    let sdk_path = env::var("SDKROOT")
+        .unwrap_or_else(|_| xcrun(&["--sdk", "macosx", "--show-sdk-path"], "macOS SDK"));
+    let swiftc_path = env::var("SWIFTC").unwrap_or_else(|_| xcrun(&["--find", "swiftc"], "swiftc"));
+    let swift_arch = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+        Ok("aarch64") => "arm64",
+        Ok("x86_64") => "x86_64",
+        other => panic!("Unsupported macOS architecture for calendar bridge: {other:?}"),
+    };
+    let target = format!("{swift_arch}-apple-macosx12.0");
+    let status = Command::new(&swiftc_path)
+        .args([
+            "-parse-as-library",
+            "-target",
+            &target,
+            "-sdk",
+            &sdk_path,
+            "-O",
+            "-import-objc-header",
+            BRIDGE_HEADER,
+            "-c",
+            SWIFT_FILE,
+            "-o",
+            object_path.to_str().expect("object path"),
+        ])
+        .status()
+        .expect("Failed to invoke swiftc for calendar bridge");
+    if !status.success() {
+        panic!("swiftc failed to compile {SWIFT_FILE}");
+    }
+    let status = Command::new("libtool")
+        .args([
+            "-static",
+            "-o",
+            static_lib_path.to_str().expect("lib path"),
+            object_path.to_str().expect("object path"),
+        ])
+        .status()
+        .expect("Failed to create static library for calendar bridge");
+    if !status.success() {
+        panic!("libtool failed for calendar bridge");
+    }
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        Path::new(&sdk_path).join("usr/lib/swift").display()
+    );
+    println!("cargo:rustc-link-search=native=/usr/lib/swift");
+    println!("cargo:rustc-link-lib=static=sokki_calendar");
+    println!("cargo:rustc-link-lib=framework=EventKit");
+}
+
+/// Sokki's Google OAuth client for sending notes through Gmail
+/// (`meeting/gmail_account.rs`), built in as `SOKKI_GOOGLE_CLIENT_ID` and
+/// `SOKKI_GOOGLE_CLIENT_SECRET`. Taken from the environment, else from
+/// `~/.config/sokki/google-oauth.env` (project sokki-515722, card
+/// privacy-google), so a release built on the Mac that holds it has Gmail.
+/// Without either, the build has no Gmail option. Google: a desktop app's
+/// client secret can't be kept secret and isn't treated as one.
+fn google_oauth_client() {
+    use std::env;
+    const KEYS: [&str; 2] = ["SOKKI_GOOGLE_CLIENT_ID", "SOKKI_GOOGLE_CLIENT_SECRET"];
+    for k in KEYS {
+        println!("cargo:rerun-if-env-changed={k}");
+    }
+    if env::var("SOKKI_GOOGLE_CLIENT_ID").is_ok_and(|v| !v.is_empty()) {
+        return;
+    }
+    let Some(home) = env::var_os("HOME") else {
+        return;
+    };
+    let file = std::path::Path::new(&home).join(".config/sokki/google-oauth.env");
+    println!("cargo:rerun-if-changed={}", file.display());
+    let Ok(text) = std::fs::read_to_string(&file) else {
+        return;
+    };
+    for line in text.lines() {
+        if let Some((k, v)) = line.split_once('=') {
+            let (k, v) = (k.trim(), v.trim().trim_matches('"'));
+            if KEYS.contains(&k) && !v.is_empty() {
+                println!("cargo:rustc-env={k}={v}");
+            }
+        }
+    }
 }

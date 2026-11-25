@@ -19,12 +19,13 @@
 //!
 //! ## Zusammenfassung / ## Entscheidungen / ## Aufgaben / ## Transkript
 //!
-//! Transkribiert auf meinem Mac mit sokki.org
+//! Von KI zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und Meeting-Notetaker: sokki.org
 //! ```
 //!
 //! Headings follow the summary's language, else the spoken language, else German. Empty sections are
-//! left out. The footer is the note's last line; [`split_note`] puts it at the
-//! end of the summary too, so a shared summary carries it.
+//! left out. The Sokki line (the "footer") is the note's last line; [`split_note`] puts it at the
+//! end of the summary too, so a copied or shared summary carries it. It is
+//! also the summary's AI label, so a note without a summary has none.
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -42,10 +43,21 @@ struct Labels {
     transcript: &'static str,
     no_summary: &'static str,
     no_speech: &'static str,
-    /// Footer on a Mac, and on any other computer.
+    /// The Sokki line under a summary made on this computer; and under one
+    /// a cloud model made, which is neither local nor free. The same on
+    /// every computer: it names no platform.
     footer: &'static str,
-    footer_pc: &'static str,
+    footer_cloud: &'static str,
 }
+
+/// Footers of notes written before the Sokki line (until 0.2.11). Still
+/// recognised, so older notes split and share as before.
+const OLD_FOOTERS: [&str; 4] = [
+    "Transkribiert auf meinem Mac mit sokki.org",
+    "Transkribiert auf meinem Computer mit sokki.org",
+    "Transcribed on my Mac with sokki.org",
+    "Transcribed on my computer with sokki.org",
+];
 
 const DE: Labels = Labels {
     summary: "Zusammenfassung",
@@ -54,8 +66,8 @@ const DE: Labels = Labels {
     transcript: "Transkript",
     no_summary: "_Keine Zusammenfassung erstellt._",
     no_speech: "_Keine Sprache erkannt._",
-    footer: "Transkribiert auf meinem Mac mit sokki.org",
-    footer_pc: "Transkribiert auf meinem Computer mit sokki.org",
+    footer: "Von KI zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und Meeting-Notetaker: sokki.org",
+    footer_cloud: "Von KI zusammengefasst. Open Source. Diktier-App und Meeting-Notetaker: sokki.org",
 };
 
 const EN: Labels = Labels {
@@ -65,8 +77,8 @@ const EN: Labels = Labels {
     transcript: "Transcript",
     no_summary: "_No summary was created._",
     no_speech: "_No speech detected._",
-    footer: "Transcribed on my Mac with sokki.org",
-    footer_pc: "Transcribed on my computer with sokki.org",
+    footer: "Summarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org",
+    footer_cloud: "Summarized by AI. Open source. Dictation app and meeting notetaker: sokki.org",
 };
 
 /// Language of the note's headings: the summary's language, German by
@@ -186,8 +198,13 @@ fn yaml_scalar(v: &str) -> String {
 /// What goes into a note besides the meeting itself.
 #[derive(Debug, Clone, Copy)]
 pub struct NoteOptions {
-    /// End with "Transcribed on my Mac with sokki.org".
+    /// End with the Sokki line ("Summarized by AI. Local, free, open
+    /// source. Dictation app and meeting notetaker: sokki.org"), when there
+    /// is a summary.
     pub footer: bool,
+    /// The summary came from a cloud model: the line then doesn't say
+    /// "local, free".
+    pub cloud_summary: bool,
     /// The person's own language, for the headings of a note with no words
     /// to go by (nothing was said). None: German.
     pub language: Option<Language>,
@@ -197,6 +214,7 @@ impl Default for NoteOptions {
     fn default() -> Self {
         Self {
             footer: true,
+            cloud_summary: false,
             language: None,
         }
     }
@@ -257,21 +275,54 @@ pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
 
     out.push_str(&format!("## {}\n\n", l.transcript));
     out.push_str(&render_transcript(&note.transcript, l));
-    if opts.footer {
-        let footer = if cfg!(target_os = "macos") {
-            l.footer
-        } else {
-            l.footer_pc
-        };
-        out.push_str(&format!("\n{footer}\n"));
+    if opts.footer && has_summary(note.summary.as_ref()) {
+        out.push_str(&format!("\n{}\n", footer_line(l, opts)));
     }
     out
 }
 
-/// Whether a line is the note footer, in any language.
+/// The Sokki line in `language`, for where the summary was made. The one source of the text for every place a summary goes:
+/// the note, and mails and chat posts (board cards `teilnehmer-mail`,
+/// `slack-huddle`). Whether it goes there: `sokki_engine::Settings`.
+pub fn sokki_line(language: Language, cloud_summary: bool) -> &'static str {
+    let l = match language {
+        Language::German => &DE,
+        Language::English => &EN,
+    };
+    footer_line(
+        l,
+        &NoteOptions {
+            cloud_summary,
+            ..Default::default()
+        },
+    )
+}
+
+/// The Sokki line for where the summary was made.
+fn footer_line(l: &Labels, opts: &NoteOptions) -> &'static str {
+    if opts.cloud_summary {
+        l.footer_cloud
+    } else {
+        l.footer
+    }
+}
+
+/// Whether there is a summary to put the Sokki line under.
+fn has_summary(summary: Option<&MeetingSummary>) -> bool {
+    summary.is_some_and(|s| {
+        !s.summary.trim().is_empty()
+            || s.decisions.iter().any(|d| !d.trim().is_empty())
+            || s.action_items.iter().any(|a| !a.text.trim().is_empty())
+    })
+}
+
+/// Whether a line is the note footer, in any language, old ones included.
 pub(crate) fn is_footer(line: &str) -> bool {
     let t = line.trim();
-    [DE, EN].iter().any(|l| t == l.footer || t == l.footer_pc)
+    OLD_FOOTERS.contains(&t)
+        || [DE, EN]
+            .iter()
+            .any(|l| l.footer == t || l.footer_cloud == t)
 }
 
 fn one_line(s: &str) -> String {
@@ -417,6 +468,17 @@ pub fn split_note(md: &str) -> NoteParts {
     }
 }
 
+/// A note written for a meeting where nobody spoke: its transcript is only
+/// "_Keine Sprache erkannt._" / "_No speech detected._". Sokki stopped
+/// writing these on 2026-11-25; the app moves old ones to the Trash.
+pub fn is_no_speech_note(md: &str) -> bool {
+    let said_so = split_note(md)
+        .transcript
+        .lines()
+        .any(|l| l.trim() == DE.no_speech || l.trim() == EN.no_speech);
+    said_so && transcript_from_note(md).segments.is_empty()
+}
+
 /// The transcript of a written note, read back from its lines
 /// ("**[00:03] Speaker 2:** Hi."), to summarize the note later. Each
 /// segment ends where the next begins; the track is not in the note, so
@@ -456,11 +518,12 @@ pub fn transcript_from_note(md: &str) -> Transcript {
 }
 
 /// Puts `summary` into a note that was written without one: the "no
-/// summary" line becomes the summary sections, and the title heading the
-/// summary's title. Everything else, including the user's edits, stays.
-/// `None` when the note has no "no summary" line (summarized already, or
-/// edited there).
-pub fn add_summary(md: &str, summary: &MeetingSummary) -> Option<String> {
+/// summary" line becomes the summary sections, the title heading the
+/// summary's title, and the note now ends with the Sokki line (`opts`; an
+/// older footer gives way to it). Everything else, including the user's
+/// edits, stays. `None` when the note has no "no summary" line (summarized
+/// already, or edited there).
+pub fn add_summary(md: &str, summary: &MeetingSummary, opts: &NoteOptions) -> Option<String> {
     let l = [&DE, &EN]
         .into_iter()
         .find(|l| md.lines().any(|line| line.trim() == l.no_summary))?;
@@ -472,7 +535,9 @@ pub fn add_summary(md: &str, summary: &MeetingSummary) -> Option<String> {
     let (mut placed, mut titled) = (false, title.is_empty());
     for line in md.split_inclusive('\n') {
         let eol = if line.ends_with('\n') { "\n" } else { "" };
-        if !placed && line.trim() == l.no_summary {
+        if is_footer(line) {
+            continue;
+        } else if !placed && line.trim() == l.no_summary {
             placed = true;
             out.push_str(rendered);
             out.push_str(eol);
@@ -482,6 +547,10 @@ pub fn add_summary(md: &str, summary: &MeetingSummary) -> Option<String> {
         } else {
             out.push_str(line);
         }
+    }
+    let mut out = format!("{}\n", out.trim_end());
+    if opts.footer && has_summary(Some(summary)) {
+        out.push_str(&format!("\n{}\n", footer_line(l, opts)));
     }
     Some(out)
 }
@@ -595,6 +664,24 @@ pub fn write_note(dir: &Path, note: &MeetingNote, opts: &NoteOptions) -> Result<
 mod tests {
     use super::*;
     use crate::{ActionItem, MeetingMeta, Segment, TrackKind};
+
+    #[test]
+    fn a_no_speech_note_is_known_by_its_transcript() {
+        let empty = "---\ntype: meeting\n---\n\n# Meeting 2026-11-24 14:43\n\n\
+            _Keine Zusammenfassung erstellt._\n\n## Transkript\n\n_Keine Sprache erkannt._\n\n\
+            Transkribiert auf meinem Mac mit sokki.org\n";
+        assert!(is_no_speech_note(empty));
+        let en = empty
+            .replace("## Transkript", "## Transcript")
+            .replace("_Keine Sprache erkannt._", "_No speech detected._");
+        assert!(is_no_speech_note(&en));
+        let spoken = empty.replace("_Keine Sprache erkannt._", "**[00:03] Anna:** Hallo.");
+        assert!(!is_no_speech_note(&spoken));
+        // The words in the summary are not the transcript.
+        let mentioned = "# Notes\n\n## Zusammenfassung\n\n_Keine Sprache erkannt._\n\n\
+            ## Transkript\n\n**[00:03] Anna:** Hallo.\n";
+        assert!(!is_no_speech_note(mentioned));
+    }
 
     fn seg(t: f64, sp: &str, text: &str) -> Segment {
         Segment {
@@ -717,16 +804,17 @@ mod tests {
 
     #[test]
     fn a_summary_added_later_matches_one_written_at_once() {
-        let later = add_summary(&render_markdown(&note(None)), &german_summary()).unwrap();
+        let opts = NoteOptions::default();
+        let later = add_summary(&render_markdown(&note(None)), &german_summary(), &opts).unwrap();
         assert_eq!(later, render_markdown(&note(Some(german_summary()))));
         // Summarized already: nothing to add.
-        assert_eq!(add_summary(&later, &german_summary()), None);
+        assert_eq!(add_summary(&later, &german_summary(), &opts), None);
     }
 
     #[test]
     fn adding_a_summary_keeps_the_users_edits() {
         let md = render_markdown(&note(None)).replace("Gut.", "Gut, danke.");
-        let later = add_summary(&md, &german_summary()).unwrap();
+        let later = add_summary(&md, &german_summary(), &NoteOptions::default()).unwrap();
         assert!(later.contains("**[01:05] Ich:** Gut, danke.\n"));
         assert!(later.contains("# Größe der Kampagne\n"));
     }
@@ -835,36 +923,57 @@ mod tests {
             summary: "We move the launch.".into(),
             ..Default::default()
         }));
+        let line = "Summarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org";
+        let md = render_note(&n, &NoteOptions::default());
+        // The very last line.
+        assert!(md.ends_with(&format!("\n\n{line}\n")));
+        let p = split_note(&md);
+        assert!(p.summary.ends_with(&format!("We move the launch.\n\n{line}")));
+        assert!(!p.transcript.contains("sokki.org"));
+
+        // A cloud model made the summary: not "local, free".
         let md = render_note(
             &n,
             &NoteOptions {
-                footer: true,
-                language: None,
+                cloud_summary: true,
+                ..Default::default()
             },
         );
-        // The very last line.
-        assert!(md.ends_with("\n\nTranscribed on my Mac with sokki.org\n"));
-        let p = split_note(&md);
-        assert!(p
-            .summary
-            .ends_with("We move the launch.\n\nTranscribed on my Mac with sokki.org"));
-        assert!(!p.transcript.contains("sokki.org"));
+        assert!(md.ends_with("\n\nSummarized by AI. Open source. Dictation app and meeting notetaker: sokki.org\n"));
+        assert!(split_note(&md).summary.ends_with("meeting notetaker: sokki.org"));
 
         // Off: no footer anywhere.
         let md = render_note(
             &n,
             &NoteOptions {
                 footer: false,
-                language: None,
+                ..Default::default()
             },
         );
         assert!(!md.contains("sokki.org"));
 
-        // No summary: the file still ends with the footer, the summary
-        // part is only the "no summary" line.
+        // No summary: nothing was summarised, so no line at all.
         let md = render_markdown(&note(None));
-        assert!(md.ends_with("\nTranskribiert auf meinem Mac mit sokki.org\n"));
+        assert!(!md.contains("sokki.org"));
         assert_eq!(split_note(&md).summary, "_Keine Zusammenfassung erstellt._");
+    }
+
+    #[test]
+    fn the_line_for_mails_is_the_notes_line() {
+        let md = render_note(
+            &note(Some(german_summary())),
+            &NoteOptions::default(),
+        );
+        assert!(md.ends_with(&format!("\n{}\n", sokki_line(Language::German, false))));
+        assert!(sokki_line(Language::English, true).starts_with("Summarized by AI. "));
+    }
+
+    #[test]
+    fn old_footers_still_split_off() {
+        let md = "---\ntype: meeting\n---\n\n# T\n\n## Summary\n\nDone.\n\n## Transcript\n\n**[00:01] Ich:** Hi.\n\nTranscribed on my Mac with sokki.org\n";
+        let p = split_note(md);
+        assert_eq!(p.summary, "## Summary\n\nDone.\n\nTranscribed on my Mac with sokki.org");
+        assert_eq!(p.transcript, "[00:01] Ich: Hi.");
     }
 }
 

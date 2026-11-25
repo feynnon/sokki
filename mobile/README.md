@@ -70,20 +70,88 @@ HeliBoard are marked "Sokki" in the code:
 
 - The mic is pinned at the top right of the suggestion strip. Tapping it
   starts `dev.verbatim.sokki.SokkiVoice`: microphone → Rust
-  (`src-tauri/src/keyboard_voice.rs`, same engine and cutting as the
-  Dictate tab) → text typed into the open field piece by piece. Tap again
-  to stop; the mic is red while listening.
+  (`src-tauri/src/keyboard_voice.rs`) → the streaming model (Nemotron
+  Streaming 3.5, as on the Mac with a streaming model) → words typed into
+  the open field about every half second, the word still being heard
+  underlined. Tap again to stop; the mic is red while listening. Numbers:
+  `asr-bench/README.md`, "Streaming".
+- Typing is plain, like Gboard without its extras (defaults in
+  `latin/settings/Defaults.kt`): no word suggestions (the strip holds only
+  the mic and the dictation status), no double-space period, no symbol
+  hints on letters. Auto-capitalisation stays on.
+- Autocorrect fixes typos only (`dev.verbatim.sokki.Typos`) and puts in German
+  capitals (die liste -> Liste, den link -> Link; not in English sentences, not
+  after ich/du/sie: "ich krieg"). Common German and English words ("geil"
+  included), compounds, Denglish and your own words are never changed. Any other word is compared with every word one slip away
+  (a letter extra, missing or changed, two letters swapped) on one score:
+  how well the word fits after the previous word, plus how likely that slip
+  is. It is replaced only when one word clearly wins. On the real keyboard
+  this fixes about 30% of typos with 0.6% of them wrong, and no correct word
+  changed. Backspace right after a fix undoes it, and that word is kept from
+  then on. Score, numbers and a replay tool: `tools/typo_model.py`;
+  experiments: `tools/score_context.py`, `tools/bench_device.py`.
+- German first whenever the phone has German among its languages, always
+  with English alongside (and English with German): no switching for mixed
+  German/English text. Plain QWERTZ (10/9/7 keys, no umlaut keys: wider
+  keys, fewer slips); ä/ö/ü and ß come first on long-press a/o/u/s, and a
+  missed long-press is fixed by autocorrect (konnen -> können).
+- Colours: themes "Sokki" and "Sokki dark" (`KeyboardTheme.kt`), Sokki's
+  greys with its blue for enter; rounded key tiles.
+- Holding delete speeds up: letters (after 1 s two at a time), then from
+  about 2.5 s one whole word per beat, in the same rhythm as the letters.
+- Smart key edges (off by default, `dev.verbatim.sokki.KeyTargeting`): a
+  tap near a letter key's edge counts for the likelier neighbour given the
+  two letters before (iPhone-style; the middle of a key always gives that
+  key). Letter tables: `keyboard/tools/gen_letter_tables.py`.
+- Typing test (keyboard settings › Typing test; release builds show it only
+  with debug settings on: About, tap the version): 40 German sentences;
+  records only the taps in its own field to
+  `files/typing_test/*.jsonl`. `keyboard/tools/typing_eval.py replay`
+  shows the typing pattern and geometry vs. smart edges on those taps;
+  `sim` runs synthetic taps.
+- Tap recording in all apps (off by default; switch in the typing test):
+  `files/typing_log/taps-<date>.jsonl`, never in password or incognito
+  fields. `typing_eval.py daily` counts misses (a letter deleted at once and
+  retyped as a neighbour), smart-edge decisions deleted at once, and what
+  smart edges would fix or break on those taps.
+- Journal of everything written, the developer page "Keep what I write"
+  (app, Dictate tab, bottom link; off by default): `files/typing_log/journal-<date>.jsonl`,
+  one entry per message or edit (the field's text just before it was emptied
+  or left, with app, time and any text it already held). Typing, dictation
+  and pasting alike; a dictation adds `dictated: [{at, raw}]`, what the speech
+  engine wrote, so raw transcript and sent text sit side by side. Never
+  password, number/PIN or incognito fields. On while `typing_log/journal_on`
+  exists. The page lists the days, shows each entry, sends the days to the
+  paired Mac (link request `journal`; Mac: `<app data>/typing_log/phone/`) and
+  deletes them. Test without a Mac: `cargo run --example journal_mac -- <dir>`
+  in `crates/sokki-link` prints a pairing link for the emulator.
+- Missing space after punctuation: a word typed right after "." "," "!" "?"
+  ":" ";" gets its space when it ends ("done.we " -> "done. We ";
+  `dev/verbatim/sokki/Spacing.kt`, tests in `keyboard/src/test`, run with
+  `./gradlew :keyboard:testDebugUnitTest` in `src-tauri/gen/android`). Links,
+  files, numbers and one-letter abbreviations ("z.B.") stay joined. After a
+  dictation, the next typed word gets a space too.
+- Typing logs and the journal are left out of Android backups and device
+  transfers (`res/xml/sokki_*_rules.xml`).
 - Setup in the app (Dictate tab): two buttons open Android's keyboard list
   and picker; a third asks for the microphone if needed.
 - Debug builds: `Android/data/org.sokki.app/files/sokki_test.wav`
   (16 kHz mono) is "spoken" instead of the microphone, for tests on the
   emulator.
+- The keyboard's file providers (clipboard history, gesture data) are
+  named after the app ID (`org.sokki.app.clipprovider`,
+  `org.sokki.app.gesturedata`), not HeliBoard's fixed names, so Sokki
+  installs next to HeliBoard (KNOWN_ISSUES X12).
 
 ## License
 
 GPL-3.0 ([LICENSE](LICENSE)): the keyboard is built on
 [HeliBoard](https://github.com/HeliBorg/HeliBoard) (GPL-3.0), so the Android
-app as a whole is GPL-3.0. Sokki's own files here are GPL-3.0 too. The shared
+app as a whole is GPL-3.0. Sokki's own files here are GPL-3.0 too. The keyboard's letter tables and word table (`assets/sokki/letters_*.bin`, `words.bin`) are derived
+from [wordfreq](https://github.com/rspeer/wordfreq) word frequencies (CC-BY-SA 4.0). The word-pair
+table (`assets/sokki/bigrams.bin`) is derived from sentences of the German and English
+[Wikipedia dumps](https://dumps.wikimedia.org/) (CC BY-SA 4.0) and
+[Tatoeba](https://tatoeba.org) sentences (CC BY 2.0 FR). The shared
 crates in `../crates/` stay MIT.
 
 ## Build and test (no hands needed)

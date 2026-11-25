@@ -67,7 +67,8 @@
       },
       "accessibility": {
         "name": "Bedienungshilfen",
-        "why": "Damit dein Tastenkürzel in jeder App funktioniert und Sokki den Text dort eintippen kann, wo dein Cursor steht."
+        "why": "Damit dein Tastenkürzel in jeder App funktioniert und Sokki den Text dort eintippen kann, wo dein Cursor steht.",
+        "stale": "macOS hat noch ein älteres Sokki in der Liste. Wähle in den Systemeinstellungen Sokki aus, entferne es mit –, füge Sokki mit + wieder hinzu und komm dann hierher zurück."
       },
       "errors": {
         "checkFailed": "Berechtigungsprüfung fehlgeschlagen. Bitte erneut versuchen.",
@@ -105,6 +106,23 @@
         "name": "Bildschirm",
         "why": "Um deinen Bildschirm mit einem Meeting aufzunehmen, wenn du willst.",
         "reopen": "Nach „Bildschirm“ öffnet macOS Sokki neu. Du landest wieder hier."
+      },
+      "optional": "Optional",
+      "gmail": {
+        "name": "Gmail",
+        "why": "Sagt allen vor der Aufnahme Bescheid und schickt die Notizen.",
+        "connect": "Verbinden",
+        "connectGmail": "Gmail verbinden",
+        "connected": "Verbunden",
+        "inBrowser": "Schließ es im Browser ab. Google meldet vielleicht, dass Sokki noch nicht geprüft ist.",
+        "without": "Ohne weiter",
+        "notice": "Sokki bittet Google, in deinem Namen Mails zu senden, deine Adresse zu sehen und Absender und Betreff deiner Mails zu sehen, damit es merkt, wenn ein Gast auf die Ankündigung antwortet. Sokki schaut nur auf Antworten auf seine eigenen Ankündigungen und kann nicht lesen, was in einer Mail steht. Alles geht direkt von diesem Mac zu Gmail.",
+        "noticeSend": "Sokki bittet Google, in deinem Namen Mails zu senden und deine Adresse zu sehen. Sokki kann deine Mails nicht lesen. Die Notizen gehen von diesem Mac direkt an Gmail."
+      },
+      "consent": {
+        "title": "Aufnehmen nur mit Einverständnis",
+        "law": "In Deutschland darfst du niemanden ohne Einverständnis aufnehmen (§ 201 StGB).",
+        "body": "Mit Gmail sagt Sokki allen vorher Bescheid und hört auf, wenn jemand widerspricht. Ohne Gmail sagst du selbst Bescheid."
       }
     },
     "shell": {
@@ -244,6 +262,30 @@
       "asksFor": "Fragt nach",
       "later": "Was du auslässt, fragt beim ersten Benutzen.",
       "pickOne": "Wähle mindestens eins aus, um fortzufahren"
+    },
+    "summary": {
+      "title": "Notizen für deine Meetings",
+      "subtitle": "Nach jedem Meeting schreibt ein Sprachmodell Zusammenfassung, Entscheidungen und Aufgaben.",
+      "local": "Läuft auf diesem Mac. Deine Meetings verlassen ihn nie.",
+      "memoryLabel": "Arbeitsspeicher",
+      "memory": "Braucht etwa {{needs}}. Dein Mac hat {{has}}.",
+      "memoryUnknown": "Braucht etwa {{needs}}.",
+      "noBuiltin": "Dieser Mac kann das eingebaute Modell nicht ausführen.",
+      "notesLabel": "Notizen",
+      "notesWhen": "Etwa 3 Minuten nach dem Auflegen",
+      "downloading": "{{percent}} % · {{done}} von {{total}}",
+      "background": "Lädt im Hintergrund",
+      "ready": "Auf diesem Mac",
+      "othersSmall": "Bei {{has}} bleibt dann zu wenig für macOS und deine Apps. Das geht stattdessen:",
+      "othersNone": "Das geht stattdessen:",
+      "ollama": "Ollama",
+      "ollamaLine": "Ein kleineres Modell deiner Wahl, auf diesem Mac",
+      "ownKey": "Eigener Schlüssel",
+      "ownKeyLine": "Claude oder GPT. Das Transkript geht an diesen Anbieter.",
+      "where": "Wähle später unter Modelle → Sprachmodell.",
+      "notNow": "Nicht jetzt",
+      "downloadAnyway": "Trotzdem laden",
+      "retry": "Erneut versuchen"
     }
   },
   "modelTable": {
@@ -1066,8 +1108,16 @@
       "dictionaryDescription": "Namen und Wörter, die die Zusammenfassung richtig schreiben soll, durch Kommas getrennt: Kunden, Kollegen, Produkte.",
       "detection": "Meetings erkennen",
       "detectionDescription": "Bietet eine Aufnahme an, wenn ein Call startet.",
-      "footer": "Fußzeile",
-      "footerDescription": "„Transkribiert auf meinem Mac mit sokki.org“",
+      "chatNotice": "Hinweis im Meeting-Chat",
+      "chatNoticeDescription": "Wenn Sokki einen Call aufnimmt, schreibt es einmal eine Zeile in den Chat, von deinem Konto. Schreibt jemand „stopp“, hört Sokki auf und löscht die Aufnahme.",
+      "footer": "Sokki-Zeile",
+      "footerDescription": "Steht unter jeder Zusammenfassung:",
+      "footerSupporters": "Ab 20 € Unterstützung kannst du sie ausschalten.",
+      "supporterEnter": "Code eingeben",
+      "supporterCodeInvalid": "Dieser Code passt nicht. Kopiere ihn ganz, ab „sokki-“.",
+      "supporterThanks": "Danke für deine Unterstützung.",
+      "supporterCode": "Unterstützer-Code",
+      "supporterLink": "Sokki unterstützen",
       "keepAudio": "Aufnahmen behalten",
       "keepAudioDescription": "Das Audio bleibt, damit ein Meeting neu verarbeitet werden kann.",
       "keepAudioNone": "Löschen, sobald die Notiz steht",
@@ -1169,9 +1219,9 @@
     },
     "group": {
       "today": "Heute",
+      "todayOn": "Heute, {{date}}",
       "yesterday": "Gestern",
-      "thisWeek": "Diese Woche",
-      "earlier": "Älter",
+      "yesterdayOn": "Gestern, {{date}}",
       "more": "Mehr",
       "show": "Im Finder zeigen",
       "liveHint": "Text erscheint mit bis zu 25 Sekunden Verzögerung."
@@ -1191,7 +1241,53 @@
       "only_other": "{{count}} weitere Personen"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notesWhen": "Deine Notizen kommen etwa 3 Minuten nach dem Auflegen.",
+    "sample": {
+      "tag": "Beispiel",
+      "place": "Beispiel",
+      "title": "Beispiel-Meeting",
+      "cardTitle": "Heute kein Meeting? Hör dir ein Beispiel an.",
+      "body": "Ein zweiminütiger Call zwischen drei erfundenen Leuten, auf Englisch. Sokki spielt ihn laut ab und schreibt mit, als wärst du dabei: was gesagt wurde, wer es gesagt hat, und eine Zusammenfassung.",
+      "play": "Beispiel-Meeting abspielen",
+      "length": "2 Min. · wird laut abgespielt",
+      "waiting": "Bereit, sobald das Modell für Zusammenfassungen da ist · {{percent}} % von {{total}}",
+      "needsModel": "Das Beispiel braucht ein Modell für Zusammenfassungen.",
+      "setUp": "Einrichten",
+      "playing": "Beispiel-Call · {{at}} von {{length}}",
+      "stop": "Beispiel beenden",
+      "live": "Sokki schreibt beim Zuhören mit. Wer was gesagt hat und die Zusammenfassung folgen, wenn der Call endet.",
+      "listening": "Hört zu …",
+      "soon": "Die Notizen zum Beispiel kommen in etwa 2 Minuten."
+    },
+    "mail": {
+      "title": "Notizen per Mail",
+      "auto": "Nach jedem Meeting an alle senden",
+      "noCalendar": "Sokki darf deinen Kalender nicht lesen: Systemeinstellungen › Datenschutz › Kalender.",
+      "objections": "Keine Mails an",
+      "remove": "Entfernen",
+      "addPlaceholder": "name@firma.de",
+      "add": "+ Adresse",
+      "send": "An alle senden",
+      "sending": "Wird gesendet …",
+      "sent": "An {{count}} gesendet",
+      "sentTo": "Gesendet an {{names}}",
+      "sendHint": "Zusammenfassung, Entscheidungen und Aufgaben an {{names}}, aus deinem Postfach.",
+      "problem": {
+        "no_summary": "Noch keine Zusammenfassung.",
+        "calendar_not_asked": "Beim ersten Senden fragt Sokki nach deinem Kalender.",
+        "calendar_denied": "Sokki darf den Kalender nicht lesen. Erlaube es unter Systemeinstellungen › Datenschutz & Sicherheit › Kalender.",
+        "no_event": "Kein Kalendertermin zu diesem Meeting.",
+        "no_recipients": "Im Termin steht niemand außer dir."
+      },
+      "gmail": "Gmail",
+      "gmailNotice": "Sokki bittet Google, in deinem Namen Mails zu senden, deine Adresse zu sehen und Absender und Betreff deiner Mails zu sehen, damit es merkt, wenn ein Gast auf die Ankündigung antwortet. Sokki schaut nur auf Antworten auf seine eigenen Ankündigungen und kann nicht lesen, was in einer Mail steht. Alles geht direkt von diesem Mac zu Gmail.",
+      "gmailConnect": "Verbinden",
+      "gmailWaiting": "Warte auf Google …",
+      "gmailDisconnect": "Trennen",
+      "gmailContinue": "Weiter zu Google",
+      "cancel": "Abbrechen"
+    }
   },
   "sokki": {
     "nav": {
@@ -1222,6 +1318,14 @@
       "meetings": "Meetings",
       "startDictation": "Diktat starten",
       "discardDictation": "Diktat verwerfen",
+      "cleanup": "Diktate aufräumen",
+      "cleanupDescription": "Nimmt Füllwörter und Wiederholungen heraus, korrigiert falsch erkannte Wörter und setzt Absätze und Listen. Läuft auf diesem Mac.",
+      "cleanupDownload": "Laden ({{size}})",
+      "cleanupDownloading": "Wird geladen: {{percent}} %",
+      "cleanupFailed": "Das Laden hat nicht geklappt. Versuch es noch einmal.",
+      "typing": "Tippen",
+      "autocorrect": "Tippfehler beim Tippen korrigieren",
+      "autocorrectDescription": "In Chrome, Slack und anderen Apps, in denen macOS nicht korrigiert. Rücktaste direkt danach nimmt es zurück. Läuft auf diesem Mac.",
       "startMeeting": "Meeting starten",
       "startMeetingDescription": "Nochmal drücken zum Beenden.",
       "mode": "Modus",
@@ -1280,9 +1384,9 @@
       },
       "sharedSheet": {
         "title": "Was geteilt wird",
-        "usage": "Wie du Sokki nutzt: wie viele Diktate und Meetings, ihre Länge und Sprecherzahl, die Call-App, das gewählte Modell und die Diktiersprache",
+        "usage": "Wie du Sokki nutzt: Schritte der Einrichtung, welche Funktionen und Einstellungen du nutzt, wie viele Diktate und Meetings, ihre Länge und Sprecherzahl, die Call-App, das gewählte Modell und die Diktiersprache",
         "data": "Deine Daten: Stunden pro Sprache, aus Diktaten oder Meetings",
-        "problems": "Probleme: Fehler und Warnungen aus Sokkis Protokoll, ohne zitierten Text und Dateipfade",
+        "problems": "Probleme und Tempo: Abstürze, wie schnell Diktate und Meetings fertig sind, Fehler und Warnungen aus Sokkis Protokoll, ohne zitierten Text und Dateipfade",
         "mac": "Dein Mac: Modell, Chip, Arbeitsspeicher, Speicherplatz, macOS-Version, Sprache und Region",
         "footer": "Nie, was du gesagt hast, keine Aufnahmen, nicht dein Name und nicht der Name deines Macs. Einmal am Tag unter einer zufälligen ID gesendet. Jederzeit unter „Deine Daten“ abschaltbar."
       },
@@ -1314,6 +1418,7 @@
       "deleteShared": "Geteiltes löschen",
       "deleteSharedAsk": "Alles löschen, was Sokki von diesem Mac bekommen hat?",
       "deleteSharedDone": "Alles gelöscht, was Sokki von diesem Mac bekommen hat.",
+      "deleteSharedPending": "Wird gelöscht. Den Rest dessen, was Sokki von diesem Mac bekommen hat, löscht Sokki in den nächsten Tagen.",
       "delete": "Löschen",
       "cancel": "Abbrechen",
       "failed": "Sokki ist gerade nicht erreichbar. Versuch es später noch einmal.",
@@ -1342,12 +1447,13 @@
     },
     "bar": {
       "idle": "Nimmt nicht auf",
+      "noSpeech": "Keine Sprache, nichts gespeichert.",
       "more": "Weitere Aufnahmen",
       "recordVideo": "Video aufnehmen",
       "transcribeFile": "Datei transkribieren …",
       "stop": "Beenden",
       "mic": "Mikrofon",
-      "noSound": "Von {{app}} kommt kein Ton."
+      "noSound": "Sokki hört nichts von {{app}}."
     },
     "dictations": {
       "title": "Diktate",

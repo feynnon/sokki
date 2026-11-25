@@ -1,6 +1,6 @@
 //! A meeting note as one self-contained web page: title, date and summary,
 //! no transcript. Anyone can open the file in a browser without Sokki. The
-//! note's footer ("Transcribed on my Mac with sokki.org"), when it has one,
+//! note's Sokki line ("… Dictation app and meeting notetaker: sokki.org"), when it has one,
 //! closes the page with a link to sokki.org.
 
 use crate::note::{is_footer, split_note};
@@ -162,7 +162,7 @@ a:hover { text-decoration: underline; }
 mod tests {
     use super::*;
 
-    const NOTE: &str = "---\ndate: 2026-11-19\n---\n# Launch <plan>\n\n## Summary\n\nWe **agreed** on Friday.\n\n## Action items\n\n- [ ] **Anna**: write the post\n- [x] Book room\n\n## Transcript\n\n**[00:03] Anna:** secret words\n\nTranscribed on my Mac with sokki.org\n";
+    const NOTE: &str = "---\ndate: 2026-11-19\n---\n# Launch <plan>\n\n## Summary\n\nWe **agreed** on Friday.\n\n## Action items\n\n- [ ] **Anna**: write the post\n- [x] Book room\n\n## Transcript\n\n**[00:03] Anna:** secret words\n\nSummarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org\n";
 
     #[test]
     fn page_has_title_summary_and_footer_but_no_transcript() {

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sokki: typing logs and the journal never leave the phone in a backup. -->
+<full-backup-content>
+    <exclude domain="file" path="typing_log/" />
+    <exclude domain="file" path="typing_test/" />
+</full-backup-content>

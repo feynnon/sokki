@@ -1,13 +1,15 @@
 // Sokki: voice typing in the keyboard. Tap the mic (top right of the
 // suggestion strip), speak, tap again. The text goes into whatever field is
-// open while you speak: live words (underlined) about a second behind you,
-// replaced by the final text of each piece at a pause. All on the phone.
-// The speech engine is Rust (mobile/src-tauri/src/keyboard_voice.rs), the
-// same one the app's Dictate tab uses; the model is the app's download.
+// open while you speak, as on the Mac: a streaming model adds words about
+// every half second, and words it has moved past never change, so they are
+// typed for good at once; only the word still being heard is underlined.
+// All on the phone. The speech engine is Rust
+// (mobile/src-tauri/src/keyboard_voice.rs); the model is the app's download.
 //
 // Feels instant: recording starts on the tap, even while the engine is
 // still loading (the audio waits and is transcribed once it's ready), and
-// the engine is loaded and warmed up as soon as the keyboard opens.
+// the engine is loaded and warmed up as soon as the keyboard opens, and
+// brought back into memory when it opens after a while.
 // SPDX-License-Identifier: GPL-3.0-only
 
 package dev.verbatim.sokki
@@ -35,9 +37,14 @@ object SokkiVoice {
     private const val BLOCK = RATE / 5 // 200 ms: sent to the engine
     private const val DONE = "\u0000done"
     private const val ERROR = "\u0000error:"
-    private const val SNIP = "\u0000snip:"
+    private const val TEXT = "\u0000text:"
     private const val FINAL = "\u0000final:"
-    const val MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
+    const val MODEL_FILE = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"
+    /** The model before 2026-11-25; the app replaces it by itself. */
+    private const val OLD_MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
+    /** Re-warm on keyboard open when the engine was last used this long ago:
+     * Android pushes an idle keyboard's model out of memory. */
+    private const val REWARM_AFTER_MS = 30_000L
 
     enum class State { IDLE, LISTENING, PROCESSING }
 
@@ -45,6 +52,8 @@ object SokkiVoice {
     var onState: ((State) -> Unit)? = null
     /** Main thread, ~20 times a second while listening: loudness 0..1. */
     var onLevel: ((Float) -> Unit)? = null
+    /** Main thread: a dictation ended that typed text (the keyboard catches up). */
+    var onTyped: (() -> Unit)? = null
 
     @Volatile var state = State.IDLE
         private set
@@ -54,21 +63,22 @@ object SokkiVoice {
     private var appContext: Context? = null
     private var connection: (() -> InputConnection?)? = null
     private var typedAny = false
-    /** Provisional (composing) text is in the field. */
+    /** The word still being heard is in the field, underlined. */
     private var composing = false
     /** " " before this dictation's text when the field had a word right before it. */
     private var lead: String? = null
-    /** Live text of the pieces that aren't final yet, by piece number. */
-    private val provisional = sortedMapOf<Int, String>()
-    /** The last piece whose final text is in the field. */
-    private var lastFinal = -1
+    /** How much of this dictation's text is typed for good. */
+    private var typed = 0
+    /** The text as last shown. */
+    private var lastText = ""
     /** Each start is a new session; a poll loop of an older one ends. */
     @Volatile private var session = 0
 
     // The engine library is large: loaded on a background thread.
     @Volatile private var libraryLoaded = false
     @Volatile private var libraryFailed = false
-    @Volatile private var warming = false
+    /** When the engine was last warmed or used (elapsedRealtime), 0 = never. */
+    @Volatile private var lastWarm = 0L
 
     @JvmStatic private external fun nativeWarmUp(modelPath: String)
     @JvmStatic private external fun nativeStart(modelPath: String)
@@ -97,12 +107,15 @@ object SokkiVoice {
     }
 
     /** Keyboard opened: load and warm up the engine in the background, so
-     * the first dictation is fast. Does nothing once warm. */
+     * the first dictation is fast; after a while unused, bring it back into
+     * memory (on Robin's Pixel none of the model was left after a day, and
+     * the first words took 2 s longer). */
     fun prepare(context: Context) {
-        if (warming) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (state != State.IDLE || (lastWarm != 0L && now - lastWarm < REWARM_AFTER_MS)) return
         val model = modelFile(context)
         if (!model.exists()) return
-        warming = true
+        lastWarm = now
         Thread {
             if (loadLibrary()) nativeWarmUp(model.path)
         }.start()
@@ -134,7 +147,12 @@ object SokkiVoice {
         }
         val model = modelFile(context)
         if (!model.exists()) {
-            openApp(context, "Download the speech model in Sokki (Dictate tab) first.")
+            val updating = File(model.parentFile, OLD_MODEL_FILE).exists()
+            openApp(
+                context,
+                if (updating) "Sokki is getting its faster speech model (750 MB). Try again in a few minutes."
+                else "Download the speech model in Sokki (Dictate tab) first.",
+            )
             return
         }
         appContext = context.applicationContext
@@ -142,8 +160,8 @@ object SokkiVoice {
         typedAny = false
         composing = false
         lead = null
-        provisional.clear()
-        lastFinal = -1
+        typed = 0
+        lastText = ""
         val mine = ++session
         state = State.LISTENING
         onState?.invoke(State.LISTENING) // right away, on the tap
@@ -268,12 +286,12 @@ object SokkiVoice {
                 when {
                     text == DONE -> return done(mine, null)
                     text.startsWith(ERROR) -> return done(mine, text.removePrefix(ERROR))
-                    text.startsWith(SNIP) -> numbered(text.removePrefix(SNIP), ::snippet)
-                    text.startsWith(FINAL) -> numbered(text.removePrefix(FINAL), ::finalText)
+                    text.startsWith(TEXT) -> show(text.removePrefix(TEXT), false)
+                    text.startsWith(FINAL) -> show(text.removePrefix(FINAL), true)
                 }
             }
         }
-        main.postDelayed({ poll(mine) }, 100)
+        main.postDelayed({ poll(mine) }, 40)
     }
 
     private fun done(mine: Int, error: String?) {
@@ -283,8 +301,13 @@ object SokkiVoice {
         if (composing) connection?.invoke()?.finishComposingText()
         composing = false
         if (error == null && typedAny) appContext?.let { countDictation(it) }
+        lastWarm = android.os.SystemClock.elapsedRealtime()
         state = State.IDLE
         onState?.invoke(State.IDLE)
+        if (typedAny) {
+            Journal.dictated(lastText)
+            onTyped?.invoke()
+        }
         connection = null
         if (error != null) appContext?.let { Toast.makeText(it, error, Toast.LENGTH_LONG).show() }
     }
@@ -295,13 +318,6 @@ object SokkiVoice {
         val file = File(context.filesDir, "keyboard_dictations")
         val n = file.takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull() ?: 0
         file.writeText((n + 1).toString())
-    }
-
-    /** "<piece>:<text>" from the engine. */
-    private fun numbered(message: String, then: (Int, String) -> Unit) {
-        val colon = message.indexOf(':')
-        val piece = message.substring(0, colon).toIntOrNull() ?: return
-        then(piece, message.substring(colon + 1))
     }
 
     /** Space before the first text: after a word already in the field.
@@ -315,41 +331,33 @@ object SokkiVoice {
         }
     }
 
-    /** Shows the live text of all pieces that aren't final yet, underlined. */
-    private fun showProvisional(ic: InputConnection) {
-        val text = provisional.values.filter { it.isNotEmpty() }.joinToString(" ")
-        if (text.isEmpty()) {
-            if (composing) ic.setComposingText("", 1)
-            composing = false
-        } else {
-            ic.setComposingText(space(ic) + text, 1)
-            composing = true
-        }
-    }
-
-    /** Live text: a snippet of piece [piece], added to its provisional text. */
-    private fun snippet(piece: Int, text: String) {
-        // A late snippet of a piece that is already final: its words are in.
-        if (piece <= lastFinal) return
+    /** The dictation's text so far ([final]: all of it). Words the model
+     * has moved past don't change: they're typed for good; the last word may
+     * still grow, so it stays underlined until the next text. */
+    private fun show(text: String, final: Boolean) {
         val ic = connection?.invoke() ?: return
-        provisional[piece] = provisional[piece]?.let { "$it $text" } ?: text
-        showProvisional(ic)
-    }
-
-    /** Final text of piece [piece]: replaces its live text (corrections show). */
-    private fun finalText(piece: Int, text: String) {
-        val ic = connection?.invoke() ?: return
-        provisional.remove(piece)
-        lastFinal = maxOf(lastFinal, piece)
+        val stable = if (final) text.length else maxOf(0, text.lastIndexOf(' '))
         ic.beginBatchEdit()
-        if (text.isNotEmpty()) {
-            ic.commitText(space(ic) + text, 1) // replaces the provisional text
+        if (stable > typed) {
+            if (!text.startsWith(lastText.substring(0, typed))) {
+                // Never seen in tests (asr-bench counts these); the typed words stay.
+                Log.w(TAG, "the model changed words already typed")
+            }
+            val add = text.substring(typed, stable)
+            ic.commitText(if (typed == 0) space(ic) + add else add, 1) // replaces the underlined word
+            typed = stable
             typedAny = true
-        } else if (composing) {
-            ic.commitText("", 1)
+            composing = false
         }
-        composing = false
-        showProvisional(ic) // the later pieces' live text, after it
+        val rest = text.substring(minOf(typed, text.length))
+        if (rest.isNotBlank()) {
+            ic.setComposingText(if (typed == 0) space(ic) + rest else rest, 1)
+            composing = true
+        } else if (composing) {
+            ic.setComposingText("", 1)
+            composing = false
+        }
         ic.endBatchEdit()
+        lastText = text
     }
 }

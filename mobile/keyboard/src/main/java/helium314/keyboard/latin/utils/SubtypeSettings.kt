@@ -223,7 +223,11 @@ object SubtypeSettings {
             // get best match
                 ?: LocaleUtils.getBestMatch(locale, resourceSubtypesByLocale.keys) {it}?.let { resourceSubtypesByLocale[it] }
             subtypesOfLocale?.firstOrNull()
-        }
+        }.distinct()
+            // Sokki: German first if the phone has German at all. Robin's Pixel runs in
+            // English with German second, and he writes German: the keyboard opened in
+            // English QWERTY without umlauts. English stays one globe tap away.
+            .sortedBy { if (it.locale().language == "de") 0 else 1 }
         if (subtypes.isEmpty()) {
             // hardcoded fallback to en-US for weird cases
             systemSubtypes.add(resourceSubtypesByLocale[Locale.US]!!.first())

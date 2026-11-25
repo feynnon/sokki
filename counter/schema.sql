@@ -64,3 +64,41 @@ CREATE TABLE IF NOT EXISTS visits (
   views INTEGER NOT NULL,
   PRIMARY KEY (day, page, source)
 );
+
+-- "Delete what was shared" for PostHog: ids whose events there still have
+-- to be deleted (needs the secret POSTHOG_PERSONAL_KEY; retried hourly).
+CREATE TABLE IF NOT EXISTS posthog_forget (
+  id TEXT PRIMARY KEY,
+  received INTEGER NOT NULL
+);
+
+-- "Delete what was shared": audio files in Workers KV still to delete,
+-- within the day's budget of KV deletes (kv_ops); the hourly run goes on
+-- until none is left. The rest of the install's rows are deleted at once.
+CREATE TABLE IF NOT EXISTS forget_audio (
+  key TEXT NOT NULL,       -- "<id>/<clip>.flac"
+  id TEXT NOT NULL,
+  bytes INTEGER NOT NULL,  -- still counted in the store until deleted
+  received INTEGER NOT NULL,
+  store TEXT NOT NULL DEFAULT 'kv', -- "kv" (Workers KV) or "r2"
+  PRIMARY KEY (key, store)
+);
+CREATE INDEX IF NOT EXISTS forget_audio_id ON forget_audio (id);
+
+-- Ids whose KV prefix gets one last listing once their queue is empty, for
+-- files D1 never knew (an upload cut off halfway); `touched`: last delete.
+CREATE TABLE IF NOT EXISTS forget_sweep (
+  id TEXT PRIMARY KEY,
+  received INTEGER NOT NULL,
+  touched INTEGER NOT NULL
+);
+
+-- Storage operations per UTC day and kind: Workers KV's "write", "delete",
+-- "list" (free plan: 1,000 a day each, budgets KV_*_BUDGET) and R2's
+-- "r2_write" (R2_WRITE_BUDGET).
+CREATE TABLE IF NOT EXISTS kv_ops (
+  day TEXT NOT NULL,       -- "2026-11-25"
+  kind TEXT NOT NULL,
+  n INTEGER NOT NULL,
+  PRIMARY KEY (day, kind)
+);

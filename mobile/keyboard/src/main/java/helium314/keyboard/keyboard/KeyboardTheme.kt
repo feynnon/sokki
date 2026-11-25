@@ -65,7 +65,11 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
         const val THEME_PINK = "pink"
         const val THEME_SAND = "sand"
         const val THEME_VIOLETTE = "violette"
+        // Sokki: Sokki's palette (the Mac app and the Android app)
+        const val THEME_SOKKI = "sokki"
+        const val THEME_SOKKI_DARK = "sokki_dark"
         fun getAvailableDefaultColors(prefs: SharedPreferences, isNight: Boolean) = listOfNotNull(
+            if (!isNight) THEME_SOKKI else null, THEME_SOKKI_DARK,
             if (!isNight) THEME_LIGHT else null, THEME_DARK,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) THEME_DYNAMIC else null,
             if (prefs.getString(Settings.PREF_THEME_STYLE, Defaults.PREF_THEME_STYLE) == STYLE_HOLO) THEME_HOLO_WHITE else null,
@@ -152,6 +156,36 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) DynamicColors(context, themeStyle, hasBorders, backgroundImage)
                     else getThemeColors(THEME_LIGHT, themeStyle, context, prefs, isNight)
                 }
+                // Sokki: white keys on Sokki's light grey, darker grey for shift, delete
+                // and ?123, Sokki's blue for enter; dark mode in Sokki's greys.
+                THEME_SOKKI -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    "#3567cc".toColorInt(), // accent: enter key, swipe trail
+                    "#e9ebee".toColorInt(), // background
+                    Color.WHITE, // letter keys
+                    "#d3d6dc".toColorInt(), // shift, delete, ?123
+                    Color.WHITE, // space bar
+                    "#111214".toColorInt(), // key text
+                    "#8d929b".toColorInt(), // hints
+                    spaceBarText = "#8d929b".toColorInt(),
+                    keyboardBackground = backgroundImage,
+                    popup = Color.WHITE, // long-press panel: a white card, like the keys
+                )
+                THEME_SOKKI_DARK -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    "#3567cc".toColorInt(),
+                    "#17181b".toColorInt(),
+                    "#323439".toColorInt(),
+                    "#25272b".toColorInt(),
+                    "#323439".toColorInt(),
+                    "#ecedef".toColorInt(),
+                    "#8d929b".toColorInt(),
+                    spaceBarText = "#8d929b".toColorInt(),
+                    keyboardBackground = backgroundImage,
+                    popup = "#3d4046".toColorInt(), // a step lighter than the keys
+                )
                 THEME_LIGHT -> DefaultColors(
                     themeStyle,
                     hasBorders,

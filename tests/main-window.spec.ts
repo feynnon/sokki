@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { open } from "./fake-app";
 
 /**
  * The main window (design C, 2026-11-21) in a browser with a fake app
@@ -10,334 +11,6 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 const SHOTS = process.env.SHOT_DIR ?? "test-results/main-window";
-
-type Scenario = {
-  lang: "de" | "en";
-  theme: "dark" | "light";
-  empty?: boolean;
-  recording?: boolean;
-  firstRun?: boolean;
-  section?: string;
-  /** First start: setup instead of the main window, resuming from `saved`
-   * (what setup keeps in localStorage across a relaunch). */
-  setup?: { saved?: Record<string, unknown> };
-  /** macOS permissions at start; a request grants Microphone and
-   * Accessibility, Screen only after a relaunch (as macOS does). */
-  perms?: { mic: boolean; acc: boolean; scr: boolean };
-  /** Another page than the main window, e.g. the call window. */
-  path?: string;
-  /** More fake answers, by command name; `{ __throw: x }` fails with x. */
-  extra?: Record<string, unknown>;
-};
-
-function fixtures(s: Scenario) {
-  const now = new Date();
-  const at = (daysAgo: number, h: number, m = 0) => {
-    const d = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - daysAgo,
-      h,
-      m,
-    );
-    // RFC 3339 with the local offset, as the app writes it.
-    const off = -d.getTimezoneOffset();
-    const sign = off >= 0 ? "+" : "-";
-    const pad = (n: number) => String(Math.abs(n)).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
-  };
-  const done = { kind: "done" };
-  const meeting = (
-    id: string,
-    title: string | null,
-    startedAt: string,
-    minutes: number,
-    app: string | null,
-    status: object = done,
-  ) => ({
-    id,
-    started_at: startedAt,
-    duration_s: minutes * 60,
-    status,
-    tracks: ["mic.flac", "system.flac"],
-    source_app: app,
-    title,
-    note_path: `/tmp/sokki-notes/${id}.md`,
-    speakers: ["Du", "Lea", "Jonas"],
-    warnings: [],
-    summary_missing: null,
-    audio_deleted: false,
-    online: true,
-  });
-  const meetings = s.empty
-    ? []
-    : [
-        ...(s.recording
-          ? [
-              meeting(
-                "rec",
-                null,
-                new Date(Date.now() - 768_000).toISOString(),
-                0,
-                "Zoom",
-                { kind: "recording" },
-              ),
-            ]
-          : []),
-        meeting("m1", "Wochenplanung Produkt", at(0, 10), 34, "Zoom"),
-        meeting(
-          "m2",
-          "Kundengespräch Lieferzeiten",
-          at(1, 15, 30),
-          48,
-          "Google Meet",
-        ),
-        meeting("m3", "1:1 mit Jonas", at(3, 9), 22, "Microsoft Teams"),
-        meeting("m4", "Interview Nutzerforschung", at(9, 14), 41, "Zoom"),
-        meeting("m5", null, at(12, 16, 15), 9, null),
-      ];
-  return {
-    settings: {
-      onboarding_completed: !s.setup,
-      app_language: s.lang,
-      // A new install starts with the default (dark); `theme` then only
-      // sets macOS's appearance.
-      theme: s.setup ? "dark" : s.theme,
-      debug_mode: false,
-      selected_model: "parakeet",
-      shortcut_activation: "hold_or_toggle",
-      keyboard_implementation: "tauri",
-      bindings: {
-        transcribe: {
-          id: "transcribe",
-          name: "Transcribe",
-          description: "",
-          default_binding: "option+space",
-          current_binding: "option+space",
-        },
-        meeting: {
-          id: "meeting",
-          name: "Meeting",
-          description: "",
-          default_binding: "option+m",
-          current_binding: "option+m",
-        },
-        cancel: {
-          id: "cancel",
-          name: "Cancel",
-          description: "",
-          default_binding: "escape",
-          current_binding: "escape",
-        },
-      },
-      meetings: {
-        notes_dir: null,
-        user_name: "Du",
-        diarization_enabled: true,
-        glossary: ["Sokki", "Parakeet", "Obsidian", "Tauri"],
-        detection_enabled: true,
-        footer_enabled: true,
-        phone_link_enabled: false,
-      },
-      videos: { enabled: true, display: null },
-      custom_words: ["Sokki", "Parakeet", "Obsidian", "Tauri"],
-    },
-    meetings,
-    note: {
-      summary:
-        "- Release 1.4 geht am Donnerstag raus, ohne Export.\n- Lea klärt bis Mittwoch die Preise mit dem Vertrieb.\n- Nächste Woche testen fünf Nutzer das Onboarding.",
-      transcript:
-        "[00:00] Lea: Gut, dann fangen wir an. Erstes Thema ist das Release.\n[00:06] Jonas: Ich würde den Export lieber auf 1.5 schieben.\n[00:12] Du: Einverstanden. Dann geht 1.4 am Donnerstag raus.\n[00:19] Lea: Und die Preise kläre ich bis Mittwoch mit dem Vertrieb.",
-    },
-    stats: {
-      improve: true,
-      support: false,
-      buyers: true,
-      shared: false,
-      buyer: null,
-      clips: s.empty ? 0 : 412,
-      folder: "/tmp/voice",
-      total_seconds: s.empty ? 0 : 31 * 3600 + 900,
-      bytes: s.empty ? 0 : 2.4e9,
-      seconds_by_language: s.empty ? {} : { de: 80000, en: 32000 },
-      seconds_by_source: s.empty ? {} : { meeting: 98000, dictation: 14000 },
-      donated_clips: 0,
-      donated_seconds: 0,
-    },
-    totals: {
-      seconds: s.empty ? 0 : 31 * 3600 + 900,
-      words: s.empty ? 0 : 12480,
-      meetings: s.empty ? 0 : 36,
-    },
-    history: s.empty
-      ? []
-      : [
-          {
-            id: 3,
-            file_name: "a.wav",
-            timestamp: Math.floor(Date.now() / 1000) - 600,
-            saved: false,
-            title: "",
-            transcription_text:
-              "Kannst du mir bis morgen die Zahlen für November schicken? Dann baue ich die Folien fertig.",
-            post_processed_text: null,
-            post_process_prompt: null,
-            post_process_requested: false,
-            source_name: null,
-            language: "de",
-            language_source: null,
-            meeting_id: null,
-            meeting_track: null,
-          },
-          {
-            id: 2,
-            file_name: "b.wav",
-            timestamp: Math.floor(Date.now() / 1000) - 7200,
-            saved: false,
-            title: "",
-            transcription_text:
-              "Danke für das Gespräch heute, ich melde mich bis Freitag mit einem Vorschlag.",
-            post_processed_text: null,
-            post_process_prompt: null,
-            post_process_requested: false,
-            source_name: null,
-            language: "de",
-            language_source: null,
-            meeting_id: null,
-            meeting_track: null,
-          },
-        ],
-  };
-}
-
-export async function open(page: Page, s: Scenario) {
-  page.on("pageerror", (e) =>
-    console.log("PAGEERROR", e.message.slice(0, 400)),
-  );
-  page.on(
-    "console",
-    (m) =>
-      m.type() === "error" && console.log("CONSOLE", m.text().slice(0, 400)),
-  );
-  const data = fixtures(s);
-  await page.addInitScript(
-    ({ data, s }) => {
-      const w = window as any;
-      try {
-        // A first run starts with nothing stored, once: a reload keeps
-        // what the page stored since.
-        if (s.firstRun) {
-          if (!sessionStorage.getItem("cleared")) {
-            localStorage.clear();
-            sessionStorage.setItem("cleared", "1");
-          }
-        } else {
-          localStorage.setItem("sokki.tip.dictations", "1");
-          if (s.section) localStorage.setItem("sokki.section", s.section);
-        }
-        if (s.setup?.saved && !sessionStorage.getItem("seeded")) {
-          localStorage.setItem(
-            "sokki.onboarding",
-            JSON.stringify(s.setup.saved),
-          );
-          sessionStorage.setItem("seeded", "1");
-        }
-      } catch {}
-      // Every command the page sends, in order (no event plumbing).
-      w.__calls = [] as string[];
-      w.__args = [] as [string, unknown][];
-      const perm = { ...(s.perms ?? { mic: true, acc: true, scr: true }) };
-      w.__TAURI_OS_PLUGIN_INTERNALS__ = {
-        platform: "macos",
-        os_type: "macos",
-        family: "unix",
-        version: "26.0",
-        arch: "aarch64",
-        eol: "\n",
-        exe_extension: "",
-      };
-      let nextId = 1;
-      const listeners: Record<string, number[]> = {};
-      w.__emit = (event: string, payload: unknown) => {
-        for (const h of listeners[event] ?? [])
-          w[`_${h}`]?.({ event, id: h, payload });
-      };
-      const answers: Record<string, (a: any) => unknown> = {
-        get_app_settings: () => data.settings,
-        get_retired_models: () => [],
-        list_meetings: () => data.meetings,
-        is_meeting_recording: () =>
-          data.meetings.some((m: any) => m.status.kind === "recording"),
-        get_meeting_note: () => data.note,
-        voice_data_stats: () => data.stats,
-        voice_data_community: () => ({ donors: 0, notice: null }),
-        usage_totals: () => data.totals,
-        get_history_entries: () => ({ entries: data.history, has_more: false }),
-        meeting_llm_status: () => ({ state: "ready" }),
-        list_voice_profiles: () => [],
-        get_available_models: () => [],
-        get_active_notices: () => [],
-        get_available_microphones: () => [],
-        get_available_output_devices: () => [],
-        get_current_model: () => "parakeet",
-        "plugin:macos-permissions|check_accessibility_permission": () =>
-          perm.acc,
-        "plugin:macos-permissions|check_microphone_permission": () => perm.mic,
-        "plugin:macos-permissions|request_accessibility_permission": () => {
-          perm.acc = true;
-        },
-        "plugin:macos-permissions|request_microphone_permission": () => {
-          perm.mic = true;
-        },
-        screen_permission: () => perm.scr,
-        request_screen_permission: () => perm.scr,
-        request_system_audio_permission: () => null,
-        video_list: () => [],
-        "plugin:app|version": () => "0.0.0-test",
-        "plugin:os|locale": () => s.lang,
-        "plugin:event|listen": (a) => {
-          (listeners[a.event] ??= []).push(a.handler);
-          return a.handler;
-        },
-      };
-      w.__TAURI_INTERNALS__ = {
-        metadata: {
-          currentWindow: { label: "main" },
-          currentWebview: { windowLabel: "main", label: "main" },
-        },
-        transformCallback: (cb: (x: unknown) => void, once = false) => {
-          const id = nextId++;
-          w[`_${id}`] = (x: unknown) => {
-            if (once) delete w[`_${id}`];
-            cb?.(x);
-          };
-          return id;
-        },
-        unregisterCallback: (id: number) => delete w[`_${id}`],
-        convertFileSrc: (p: string) => p,
-        invoke: async (cmd: string, args: any) => {
-          if (!cmd.startsWith("plugin:event|")) {
-            w.__calls.push(cmd);
-            w.__args.push([cmd, args]);
-          }
-          if (s.extra && cmd in s.extra) {
-            const v = s.extra[cmd] as any;
-            if (v && typeof v === "object" && "__throw" in v) throw v.__throw;
-            return v;
-          }
-          const f = answers[cmd];
-          if (!f && w.__logUnknown) console.log("UNKNOWN " + cmd);
-          return f ? f(args ?? {}) : null;
-        },
-      };
-      w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
-    },
-    { data, s },
-  );
-  await page.emulateMedia({ colorScheme: s.theme });
-  await page.setViewportSize({ width: 1120, height: 720 });
-  await page.goto(s.path ?? "/");
-}
 
 async function shot(page: Page, name: string) {
   // Let hover and colour transitions settle.
@@ -585,16 +258,36 @@ test.describe("main window", () => {
       );
       await page.clock.runFor(100);
     }
-    await expect(page.getByText("Von Zoom kommt kein Ton.")).toBeHidden();
+    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
     await shot(page, "c2-aufnahme");
-    // Only the microphone for 21 s: the warning appears.
+    // The other side is quiet for 22 s (call audio far below the meter's
+    // floor, but not exact zeros): Sokki hears the call, no warning.
     for (let i = 0; i < 22; i++) {
       await page.evaluate(() =>
-        (window as any).__emit("meeting-level", { mic: 0.05, system: 0 }),
+        (window as any).__emit("meeting-level", {
+          mic: 0.05,
+          system: 0.0005,
+          system_dead_ms: 0,
+        }),
       );
       await page.clock.runFor(1000);
     }
-    await expect(page.getByText("Von Zoom kommt kein Ton.")).toBeVisible();
+    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeHidden();
+    // The call track is exact zeros for 21 s while the microphone hears
+    // someone: the warning appears.
+    for (let i = 1; i <= 22; i++) {
+      await page.evaluate(
+        (ms) =>
+          (window as any).__emit("meeting-level", {
+            mic: 0.05,
+            system: 0,
+            system_dead_ms: ms,
+          }),
+        i * 1000,
+      );
+      await page.clock.runFor(1000);
+    }
+    await expect(page.getByText("Sokki hört nichts von Zoom.")).toBeVisible();
     await shot(page, "d1-kein-ton");
   });
 

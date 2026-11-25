@@ -44,6 +44,9 @@ pub enum Request {
     /// The body is the audio file (WebM/Opus, M4A, WAV, …).
     Upload { started_at: String, mime: String },
     Status { id: String },
+    /// The body is one day of the phone keyboard's journal (JSONL), from the
+    /// developer page "Keep what I write"; `file` is `journal-YYYY-MM-DD.jsonl`.
+    Journal { file: String },
 }
 
 /// What the Mac does with requests. Called on a blocking thread.

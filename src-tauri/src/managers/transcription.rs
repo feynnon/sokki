@@ -1433,6 +1433,8 @@ fn agreed_language(transcripts: &[Transcript]) -> Option<String> {
 }
 
 fn emit_stream_text(app_handle: &AppHandle, committed: &str, tentative: &str) {
+    // The committed part is final: the dictation's cleanup starts on it.
+    crate::dictation_cleanup::live_text(committed);
     let _ = StreamTextEvent {
         committed: committed.to_string(),
         tentative: tentative.to_string(),

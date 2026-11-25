@@ -1318,6 +1318,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         }
 
         final int code = key.getCode();
+        // Sokki: the typing test records where each tap landed (only in its own field).
+        if (dev.verbatim.sokki.TypingTest.active) dev.verbatim.sokki.TypingTest.logTap(mKeyDetector, key, x, y);
+        else if (dev.verbatim.sokki.TapLog.enabled()) dev.verbatim.sokki.TapLog.logTap(mKeyDetector, key, x, y);
         callListenerOnCodeInput(key, code, x, y, eventTime, false);
         callListenerOnRelease(key, code, false);
     }

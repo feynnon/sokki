@@ -4,6 +4,7 @@ import {
   AudioLines,
   Check,
   Keyboard,
+  Mail,
   Mic,
   Monitor,
   Users,
@@ -17,6 +18,8 @@ interface PurposeProps {
   progress?: { index: number; count: number };
   onBack?: () => void;
   onContinue: (uses: Uses) => void;
+  /** Meetings also asks for Gmail (optional), when this build has it. */
+  gmail?: boolean;
 }
 
 /** "What will you use Sokki for?": Dictation and/or Meetings. The next
@@ -25,6 +28,7 @@ export const Purpose: React.FC<PurposeProps> = ({
   progress,
   onBack,
   onContinue,
+  gmail = false,
 }) => {
   const { t } = useTranslation();
   const { uses, set } = useOnboardingStore();
@@ -46,6 +50,7 @@ export const Purpose: React.FC<PurposeProps> = ({
         mic,
         { key: "systemSound", icon: Volume2 },
         { key: "screen", icon: Monitor },
+        ...(gmail ? [{ key: "gmail", icon: Mail }] : []),
       ],
     },
   ];

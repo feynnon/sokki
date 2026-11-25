@@ -35,7 +35,11 @@ export SOKKI_DEV_BUILD=1
 if [[ -z "${SOKKI_COUNTER_URL:-}" && -f "$REPO/counter/url.txt" ]]; then
   export SOKKI_COUNTER_URL="$(tr -d '[:space:]' < "$REPO/counter/url.txt")"
 fi
-IDENTITY="Sokki Dev"
+# The release certificate when this Mac has it, so local builds and releases
+# share the granted permissions; else the self-made one of older builds.
+IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+  | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+IDENTITY="${IDENTITY:-Sokki Dev}"
 # The installed app's bundle id and binary, so this works before and after an
 # update that renamed them.
 INSTALLED_PLIST="/Applications/Sokki.app/Contents/Info.plist"

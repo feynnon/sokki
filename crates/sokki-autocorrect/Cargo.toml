@@ -1,0 +1,11 @@
+[package]
+name = "sokki-autocorrect"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Sokki fixes typos as you type on the Mac, in the apps where macOS doesn't"
+publish = false
+
+[dependencies]
+sokki-typos = { path = "../sokki-typos" }
+log = "0.4"

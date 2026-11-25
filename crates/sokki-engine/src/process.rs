@@ -31,8 +31,11 @@ pub struct Settings {
     /// Names and terms the summary spells right, even where speech
     /// recognition misheard them.
     pub glossary: Vec<String>,
-    /// End the note with "Transcribed on my … with sokki.org".
+    /// End the note with the Sokki line. Only a supporter
+    /// (`supporter_code`) can turn it off; see [`Settings::sokki_line`].
     pub footer: bool,
+    /// Proof of at least €20 paid ([`crate::supporter`]); empty: none.
+    pub supporter_code: String,
     /// Where notes are written.
     pub notes_dir: PathBuf,
     pub llm: LlmSettings,
@@ -48,9 +51,36 @@ impl Default for Settings {
             summary: true,
             glossary: Vec::new(),
             footer: true,
+            supporter_code: String::new(),
             notes_dir: PathBuf::from("Notes"),
             llm: LlmSettings::default(),
             language: None,
+        }
+    }
+}
+
+impl Settings {
+    /// Whether notes end with the Sokki line: always, unless a supporter
+    /// switched it off.
+    pub fn sokki_line(&self) -> bool {
+        self.footer || crate::supporter::verify(&self.supporter_code).is_none()
+    }
+
+    /// The Sokki line for a summary in `language` that goes anywhere (a
+    /// mail, a chat post), or `None` when a supporter switched it off. The
+    /// one place for mails and posts to ask; the note uses the same rule.
+    pub fn sokki_line_text(&self, language: meeting_core::lang::Language) -> Option<&'static str> {
+        let opts = self.note_options();
+        opts.footer
+            .then(|| meeting_core::note::sokki_line(language, opts.cloud_summary))
+    }
+
+    /// The note options these settings give.
+    pub fn note_options(&self) -> meeting_core::note::NoteOptions {
+        meeting_core::note::NoteOptions {
+            footer: self.sokki_line(),
+            cloud_summary: llm::CLOUD_PROVIDERS.contains(&self.llm.provider.as_str()),
+            language: self.language,
         }
     }
 }
@@ -150,7 +180,39 @@ pub struct Output {
     pub tracks: Vec<Track>,
 }
 
+/// [`run`]'s error when no track has a single word: speaker detection found
+/// no turn, or every turn came back empty. A failed transcription is not
+/// this ([`pipeline::PARTS_NOT_TRANSCRIBED`]): then the audio had speech.
+/// No note is written and an earlier note stays as it was. Hosts find it
+/// with `err.downcast_ref::<NoSpeech>()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoSpeech;
+
+impl std::fmt::Display for NoSpeech {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("No speech found on any track; nothing saved.")
+    }
+}
+
+impl std::error::Error for NoSpeech {}
+
+/// The pipeline heard nothing: no turn, or no word in any turn, and no
+/// transcription failed.
+fn no_speech(r: &pipeline::PipelineResult) -> bool {
+    let words = r
+        .transcript
+        .segments
+        .iter()
+        .any(|s| !s.text.trim().is_empty());
+    !words
+        && !r
+            .warnings
+            .iter()
+            .any(|w| w == pipeline::PARTS_NOT_TRANSCRIBED)
+}
+
 /// Turns one meeting into a note. Blocking; minutes for an hour of audio.
+/// Fails with [`NoSpeech`] when nobody said anything.
 pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     let Input {
         mut tracks,
@@ -239,10 +301,14 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     for d in &result.details {
         log::warn!("{d}");
     }
-    if result.jobs == 0 {
-        // Speaker detection found no turn on any track. A failed detection
-        // falls back to one turn per track, so this means no speech.
-        log::info!("No speech found on any track: the note says so");
+    if no_speech(&result) {
+        // Nothing was said on any track: no note (Robin, 2026-11-25: empty
+        // meetings only fill the list). The host removes the meeting.
+        log::info!(
+            "No speech found on any track ({} turns): no note written",
+            result.jobs
+        );
+        return Err(NoSpeech.into());
     }
     clock.add("speakers", result.speakers_s);
     clock.add("transcription", result.transcribe_s);
@@ -326,10 +392,7 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     let note_path = meeting_core::note::write_note(
         &settings.notes_dir,
         &note,
-        &meeting_core::note::NoteOptions {
-            footer: settings.footer,
-            language: settings.language,
-        },
+        &settings.note_options(),
     )?;
     let title = meeting_core::note::note_title(&note);
     clock.step("writing the note");
@@ -380,7 +443,7 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
         summarize_logged(&LlmSummarizer::new(summary_config(settings, &model)), &transcript)?;
     drop(model);
     let new_md =
-        meeting_core::note::add_summary(&md, &summary).context("the note has a summary already")?;
+        meeting_core::note::add_summary(&md, &summary, &settings.note_options()).context("the note has a summary already")?;
     let title = Some(summary.title.trim().to_string()).filter(|t| !t.is_empty());
     let new_stem = note_path
         .file_stem()
@@ -733,9 +796,10 @@ mod tests {
             &settings,
         )
         .unwrap();
-        assert!(std::fs::read_to_string(&out.note_path)
-            .unwrap()
-            .contains("das ist ein Test"));
+        let first = std::fs::read_to_string(&out.note_path).unwrap();
+        assert!(first.contains("das ist ein Test"));
+        // No summary yet, so no Sokki line (it says "summarized").
+        assert!(!first.contains("sokki.org"), "{first}");
         assert_eq!(out.summary_missing, Some(SummaryMissing::Waiting));
         assert_eq!(out.warnings, vec![SUMMARY_WAITING]);
 
@@ -753,8 +817,59 @@ mod tests {
         assert!(md.contains("# Test plan\n"), "{md}");
         assert!(md.contains("We talked about the test."), "{md}");
         assert!(md.contains("das ist ein Test"), "{md}");
+        // With the summary comes the Sokki line (in the note's language,
+        // German here), last in the note and under the summary.
+        let line = "Von KI zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und Meeting-Notetaker: sokki.org";
+        assert!(md.ends_with(&format!("\n\n{line}\n")), "{md}");
+        assert!(meeting_core::note::split_note(&md).summary.ends_with(line));
         // Only once.
         assert!(summarize_note(&done.note_path, &settings).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Switching the line off takes a supporter code; without one (or with
+    /// a made-up one) the note still ends with it.
+    #[test]
+    fn the_sokki_line_stays_without_a_supporter_code() {
+        let dir = std::env::temp_dir().join(format!("sokki-engine-line-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut settings = llm_settings(&fake_llm(), &dir);
+        settings.footer = false;
+        settings.supporter_code = "sokki-eyJ2IjoxfQ.bm90IGEgc2lnbmF0dXJl".into();
+        assert!(settings.sokki_line());
+        let progress = |_s: Stage, _p: Option<f32>| {};
+        let out = run(
+            mic_input(3.0),
+            Deps {
+                transcriber: &Parrot,
+                diarizer: Box::new(WholeTrack),
+                diarizer_notes: None,
+                namer: None,
+                progress: &progress,
+                hold_summary: None,
+            },
+            &settings,
+        )
+        .unwrap();
+        let md = std::fs::read_to_string(&out.note_path).unwrap();
+        assert!(md.contains("We talked about the test."), "{md}");
+        assert!(md.trim_end().ends_with("Dictation app and meeting notetaker: sokki.org"), "{md}");
+
+        // Mails and posts get the same line from the same place (English:
+        // the summary is).
+        assert!(md.contains(
+            settings
+                .sokki_line_text(meeting_core::lang::Language::English)
+                .unwrap()
+        ));
+
+        // A cloud model's summary is neither local nor free.
+        settings.llm.provider = "anthropic".into();
+        assert!(settings.note_options().cloud_summary);
+        assert!(settings
+            .sokki_line_text(meeting_core::lang::Language::English)
+            .unwrap()
+            .starts_with("Summarized by AI. "));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -848,5 +963,88 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("no audio"));
+    }
+
+    /// Hears nothing in any turn, as Whisper does on silence.
+    struct Silence;
+
+    impl Transcriber for Silence {
+        fn transcribe(&self, _samples: &[f32]) -> Result<String> {
+            Ok("  ".into())
+        }
+    }
+
+    /// Fails every turn.
+    struct Broken;
+
+    impl Transcriber for Broken {
+        fn transcribe(&self, _samples: &[f32]) -> Result<String> {
+            bail!("model gone")
+        }
+    }
+
+    fn run_two_tracks(transcriber: &dyn Transcriber, dir: &Path) -> Result<Output> {
+        let settings = Settings {
+            summary: false,
+            notes_dir: dir.to_path_buf(),
+            ..Default::default()
+        };
+        let progress = |_s: Stage, _p: Option<f32>| {};
+        run(
+            Input {
+                tracks: vec![
+                    Track {
+                        kind: TrackKind::Mic,
+                        samples: tone(3.0),
+                    },
+                    Track {
+                        kind: TrackKind::System,
+                        samples: vec![0.0; 3 * SAMPLE_RATE as usize],
+                    },
+                ],
+                timing: None,
+                started_at: "2026-11-19T10:00:00+01:00".into(),
+                source_app: Some("Zoom".into()),
+                previous_note: None,
+                warnings: vec![],
+                live: None,
+            },
+            Deps {
+                transcriber,
+                diarizer: Box::new(WholeTrack),
+                diarizer_notes: None,
+                namer: None,
+                progress: &progress,
+                hold_summary: None,
+            },
+            &settings,
+        )
+    }
+
+    #[test]
+    fn no_word_on_any_track_writes_no_note() {
+        let dir =
+            std::env::temp_dir().join(format!("sokki-engine-nospeech-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let err = run_two_tracks(&Silence, &dir).unwrap_err();
+        assert_eq!(err.downcast_ref::<NoSpeech>(), Some(&NoSpeech));
+        let notes = std::fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
+        assert_eq!(notes, 0, "no note in {}", dir.display());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_transcription_is_not_silence() {
+        let dir = std::env::temp_dir().join(format!("sokki-engine-broken-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // The audio had speech: the note is kept, with the warning.
+        match run_two_tracks(&Broken, &dir) {
+            Ok(out) => assert!(out
+                .warnings
+                .iter()
+                .any(|w| w == pipeline::PARTS_NOT_TRANSCRIBED)),
+            Err(e) => assert!(e.downcast_ref::<NoSpeech>().is_none(), "{e:#}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

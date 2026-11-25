@@ -159,8 +159,8 @@ impl EnigoState {
             open_prompt_to_get_permissions: false,
             ..Settings::default()
         };
-        let enigo = Enigo::new(&settings)
-            .map_err(|e| format!("Failed to initialize Enigo: {}", e))?;
+        let enigo =
+            Enigo::new(&settings).map_err(|e| format!("Failed to initialize Enigo: {}", e))?;
         Ok(Self(Mutex::new(enigo)))
     }
 }

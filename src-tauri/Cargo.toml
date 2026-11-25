@@ -69,6 +69,8 @@ diarize = { path = "../crates/diarize" }
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 # Notices when a call app starts using the microphone (macOS; stub elsewhere).
 meeting-detect = { path = "../crates/meeting-detect" }
+meeting-chat = { path = "../crates/meeting-chat" }
+meeting-mail = { path = "../crates/meeting-mail" }
 log = "0.4.25"
 env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["process", "time"] }
@@ -201,9 +203,13 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
+# Fixes typos as you type (autocorrect.rs).
+sokki-autocorrect = { path = "../crates/sokki-autocorrect" }
 # Notifications with Sokki's own name and icon (osascript shows Script Editor).
 objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationSettings"] }
 block2 = "0.6"
+# The Gmail token in the Keychain (meeting/gmail_account.rs); already in the tree.
+security-framework = "3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # PRIMARY selection access for Shift+Insert paste (already in the tree via the clipboard plugin).
@@ -249,3 +255,13 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "unwind"
+
+# Test apps (scripts/test-dictation.sh --build): the release build without
+# fat LTO and with parallel codegen, so it builds in a fraction of the time
+# and needs far less memory to link. Real releases (scripts/release.sh) keep
+# [profile.release]. Output: target/fastrelease/.
+[profile.fastrelease]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true

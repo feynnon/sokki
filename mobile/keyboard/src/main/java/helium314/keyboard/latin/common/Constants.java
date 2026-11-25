@@ -155,6 +155,8 @@ public final class Constants {
     public static final int GET_SUGGESTED_WORDS_TIMEOUT = BuildConfig.DEBUG ? 500 : 200; // debug build is slow, and timeout is annoying for testing
     // How many continuous deletes at which to start deleting at a higher speed.
     public static final int DELETE_ACCELERATE_AT = 20;
+    // Sokki: after this many held deletes, whole words go, in the same rhythm as letters
+    public static final int SOKKI_DELETE_WORDS_AT = 40;
 
     public static final String WORD_SEPARATOR = " ";
 

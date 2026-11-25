@@ -19,7 +19,10 @@ struct Pending {
     answer: Option<String>,
 }
 
-static PENDING: Mutex<Pending> = Mutex::new(Pending { round: 0, answer: None });
+static PENDING: Mutex<Pending> = Mutex::new(Pending {
+    round: 0,
+    answer: None,
+});
 static ANSWERED: Condvar = Condvar::new();
 
 /// What a question is about.
@@ -41,10 +44,16 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         p.round
     };
     let (query, height) = match kind {
-        Kind::Started { screen } => (format!("kind=started&screen={}", screen as u8), if screen { 168.0 } else { 124.0 }),
+        Kind::Started { screen } => (
+            format!("kind=started&screen={}", screen as u8),
+            if screen { 168.0 } else { 124.0 },
+        ),
         Kind::Ended => ("kind=ended".to_string(), 124.0),
     };
-    let url = format!("src/meeting-prompt/index.html?{query}&app={}", encode(meeting_app));
+    let url = format!(
+        "src/meeting-prompt/index.html?{query}&app={}",
+        encode(meeting_app)
+    );
     show(app, url, height);
 
     let deadline = Instant::now() + timeout;
@@ -54,9 +63,16 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         if left.is_zero() {
             break;
         }
-        p = ANSWERED.wait_timeout(p, left).unwrap_or_else(|e| e.into_inner()).0;
+        p = ANSWERED
+            .wait_timeout(p, left)
+            .unwrap_or_else(|e| e.into_inner())
+            .0;
     }
-    let answer = if p.round == round { p.answer.take() } else { None };
+    let answer = if p.round == round {
+        p.answer.take()
+    } else {
+        None
+    };
     drop(p);
     hide(app);
     answer
@@ -134,7 +150,9 @@ fn position(app: &AppHandle) -> (f64, f64) {
 fn encode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()

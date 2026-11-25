@@ -209,6 +209,12 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_VERSION_CODE = "version_code";
     public static final String PREF_LIBRARY_CHECKSUM = "lib_checksum";
     public static final String PREF_SAVE_SUBTYPE_PER_APP = "save_subtype_per_app";
+    // Sokki: letter-aware key edges (dev.verbatim.sokki.KeyTargeting)
+    public static final String PREF_SOKKI_KEY_TARGETING = "sokki_key_targeting";
+    // Sokki: record taps in everyday typing (dev.verbatim.sokki.TapLog)
+    public static final String PREF_SOKKI_RECORD_TAPS = "sokki_record_taps";
+    // Sokki: the journal switch until 24.11.2026; now a file (Journal.isOn), read once to move it
+    public static final String PREF_SOKKI_JOURNAL = "sokki_journal";
     public static final String PREF_SAVED_APP_SUBTYPE_PREFIX = "saved_app_subtype_";
 
     private Context mContext;

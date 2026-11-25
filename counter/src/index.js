@@ -4,17 +4,21 @@
 // report a random id and how many seconds of their own data they keep per
 // language; anyone can read the total. With "Help improve" on, an install
 // also sends one daily report (usage counts, problems, the Mac's model and
-// macOS version; never names, audio or anyone's words). Sharers upload
+// macOS version; never names, audio or anyone's words), which goes on to
+// PostHog EU for charts without the user's IP address. Sharers upload
 // every recording of theirs (FLAC + transcript), unchanged. A user who answers a buyer message with "I'm interested" sends
 // the id, language and hours. Nothing here stores IP addresses.
 //
 //   POST /report    {"id", "pow", "clips": 12, "seconds": {"de": 3600}, "donate": false}
 //   POST /usage     {"id", "pow", ...daily report...}
 //   POST /donate    {"id", "pow", "clip", "language", "source", "seconds", "text", "audio": "<base64 FLAC>"}
+//                   audio into R2 (FILES), or Workers KV (AUDIO) without it
 //   POST /interest  {"id", "pow", "notice": 1700000000, "language": "de", "hours": 12}
 //   POST /tasks     {"id", "pow", "on": true, "languages": ["de"]}  "tell me about paid tasks"
 //   POST /leave     {"id", "pow"}   out of the count (both choices off)
-//   POST /forget    {"id", "pow"}   everything stored under the id, audio included
+//   POST /forget    {"id", "pow"}   everything stored under the id, audio included,
+//                   and the install's events at PostHog -> {"ok", "pending"}:
+//                   audio files still being deleted (KV's daily limit)
 //   GET  /total     -> {"installs", "donors", "total_seconds", "seconds_by_language",
 //                       "notice", "notice_id"}  (refreshed at most every 10 minutes)
 //   GET  /visit?p=/get/&s=note   one view of a sokki.org page: the page and
@@ -39,8 +43,12 @@ const CLIP = /^(dictation|meeting)-\d{8}-\d{9}-[0-9a-f]{4}$/;
 const MAX_SECONDS = 2000 * 3600;
 // Leading zero bits of the proof of work. The app and this must agree.
 const POW_BITS = 24;
-// The audio store stops taking uploads here (Workers KV holds 1 GB free).
-const AUDIO_CAP_BYTES = 900 * 1024 * 1024;
+// The audio store stops taking uploads here: 900 MB in Workers KV (1 GB
+// free), 9 GB in R2 (10 GB free); AUDIO_CAP_MB in wrangler.toml overrides.
+function audioCap(env) {
+  const mb = Number(env.AUDIO_CAP_MB);
+  return (Number.isFinite(mb) && mb > 0 ? mb : env.FILES ? 9000 : 900) * 1024 * 1024;
+}
 const MAX_CLIP_BYTES = 5 * 1024 * 1024;
 
 const cors = {
@@ -142,28 +150,279 @@ async function leave(req, env) {
   return json({ ok: true });
 }
 
-async function forget(req, env) {
+/**
+ * "Delete what was shared". Everything in D1 (counts, reports, transcripts)
+ * goes at once. The audio files are queued in `forget_audio`: those in R2
+ * are deleted right here (free, 1,000 per call); those still in Workers KV
+ * within the day's budget of KV deletes (free plan: 1,000 a day), some right
+ * here, the rest by the hourly run, until none is left.
+ * Answers {"ok": true, "pending": n}: n audio files still to delete; the app
+ * then says "being deleted".
+ */
+async function forget(req, env, ctx) {
   const { body, error } = await authorised(req, env);
   if (error) return error;
-  // The audio first: if this stops halfway, the rows still say what's left.
-  let cursor;
-  do {
-    const page = await env.AUDIO.list({ prefix: `${body.id}/`, cursor });
-    await Promise.all(page.keys.map((k) => env.AUDIO.delete(k.name)));
-    cursor = page.list_complete ? undefined : page.cursor;
-  } while (cursor);
-  await env.DB.batch(
-    ["installs", "usage", "interest", "donations", "tasks"].map((t) =>
-      env.DB.prepare(`DELETE FROM ${t} WHERE id = ?1`).bind(body.id),
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO forget_audio (key, id, bytes, received, store)
+       SELECT id || '/' || clip || '.flac', id, bytes, ?2, ?3 FROM donations WHERE id = ?1
+       ON CONFLICT(key, store) DO NOTHING`,
+    ).bind(body.id, t, env.FILES ? "r2" : "kv"),
+    // A last look in KV for files D1 doesn't know (an upload cut off halfway).
+    env.DB.prepare(
+      `INSERT INTO forget_sweep (id, received, touched) VALUES (?1, ?2, ?2)
+       ON CONFLICT(id) DO UPDATE SET touched = ?2`,
+    ).bind(body.id, t),
+    ...["installs", "usage", "interest", "donations", "tasks"].map((tb) =>
+      env.DB.prepare(`DELETE FROM ${tb} WHERE id = ?1`).bind(body.id),
     ),
-  );
-  return json({ ok: true });
+    env.DB.prepare(
+      "INSERT INTO posthog_forget (id, received) VALUES (?1, ?2) ON CONFLICT(id) DO NOTHING",
+    ).bind(body.id, t),
+  ]);
+  // Files from before R2 may still be in KV (until moved): one listing.
+  if (env.FILES) await queueStrays(env, body.id, "kv");
+  await drainAudio(env, { id: body.id, max: 5000, kvMax: FORGET_NOW_MAX });
+  const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM forget_audio WHERE id = ?1")
+    .bind(body.id)
+    .first();
+  ctx.waitUntil(drainForget(env).catch((e) => console.log("posthog forget", String(e))));
+  return json({ ok: true, pending: left ? left.n : 0 });
 }
 
-// A daily report is small; anything bigger is a bug or abuse.
-const MAX_USAGE_BYTES = 32 * 1024;
+// ----- The free plan's daily KV limits -----
+//
+// Workers KV allows 1,000 writes, 1,000 deletes and 1,000 lists a day on the
+// free plan (reset 00:00 UTC), then answers with errors. Each is counted in
+// `kv_ops` per UTC day and kept under a budget, so uploads say "try later"
+// and deletions wait for the next day instead of failing halfway. With
+// Workers Paid, raise the budgets (vars KV_*_BUDGET in wrangler.toml).
 
-async function usage(req, env) {
+const KV_BUDGET_DEFAULT = { write: 900, delete: 900, list: 100, r2_write: 30000 };
+// KV files deleted within the /forget request itself; the rest goes hourly.
+const FORGET_NOW_MAX = 200;
+// Audio files deleted per hourly run (KV allows 1,000 operations per call).
+const DRAIN_MAX = 500;
+// Files moved from KV to R2 per hourly run (each costs one KV delete).
+const MOVE_MAX = 100;
+
+const utcDay = (t = now()) => new Date(t * 1000).toISOString().slice(0, 10);
+
+/** The daily budget of `kind`: KV_WRITE_BUDGET, …, and R2_WRITE_BUDGET (R2's
+ * free 1M writes a month is ~33,000 a day). */
+export function kvBudget(env, kind) {
+  const name = kind === "r2_write" ? "R2_WRITE_BUDGET" : `KV_${kind.toUpperCase()}_BUDGET`;
+  const v = Number(env[name]);
+  return Number.isFinite(v) && v >= 0 ? v : KV_BUDGET_DEFAULT[kind];
+}
+
+/**
+ * Takes up to `want` KV operations of `kind` from today's budget; returns
+ * how many were granted. One query: the count goes up by `want` either way,
+ * which only overstates a day already at its budget.
+ */
+export async function takeKv(env, kind, want) {
+  if (want <= 0) return 0;
+  const row = await env.DB.prepare(
+    `INSERT INTO kv_ops (day, kind, n) VALUES (?1, ?2, ?3)
+     ON CONFLICT(day, kind) DO UPDATE SET n = n + ?3 RETURNING n`,
+  )
+    .bind(utcDay(), kind, want)
+    .first();
+  const before = (row ? row.n : want) - want;
+  return Math.max(0, Math.min(want, kvBudget(env, kind) - before));
+}
+
+/** KV said no although the budget had room: nothing more of `kind` today. */
+async function kvExhausted(env, kind) {
+  await env.DB.prepare(
+    `INSERT INTO kv_ops (day, kind, n) VALUES (?1, ?2, ?3)
+     ON CONFLICT(day, kind) DO UPDATE SET n = MAX(n, ?3)`,
+  )
+    .bind(utcDay(), kind, kvBudget(env, kind))
+    .run();
+}
+
+/** Seconds until the next UTC day, when KV's limits reset. */
+export function secondsToNextDay(t = now()) {
+  return 86400 - (t % 86400);
+}
+
+/**
+ * Deletes queued audio files (`forget_audio`), oldest first: those of `id`
+ * only, or everyone's. R2 files go at once; KV files within today's budget.
+ * Then a last look in both stores for each finished id (`forget_sweep`),
+ * five minutes after its last delete, since a KV listing can lag behind
+ * deletes. Returns how many files it deleted.
+ */
+export async function drainAudio(env, { id = null, max = DRAIN_MAX, kvMax = DRAIN_MAX } = {}) {
+  const queued = await env.DB.prepare(
+    `SELECT rowid AS r, key, id, store FROM forget_audio
+     WHERE ?1 IS NULL OR id = ?1 ORDER BY rowid LIMIT ?2`,
+  )
+    .bind(id, max)
+    .all();
+  const rows = queued.results || [];
+  const gone = [];
+  const inR2 = env.FILES ? rows.filter((r) => r.store === "r2") : [];
+  for (let i = 0; i < inR2.length; i += 1000) {
+    const chunk = inR2.slice(i, i + 1000);
+    try {
+      await env.FILES.delete(chunk.map((r) => r.key));
+      gone.push(...chunk);
+    } catch (e) {
+      console.log("r2 delete", String(e));
+      break;
+    }
+  }
+  const inKv = rows.filter((r) => r.store !== "r2").slice(0, kvMax);
+  if (inKv.length) {
+    const granted = await takeKv(env, "delete", inKv.length);
+    const todo = inKv.slice(0, granted);
+    for (let i = 0; i < todo.length; i += 50) {
+      const chunk = todo.slice(i, i + 50);
+      const results = await Promise.allSettled(chunk.map((row) => env.AUDIO.delete(row.key)));
+      chunk.forEach((row, k) => results[k].status === "fulfilled" && gone.push(row));
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed) {
+        console.log("kv delete", String(failed.reason));
+        await kvExhausted(env, "delete");
+        break;
+      }
+    }
+  }
+  if (gone.length) {
+    const t = now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "DELETE FROM forget_audio WHERE rowid IN (SELECT value FROM json_each(?1))",
+      ).bind(JSON.stringify(gone.map((g) => g.r))),
+      env.DB.prepare(
+        `UPDATE forget_sweep SET touched = ?1
+         WHERE id IN (SELECT value FROM json_each(?2))`,
+      ).bind(t, JSON.stringify([...new Set(gone.map((g) => g.id))])),
+      // Recounted on the next upload (storedBytes).
+      env.DB.prepare("DELETE FROM cache WHERE key = 'audio_bytes'"),
+    ]);
+  }
+  if (!id) await sweepAudio(env);
+  return gone.length;
+}
+
+/**
+ * Lists `id`'s files in one store and queues them for deletion. Returns
+ * how many it found, or null when the store can't be listed today.
+ */
+async function queueStrays(env, id, store) {
+  let keys;
+  try {
+    if (store === "r2") {
+      const page = await env.FILES.list({ prefix: `${id}/`, limit: 1000 });
+      keys = page.objects.map((o) => o.key);
+    } else {
+      if ((await takeKv(env, "list", 1)) < 1) return null;
+      const page = await env.AUDIO.list({ prefix: `${id}/`, limit: 1000 });
+      keys = page.keys.map((k) => k.name);
+    }
+  } catch (e) {
+    console.log(`${store} list`, String(e));
+    if (store === "kv") await kvExhausted(env, "list");
+    return null;
+  }
+  if (keys.length) {
+    // One query (the free plan allows 50 per run), however many files.
+    await env.DB.prepare(
+      `INSERT INTO forget_audio (key, id, bytes, received, store)
+       SELECT value, ?1, 0, ?2, ?3 FROM json_each(?4) WHERE true
+       ON CONFLICT(key, store) DO NOTHING`,
+    )
+      .bind(id, now(), store, JSON.stringify(keys))
+      .run();
+  }
+  return keys.length;
+}
+
+async function sweepAudio(env) {
+  const { results = [] } = await env.DB.prepare(
+    `SELECT s.id FROM forget_sweep s
+     WHERE s.touched < ?1 AND NOT EXISTS (SELECT 1 FROM forget_audio a WHERE a.id = s.id)
+     LIMIT 5`,
+  )
+    .bind(now() - 300)
+    .all();
+  for (const { id } of results) {
+    let found = 0;
+    for (const store of env.FILES ? ["kv", "r2"] : ["kv"]) {
+      const n = await queueStrays(env, id, store);
+      if (n === null) return;
+      found += n;
+    }
+    if (!found) await env.DB.prepare("DELETE FROM forget_sweep WHERE id = ?1").bind(id).run();
+  }
+}
+
+/**
+ * Moves the audio uploaded before R2 from Workers KV into R2, a batch per
+ * hourly run, within the day's KV delete budget (deletions of "Delete what
+ * was shared" go first). A file whose recording was deleted meanwhile is
+ * only deleted. Stops listing once KV is empty.
+ */
+export async function moveToR2(env) {
+  if (!env.FILES) return 0;
+  const done = await env.DB.prepare("SELECT 1 FROM cache WHERE key = 'kv_moved'").first();
+  if (done) return 0;
+  if ((await takeKv(env, "list", 1)) < 1) return 0;
+  const page = await env.AUDIO.list({ limit: MOVE_MAX });
+  if (!page.keys.length) {
+    await env.DB.prepare(
+      "INSERT INTO cache (key, value, updated) VALUES ('kv_moved', 'all', ?1) ON CONFLICT(key) DO NOTHING",
+    )
+      .bind(now())
+      .run();
+    return 0;
+  }
+  const names = page.keys.map((k) => k.name);
+  // Files queued for deletion are the queue's; the rest move if D1 still has them.
+  const { results: kept = [] } = await env.DB.prepare(
+    `SELECT value AS key FROM json_each(?1)
+     WHERE EXISTS (SELECT 1 FROM donations d WHERE d.id || '/' || d.clip || '.flac' = value)
+       AND NOT EXISTS (SELECT 1 FROM forget_audio f WHERE f.key = value)`,
+  )
+    .bind(JSON.stringify(names))
+    .all();
+  const queued = await env.DB.prepare(
+    "SELECT value AS key FROM json_each(?1) WHERE EXISTS (SELECT 1 FROM forget_audio f WHERE f.key = value)",
+  )
+    .bind(JSON.stringify(names))
+    .all();
+  const skip = new Set((queued.results || []).map((r) => r.key));
+  const keep = new Set(kept.map((r) => r.key));
+  const todo = names.filter((n) => !skip.has(n));
+  const granted = await takeKv(env, "delete", todo.length);
+  let moved = 0;
+  for (const key of todo.slice(0, granted)) {
+    try {
+      if (keep.has(key)) {
+        const audio = await env.AUDIO.get(key, "arrayBuffer");
+        if (audio) await env.FILES.put(key, audio);
+      }
+      await env.AUDIO.delete(key);
+      moved += 1;
+    } catch (e) {
+      console.log("move to r2", String(e));
+      await kvExhausted(env, "delete");
+      break;
+    }
+  }
+  return moved;
+}
+
+// A daily report is small; anything bigger is a bug or abuse. The first
+// one after turning "Help improve" on also carries setup and older events.
+const MAX_USAGE_BYTES = 64 * 1024;
+
+async function usage(req, env, ctx) {
   if (Number(req.headers.get("Content-Length") || 0) > MAX_USAGE_BYTES) {
     return json({ error: "too big" }, 413);
   }
@@ -180,7 +439,158 @@ async function usage(req, env) {
   )
     .bind(id, day, text, t)
     .run();
+  if (env.POSTHOG_KEY && shouldRelay(report)) ctx.waitUntil(relay(env, id, report, t));
   return json({ ok: true });
+}
+
+/**
+ * Only reports from apps whose "What's shared" names PostHog go there:
+ * those carry the `usage` part (the app's usage.rs, same release as the
+ * new text). Older apps' users agreed to a text without any third party,
+ * so their reports stay in D1 only.
+ */
+export function shouldRelay(report) {
+  const u = report && report.usage;
+  return !!u && typeof u === "object" && !Array.isArray(u);
+}
+
+// ----- PostHog (EU), for charts -----
+//
+// The daily report goes on to PostHog as events, sent from here, so PostHog
+// never sees the user's IP address (only Cloudflare's) and the app talks to
+// this counter alone. Same project as sokki.org's counter; `$lib` tells them
+// apart. Only what the report already holds: counts, times, fixed names.
+
+const NAME = /^[a-z0-9_]{1,40}$/;
+const EVENTS = new Set([
+  "first_start",
+  "setup_step",
+  "first_dictation",
+  "first_meeting",
+  "app_updated",
+  "crash",
+]);
+
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+const word = (v) =>
+  typeof v === "string" && /^[A-Za-z0-9_.:\/ ~+-]{1,120}$/.test(v) ? v : undefined;
+
+/** Keeps numbers, booleans and short plain words of a flat object. */
+function flat(obj, prefix, out = {}) {
+  if (!obj || typeof obj !== "object") return out;
+  for (const [k, v] of Object.entries(obj).slice(0, 60)) {
+    if (!NAME.test(k)) continue;
+    if (typeof v === "boolean") out[prefix + k] = v;
+    else if (num(v) !== undefined) out[prefix + k] = v;
+    else if (word(v) !== undefined) out[prefix + k] = v;
+  }
+  return out;
+}
+
+/** The PostHog events for one daily report. */
+export function posthogEvents(id, r, t) {
+  const base = { $lib: "sokki-app", $geoip_disable: true };
+  const app = r.app || {};
+  const device = r.device || {};
+  const u = r.usage || {};
+  const act = r.activity || {};
+  const meetings = Array.isArray(act.meetings) ? act.meetings : [];
+  const person = {
+    app_version: word(app.version),
+    os: word(device.os),
+    os_version: word(device.os_version),
+    chip: word(device.chip),
+    ram_gb: num(device.ram_gb),
+    region: word(device.region),
+    model: word(app.model),
+    language: word(app.language),
+    ui_language: word(app.ui_language),
+  };
+  const daily = {
+    ...base,
+    ...person,
+    dictations: num(act.dictations),
+    dictation_seconds: num(act.dictation_seconds),
+    meetings: meetings.length,
+    meeting_minutes: meetings.reduce((a, m) => a + (num(m?.minutes) || 0), 0),
+    problems: Array.isArray(r.problems) ? r.problems.length : 0,
+    accessibility: u.permissions?.accessibility === true,
+    ...flat(u.counts, "count_"),
+    ...flat(u.settings, "setting_"),
+    $set: person,
+  };
+  if (num(u.first_start)) daily.$set_once = { first_start: new Date(u.first_start * 1000).toISOString() };
+  for (const [k, v] of Object.entries(u.timings || {}).slice(0, 20)) {
+    if (!NAME.test(k) || !v || typeof v !== "object") continue;
+    daily[`${k}_median`] = num(v.median);
+    daily[`${k}_p90`] = num(v.p90);
+    daily[`${k}_n`] = num(v.n);
+  }
+  const iso = (s) => new Date(s * 1000).toISOString();
+  const out = [{ event: "app_daily", distinct_id: id, timestamp: iso(t), properties: daily }];
+  for (const e of (Array.isArray(u.events) ? u.events : []).slice(0, 200)) {
+    if (!e || !EVENTS.has(e.event) || !num(e.at)) continue;
+    // Not before Sokki existed, not in the future.
+    const at = Math.min(Math.max(e.at, 1_760_000_000), t);
+    out.push({
+      event: e.event,
+      distinct_id: id,
+      timestamp: iso(at),
+      properties: { ...base, app_version: person.app_version, ...flat(e.props, "") },
+    });
+  }
+  for (const line of (Array.isArray(r.problems) ? r.problems : []).slice(0, 30)) {
+    if (typeof line !== "string") continue;
+    const level = line.includes("[ERROR]") ? "error" : "warning";
+    out.push({
+      event: "app_problem",
+      distinct_id: id,
+      timestamp: iso(t),
+      properties: { ...base, app_version: person.app_version, level, message: line.slice(0, 240) },
+    });
+  }
+  return out;
+}
+
+async function relay(env, id, report, t) {
+  try {
+    const res = await fetch(`${env.POSTHOG_HOST}/batch/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: env.POSTHOG_KEY, batch: posthogEvents(id, report, t) }),
+    });
+    if (!res.ok) console.log("posthog", res.status, await res.text());
+  } catch (e) {
+    console.log("posthog", String(e));
+  }
+}
+
+/**
+ * "Delete what was shared" also deletes the install at PostHog, with its
+ * events. That needs a personal API key (secret POSTHOG_PERSONAL_KEY); until
+ * it is set, ids wait in `posthog_forget` and the hourly run retries.
+ */
+async function forgetAtPostHog(env, id) {
+  if (!env.POSTHOG_PERSONAL_KEY || !env.POSTHOG_PROJECT) return false;
+  const api = `${env.POSTHOG_API}/api/projects/${env.POSTHOG_PROJECT}/persons`;
+  const auth = { Authorization: `Bearer ${env.POSTHOG_PERSONAL_KEY}` };
+  const found = await fetch(`${api}/?distinct_id=${id}`, { headers: auth });
+  if (!found.ok) return false;
+  const { results = [] } = await found.json();
+  for (const p of results) {
+    const del = await fetch(`${api}/${p.id}/?delete_events=true`, { method: "DELETE", headers: auth });
+    if (!del.ok && del.status !== 404) return false;
+  }
+  return true;
+}
+
+async function drainForget(env) {
+  const { results } = await env.DB.prepare("SELECT id FROM posthog_forget LIMIT 50").all();
+  for (const { id } of results) {
+    if (await forgetAtPostHog(env, id).catch(() => false)) {
+      await env.DB.prepare("DELETE FROM posthog_forget WHERE id = ?1").bind(id).run();
+    }
+  }
 }
 
 async function interest(req, env) {
@@ -265,17 +675,68 @@ async function donate(req, env) {
   // Only installs that share all recordings (their count says donate = 1).
   const donor = await env.DB.prepare("SELECT donate FROM installs WHERE id = ?1").bind(id).first();
   if (!donor || donor.donate !== 1) return json({ error: "not a supporter" }, 403);
-  const stored = await env.DB.prepare("SELECT COALESCE(SUM(bytes), 0) AS b FROM donations").first();
-  if (stored.b + audio.length > AUDIO_CAP_BYTES) return json({ error: "store full" }, 507);
-  await env.AUDIO.put(`${id}/${clip}.flac`, audio);
-  await env.DB.prepare(
-    `INSERT INTO donations (id, clip, language, source, seconds, bytes, text, received)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-     ON CONFLICT(id, clip) DO UPDATE SET bytes = ?6, text = ?7, received = ?8`,
-  )
-    .bind(id, clip, language, source, Math.round(seconds * 100) / 100, audio.length, text, now())
-    .run();
+  // A clip sent again replaces the earlier upload of it.
+  const prev = await env.DB.prepare("SELECT bytes FROM donations WHERE id = ?1 AND clip = ?2")
+    .bind(id, clip)
+    .first();
+  const delta = audio.length - (prev ? prev.bytes : 0);
+  if ((await storedBytes(env)) + delta > audioCap(env)) return json({ error: "store full" }, 507);
+  // Today's writes are used up: the app keeps the clip and tries again the
+  // next day. R2 once it is bound (FILES), Workers KV before.
+  const kind = env.FILES ? "r2_write" : "write";
+  if ((await takeKv(env, kind, 1)) < 1) return tryLater();
+  try {
+    await (env.FILES || env.AUDIO).put(`${id}/${clip}.flac`, audio);
+  } catch (e) {
+    console.log(`${kind} put`, String(e));
+    await kvExhausted(env, kind);
+    return tryLater();
+  }
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO donations (id, clip, language, source, seconds, bytes, text, received)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+       ON CONFLICT(id, clip) DO UPDATE SET bytes = ?6, text = ?7, received = ?8`,
+    ).bind(id, clip, language, source, Math.round(seconds * 100) / 100, audio.length, text, t),
+    env.DB.prepare(
+      "UPDATE cache SET value = CAST(value AS INTEGER) + ?1, updated = ?2 WHERE key = 'audio_bytes'",
+    ).bind(delta, t),
+  ]);
   return json({ ok: true });
+}
+
+/** "Try again tomorrow": 503 with the seconds until KV's limits reset. */
+function tryLater() {
+  const wait = secondsToNextDay();
+  return new Response(JSON.stringify({ error: "try later", retry_after: wait }), {
+    status: 503,
+    headers: { "Content-Type": "application/json", "Retry-After": String(wait), ...cors },
+  });
+}
+
+/**
+ * Bytes of audio stored, kept as a running total in `cache` ('audio_bytes').
+ * Summing every donation on each upload read ~700,000 rows a day for one
+ * sharing install (KNOWN_ISSUES U5); this reads one row. The sum runs only
+ * when the total is missing: the first upload after this change and after
+ * queued audio was deleted.
+ */
+export async function storedBytes(env) {
+  const row = await env.DB.prepare("SELECT value FROM cache WHERE key = 'audio_bytes'").first();
+  if (row) return Number(row.value);
+  // Audio still waiting to be deleted (forget_audio) is still in the store.
+  const { b } = await env.DB.prepare(
+    `SELECT (SELECT COALESCE(SUM(bytes), 0) FROM donations)
+          + (SELECT COALESCE(SUM(bytes), 0) FROM forget_audio) AS b`,
+  ).first();
+  await env.DB.prepare(
+    `INSERT INTO cache (key, value, updated) VALUES ('audio_bytes', ?1, ?2)
+     ON CONFLICT(key) DO UPDATE SET value = ?1, updated = ?2`,
+  )
+    .bind(String(b), now())
+    .run();
+  return b;
 }
 
 // /total is served from a stored copy, recomputed at most this often, so a
@@ -373,7 +834,15 @@ const ROUTES = {
 };
 
 export default {
-  async fetch(req, env) {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(drainForget(env));
+    ctx.waitUntil(
+      drainAudio(env)
+        .then(() => moveToR2(env))
+        .catch((e) => console.log("audio forget", String(e))),
+    );
+  },
+  async fetch(req, env, ctx) {
     const { pathname } = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     if (req.method === "GET" && pathname === "/total") return total(env);
@@ -393,6 +862,6 @@ export default {
       const { success } = await limiter.limit({ key: ip });
       if (!success) return json({ error: "slow down" }, 429);
     }
-    return route(req, env);
+    return route(req, env, ctx);
   },
 };

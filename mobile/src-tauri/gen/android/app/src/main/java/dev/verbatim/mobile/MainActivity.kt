@@ -108,6 +108,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(Links(), "SokkiLinks")
     webView.addJavascriptInterface(Screen(), "SokkiScreen")
     webView.addJavascriptInterface(Recorder(), "SokkiRecorder")
+    webView.addJavascriptInterface(JournalBridge(this), "SokkiJournal")
     Recording.page = java.lang.ref.WeakReference(webView)
   }
 
@@ -180,6 +181,10 @@ class MainActivity : TauriActivity() {
       if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
       else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
+
+    /** The phone's own 12/24-hour setting, for times in the recording list. */
+    @JavascriptInterface
+    fun uses24Hour(): Boolean = android.text.format.DateFormat.is24HourFormat(this@MainActivity)
   }
 
   /** Links in and out: pairing links, and sharing Sokki's download link. */

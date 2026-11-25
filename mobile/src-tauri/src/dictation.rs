@@ -16,12 +16,30 @@ use dictation_core::{Mode, Params, Segmenter};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-pub const MODEL_FILE: &str = "parakeet-ultra-Q8_0.gguf";
-const MODEL_URL: &str =
-    "https://huggingface.co/handy-computer/parakeet-ultra-gguf/resolve/main/parakeet-ultra-Q8_0.gguf";
+/// Nemotron Streaming 3.5 (32 languages, German included): the keyboard
+/// streams into it as the Mac does (`keyboard_voice.rs`); the Dictate tab
+/// reads its pieces whole.
+pub const MODEL_FILE: &str = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf";
+const MODEL_URL: &str = "https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf";
+/// The model before 2026-11-25 (Parakeet Ultra, not a streaming model):
+/// deleted once the new one is in, and a reason to fetch the new one by
+/// itself (the person chose on-device dictation already).
+pub const OLD_MODEL_FILE: &str = "parakeet-ultra-Q8_0.gguf";
+
+/// CPU threads for the model: all cores but two, at most 4. The engine's
+/// threads wait for each other, so when one is pushed aside (the screen,
+/// the microphone, another app) all of them stall: on the emulator (4
+/// cores, two other busy processes) 4 threads left the text 41 s behind,
+/// 2 or 3 threads 0.25 s. The old keyboard's two passes ran 8 threads on
+/// the Pixel's 8 cores and froze for ~3 s whenever both ran.
+pub fn threads() -> i32 {
+    std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(2).clamp(1, 4) as i32)
+}
 
 pub struct Engine {
-    session: Mutex<transcribe_cpp::Session>,
+    /// The Dictate tab's session, made on its first use (the keyboard's
+    /// process makes its own and shouldn't carry a second one).
+    session: Mutex<Option<transcribe_cpp::Session>>,
     model: transcribe_cpp::Model,
 }
 
@@ -39,8 +57,12 @@ impl Engine {
     /// Transcribes one piece of 16 kHz mono audio.
     pub fn run(&self, audio: &[f32]) -> String {
         let opts = transcribe_cpp::RunOptions::default();
-        let mut s = self.session.lock().unwrap();
-        s.run(audio, &opts)
+        let mut slot = self.session.lock().unwrap();
+        if slot.is_none() {
+            *slot = self.new_session(threads()).ok();
+        }
+        slot.as_mut()
+            .and_then(|s| s.run(audio, &opts).ok())
             .map(|r| r.text.trim().to_string())
             .unwrap_or_default()
     }
@@ -62,9 +84,8 @@ pub fn engine_at(path: &Path) -> Result<Arc<Engine>, String> {
     let _ = transcribe_cpp::init_backends_default();
     let model = transcribe_cpp::Model::load_with(path, &transcribe_cpp::ModelOptions::default())
         .map_err(|e| format!("Loading the speech model failed: {e}"))?;
-    let session = model.session().map_err(|e| e.to_string())?;
     let e = Arc::new(Engine {
-        session: Mutex::new(session),
+        session: Mutex::new(None),
         model,
     });
     *slot = Some(e.clone());
@@ -104,6 +125,8 @@ fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
 #[derive(serde::Serialize)]
 pub struct ModelInfo {
     present: bool,
+    /// The previous model is there: fetch the new one without asking.
+    old_present: bool,
     path: String,
     loaded: bool,
 }
@@ -113,48 +136,85 @@ pub fn dictation_model(app: AppHandle) -> Result<ModelInfo, String> {
     let path = model_path(&app)?;
     Ok(ModelInfo {
         present: path.exists(),
+        old_present: path.with_file_name(OLD_MODEL_FILE).exists(),
         path: path.display().to_string(),
         loaded: engine_loaded(),
     })
 }
 
-/// Downloads the speech model (740 MB) into the app's storage.
+/// One download at a time: a second caller waits for the first and is done.
+static DOWNLOADING: Mutex<()> = Mutex::new(());
+
+/// Downloads the speech model (750 MB) into the app's storage, then
+/// deletes the previous one.
+fn download(app: &AppHandle, path: &Path) -> Result<(), String> {
+    use std::io::{Read, Write};
+    let _one = DOWNLOADING.lock().unwrap_or_else(|e| e.into_inner());
+    if path.exists() {
+        return Ok(());
+    }
+    let part = path.with_extension("part");
+    let mut resp = ureq::get(MODEL_URL).call().map_err(|e| e.to_string())?;
+    let total: u64 = resp
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok()?.parse().ok())
+        .unwrap_or(0);
+    let mut reader = resp.body_mut().as_reader();
+    let mut file = std::fs::File::create(&part).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; 1 << 20];
+    let (mut done, mut last) = (0u64, Instant::now());
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+        done += n as u64;
+        if last.elapsed().as_millis() > 300 {
+            let _ = app.emit(
+                "dictation-download",
+                json!({ "done": done, "total": total }),
+            );
+            last = Instant::now();
+        }
+    }
+    if total > 0 && done != total {
+        return Err(format!("Download incomplete ({done} of {total} bytes)"));
+    }
+    std::fs::rename(&part, path).map_err(|e| e.to_string())?;
+    // A process still using the old file keeps it until it lets go.
+    let _ = std::fs::remove_file(path.with_file_name(OLD_MODEL_FILE));
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn dictation_download(app: AppHandle) -> Result<(), String> {
     let path = model_path(&app)?;
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-        use std::io::{Read, Write};
-        let part = path.with_extension("part");
-        let mut resp = ureq::get(MODEL_URL).call().map_err(|e| e.to_string())?;
-        let total: u64 = resp
-            .headers()
-            .get("content-length")
-            .and_then(|v| v.to_str().ok()?.parse().ok())
-            .unwrap_or(0);
-        let mut reader = resp.body_mut().as_reader();
-        let mut file = std::fs::File::create(&part).map_err(|e| e.to_string())?;
-        let mut buf = vec![0u8; 1 << 20];
-        let (mut done, mut last) = (0u64, Instant::now());
-        loop {
-            let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
-            if n == 0 {
-                break;
-            }
-            file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
-            done += n as u64;
-            if last.elapsed().as_millis() > 300 {
-                let _ = app.emit("dictation-download", json!({ "done": done, "total": total }));
-                last = Instant::now();
-            }
+    tauri::async_runtime::spawn_blocking(move || download(&app, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// At app start: whoever has the previous model gets the new one by
+/// itself, in the background (the keyboard needs it).
+pub fn update_model(app: &AppHandle) {
+    let Ok(path) = model_path(app) else { return };
+    let old = path.with_file_name(OLD_MODEL_FILE);
+    if path.exists() {
+        // Put there by hand (tests): the old one isn't needed either.
+        let _ = std::fs::remove_file(old);
+        return;
+    }
+    if !old.exists() {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = download(&app, &path) {
+            eprintln!("Updating the speech model failed: {e}");
         }
-        if total > 0 && done != total {
-            return Err(format!("Download incomplete ({done} of {total} bytes)"));
-        }
-        std::fs::rename(&part, &path).map_err(|e| e.to_string())?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    });
 }
 
 fn engine(app: &AppHandle) -> Result<Arc<Engine>, String> {

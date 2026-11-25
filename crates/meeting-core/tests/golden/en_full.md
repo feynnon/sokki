@@ -83,4 +83,4 @@ tags: [meeting]
 
 **[02:36] Ich:** Danke, bis Dienstag.
 
-Transcribed on my Mac with sokki.org
+Summarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org

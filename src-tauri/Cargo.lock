@@ -4227,6 +4227,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "meeting-chat"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "meeting-core"
 version = "0.1.0"
 dependencies = [
@@ -4244,6 +4254,20 @@ dependencies = [
  "libc",
  "log",
  "serde_json",
+]
+
+[[package]]
+name = "meeting-mail"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "getrandom 0.2.17",
+ "log",
+ "meeting-core",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "ureq 3.2.0",
 ]
 
 [[package]]
@@ -7377,8 +7401,10 @@ dependencies = [
  "isolang",
  "libc",
  "log",
+ "meeting-chat",
  "meeting-core",
  "meeting-detect",
+ "meeting-mail",
  "natural",
  "objc2",
  "objc2-app-kit",
@@ -7397,10 +7423,12 @@ dependencies = [
  "rusqlite",
  "rusqlite_migration",
  "rustfft",
+ "security-framework",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "signal-hook",
+ "sokki-autocorrect",
  "sokki-engine",
  "sokki-keys",
  "sokki-link",
@@ -7440,6 +7468,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sokki-autocorrect"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "sokki-typos",
+]
+
+[[package]]
 name = "sokki-cpal"
 version = "0.18.2"
 dependencies = [
@@ -7475,6 +7511,8 @@ name = "sokki-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
+ "ed25519-dalek",
  "log",
  "meeting-core",
  "serde",
@@ -7529,6 +7567,10 @@ dependencies = [
  "sokki-cpal",
  "windows 0.62.2",
 ]
+
+[[package]]
+name = "sokki-typos"
+version = "0.1.0"
 
 [[package]]
 name = "sonora"

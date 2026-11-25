@@ -6,10 +6,23 @@
 # process that no longer runs is taken over. Before building it also waits
 # while another Rust build runs that doesn't use these scripts
 # (~/.local/bin/build-busy, when present).
+#
+# With ~/.local/bin/build-slot (2026-11-24) the Mac-wide queue decides instead:
+# it waits its turn (BUILD_SLOT_PRIORITY: release, normal or low), for
+# meetings and for builds outside the queue, and frees the slot when this
+# script ends, even after a crash.
 
 BUILD_LOCK="$HOME/.cache/sokki-build.lock"
 
 build_lock_acquire() {
+  if [[ -x "$HOME/.local/bin/build-slot" ]]; then
+    "$HOME/.local/bin/build-slot" acquire --pid $$ \
+      --priority "${BUILD_SLOT_PRIORITY:-normal}" \
+      --name "$(basename "$REPO"): ${0##*/}" || return 1
+    BUILD_SLOT_HELD=1
+    trap build_lock_release EXIT
+    return 0
+  fi
   mkdir -p "$HOME/.cache"
   local said=""
   while true; do
@@ -40,6 +53,12 @@ build_lock_acquire() {
 rmdir_lock() { rm -f "$BUILD_LOCK/owner"; rmdir "$BUILD_LOCK" 2>/dev/null; }
 
 build_lock_release() {
+  if [[ -n "${BUILD_SLOT_HELD:-}" ]]; then
+    "$HOME/.local/bin/build-slot" release --pid $$
+    BUILD_SLOT_HELD=""
+    trap - EXIT
+    return 0
+  fi
   [[ "$(awk '{print $1}' "$BUILD_LOCK/owner" 2>/dev/null)" == "$$" ]] && rmdir_lock
   trap - EXIT
 }

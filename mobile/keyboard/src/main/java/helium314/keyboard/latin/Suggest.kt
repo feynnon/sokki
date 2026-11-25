@@ -21,6 +21,8 @@ import helium314.keyboard.latin.dictionary.Dictionary
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.settings.SettingsValuesForSuggestion
 import helium314.keyboard.latin.suggestions.SuggestionStripView
+import dev.verbatim.sokki.SokkiBench
+import dev.verbatim.sokki.Typos
 import helium314.keyboard.latin.utils.AutoCorrectionUtils
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.BackgroundGatheringCache
@@ -75,10 +77,12 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
                       isCorrectionEnabled: Boolean, sequenceNumber: Int): SuggestedWords {
         val typedWordString = wordComposer.typedWord
         val resultsArePredictions = !wordComposer.isComposingWord
+        val decodeStart = System.nanoTime()
         val suggestionResults = if (typedWordString.isEmpty())
                 getNextWordSuggestions(ngramContext, keyboard, inputStyleIfNotPrediction, settingsValuesForSuggestion)
             else mDictionaryFacilitator.getSuggestionResults(wordComposer.composedDataSnapshot, ngramContext, keyboard,
                 settingsValuesForSuggestion, SESSION_ID_TYPING, inputStyleIfNotPrediction)
+        if (SokkiBench.on) SokkiBench.decodeNanos = System.nanoTime() - decodeStart
         val trailingSingleQuotesCount = StringUtils.getTrailingSingleQuotesCount(typedWordString)
         val capsMode = getCapsModeForTyping(wordComposer, keyboard)
         val suggestionsContainer = ArrayList(suggestionResults)
@@ -92,23 +96,51 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         val firstOccurrenceOfTypedWordInSuggestions = SuggestedWordInfo.removeDupsAndTypedWord(capitalizedTypedWord, suggestionsContainer)
         makeFirstTwoSuggestionsNonEmoji(suggestionsContainer)
 
-        val (allowsToBeAutoCorrected, hasAutoCorrection) = shouldBeAutoCorrected(
-            trailingSingleQuotesCount,
-            capitalizedTypedWord,
-            suggestionsContainer.firstOrNull(),
-            {
-                val first = suggestionsContainer.firstOrNull() ?: suggestionResults.first()
-                val suggestions = getNextWordSuggestions(ngramContext, keyboard, inputStyleIfNotPrediction, settingsValuesForSuggestion)
-                val suggestionForFirstInContainer = suggestions.firstOrNull { it.mWord == first.word }
-                val suggestionForTypedWord = suggestions.firstOrNull { it.mWord == capitalizedTypedWord }
-                suggestionForFirstInContainer to suggestionForTypedWord
-            },
-            isCorrectionEnabled,
-            wordComposer,
-            suggestionResults,
-            firstOccurrenceOfTypedWordInSuggestions,
-            typedWordFirstOccurrenceWordInfo
-        )
+        // HeliBoard's own autocorrect decision, with `firstInContainer` as the candidate
+        val decide = { firstInContainer: SuggestedWordInfo? ->
+            shouldBeAutoCorrected(
+                trailingSingleQuotesCount,
+                capitalizedTypedWord,
+                firstInContainer,
+                {
+                    val first = firstInContainer ?: suggestionResults.first()
+                    val suggestions = getNextWordSuggestions(ngramContext, keyboard, inputStyleIfNotPrediction, settingsValuesForSuggestion)
+                    val suggestionForFirstInContainer = suggestions.firstOrNull { it.mWord == first.word }
+                    val suggestionForTypedWord = suggestions.firstOrNull { it.mWord == capitalizedTypedWord }
+                    suggestionForFirstInContainer to suggestionForTypedWord
+                },
+                isCorrectionEnabled,
+                wordComposer,
+                suggestionResults,
+                firstOccurrenceOfTypedWordInSuggestions,
+                typedWordFirstOccurrenceWordInfo
+            )
+        }
+        if (SokkiBench.on) SokkiBench.native = suggestionsContainer.firstOrNull()?.takeIf { decide(it).second }?.mWord
+
+        // Sokki: fix typos, never swap a real word (dev.verbatim.sokki.Typos decides).
+        // The fix goes to the front, where autocorrect takes it from.
+        val sokkiMayFix = isCorrectionEnabled && wordComposer.isComposingWord && !wordComposer.isResumed
+            && trailingSingleQuotesCount == 0 && mDictionaryFacilitator.hasAtLeastOneInitializedMainDictionary()
+        val typosStart = System.nanoTime()
+        val sokkiFix = if (!sokkiMayFix) null
+        else {
+            val typedLangs = suggestionResults.filter { it.mWord == capitalizedTypedWord }.mapTo(HashSet()) { sokkiLanguage(it) ?: "user" }
+            if (SokkiBench.on) SokkiBench.typedLangs = typedLangs
+            Typos.correction(typedWordString, suggestionsContainer.map { it.mWord to sokkiLanguage(it) }, typedLangs,
+                previousWords(ngramContext), null)
+        }
+        if (SokkiBench.on) SokkiBench.typosNanos = System.nanoTime() - typosStart
+        if (sokkiFix != null) {
+            val i = suggestionsContainer.indexOfFirst { it.mWord == sokkiFix }
+            if (i > 0) suggestionsContainer.add(0, suggestionsContainer.removeAt(i))
+            else if (i < 0) suggestionsContainer.add(0, SuggestedWordInfo(sokkiFix, "", SuggestedWordInfo.MAX_SCORE,
+                SuggestedWordInfo.KIND_CORRECTION, Dictionary.DICTIONARY_USER_TYPED, SuggestedWordInfo.NOT_AN_INDEX,
+                SuggestedWordInfo.NOT_A_CONFIDENCE))
+        }
+        // Sokki: HeliBoard's own autocorrect decision is not used
+        val (allowsToBeAutoCorrected, _) = decide(suggestionsContainer.firstOrNull())
+        val hasAutoCorrection = sokkiFix != null
         val typedWordInfo = SuggestedWordInfo(typedWordString, "", SuggestedWordInfo.MAX_SCORE,
             SuggestedWordInfo.KIND_TYPED, typedWordFirstOccurrenceWordInfo?.mSourceDict ?: Dictionary.DICTIONARY_USER_TYPED,
             SuggestedWordInfo.NOT_AN_INDEX , SuggestedWordInfo.NOT_A_CONFIDENCE)
@@ -374,6 +406,24 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         private const val SUPPRESS_SUGGEST_THRESHOLD = -2000000000
 
         private const val MAXIMUM_AUTO_CORRECT_LENGTH_FOR_GERMAN = 12
+
+        /** Sokki: the sentence's words before (up to 3), nearest last, Typos.BOS where it starts. */
+        private fun previousWords(ngramContext: NgramContext): List<String> {
+            val words = ArrayList<String>(4)
+            for (n in 1..minOf(3, ngramContext.prevWordCount)) {
+                if (ngramContext.isNthPrevWordBeginningOfSentence(n)) {
+                    words.add(Typos.BOS)
+                    break
+                }
+                words.add(ngramContext.getNthPrevWord(n)?.toString()?.takeIf { it.isNotEmpty() } ?: break)
+            }
+            return words.asReversed()
+        }
+
+        /** Sokki: a main dictionary's language ("de", "en"); null for the user's own words. */
+        private fun sokkiLanguage(info: SuggestedWordInfo): String? =
+            if (info.mSourceDict.mDictType == Dictionary.TYPE_MAIN) info.mSourceDict.mLocale?.language else null
+
         // TODO: should we add Finnish here?
         private val sLanguageToMaximumAutoCorrectionWithSpaceLength = hashMapOf(Locale.GERMAN.language to MAXIMUM_AUTO_CORRECT_LENGTH_FOR_GERMAN)
 

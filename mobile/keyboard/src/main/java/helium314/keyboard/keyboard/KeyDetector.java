@@ -81,6 +81,15 @@ public class KeyDetector {
         }
         final int touchX = getTouchX(x);
         final int touchY = getTouchY(y);
+        // Sokki: near a letter key's edge, the likelier letter wins (off by default).
+        return dev.verbatim.sokki.KeyTargeting.adjust(mKeyboard, detectGeometricKey(touchX, touchY), touchX, touchY);
+    }
+
+    /** Sokki: the key whose hitbox contains the (already corrected) touch point. */
+    public Key detectGeometricKey(final int touchX, final int touchY) {
+        if (mKeyboard == null) {
+            return null;
+        }
 
         int minDistance = Integer.MAX_VALUE;
         Key primaryKey = null;

@@ -337,6 +337,12 @@ fn open_on(device: Option<&InputDevice>, hooks: &Hooks) -> Result<Recorder<MicSi
         hooks.lost.store(true, Ordering::Release);
         let _ = hooks.tx.send(());
     };
+    if super::sample::active() {
+        // The sample meeting: a silent stand-in, nothing of the room.
+        config.device = None;
+        return super::sample::open_mic(config, Box::new(on_failure))
+            .map_err(|e| anyhow!("Opening the sample microphone failed: {e}"));
+    }
     if crate::test_mic::active() {
         // Test mode: the file plays in place of the microphone.
         config.device = None;

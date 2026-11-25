@@ -4,6 +4,12 @@
 //
 // Requires the "System Audio Recording" TCC permission, prompted through
 // NSAudioCaptureUsageDescription in Info.plist.
+//
+// The tap can go dead mid-meeting: on 2026-11-24 it delivered exact zeros
+// from 10:02:20 on while Chrome kept playing the call into a Bluetooth
+// headset (coreaudiod logged Bluetooth decode errors and IO overloads that
+// second). Rust watches for that (`system_tap.rs`, watchdog) and calls
+// `sokki_tap_rebuild`, which builds the tap and its aggregate anew.
 
 import CoreAudio
 import Foundation
@@ -127,6 +133,13 @@ private final class SystemTap {
         try checkStatus(AudioDeviceStart(aggregateID, procID), "AudioDeviceStart")
     }
 
+    /// Tears the tap and aggregate down and builds them anew, for the same
+    /// callback. No callback runs in between (`stop` is synchronous).
+    func rebuild() throws {
+        stop()
+        try start()
+    }
+
     func stop() {
         if let procID, aggregateID != unknownObject {
             // Stop is synchronous: no IO callback runs after it returns.
@@ -222,7 +235,7 @@ private final class SystemTap {
         return format
     }
 
-    private static func defaultOutputUID() throws -> String {
+    static func defaultOutputDevice() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -235,6 +248,68 @@ private final class SystemTap {
             "Reading default output device"
         )
         guard device != unknownObject else { throw TapError.noOutputDevice }
+        return device
+    }
+
+    static func stringProperty(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr,
+              let value else { return nil }
+        return value.takeRetainedValue() as String
+    }
+
+    static func uint32Property(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> UInt32? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr else { return nil }
+        return value
+    }
+
+    /// Bundle ids (or "pid N") of the other processes playing audio now, or
+    /// nil when Core Audio can't say.
+    static func otherAppsPlaying() -> [String]? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyProcessObjectList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr else { return nil }
+        var objects = [AudioObjectID](repeating: unknownObject, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &objects) == noErr else { return nil }
+        let me = getpid()
+        var playing: [String] = []
+        for object in objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size) {
+            guard uint32Property(object, kAudioProcessPropertyIsRunningOutput) == 1 else { continue }
+            var pid: pid_t = -1
+            var pidAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioProcessPropertyPID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            _ = AudioObjectGetPropertyData(object, &pidAddress, 0, nil, &pidSize, &pid)
+            if pid == me { continue }
+            let bundle = stringProperty(object, kAudioProcessPropertyBundleID) ?? ""
+            playing.append(bundle.isEmpty ? "pid \(pid)" : bundle)
+        }
+        return playing
+    }
+
+    private static func defaultOutputUID() throws -> String {
+        let device = try defaultOutputDevice()
 
         var uidAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceUID,
@@ -284,6 +359,51 @@ public func sokki_tap_stop(_ handle: UnsafeMutableRawPointer?) {
     guard #available(macOS 14.2, *), let handle else { return }
     let tap = Unmanaged<SystemTap>.fromOpaque(handle).takeRetainedValue()
     tap.stop()
+}
+
+@_cdecl("sokki_tap_rebuild")
+public func sokki_tap_rebuild(
+    _ handle: UnsafeMutableRawPointer?,
+    _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Bool {
+    guard #available(macOS 14.2, *), let handle else {
+        setError(outError, TapError.unsupportedOS.description)
+        return false
+    }
+    let tap = Unmanaged<SystemTap>.fromOpaque(handle).takeUnretainedValue()
+    do {
+        try tap.rebuild()
+        return true
+    } catch {
+        // Leaves nothing half built; the next rebuild starts from scratch.
+        tap.stop()
+        setError(outError, String(describing: error))
+        return false
+    }
+}
+
+/// Copies `text` into `buffer` (NUL-terminated, cut to `capacity`).
+private func copyOut(_ text: String, _ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int) {
+    guard let buffer, capacity > 0 else { return }
+    let bytes = Array(text.utf8.prefix(capacity - 1))
+    for (i, b) in bytes.enumerated() {
+        buffer[i] = CChar(bitPattern: b)
+    }
+    buffer[bytes.count] = 0
+}
+
+@_cdecl("sokki_tap_other_apps_playing")
+public func sokki_tap_other_apps_playing(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int) -> Int32 {
+    guard #available(macOS 14.2, *), let apps = SystemTap.otherAppsPlaying() else { return -1 }
+    copyOut(apps.joined(separator: ", "), buffer, capacity)
+    return Int32(apps.count)
+}
+
+@_cdecl("sokki_tap_default_output")
+public func sokki_tap_default_output(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int) -> UInt32 {
+    guard #available(macOS 14.2, *), let device = try? SystemTap.defaultOutputDevice() else { return 0 }
+    copyOut(SystemTap.stringProperty(device, kAudioObjectPropertyName) ?? "", buffer, capacity)
+    return device
 }
 
 @_cdecl("sokki_tap_free_error")

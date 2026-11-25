@@ -4,7 +4,7 @@
     modified
     SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
 -->
-<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2" xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Subtype locale whose name should be displayed in Locale.ROOT. -->
     <string-array name="subtype_locale_displayed_in_root_locale">
@@ -71,6 +71,10 @@
     <string name="subtype_hebrew_1452_2" translatable="false">%s (1452-2)</string>
 
     <string name="english_ime_name" translatable="false">Sokki</string>
+    <!-- Sokki: the keyboard's own colour themes -->
+    <string name="theme_name_sokki" translatable="false" tools:keep="@string/theme_name_sokki">Sokki</string>
+    <string name="sokki_typing_test" translatable="false">Typing test</string>
+    <string name="theme_name_sokki_dark" translatable="false" tools:keep="@string/theme_name_sokki_dark">Sokki dark</string>
     <!-- App slogan-->
     <string name="app_slogan" translatable="false">100% FOSS keyboard, based on AOSP.</string>
 

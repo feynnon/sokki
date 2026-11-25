@@ -10,6 +10,7 @@ import {
   type Uses,
 } from "./onboardingStore";
 import { usePermissions } from "./usePermissions";
+import { useGmail, useMacRegion } from "./useGmail";
 import type { ChineseScriptChoice } from "@/lib/utils/languageSuggestions";
 import { isChinese } from "@/lib/utils/languageSuggestions";
 import { Welcome } from "./screens/Welcome";
@@ -17,6 +18,7 @@ import { Voice } from "./screens/Voice";
 import { Permissions } from "./screens/Permissions";
 import { Purpose } from "./screens/Purpose";
 import { Model } from "./screens/Model";
+import { Summary } from "./screens/Summary";
 import { Demo } from "./screens/Demo";
 import { TryIt } from "./screens/TryIt";
 import { useOsType } from "@/hooks/useOsType";
@@ -37,6 +39,9 @@ interface OnboardingFlowProps {
 }
 
 // The backend's chinese_script values for the script picked on Welcome.
+/** The last setup screen counted for "Help improve Sokki" (usage.rs). */
+let countedStep: OnboardingStep | null = null;
+
 const SCRIPT_SETTING: Record<ChineseScriptChoice, ChineseScript> = {
   "zh-Hans": "simplified",
   "zh-Hant": "traditional_tw",
@@ -53,6 +58,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const store = useOnboardingStore();
   const { settings, updateSetting } = useSettings();
   const permissions = usePermissions(preview);
+  const gmail = useGmail(preview);
+  const region = useMacRegion(preview);
+  // Gmail not yet connected at the first look: Permissions offers it, so
+  // the screen stays in the flow even with every macOS permission given.
+  const offerGmail = useRef<boolean | null>(null);
+  if (offerGmail.current === null && gmail.loaded)
+    offerGmail.current = gmail.available && !gmail.connected;
   const osType = useOsType();
   const models = useOnboardingModels(store.languages);
   const currentModel = useModelStore((s) => s.currentModel);
@@ -126,7 +138,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     };
   }, [preview]);
 
-  if (!permissions.checked) return null;
+  if (!permissions.checked || !gmail.loaded) return null;
 
   // Sokki keeps first start short: what for, its permissions, the model,
   // your data, then a practice round with the shortcut. The spoken
@@ -136,16 +148,25 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     (s) =>
       (s !== "permissions" ||
         permissions.neededFor(uses) ||
+        (uses.meetings && osType === "macos" && !!offerGmail.current) ||
         store.welcomeBack) &&
       (s === "purpose" ||
         s === "permissions" ||
         s === "model" ||
+        // The summary model is for meetings, which only macOS records.
+        (s === "summary" && uses.meetings && osType === "macos") ||
         s === "voice" ||
         // The practice round is for the dictation shortcut.
         (uses.dictation && (s === "try" || s === "done"))),
   );
   const step = steps.includes(store.step) ? store.step : steps[0];
   const progress = { index: steps.indexOf(step), count: steps.length };
+  // Counted on this Mac, sent only with "Help improve Sokki" on; each screen
+  // once (Rust ignores repeats), never in a preview.
+  if (!preview && step !== countedStep) {
+    countedStep = step;
+    void commands.usageSetupStep(step);
+  }
   // Reaching returnTo ends the detour.
   const go = (to: OnboardingStep) =>
     store.set(
@@ -217,6 +238,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       return (
         <Purpose
           progress={progress}
+          gmail={osType === "macos" && !!offerGmail.current}
           onBack={progress.index > 0 ? back : undefined}
           onContinue={(picked) => {
             // Without Meetings, calls don't offer to record.
@@ -238,6 +260,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       return (
         <Permissions
           permissions={permissions}
+          gmail={gmail}
+          region={region}
           uses={uses}
           progress={progress}
           onBack={back}
@@ -253,6 +277,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           onChoose={chooseModel}
         />
       );
+    case "summary":
+      return <Summary progress={progress} onBack={back} onContinue={onward} />;
     case "voice":
       return <Voice progress={progress} onBack={back} onContinue={next} />;
     case "demo":

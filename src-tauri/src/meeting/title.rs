@@ -212,6 +212,8 @@ mod tests {
             online: None,
             title_by_hand: false,
             title_provisional: false,
+            sample: false,
+            mailed: None,
         }
     }
 

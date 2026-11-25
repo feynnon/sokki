@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-use super::store::{MeetingStatus, MeetingStore, SummaryMissing};
+use super::store::{MeetingRecord, MeetingStatus, MeetingStore, SummaryMissing};
 use super::{emit_changed, MIC_FILE, SYSTEM_FILE};
 use crate::audio_toolkit::decode_audio_file;
 use crate::managers::transcription::{ChunkControl, TranscriptionManager};
@@ -28,7 +28,10 @@ static PROCESSING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// A meeting (or a summary) is being processed right now.
 pub fn busy() -> bool {
-    matches!(PROCESSING.try_lock(), Err(std::sync::TryLockError::WouldBlock))
+    matches!(
+        PROCESSING.try_lock(),
+        Err(std::sync::TryLockError::WouldBlock)
+    )
 }
 
 /// Starts processing on a background thread. `live`: what was transcribed
@@ -40,6 +43,8 @@ pub fn spawn(app: AppHandle, id: String, live: Option<super::live::Live>) {
         .spawn(move || {
             super::priority::follow_recording();
             let _turn = PROCESSING.lock().unwrap_or_else(|e| e.into_inner());
+            // Nor next to processing (dictation_cleanup::begin checks busy()).
+            crate::dictation_cleanup::stop_model();
             let store = app.state::<Arc<MeetingStore>>().inner().clone();
             super::memguard::set_current(Some(&id));
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -112,9 +117,7 @@ fn clear_menu_bar_status(app: &AppHandle) {
 }
 
 /// The meeting settings in the engine's terms.
-pub fn engine_settings(
-    all: &crate::settings::AppSettings,
-) -> sokki_engine::Settings {
+pub fn engine_settings(all: &crate::settings::AppSettings) -> sokki_engine::Settings {
     let m = &all.meetings;
     let mut glossary = m.glossary.clone();
     for w in &all.custom_words {
@@ -127,6 +130,7 @@ pub fn engine_settings(
         summary: m.summary_enabled,
         glossary,
         footer: m.footer_enabled,
+        supporter_code: m.supporter_code.clone(),
         notes_dir: m.notes_dir_path(),
         llm: llm_settings(m, &all.post_process_api_keys),
         language: None,
@@ -173,8 +177,8 @@ fn process(
                 continue;
             };
             let path = dir.join(file);
-            let samples = decode_audio_file(&path)
-                .with_context(|| format!("decoding {}", path.display()))?;
+            let samples =
+                decode_audio_file(&path).with_context(|| format!("decoding {}", path.display()))?;
             tracks.push(Track { kind, samples });
         }
         Ok(tracks)
@@ -226,7 +230,7 @@ fn process(
         }
         hold
     };
-    let out = sokki_engine::run(
+    let out = match sokki_engine::run(
         sokki_engine::Input {
             tracks,
             timing,
@@ -245,13 +249,19 @@ fn process(
             hold_summary: Some(&hold_summary),
         },
         &engine,
-    )?;
+    ) {
+        Ok(out) => out,
+        Err(e) if e.downcast_ref::<sokki_engine::NoSpeech>().is_some() => {
+            return no_speech(app, store, &record);
+        }
+        Err(e) => return Err(e),
+    };
     save_speakers(&dir, &out.speaker_info);
 
     // "Your data": only the user's own microphone segments
     // (named after the user, which happens on calls only). Never in test mode.
     let mic = out.tracks.iter().find(|t| t.kind == TrackKind::Mic);
-    if let Some(mic) = mic.filter(|_| !crate::test_mic::active()) {
+    if let Some(mic) = mic.filter(|_| !crate::test_mic::active() && !record.sample) {
         let own: Vec<crate::voice_data::OwnSegment> = out
             .transcript
             .segments
@@ -289,10 +299,92 @@ fn process(
             }
         })
         .inspect(super::title::write_typed_into_note)?;
-    crate::milestones::add_meeting(app, id, out.duration_s);
+    if !record.sample {
+        crate::milestones::add_meeting(app, id, out.duration_s);
+        usage_done(app, id, &settings, out.summary_missing.is_none());
+    }
     emit_changed(app, id);
     notify_done(app, &out.note_path);
+    #[cfg(target_os = "macos")]
+    super::mail::after_note(app, id);
     Ok(())
+}
+
+/// Sent to the window when a meeting had no speech and was removed; the
+/// record bar says so for a moment ("No speech, nothing saved").
+pub const NO_SPEECH_EVENT: &str = "meeting-no-speech";
+
+/// Nobody spoke on any track (Robin, 2026-11-25: "prevent them from coming
+/// to existence"): no note, the audio goes to the Trash and the meeting
+/// leaves the list. A meeting that had a note already (reprocessed) keeps
+/// it, and a screen video stays where it is.
+fn no_speech(app: &AppHandle, store: &MeetingStore, record: &MeetingRecord) -> Result<()> {
+    let id = &record.id;
+    if record.note_path.is_some() {
+        log::info!("Meeting {id}: no speech on reprocessing; the earlier note stays");
+        store.update(id, |r| r.status = MeetingStatus::Done)?;
+        emit_changed(app, id);
+        return Ok(());
+    }
+    if let Err(e) = store.trash(id) {
+        // The record stays, so the audio is not lost track of.
+        log::warn!("Meeting {id}: no speech, but the audio wasn't moved to the Trash: {e:#}");
+        store.update(id, |r| {
+            r.status = MeetingStatus::Failed {
+                error: NO_SPEECH.into(),
+            }
+        })?;
+        emit_changed(app, id);
+        return Ok(());
+    }
+    log::info!(
+        "Meeting {id}: no speech in {:.0} s ({}); audio moved to the Trash, nothing saved",
+        record.duration_s,
+        record.source_app.as_deref().unwrap_or("no app")
+    );
+    let _ = tauri::Emitter::emit(app, NO_SPEECH_EVENT, id);
+    emit_changed(app, id);
+    Ok(())
+}
+
+/// The card's line for a meeting without speech whose audio could not go to
+/// the Trash.
+const NO_SPEECH: &str = "No speech found; nothing saved.";
+
+/// Counts a finished meeting, its summary and how long after the call's
+/// end the note was ready.
+fn usage_done(app: &AppHandle, id: &str, settings: &MeetingSettings, summarized: bool) {
+    use crate::usage::{count, time, Count, Timing};
+    count(app, Count::MeetingDone);
+    if settings.summary_enabled {
+        count_summary(app, settings, summarized);
+    }
+    let store = app.state::<Arc<MeetingStore>>();
+    let ended = store.get(id).and_then(|r| {
+        let start = chrono::DateTime::parse_from_rfc3339(&r.started_at).ok()?;
+        Some(start.timestamp_millis() + (r.duration_s * 1000.0) as i64)
+    });
+    if let Some(ended) = ended {
+        let ms = (chrono::Utc::now().timestamp_millis() - ended).max(0) as u64;
+        time(
+            app,
+            Timing::MeetingReady,
+            std::time::Duration::from_millis(ms),
+        );
+    }
+}
+
+fn count_summary(app: &AppHandle, settings: &MeetingSettings, ok: bool) {
+    use crate::usage::Count;
+    let cloud = CLOUD_PROVIDERS.contains(&settings.llm_provider.as_str());
+    crate::usage::count(
+        app,
+        match (ok, cloud) {
+            (false, _) => Count::SummaryFailed,
+            (true, true) => Count::SummaryCloud,
+            (true, false) => Count::SummaryOnMac,
+        },
+    );
 }
 
 // ------------------------------------------------- summary added later
@@ -364,6 +456,7 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
     }
     set_stage(app, store, id, "summarizing", None);
     let result = sokki_engine::summarize_note(&note_path, &engine);
+    count_summary(app, &all_settings.meetings, result.is_ok());
     clear_menu_bar_status(app);
     let updated = store.update(id, |r| {
         r.status = MeetingStatus::Done;
@@ -383,10 +476,14 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
         super::title::write_typed_into_note(&r);
     }
     match result {
-        Ok(done) => log::info!(
-            "Meeting {id}: summary added to {}",
-            done.note_path.display()
-        ),
+        Ok(done) => {
+            log::info!(
+                "Meeting {id}: summary added to {}",
+                done.note_path.display()
+            );
+            #[cfg(target_os = "macos")]
+            super::mail::after_note(app, id);
+        }
         Err(e) => log::warn!("Meeting {id}: adding the summary failed: {e:#}"),
     }
 }
@@ -632,6 +729,9 @@ pub fn set_builtin_llm_paths(app: &AppHandle) {
         .resource_dir()
         .ok()
         .map(|d| d.join("resources").join("llm").join("llama-server"));
+    // Any summary or title with a local model first frees the cleanup
+    // model's memory.
+    sokki_engine::llm::set_before_local_job(crate::dictation_cleanup::stop_model);
     sokki_engine::llm::set_builtin_paths(sokki_engine::llm::BuiltinPaths {
         server,
         models_dir: Some(models_dir(app)),
@@ -807,6 +907,8 @@ mod tests {
             online: None,
             title_by_hand: false,
             title_provisional: false,
+            sample: false,
+            mailed: None,
         }
     }
 

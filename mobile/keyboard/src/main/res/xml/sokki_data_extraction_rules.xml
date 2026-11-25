@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sokki: typing logs and the journal never leave the phone (cloud backup or device transfer). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="typing_log/" />
+        <exclude domain="file" path="typing_test/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="typing_log/" />
+        <exclude domain="file" path="typing_test/" />
+    </device-transfer>
+</data-extraction-rules>

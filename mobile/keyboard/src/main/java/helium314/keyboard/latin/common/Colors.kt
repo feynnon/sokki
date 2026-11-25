@@ -381,6 +381,8 @@ class DefaultColors (
     private val spaceBarText: Int = keyHintText,
     private val gesture: Int = accent,
     private var keyboardBackground: Drawable? = null,
+    /** Sokki: long-press panel and key preview colour; default is a shade of [background] */
+    popup: Int? = null,
 ) : Colors {
     private val navBar: Int
     /** brightened or darkened variant of [background], to be used if exact background color would be
@@ -405,6 +407,9 @@ class DefaultColors (
     private val actionKeyStateList: ColorStateList
     private val spaceBarStateList: ColorStateList
     private val adjustedBackgroundStateList: ColorStateList
+    private val popupColor: Int
+    private val popupStateList: ColorStateList
+    private val popupFilter: ColorFilter
     private val stripBackgroundList: ColorStateList
     private val toolbarKeyStateList = activatedStateList(
         suggestionText,
@@ -422,6 +427,10 @@ class DefaultColors (
             doubleAdjustedBackground = darken(adjustedBackground)
         }
         adjustedBackgroundStateList = pressedStateList(doubleAdjustedBackground, adjustedBackground)
+        popupColor = popup ?: adjustedBackground
+        popupStateList = if (popup == null) adjustedBackgroundStateList
+            else pressedStateList(functionalKey, popup) // the key under the finger: functional grey
+        popupFilter = colorFilter(popupColor)
 
         val stripBackground: Int
         val pressedStripElementBackground: Int
@@ -479,7 +488,8 @@ class DefaultColors (
         TOOL_BAR_KEY_ENABLED_BACKGROUND, EMOJI_CATEGORY_SELECTED, ACTION_KEY_BACKGROUND, CLIPBOARD_PIN -> accent
         SHIFT_KEY_ICON -> if (accentShiftedIcon) accent else keyText
         AUTOFILL_BACKGROUND_CHIP -> if (themeStyle == STYLE_MATERIAL && !hasKeyBorders) background else adjustedBackground
-        GESTURE_PREVIEW, POPUP_KEYS_BACKGROUND, MORE_SUGGESTIONS_BACKGROUND, KEY_PREVIEW_BACKGROUND -> adjustedBackground
+        GESTURE_PREVIEW, MORE_SUGGESTIONS_BACKGROUND -> adjustedBackground
+        POPUP_KEYS_BACKGROUND, KEY_PREVIEW_BACKGROUND -> popupColor
         TOOL_BAR_EXPAND_KEY_BACKGROUND, CLIPBOARD_SUGGESTION_BACKGROUND -> doubleAdjustedBackground
         GESTURE_TRAIL -> gesture
         KEY_TEXT, REMOVE_SUGGESTION_ICON, FUNCTIONAL_KEY_TEXT, KEY_ICON, EMOJI_KEY_TEXT,
@@ -505,7 +515,7 @@ class DefaultColors (
             FUNCTIONAL_KEY_BACKGROUND -> functionalKeyStateList
             ACTION_KEY_BACKGROUND -> actionKeyStateList
             SPACE_BAR_BACKGROUND -> spaceBarStateList
-            POPUP_KEYS_BACKGROUND -> adjustedBackgroundStateList
+            POPUP_KEYS_BACKGROUND -> popupStateList
             STRIP_BACKGROUND -> stripBackgroundList
             ACTION_KEY_POPUP_KEYS_BACKGROUND -> if (themeStyle == STYLE_HOLO) adjustedBackgroundStateList
                 else actionKeyStateList
@@ -532,7 +542,7 @@ class DefaultColors (
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {
-            KEY_PREVIEW_BACKGROUND, POPUP_KEYS_BACKGROUND -> view.background.colorFilter = adjustedBackgroundFilter
+            KEY_PREVIEW_BACKGROUND, POPUP_KEYS_BACKGROUND -> view.background.colorFilter = popupFilter
             FUNCTIONAL_KEY_BACKGROUND, KEY_BACKGROUND, MORE_SUGGESTIONS_WORD_BACKGROUND, SPACE_BAR_BACKGROUND, STRIP_BACKGROUND, CLIPBOARD_SUGGESTION_BACKGROUND -> setColor(view.background, color)
             ONE_HANDED_MODE_BUTTON -> setColor(view.background, if (keyboardBackground == null) MAIN_BACKGROUND else STRIP_BACKGROUND)
             MORE_SUGGESTIONS_BACKGROUND -> view.background.colorFilter = backgroundFilter
@@ -556,7 +566,7 @@ class DefaultColors (
         SHIFT_KEY_ICON -> if (accentShiftedIcon) accentColorFilter else keyTextFilter
         KEY_TEXT, KEY_ICON -> keyTextFilter
         REMOVE_SUGGESTION_ICON, EMOJI_CATEGORY, ONE_HANDED_MODE_BUTTON, TOOL_BAR_KEY, TOOL_BAR_EXPAND_KEY -> suggestionTextFilter
-        KEY_PREVIEW_BACKGROUND -> adjustedBackgroundFilter
+        KEY_PREVIEW_BACKGROUND -> popupFilter
         ACTION_KEY_ICON -> actionKeyIconColorFilter
         else -> colorFilter(get(color)) // create color filter (not great for performance, so the frequently used filters should be stored)
     }

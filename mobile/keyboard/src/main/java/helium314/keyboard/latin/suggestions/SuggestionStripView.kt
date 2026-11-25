@@ -230,7 +230,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
 
     fun setToolbarVisibility(toolbarVisible: Boolean) {
         pinnedKeys.isVisible = !toolbarVisible
-        suggestionsStrip.isVisible = !toolbarVisible
+        suggestionsStrip.isVisible = !toolbarVisible && !voiceStatus.isVisible // Sokki: status keeps the strip
         toolbarContainer.isVisible = toolbarVisible
 
         if (DEBUG_SUGGESTIONS) {
@@ -245,10 +245,15 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     fun setSuggestions(suggestions: SuggestedWords, isRtlLanguage: Boolean) {
         clear()
         setRtl(isRtlLanguage)
-        suggestedWords = suggestions
-        startIndexOfMoreSuggestions = layoutHelper.layoutAndReturnStartIndexOfMoreSuggestions(
-            context, suggestedWords, suggestionsStrip, this
-        )
+        // Sokki: no words in the strip unless someone switches suggestions back on
+        // (apps that send their own completions included).
+        suggestedWords = if (Settings.getValues().mSuggestionsEnabled) suggestions
+            else SuggestedWords.getEmptyInstance()
+        // Sokki: nothing to show leaves the strip empty (no lone dividers).
+        startIndexOfMoreSuggestions = if (suggestedWords.isEmpty) 0
+            else layoutHelper.layoutAndReturnStartIndexOfMoreSuggestions(
+                context, suggestedWords, suggestionsStrip, this
+            )
         isExternalSuggestionVisible = false
         updateKeys()
     }
@@ -484,7 +489,8 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     private fun clear() {
         suggestionsStrip.removeAllViews()
         if (DEBUG_SUGGESTIONS) removeAllDebugInfoViews()
-        if (!toolbarContainer.isVisible)
+        // Sokki: while dictating, the status keeps the whole strip.
+        if (!toolbarContainer.isVisible && !voiceStatus.isVisible)
             suggestionsStrip.isVisible = true
         dismissMoreSuggestionsPanel()
         for (word in wordViews) {

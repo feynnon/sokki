@@ -27,6 +27,19 @@ void *sokki_tap_start(sokki_tap_callback callback, void *user, char **out_error)
 // Stops and releases everything created by sokki_tap_start. Safe with NULL.
 void sokki_tap_stop(void *handle);
 
+// Tears down and rebuilds the tap and its aggregate device, for the same
+// callback (the tap went dead, or the default output changed). Returns false
+// with *out_error set when building failed; the handle stays valid and may be
+// rebuilt again or stopped.
+bool sokki_tap_rebuild(void *handle, char **out_error);
+
+// Number of other processes playing audio now, -1 when unknown. Their bundle
+// ids, comma-separated, go into `buffer` (NUL-terminated, cut to `capacity`).
+int32_t sokki_tap_other_apps_playing(char *buffer, size_t capacity);
+
+// The default output device's id (0 when none), its name into `buffer`.
+uint32_t sokki_tap_default_output(char *buffer, size_t capacity);
+
 void sokki_tap_free_error(char *error);
 
 #endif

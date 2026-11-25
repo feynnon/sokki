@@ -115,3 +115,16 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .close { background: none; border: 0; color: var(--ink3); font-size: 22px; line-height: 1; padding: 4px 8px; min-width: 44px; min-height: 44px; }
 .row { display: flex; gap: 8px; }
 .row > button { flex: 1; }
+
+/* Developer page: Keep what I write (JournalView.tsx) */
+.dev-link { display: block; margin: 24px auto 0; font-size: 13px; color: var(--ink3); }
+.switch-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--line, rgba(127,127,127,0.25)); font-size: 15px; }
+.switch-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+.journal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.secondary.danger { color: #ff8a8a; }
+.journal-entry { padding: 8px 4px 10px; border-bottom: 1px solid var(--line, rgba(127,127,127,0.15)); }
+.journal-entry p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal .item { width: 100%; text-align: left; }
+/* A link inside a line of text: same size and baseline as the text around it. */
+.link.inline { padding: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; font-family: inherit; }
+.recorder .hint { text-align: center; }

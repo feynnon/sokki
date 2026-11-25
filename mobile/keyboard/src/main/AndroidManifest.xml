@@ -22,6 +22,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
             android:name="helium314.keyboard.latin.App"
             android:supportsRtl="true"
             android:enableOnBackInvokedCallback="true"
+            android:fullBackupContent="@xml/sokki_backup_rules"
+            android:dataExtractionRules="@xml/sokki_data_extraction_rules"
             tools:remove="android:appComponentFactory"
             tools:targetApi="33">
         <!-- Sokki: the app's own label, icon and storage stay. HeliBoard's
@@ -63,6 +65,14 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+
+        <!-- Sokki: typing test (records taps in its own field only), same process as the keyboard.
+             Not exported: only the keyboard settings open it, and only with debug settings on.
+             Debug builds export it for `adb shell am start` (src/debug/AndroidManifest.xml). -->
+        <activity android:name="dev.verbatim.sokki.TypingTestActivity" android:process=":keyboard"
+                android:theme="@style/platformActivityTheme"
+                android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+                android:exported="false" />
 
         <!-- separate activity that's used internally, only necessary in case the launcher icon is disabled on Android < 10 -->
         <activity android:name="helium314.keyboard.settings.SettingsActivity2" android:process=":keyboard"
@@ -111,8 +121,14 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
         </receiver>
 
         <!-- for pasting files from internal clipboard -->
+        <!-- Sokki: both provider names follow the app ID. HeliBoard's fixed names
+             (helium314.keyboard.clipprovider, helium314.keyboard.provider, and
+             .debug. ones) are taken when HeliBoard or an older Sokki build is
+             installed, and Android then refuses the install
+             (INSTALL_FAILED_CONFLICTING_PROVIDER, KNOWN_ISSUES X12). The code
+             builds the same names from context.packageName. -->
         <provider android:name="helium314.keyboard.latin.database.ClipboardContentProvider" android:process=":keyboard"
-            android:authorities="@string/clipboard_provider_authority"
+            android:authorities="${applicationId}.clipprovider"
             android:enabled="true"
             android:grantUriPermissions="true"
             android:exported="false">
@@ -123,7 +139,7 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
 
         <!-- necessary for sending mail attachments, remove when data gathering phase is done (end of 2026 latest) -->
         <provider android:name="helium314.keyboard.settings.screens.gesturedata.GestureFileProvider" android:process=":keyboard"
-            android:authorities="@string/gesture_data_provider_authority"
+            android:authorities="${applicationId}.gesturedata"
             android:enabled="true"
             android:grantUriPermissions="true"
             android:exported="false">

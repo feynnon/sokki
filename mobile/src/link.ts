@@ -34,6 +34,11 @@ export const unpair = () => invoke<void>("link_unpair");
 
 export const ping = () => invoke<{ name: string; version: string }>("link_ping");
 
+/** One day of the keyboard's journal (JSONL) to the Mac, which keeps it
+ * next to its own (Mac: typing_log/phone/<file>). */
+export const sendJournal = (file: string, text: string) =>
+  invoke<{ saved: number }>("link_send_journal", { file, text });
+
 export async function upload(audio: Blob, startedAt: Date): Promise<string> {
   // Base64: Android's IPC carries no raw bytes.
   const b64 = await new Promise<string>((resolve, reject) => {

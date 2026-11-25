@@ -41,7 +41,7 @@ export function KeyboardSetup() {
         <p className="kb-title">Sokki keyboard is on</p>
         <p className="muted small">
           Tap the mic at the top right of the keyboard to speak into any app.{" "}
-          <button className="link" onClick={() => b.openSettings()}>
+          <button className="link inline" onClick={() => b.openSettings()}>
             Keyboard settings
           </button>
         </p>

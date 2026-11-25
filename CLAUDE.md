@@ -29,6 +29,21 @@ reset the running Sokki's Accessibility grant, which froze all keyboard and
 mouse input. Never run `tccutil`, never click onboarding's permission
 buttons, no relaunch loops.
 
+## Building
+
+- Test apps: `scripts/test-dictation.sh --build` builds with the
+  `fastrelease` profile (release without LTO, `src-tauri/Cargo.toml`) into
+  `src-tauri/target/fastrelease/`. `PROFILE=release` builds exactly what
+  `scripts/release.sh` ships. By hand: `bun run tauri build … -- --profile
+  fastrelease`.
+- Every heavy build waits in the Mac-wide queue (`~/.local/bin/build-slot`,
+  see `~/PycharmProjects/CLAUDE.md`). Start it detached, e.g.
+  `~/.local/bin/build-slot submit --name "<task>: test app" --
+  scripts/test-dictation.sh --build`, then repeat `build-slot wait <job>`
+  until it exits with anything but 124. A foreground tool call ends after
+  10 min and loses its place in the queue. The build scripts queue through
+  `scripts/build-lock.sh` and run on the job's slot.
+
 ## Every action feels instant
 
 A general design rule for every click, shortcut and menu item. Robin: "Any

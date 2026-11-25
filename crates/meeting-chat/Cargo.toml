@@ -1,0 +1,17 @@
+[package]
+name = "meeting-chat"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Post one line into a meeting's chat (Zoom, Teams, Google Meet in a browser) and watch the chat for a reply, through macOS Accessibility"
+
+[dependencies]
+log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+
+[[example]]
+name = "chat"

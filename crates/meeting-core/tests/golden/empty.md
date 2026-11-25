@@ -15,5 +15,3 @@ _Keine Zusammenfassung erstellt._
 ## Transkript
 
 _Keine Sprache erkannt._
-
-Transkribiert auf meinem Mac mit sokki.org

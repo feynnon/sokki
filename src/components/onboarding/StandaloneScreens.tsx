@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { useModelStore } from "@/stores/modelStore";
-import { clearOnboardingProgress, useOnboardingStore, type Uses } from "./onboardingStore";
+import {
+  clearOnboardingProgress,
+  useOnboardingStore,
+  type Uses,
+} from "./onboardingStore";
 import { usePermissions } from "./usePermissions";
 import { useOnboardingModels } from "./useOnboardingModels";
 import { downloadPick } from "./downloadPick";
@@ -28,7 +32,13 @@ export const ReturningPermissions: React.FC<{ onComplete: () => void }> = ({
     }
   }, [permissions.checked, allGranted, onComplete]);
   if (!permissions.checked || allGranted) return null;
-  return <Permissions permissions={permissions} uses={RETURNING} onContinue={onComplete} />;
+  return (
+    <Permissions
+      permissions={permissions}
+      uses={RETURNING}
+      onContinue={onComplete}
+    />
+  );
 };
 
 export const ReplaceModel: React.FC<{

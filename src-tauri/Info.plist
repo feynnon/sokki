@@ -6,5 +6,11 @@
   <string>Request microphone access to transcribe audio locally</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>Record the sound from your speakers, such as a meeting in Slack or Google Meet, to transcribe it locally</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>See who is in your meetings, so Sokki can send them the notes, or a notice before the meeting, when you turn that on.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>See who is in your meetings, so Sokki can send them the notes, or a notice before the meeting, when you turn that on.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Send your meeting notes, or a notice before a meeting, from your own Mail account, when you turn that on.</string>
 </dict>
 </plist>

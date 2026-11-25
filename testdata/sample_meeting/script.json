@@ -1,0 +1,28 @@
+{
+  "about": "Sokki's sample meeting: an invented two-minute call between three invented people (Maya, Daniel, Priya). Not a real meeting, no real names. Spoken by Kokoro-82M voices (Apache-2.0); built by testdata/sample_meeting/build.py into src-tauri/resources/sample-meeting/call.flac.",
+  "voices": {
+    "Maya": "af_heart",
+    "Daniel": "am_michael",
+    "Priya": "bf_emma"
+  },
+  "lines": [
+    ["Maya", "Okay, I think we're all here. Thanks for joining, both of you. This is our last check-in before the checkout launch, so let's keep it short."],
+    ["Daniel", "Sounds good, Maya. Quick update from my side: the new checkout works on every phone we tested, except one thing. Apple Pay still fails on older iPhones."],
+    ["Maya", "How long would it take to fix that?"],
+    ["Daniel", "Honestly, at least a week. Apple has to review the change, and that's out of our hands."],
+    ["Priya", "Then I'd launch without Apple Pay. Card payments work fine, and we can add Apple Pay in the next release."],
+    ["Maya", "I agree. Daniel, are you okay with that?"],
+    ["Daniel", "Yes, that works for me. I'll hide the Apple Pay button for now."],
+    ["Maya", "Great. So we ship on Thursday, with cards only. Priya, how is the design side looking?"],
+    ["Priya", "Almost done. The only screen left is the empty cart. Right now it just says zero items, which feels a bit cold. I'll add a short line and a button back to the shop."],
+    ["Maya", "Can you have that ready by Wednesday, so Daniel can still build it in?"],
+    ["Priya", "Wednesday morning, yes."],
+    ["Daniel", "One more thing. The delivery address field still drops the apartment number when you paste an address. I'll fix that tomorrow."],
+    ["Maya", "Good catch. Customers would hate that. Okay, then on my side, I'll write to our twenty beta testers on Friday and ask how the new checkout feels."],
+    ["Priya", "Could you ask them about the empty cart too? I'd love to know if the new line helps."],
+    ["Maya", "Sure, I'll add that question. Anything else before we wrap up?"],
+    ["Daniel", "No, I think that's everything."],
+    ["Priya", "Same here."],
+    ["Maya", "Perfect. So: launch on Thursday without Apple Pay. Daniel fixes the address field tomorrow and hides the button. Priya finishes the empty cart by Wednesday morning. And I email the beta testers on Friday. Thanks, everyone!"]
+  ]
+}

@@ -4,6 +4,14 @@ import * as link from "./link";
 import { DictateView } from "./DictateView";
 import { KeyboardSetup } from "./KeyboardSetup";
 import { GetComputerCard } from "./GetComputerCard";
+import { JournalView, journalAvailable } from "./JournalView";
+import {
+  NO_MODEL,
+  type NoMac,
+  getNoMac,
+  setNoMac,
+  transcribeOnPhone,
+} from "./phoneTranscript";
 
 /** "https://sokki.org/p#sokki1:…" or "sokki1:…" → the ticket. */
 function ticketOf(text: string) {
@@ -18,8 +26,11 @@ const links = () => (window as unknown as { SokkiLinks?: Links }).SokkiLinks;
 /** Keeps the screen on while recording (MainActivity.kt): with the screen
  * off the app is in the background and its microphone gives silence. */
 const screen = () =>
-  (window as unknown as { SokkiScreen?: { keepOn(on: boolean): void } })
-    .SokkiScreen;
+  (
+    window as unknown as {
+      SokkiScreen?: { keepOn(on: boolean): void; uses24Hour?(): boolean };
+    }
+  ).SokkiScreen;
 /** The Quick Settings tile (RecordTile.kt) opens Sokki to record and stops
  * a recording in place; the page tells it when it records. `silenced()`:
  * Android gives the recording silence right now (during a call).
@@ -50,21 +61,34 @@ import {
 type View =
   | { name: "list" }
   | { name: "setup"; ticket?: string }
-  | { name: "detail"; id: string };
+  | { name: "detail"; id: string }
+  | { name: "journal" };
 
 function clock(s: number) {
   const m = Math.floor(s / 60);
   return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 }
 
+/** "24.11. · 15:20" on a German phone, "11/24 · 2:45 AM" on a US one: the
+ * phone's language, and its own 12/24-hour setting (like the Mac's list). */
 function when(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+  const d = new Date(iso);
+  let h24: boolean | undefined;
+  try {
+    h24 = screen()?.uses24Hour?.();
+  } catch {
+    h24 = undefined;
+  }
+  const date = d.toLocaleDateString(undefined, {
     day: "numeric",
-    month: "short",
+    month: "numeric",
   });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(h24 === undefined ? {} : { hour12: !h24 }),
+  });
+  return `${date} · ${time}`;
 }
 
 const STAGE: Record<string, string> = {
@@ -78,13 +102,16 @@ const STAGE: Record<string, string> = {
 function stateLine(r: Recording) {
   switch (r.state) {
     case "waiting":
+      if (r.error === NO_MODEL)
+        return "Waiting for the speech model (Dictate tab)";
       return r.error ? "Not sent: Mac not reachable" : "Not sent yet";
     case "uploading":
       return "Sending to the Mac…";
     case "processing":
+      if (r.stage === "phone") return "Transcribing on this phone…";
       return STAGE[r.stage ?? ""] ?? "Processing on the Mac…";
     case "done":
-      return "Ready";
+      return r.onPhone ? "Transcript ready, on this phone" : "Ready";
     case "failed":
       return r.error ?? "Failed";
   }
@@ -161,15 +188,29 @@ export default function App() {
     void link.pairing().then((p) => {
       setPairing(p);
       setPairingKnown(true);
-      if (
-        !opened &&
-        !openedToRecord.current &&
-        !p &&
-        localStorage.getItem("sokki.setupSkipped") !== "1"
-      )
-        setView({ name: "setup" });
+      // Without a Mac the app starts on Dictate (the keyboard works on its
+      // own); pairing is under "Mac" at the top.
+      let chosen: string | null = null;
+      try {
+        chosen = localStorage.getItem("verbatim.mode");
+      } catch {
+        /* ignore */
+      }
+      if (!opened && !openedToRecord.current && !p && chosen === null)
+        setMode("dictate");
     });
   }, []);
+  const [noMac, setNoMacState] = useState<NoMac>(getNoMac);
+  const chooseNoMac = (m: NoMac) => {
+    setNoMac(m);
+    setNoMacState(m);
+  };
+  const pairingRef = useRef<link.Pairing | null>(null);
+  const noMacRef = useRef(noMac);
+  useEffect(() => {
+    pairingRef.current = pairing;
+    noMacRef.current = noMac;
+  });
   const [list, setList] = useState<Recording[]>(loadList);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -215,7 +256,37 @@ export default function App() {
     [update],
   );
 
-  /** A finished recording: keep it on the phone, then send it. */
+  /** No Mac (option A): the transcript is made on the phone. */
+  const local = useCallback(
+    async (r: Recording) => {
+      const audio = await getAudio(r.localId);
+      if (!audio) {
+        update(r.localId, { state: "failed", error: "The audio is gone." });
+        return;
+      }
+      update(r.localId, { state: "processing", stage: "phone", error: null });
+      try {
+        const text = await transcribeOnPhone(audio);
+        update(r.localId, {
+          state: "done",
+          stage: null,
+          transcript: text,
+          onPhone: true,
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        update(r.localId, {
+          state: "waiting",
+          stage: null,
+          error: msg === NO_MODEL ? NO_MODEL : msg,
+        });
+      }
+    },
+    [update],
+  );
+
+  /** A finished recording: keep it on the phone, then send it to the Mac,
+   * or without a Mac (option A) transcribe it here. */
   const add = useCallback(
     async (audio: Blob, startedAt: Date, durationS: number) => {
       const r: Recording = {
@@ -235,10 +306,11 @@ export default function App() {
       listRef.current = next;
       setList(next);
       saveList(next);
-      void send(r);
+      if (!pairingRef.current && noMacRef.current === "phone") void local(r);
+      else void send(r);
       return r.localId;
     },
-    [send],
+    [send, local],
   );
 
   /** Only when the user asks (and once right after recording): send what
@@ -250,6 +322,10 @@ export default function App() {
     let open = 0;
     for (const r of listRef.current) {
       if (r.state === "waiting" || r.state === "uploading") {
+        if (!pairingRef.current && noMacRef.current === "phone") {
+          await local(r);
+          continue;
+        }
         if (!(await send(r))) unreachable++;
       } else if (r.state === "processing" && r.remoteId) {
         try {
@@ -281,7 +357,29 @@ export default function App() {
           ? "The Mac is still working on it. Check again in a minute."
           : null,
     );
-  }, [send, update]);
+  }, [send, update, local]);
+
+  // Recordings waiting for the speech model: start once it's there (back
+  // from the Dictate tab, or back in the app).
+  useEffect(() => {
+    const retry = () => {
+      if (document.visibilityState !== "visible") return;
+      for (const r of listRef.current)
+        if (r.state === "waiting" && r.error === NO_MODEL) void local(r);
+    };
+    retry();
+    document.addEventListener("visibilitychange", retry);
+    return () => document.removeEventListener("visibilitychange", retry);
+  }, [mode, local]);
+
+  /** A phone transcript to the Mac, for speakers and a summary. */
+  const toMac = useCallback(
+    async (r: Recording) => {
+      update(r.localId, { state: "waiting", onPhone: false });
+      await send({ ...r, state: "waiting" });
+    },
+    [send, update],
+  );
 
   // For automated tests: add a recording without the microphone.
   useEffect(() => {
@@ -406,6 +504,10 @@ export default function App() {
     );
   }
 
+  if (view.name === "journal") {
+    return <JournalView pairing={pairing} onBack={() => setView({ name: "list" })} />;
+  }
+
   if (view.name === "detail") {
     const r = list.find((x) => x.localId === view.id);
     if (!r) return null;
@@ -414,6 +516,8 @@ export default function App() {
         r={r}
         checking={checking}
         onCheck={() => void checkAgain()}
+        paired={!!pairing}
+        onToMac={() => void toMac(r)}
         onBack={() => setView({ name: "list" })}
         onDelete={async () => {
           await deleteAudio(r.localId);
@@ -459,31 +563,84 @@ export default function App() {
         <>
           <KeyboardSetup />
           <DictateView />
+          {journalAvailable() && (
+            <button className="link dev-link" onClick={() => setView({ name: "journal" })}>
+              Developer: Keep what I write
+            </button>
+          )}
         </>
       ) : (
         <>
-          <section className="recorder">
-            <button
-              className={`rec ${recording ? "on" : ""}`}
-              onClick={recording ? stop : start}
-              aria-label={recording ? "Stop recording" : "Start recording"}
-            >
-              <span className="rec-inner" />
-            </button>
-            <p className="rec-label">
-              {recording ? clock(elapsed) : "Tap to record a meeting"}
-            </p>
-            {recording && silenced && (
-              <p className="error">
-                Android mutes the microphone during calls: this part stays
-                silent
+          {!pairing && noMac === "mac" && !recording ? (
+            <section className="kb">
+              <p className="kb-title">Meetings need Sokki on a Mac</p>
+              <p className="muted small">
+                Your Mac writes the notes: who said what, and a summary. The
+                phone records and sends.
               </p>
-            )}
-            {micError && <p className="error">{micError}</p>}
-            <p className="hint">Tell everyone you are recording.</p>
-          </section>
+              <button
+                className="primary"
+                onClick={() => setView({ name: "setup" })}
+              >
+                Connect a Mac
+              </button>
+              <button
+                className="secondary"
+                onClick={() => void openUrl(inviteMailto("android"))}
+              >
+                Email me the setup
+              </button>
+              {journalAvailable() && (
+                <button
+                  className="link dev-link"
+                  onClick={() => chooseNoMac("phone")}
+                >
+                  Test: transcribe on the phone instead (option A)
+                </button>
+              )}
+            </section>
+          ) : (
+            <section className="recorder">
+              <button
+                className={`rec ${recording ? "on" : ""}`}
+                onClick={recording ? stop : start}
+                aria-label={recording ? "Stop recording" : "Start recording"}
+              >
+                <span className="rec-inner" />
+              </button>
+              <p className="rec-label">
+                {recording ? clock(elapsed) : "Tap to record a meeting"}
+              </p>
+              {recording && silenced && (
+                <p className="error">
+                  Android mutes the microphone during calls: this part stays
+                  silent
+                </p>
+              )}
+              {micError && <p className="error">{micError}</p>}
+              <p className="hint">Tell everyone you are recording.</p>
+              {!pairing && (
+                <p className="hint">
+                  On this phone: a transcript. A Mac adds speakers and a
+                  summary.
+                </p>
+              )}
+              {!pairing && journalAvailable() && (
+                <button
+                  className="link dev-link"
+                  onClick={() => chooseNoMac("mac")}
+                >
+                  Test: meetings need a Mac instead (option B)
+                </button>
+              )}
+            </section>
+          )}
 
-          {list.some((r) => r.state === "waiting" || r.state === "processing") && (
+          {list.some(
+            (r) =>
+              (r.state === "waiting" && r.error !== NO_MODEL) ||
+              (r.state === "processing" && r.stage !== "phone"),
+          ) && (
             <div className="check">
               <button
                 className="secondary"
@@ -667,12 +824,16 @@ function Detail({
   r,
   checking,
   onCheck,
+  paired,
+  onToMac,
   onBack,
   onDelete,
 }: {
   r: Recording;
   checking: boolean;
   onCheck: () => void;
+  paired: boolean;
+  onToMac: () => void;
   onBack: () => void;
   onDelete: () => void;
 }) {
@@ -708,6 +869,17 @@ function Detail({
           </button>
           {r.summary ? (
             <Summary md={r.summary} />
+          ) : r.onPhone ? (
+            <>
+              <p className="muted">
+                Speakers and a summary come from Sokki on a Mac.
+              </p>
+              {paired && (
+                <button className="secondary" onClick={onToMac}>
+                  Send to the Mac
+                </button>
+              )}
+            </>
           ) : (
             <p className="muted">No summary.</p>
           )}
@@ -719,11 +891,15 @@ function Detail({
       ) : (
         <>
           <p className="muted">
-            {r.state === "waiting"
-              ? "This recording is on your phone. It is sent when you tap Check again and the Mac is on."
-              : "The Mac turns it into a note. Tap Check again to fetch it."}
+            {r.error === NO_MODEL
+              ? "The transcript is made on this phone once the speech model is downloaded (Dictate tab). Then tap Check again."
+              : r.stage === "phone"
+                ? "Sokki is writing the transcript on this phone."
+                : r.state === "waiting"
+                  ? "This recording is on your phone. It is sent when you tap Check again and the Mac is on."
+                  : "The Mac turns it into a note. Tap Check again to fetch it."}
           </p>
-          {r.error && r.state === "waiting" && (
+          {r.error && r.error !== NO_MODEL && r.state === "waiting" && (
             <p className="muted small">{r.error}</p>
           )}
           <button className="secondary" disabled={checking} onClick={onCheck}>

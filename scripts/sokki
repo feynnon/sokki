@@ -7,6 +7,8 @@
 #
 # Everything runs on this Mac. On Linux, the `sokki` binary from crates/sokki has
 # the same two commands. Install: ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
+#
+# Both wait while Sokki records or processes a meeting, so the meeting keeps the Mac.
 set -euo pipefail
 
 # The installed app's bundle id and binary, so this works before and after an
@@ -22,6 +24,36 @@ usage() {
 }
 
 die() { echo "sokki: $*" >&2; exit 1; }
+
+# While Sokki records or processes a meeting, a transcription or a question to
+# the model waits: on 2026-11-24 eight transcriptions started from another
+# session ran during a call, and that second the call audio went dead for the
+# rest of the meeting; while processing, Sokki runs its own speech and
+# language models. SOKKI_MEETINGS_INDEX points elsewhere for tests.
+MEETINGS_INDEX="${SOKKI_MEETINGS_INDEX:-$HOME/Library/Application Support/$APP_ID/meetings/index.json}"
+WAIT_EVERY="${SOKKI_WAIT_EVERY_S:-10}"
+meeting_busy() {
+  [ -f "$MEETINGS_INDEX" ] || return 1
+  python3 - "$MEETINGS_INDEX" <<'PY' 2>/dev/null
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+meetings = data if isinstance(data, list) else data.get("meetings", [])
+busy = any((m.get("status") or {}).get("kind") in ("recording", "processing") for m in meetings if isinstance(m, dict))
+sys.exit(0 if busy else 1)
+PY
+}
+wait_for_meeting() {
+  meeting_busy || return 0
+  echo "sokki: Sokki is recording or processing a meeting; waiting until it is done…" >&2
+  local began=$SECONDS
+  while meeting_busy; do
+    sleep "$WAIT_EVERY"
+  done
+  echo "sokki: the meeting is done after $((SECONDS - began)) s; going on." >&2
+}
 
 # One setting from Sokki's settings file, or a default.
 setting() {
@@ -56,6 +88,7 @@ transcribe() {
   trap 'rm -rf "$tmp"' RETURN
   "$ffmpeg" -nostdin -hide_banner -loglevel error -i "$file" -vn -ac 1 -ar 16000 -c:a pcm_s16le "$tmp/audio.wav" \
     || die "could not read audio from $file"
+  wait_for_meeting
   local out
   out="$("$APP_BIN" --transcribe-file "$tmp/audio.wav" --json 2>"$tmp/log")" \
     || { tail -3 "$tmp/log" >&2; die "transcription failed"; }
@@ -85,6 +118,7 @@ ask() {
   base="$(setting llm_base_url "" "http://localhost:11434")"
   model="${SOKKI_MODEL:-$(setting llm_model "" "qwen3.5:9b")}"
   base="${base%/}"
+  wait_for_meeting
 
   # Same call Sokki makes for summaries: Ollama's /api/chat, thinking off,
   # the model's own temperature. An OpenAI-compatible server (URL ending in /v1)

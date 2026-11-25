@@ -35,6 +35,13 @@ pub fn trusted() -> bool {
 
 /// Watches the permission and keeps the keyboard hook in step with it.
 pub fn start_watch(app: &AppHandle) {
+    // Test mode has no keyboard hook at all, also when the test app is
+    // granted Accessibility (for the chat notice test): nothing to keep in
+    // step, and no hook that could freeze input when the grant goes.
+    if crate::test_mic::active() {
+        log::info!("Test mode: no Accessibility watch, no keyboard hook");
+        return;
+    }
     #[cfg(target_os = "macos")]
     {
         use std::time::Duration;

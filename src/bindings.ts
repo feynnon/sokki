@@ -966,6 +966,13 @@ async answerMessage(id: number, answer: string) : Promise<Result<null, string>> 
  * Sets "Help improve Sokki", "Share all my recordings" and "Ask me when
  * there's a buyer".
  */
+/**
+ * A setup screen was shown: counted on this Mac for "Help improve Sokki"
+ * (`crate::usage`). Names other than setup's screens are ignored.
+ */
+async usageSetupStep(step: string) : Promise<void> {
+    await TAURI_INVOKE("usage_setup_step", { step });
+},
 async voiceDataSetChoices(improve: boolean, support: boolean, buyers: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("voice_data_set_choices", { improve, support, buyers }) };
@@ -975,9 +982,10 @@ async voiceDataSetChoices(improve: boolean, support: boolean, buyers: boolean) :
 }
 },
 /**
- * Deletes everything the counter holds of this install.
+ * Deletes everything the counter holds of this install. `true`: some of it
+ * is still being deleted (the counter finishes over the next days).
  */
-async voiceDataForget() : Promise<Result<null, string>> {
+async voiceDataForget() : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("voice_data_forget") };
 } catch (e) {
@@ -1129,6 +1137,97 @@ async saveMeetingPage(id: string, path: string, date: string) : Promise<Result<n
 }
 },
 /**
+ * What "Send to everyone" would do for a meeting: the calendar event,
+ * who gets the mail and who is left out, and the mail itself. Never opens
+ * Mail or asks for anything.
+ */
+async meetingMailPreview(id: string) : Promise<Result<MailPreview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_mail_preview", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sends the meeting's notes to everyone in its calendar event, from the
+ * person's Apple Mail. Asks for the calendar first if it never did.
+ */
+async meetingMailSend(id: string) : Promise<Result<Mailed, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_mail_send", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Asks for what sending needs (calendar, then control of Mail) and says
+ * where it stands. Called when the person turns automatic sending on.
+ */
+async mailSetup() : Promise<Result<MailSetup, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mail_setup") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async gmailStatus() : Promise<GmailStatus> {
+    return await TAURI_INVOKE("gmail_status");
+},
+/**
+ * Opens Google's consent page (only `gmail.send`) and waits for the
+ * answer, up to 5 minutes. Returns the connected address.
+ */
+async gmailConnect() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("gmail_connect") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Revokes Sokki's access at Google and forgets the token.
+ */
+async gmailDisconnect() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("gmail_disconnect") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The people who asked for no more mail, lower case.
+ */
+async mailObjections() : Promise<string[]> {
+    return await TAURI_INVOKE("mail_objections");
+},
+/**
+ * Puts an address on the no-more-mail list. False: no address, or listed.
+ */
+async mailObjectionAdd(email: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mail_objection_add", { email }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Takes an address off the no-more-mail list.
+ */
+async mailObjectionRemove(email: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mail_objection_remove", { email }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Opens the meeting's note: in Obsidian when the notes folder is inside a
  * vault, otherwise with the default app for Markdown.
  */
@@ -1163,6 +1262,22 @@ async summarizeMeeting(id: string) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Whether `code` is a valid supporter code (at least €20 paid), so the
+ * settings can unlock the Sokki line's switch. Processing checks the
+ * stored code again on its own.
+ */
+async isSupporterCode(code: string) : Promise<boolean> {
+    return await TAURI_INVOKE("is_supporter_code", { code });
+},
+/**
+ * The Sokki line as it will stand under the next summary, for the
+ * settings preview: German or English (`german`), and without "local,
+ * free" when a cloud model writes the summary.
+ */
+async sokkiLine(german: boolean) : Promise<string> {
+    return await TAURI_INVOKE("sokki_line", { german });
 },
 /**
  * Deletes the meeting record and its audio. The note stays in the notes folder.
@@ -1207,8 +1322,10 @@ async startOllama() : Promise<Result<null, string>> {
 }
 },
 /**
- * Downloads the local language model through Ollama. Progress arrives as
- * "meeting-llm-pull" events ({status, completed, total}).
+ * Downloads the local language model (built in, or through Ollama).
+ * Progress arrives as "meeting-llm-pull" events ({status, completed,
+ * total}). While a download runs, waits for it instead of starting another
+ * (`meeting::pull`).
  */
 async pullMeetingLlm() : Promise<Result<null, string>> {
     try {
@@ -1217,6 +1334,79 @@ async pullMeetingLlm() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async dictationCleanupModel() : Promise<CleanupModel> {
+    return await TAURI_INVOKE("dictation_cleanup_model");
+},
+/**
+ * Downloads the cleanup model. Progress arrives as
+ * "dictation-cleanup-pull" events ({status, completed, total}).
+ */
+async downloadDictationCleanupModel() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_dictation_cleanup_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeDictationCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_dictation_cleanup_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeAutocorrectSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_autocorrect_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Memory, the built-in summary model's state, and its download, for
+ * setup's summary screen. Cheap: no model is loaded.
+ */
+async summaryModelSetup() : Promise<Result<SummarySetup, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("summary_model_setup") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts the sample meeting (`meeting::sample`): a two-minute call of
+ * invented people, played and recorded in real time, then processed.
+ */
+async startSampleMeeting() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_sample_meeting") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stops the sample meeting and deletes it. Does nothing to a real meeting.
+ */
+async stopSampleMeeting() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_sample_meeting") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * What the running meeting's live transcript has heard so far, in order.
+ * Empty when nothing records.
+ */
+async meetingLiveTranscript() : Promise<LiveLine[]> {
+    return await TAURI_INVOKE("meeting_live_transcript");
 },
 /**
  * Renames a speaker of a processed meeting in its note. With `remember`,
@@ -1606,7 +1796,23 @@ airpods_mode?: boolean; keyboard_implementation?: KeyboardImplementation; show_t
  * after the target app actually reads the transcript, instead of after a
  * fixed delay. See `paste_tx`. macOS and Windows only.
  */
-reliable_paste?: boolean; typing_tool?: TypingTool; external_script_path?: string | null; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; 
+reliable_paste?: boolean; typing_tool?: TypingTool; external_script_path?: string | null; filler_word_removal_enabled?: boolean; 
+/**
+ * Clean up each dictation with the built-in cleanup model before it
+ * is pasted (`dictation_cleanup`): fillers, repetitions and
+ * self-corrections out, misheard words and grammar fixed, paragraphs
+ * and lists in. Only while the model is downloaded. Off until Robin
+ * has tried it (release manager, 25.11.2026).
+ */
+dictation_cleanup_enabled?: boolean; 
+/**
+ * Fix typos as you type, in the apps where macOS doesn't (Chrome, Slack,
+ * Claude …), with the phone keyboard's model (`autocorrect`). Backspace
+ * right after a fix undoes it. Never in Apple's apps, terminals, code
+ * editors, password managers or password fields. macOS only. Off until
+ * the user turns it on (Robin, 25.11.2026: for everyone, off by default).
+ */
+autocorrect_enabled?: boolean; custom_filler_words?: string[] | null; 
 /**
  * Fresh installs default from the OS locale; existing stores are migrated
  * in `apply_settings_migrations`.
@@ -1791,6 +1997,102 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * A macOS privacy permission Sokki asks for during onboarding.
  */
 /**
+ * Whether this build can send through Gmail, and the connected address.
+ */
+export type GmailStatus = { available: boolean; connected: string | null }
+/**
+ * Whether Sokki may read the calendar.
+ */
+export type CalendarAccess = "allowed" | 
+/**
+ * Never asked: [`request`] shows macOS's prompt.
+ */
+"not_determined" | 
+/**
+ * Declined: only System Settings can change it.
+ */
+"denied" | "restricted" | "write_only"
+/**
+ * Why the notes can't go out (yet).
+ */
+export type MailProblem = 
+/**
+ * The note has no summary yet.
+ */
+"no_summary" | 
+/**
+ * Sokki has not asked for the calendar yet; sending asks.
+ */
+"calendar_not_asked" | 
+/**
+ * The calendar was declined (System Settings › Privacy & Security ›
+ * Calendars).
+ */
+"calendar_denied" | 
+/**
+ * No calendar event at the time of the recording.
+ */
+"no_event" | 
+/**
+ * The event has nobody to send to (only the person, or all objected).
+ */
+"no_recipients"
+export type MailRecipient = { name: string | null; email: string }
+export type MailSkipped = { 
+/**
+ * The address, or the name when there is none.
+ */
+who: string; 
+/**
+ * "me", "declined", "objected", "not_a_person" or "no_address".
+ */
+why: string }
+/**
+ * What "Send to everyone" would do for one meeting. Reading it never
+ * opens Mail or asks for anything.
+ */
+export type MailPreview = { 
+/**
+ * The calendar event's title.
+ */
+event: string | null; to: MailRecipient[]; skipped: MailSkipped[]; subject: string | null; body: string | null; problem: MailProblem | null; 
+/**
+ * Sent already.
+ */
+mailed: Mailed | null; 
+/**
+ * Being sent right now.
+ */
+sending: boolean }
+/**
+ * Where sending stands, for Settings: calendar access and Mail's accounts.
+ */
+export type MailSetup = { calendar: CalendarAccess; 
+/**
+ * Mail's sending addresses.
+ */
+accounts: string[]; 
+/**
+ * Why Mail can't send, in the app's language.
+ */
+error: string | null }
+/**
+ * When the notes were mailed, and to whom.
+ */
+export type Mailed = { 
+/**
+ * RFC 3339.
+ */
+at: string; 
+/**
+ * The addresses, lower case.
+ */
+to: string[]; 
+/**
+ * Sent by the automatic setting, not the button.
+ */
+auto: boolean }
+/**
  * Sent whenever a meeting record changes (recording, progress, done, failed).
  */
 export type MeetingChanged = { id: string }
@@ -1841,7 +2143,16 @@ title_by_hand?: boolean;
  * The title is a first guess from the live transcript, until the
  * summary names the meeting.
  */
-title_provisional?: boolean }
+title_provisional?: boolean; 
+/**
+ * The sample meeting (`meeting::sample`): invented people, shown as a
+ * sample, left out of "Your data" and the milestones.
+ */
+sample?: boolean; 
+/**
+ * The notes went to the meeting's attendees (`meeting/mail.rs`).
+ */
+mailed?: Mailed | null }
 /**
  * Settings for meeting notes. Every field falls back to its default when
  * missing, so older stores load unchanged.
@@ -1874,10 +2185,17 @@ glossary: string[];
  */
 summary_enabled: boolean; 
 /**
- * End every note, and the summary shown in the app and on the phone,
- * with "Transcribed on my Mac with sokki.org".
+ * End every summary (note, app, phone, copy) with the Sokki line
+ * ("Summarized by AI. Local, free, open source. Dictation app and
+ * meeting notetaker: sokki.org"). Only a supporter (`supporter_code`) can turn it off;
+ * without a valid code the line stays even when this is false.
  */
 footer_enabled: boolean; 
+/**
+ * Supporter code: proof of at least €20 paid for Sokki, checked offline
+ * (`sokki_engine::supporter`). Empty: none.
+ */
+supporter_code: string; 
 /**
  * Which language model summarises: "local" (the server
  * at `llm_base_url`, normally Ollama; nothing leaves the computer),
@@ -1910,6 +2228,35 @@ keep_audio_days: number;
  */
 detection_enabled: boolean; 
 /**
+ * When Sokki records a detected call (Zoom, Teams, Google Meet in
+ * Chrome, Arc, Edge or Brave), post one line into the meeting's chat,
+ * once per call, from the user's account: that Sokki records, locally,
+ * and that "stop" in the chat stops and deletes the recording. Uses
+ * Accessibility (`meeting/chat_notice.rs`).
+ */
+chat_notice_enabled: boolean; 
+/**
+ * After a meeting, send its notes (summary, decisions, action items; no
+ * transcript) to everyone invited in the calendar, from the user's own
+ * Apple Mail and in their name. Off by default; the note's "Send to
+ * everyone" button works either way (`meeting/mail.rs`).
+ */
+mail_notes_auto: boolean; 
+/**
+ * The Gmail address notes are sent from, once Gmail is connected
+ * (Settings › Meetings › Notes by mail). Shown only; the token is in
+ * the Keychain (`meeting/gmail_account.rs`). None: Apple Mail sends.
+ */
+gmail_address: string | null; 
+/**
+ * Offer Gmail before Google has reviewed Sokki (test mode: only the
+ * Google project's test users can connect; everyone else would see
+ * Google's "Access blocked"). For Robin's test Mac; set by hand in the
+ * settings file. Off: Apple Mail only, until the review passes
+ * (`meeting/gmail_account.rs`, `GOOGLE_VERIFIED`).
+ */
+gmail_testing: boolean; 
+/**
  * Accept recordings from the Sokki phone app on the local network
  * (direct and end-to-end encrypted, paired by QR code; `meeting/phone_link.rs`).
  */
@@ -1917,6 +2264,60 @@ phone_link_enabled: boolean }
 /**
  * Where a meeting is in its life.
  */
+/**
+ * A running download of the language model.
+ */
+export type LlmDownload = { 
+/**
+ * "starting", "downloading" or "verifying" (Ollama: its own words).
+ */
+status: string; completed: number; 
+/**
+ * 0 until known.
+ */
+total: number }
+/**
+ * What Settings shows about the cleanup model.
+ */
+export type CleanupModel = { 
+/**
+ * "ready" (downloaded), "missing" (can be downloaded) or "unavailable"
+ * (this build has no built-in model server).
+ */
+state: string; 
+/**
+ * Bytes to download.
+ */
+size: number; 
+/**
+ * The download running now, if any.
+ */
+download: LlmDownload | null }
+/**
+ * What setup needs to offer the summary model.
+ */
+export type SummarySetup = { 
+/**
+ * The Mac's memory, in bytes; 0 when unknown.
+ */
+memory_bytes: number; 
+/**
+ * The built-in model: "ready" (on disk), "missing" (can be
+ * downloaded) or "unavailable" (this build or Mac has none).
+ */
+builtin: string; 
+/**
+ * The download running now, if any.
+ */
+download: LlmDownload | null }
+/**
+ * A line the live transcript has heard.
+ */
+export type LiveLine = { 
+/**
+ * Seconds from the recording's start.
+ */
+start_s: number; text: string }
 /**
  * What the settings page shows about the language model.
  */

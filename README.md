@@ -1,28 +1,28 @@
+<!-- DEMO VIDEO (30–45 s). Until it is recorded, the hero image stands in.
+     To add it: on github.com, edit this file and drag the .mp4 onto the editor.
+     GitHub uploads it and inserts a https://github.com/user-attachments/assets/… URL.
+     Put that URL on its own line here, in place of the <p> with hero.png below. -->
 <p align="center">
   <img src="docs/assets/hero.png" alt="Sokki. Every word. Yours." width="100%">
 </p>
 
+<h3 align="center">Dictation and meeting notes, on your Mac.<br>Local. Free forever. Open source.</h3>
+
 <p align="center">
-  <a href="https://github.com/feynnon/sokki/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/feynnon/sokki?style=flat-square&color=3567cc&label=release"></a>
-  <img alt="macOS 14.2+ on Apple silicon" src="https://img.shields.io/badge/macOS-14.2%2B%20·%20Apple%20silicon-17181b?style=flat-square&logo=apple&logoColor=white">
-  <a href="#license"><img alt="Open source" src="https://img.shields.io/badge/open%20source-MIT-8ab4ff?style=flat-square"></a>
+  <a href="https://github.com/feynnon/sokki/releases/latest/download/Sokki-arm64.zip"><img src="docs/assets/download-mac.svg" alt="Download for Mac" width="280"></a>
 </p>
 
-<h3 align="center">Dictation and meeting notes. Local. Free forever. Open source.</h3>
+<p align="center"><sub>31 MB · Apple silicon · macOS 14.2 or later · No account</sub></p>
 
-<p align="center"><a href="https://sokki.org">sokki.org</a> · <sub><b>Sokki</b> (速記) is Japanese for shorthand.</sub></p>
+<p align="center"><sub>Built on <a href="https://github.com/cjpais/Handy">Handy</a> by CJ Pais. <b>Sokki</b> (速記) is Japanese for shorthand. <a href="https://sokki.org">sokki.org</a></sub></p>
 
 ---
 
-## Install
+## How it differs
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash
-```
-
-Run it again to update. Settings and meetings stay. macOS 14.2 or later, Apple silicon.
-
-Summaries run on your Mac, free. Sokki downloads the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
+- **[Handy](https://github.com/cjpais/Handy)** is the dictation app Sokki is built on. Sokki adds meetings.
+- **[Yogurt](https://github.com/FrigadeHQ/yogurt), [Muesli](https://github.com/Muesli-HQ/muesli) and [Meetily](https://github.com/Zackriya-Solutions/meetily)** take meeting notes locally too. Sokki remembers a voice once you name it, and keeps speaker labels and call detection free ([Pro in Meetily](https://meetily.ai/pro/)).
+- **[Superwhisper](https://superwhisper.com/docs/billing/plans)** puts Parakeet, system audio and speaker separation in Pro, at $8.49 a month. In Sokki they're free. [Why](https://sokki.org/why-free/).
 
 ## Speak anywhere.
 
@@ -32,7 +32,7 @@ Hold a key, talk, let go. The text lands at your cursor, in any app. 25 language
 
 When Zoom, Teams, Meet, Slack or FaceTime start a call, Sokki asks once. No bot joins.
 
-- **Two tracks.** Your microphone and the call, recorded apart.
+- **Two tracks.** Your microphone and the call, recorded apart, echo removed.
 - **Who said what.** Speakers detected on the Apple GPU. Name a voice once.
 - **The note.** Summary, decisions, tasks with an owner, full transcript. Markdown, in any folder.
 - **Names right.** Add people and products to the Vocabulary.
@@ -56,6 +56,18 @@ A 20 min call is ready about 3 min after you hang up, on an M-series Mac.
 **[00:06] Ben:** I'd rather move it to Monday.
 ```
 
+## What you need
+
+- A Mac with Apple silicon, macOS 14.2 or later.
+- 0.9 GB for the speech and speaker models, downloaded once.
+- For summaries on your Mac: 5.7 GB more, and 6.4 GB of memory while a summary runs. Sokki offers the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
+
+Prefer Terminal? This installs Sokki, and updates it when run again. Settings and meetings stay.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash
+```
+
 ## How it works
 
 | Step | Default | Options |
@@ -69,16 +81,26 @@ Models download once, then run offline. Measurements behind these choices: [KNOW
 
 ## Stays on your Mac.
 
-- Audio, transcripts and notes stay on your Mac. Meeting audio is deleted after the period you choose.
-- Leaves only: model downloads, an update check, the transcript if you pick a cloud model, and a small counter message a few times a day.
-- No account, no usage reports unless you turn them on.
-- Recording people needs their consent. Tell everyone on the call.
+Audio, transcripts, notes and named voices stay on your Mac. Meeting audio is deleted after the period you choose. Recording people needs their consent: tell everyone on the call.
 
-**Your data.** Your own recordings stay on your Mac until you delete them. Three choices, all off: **Help improve Sokki** sends a daily usage report under a random ID; **Ask me when there's a buyer** tells you when someone wants data like yours, and nothing is sent unless you answer; **Share all my recordings** uploads your recordings and their transcripts unchanged, for Sokki to use, share or sell. Details: [sokki.org/privacy](https://sokki.org/privacy/) and [`counter/`](counter/).
+**Every connection Sokki makes:**
+
+| What | When | To |
+|---|---|---|
+| Model downloads | Once per model you pick | Hugging Face, Handy's mirror (`blob.handy.computer`) |
+| Update check | At start; switch off under **Check for Updates** | GitHub |
+| Sokki's message | Every 6 hours and when you open Settings: downloads one message, sends nothing | Sokki's counter on Cloudflare |
+| Cloud model | Only if you pick one with your own key: the transcript or dictated text | That provider |
+| Phone link | Off. When on, helps a paired phone find this Mac; end-to-end encrypted | n0's public relays ([iroh](https://www.iroh.computer)) |
+| Help improve Sokki | Off. When on, once a day: usage counts, problems, hours per language, Mac model and macOS version, under a random ID | Sokki's counter |
+| Ask me when there's a buyer | Off. Nothing leaves until you answer a buyer message | Sokki's counter |
+| Share all my recordings | Off. When on, uploads your recordings and their transcripts unchanged, for Sokki to use, share or sell | Sokki's counter |
+
+Ollama, if you use it, runs on your Mac. No account. No usage reports unless you turn them on. Details: [sokki.org/privacy](https://sokki.org/privacy/) and [`counter/`](counter/). Check it yourself with a network monitor such as [LuLu](https://objective-see.org/products/lulu.html).
 
 ## Build from source
 
-You need macOS on Apple Silicon, [Rust](https://rustup.rs), [Bun](https://bun.sh) and the Xcode Command Line Tools.
+You need macOS on Apple silicon, [Rust](https://rustup.rs), [Bun](https://bun.sh) and the Xcode Command Line Tools.
 
 ```bash
 git clone https://github.com/feynnon/sokki.git
@@ -89,9 +111,11 @@ scripts/build-and-install.sh            # builds Sokki and installs it to /Appli
 
 [MEETINGS.md](MEETINGS.md) explains the meeting pipeline, the code layout and the test harness; [CONFIG.md](CONFIG.md) lists every setting. The meeting code lives in `crates/` (platform-independent Rust) and `src-tauri/src/meeting/`.
 
+Contributions are welcome: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Credits
 
-Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais, which does the dictation and the model management. Meeting recording comes from [Mandy](https://github.com/yuri-research-ai/Mandy), meeting detection follows [Lark](https://github.com/bkoleo/lark). Models by NVIDIA (Parakeet, Sortformer) and Alibaba (Qwen), run with [ggml](https://github.com/ggml-org/ggml) and [llama.cpp](https://github.com/ggml-org/llama.cpp). Details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Sokki is a fork of **[Handy](https://github.com/cjpais/Handy)** by CJ Pais. Handy does the dictation and the model management, and Sokki would not exist without it. Meeting recording comes from [Mandy](https://github.com/yuri-research-ai/Mandy), meeting detection follows [Lark](https://github.com/bkoleo/lark). Models by NVIDIA (Parakeet, Sortformer) and Alibaba (Qwen), run with [ggml](https://github.com/ggml-org/ggml) and [llama.cpp](https://github.com/ggml-org/llama.cpp). Details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

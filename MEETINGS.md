@@ -50,6 +50,44 @@ Icons are drawn as SVG in
    Slack, … start using the mic, a dialog asks whether to record. When the
    call ends, the recording stops after 20 s unless you say otherwise.
    Approach from [Lark](https://github.com/bkoleo/lark) (MIT).
+   - **Notice in the meeting chat** (`meeting/chat_notice.rs`, crate
+     `meeting-chat`; switch `meetings.chat_notice_enabled`, off by default):
+     when a recording runs during a detected call, Sokki posts one line
+     into the call's chat, once per call, from the user's account: Zoom
+     and Teams apps, Google Meet in Chrome, Arc, Edge and Brave. Through
+     Accessibility: find the meeting window (it has a "leave" button),
+     find the chat field (opening the chat with its button or shortcut),
+     bring the app forward for a moment, set or type the text, Return,
+     give the front back. Keys go to the meeting app's process only. Then
+     Sokki watches that chat; a message that is just "stop"/"stopp" ends
+     the recording and deletes it (`discard_meeting`), Sokki answers in
+     the chat and shows a banner. If the line can't be posted within 2 min,
+     a banner says so. Why opt-out by chat: § 201 StGB accepts staying in
+     a call after a clear notice of recording as consent (GDD "KI-Protokoll"
+     2026, § 5–6); under the GDPR the objection must work in practice
+     (BayLDA report 2025, 13.1), and Sokki can't take one voice out of the
+     mixed call audio, so it deletes all of it.
+   - **Notes to everyone** (`meeting/mail.rs`, crate `meeting-mail`,
+     calendar bridge `swift/calendar.swift`; button "Send to everyone" on
+     the note, switch `meetings.mail_notes_auto`, off by default): the
+     note's summary, decisions and action items (no transcript, ending with
+     the note's Sokki line) go to everyone invited in the calendar event,
+     from the user's own mailbox in their name: Gmail when connected
+     (Settings › Notes by mail › Connect Gmail: Google's consent page,
+     only `gmail.send` + `openid email`, loopback + PKCE, refresh token in
+     the Keychain, Disconnect revokes; client id/secret at build time as
+     `SOKKI_GOOGLE_CLIENT_ID`/`_SECRET`), else Apple Mail. The event is the one that
+     overlaps the recording most, among those with a link for the call app
+     (Zoom app → zoom.us, a browser → any web call). Left out: the user
+     (calendar "me" and Mail's own addresses), people who declined, rooms,
+     and everyone on the objection list (`mail_objections.json`; a reply
+     whose first word is "stop"/"stopp" puts the sender on it before the
+     next send, BGH VI ZR 134/15). AppleScript makes the message with
+     `visible:false` and sends it; a Mail that was closed is quit again once
+     the outbox is empty. Automatic only for meetings from the last day,
+     once. Test app: `SOKKI_TEST_CALENDAR=<events.json>` replaces the
+     calendar, and nothing is sent unless `SOKKI_TEST_MAIL_TO` names the one
+     address every mail then goes to.
 4. **During the recording** (`sokki-engine/src/live.rs`): both tracks go,
    sample for sample as written to their files, to one worker at low
    priority. It lines them up, removes the echo from the mic as a stream
@@ -137,6 +175,60 @@ Icons are drawn as SVG in
 9. **Safety** – a memory guard stops the app above 6 GB while a meeting is
    processed (`meeting/memguard.rs`); recordings are closed at quit and
    processed at the next launch.
+9. **Sokki line** – every summary ends with one short line that is both a
+   small ad and the AI label: "Summarized by AI. Local, free, open source.
+   Dictation app and meeting notetaker: sokki.org" (German note: „Von KI
+   zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und
+   Meeting-Notetaker: sokki.org“; the same on every computer; a cloud
+   model's summary drops "local, free", it is neither; no summary, no
+   line). It is the
+   note's last line, and `split_note` puts it under the summary, so the
+   app, the phone, a copy and the web page carry it. Only a supporter (at
+   least €20 paid) can switch it off: `meetings.supporter_code` holds a code
+   signed with Sokki's Ed25519 key, checked offline
+   (`sokki_engine::supporter`); `scripts/supporter-code.mjs mint` makes one.
+   Older notes keep their "Transcribed on my Mac with sokki.org".
+   **Mails and chat posts Sokki sends to other people** carry the same line
+   (Robin, 2026-11-24, accepting the risk: in Germany an ad in an e-mail
+   needs the recipient's prior consent, UWG §7 Abs. 2 Nr. 2, and the product
+   counts as the advertiser, BGH I ZR 208/12). They take it from
+   `Settings::sokki_line_text`, and whoever objects gets no more mail
+   (BGH VI ZR 134/15).
+
+## First meeting note
+
+So that the first meeting gets a summary without anyone finding Models →
+Language model:
+
+- **Setup** (`src/components/onboarding/screens/Summary.tsx`): when Meetings
+  is picked, a screen after the speech model offers the built-in summary
+  model with its size, the memory it needs (6.4 GB, measured with Sokki's
+  own 9B) against the Mac's (`summary_model_setup`), and when notes arrive
+  (about 3 minutes after hanging up). It downloads in the background while
+  setup goes on; one download at a time (`meeting/pull.rs`), which the
+  Models page joins. A Mac under 12 GB (8 GB in practice) is told it's too
+  small and pointed to Ollama or an own key.
+- **Gmail in setup** (`screens/Permissions.tsx`, `onboarding/useGmail.ts`;
+  Robin, 2026-11-24): with Meetings, Permissions also offers Gmail,
+  optional, after the macOS permissions, so Sokki can tell everyone before
+  the meeting and send them the notes. Leaving it out on a Mac whose region
+  is Germany shows the § 201 StGB notice once, with "Connect Gmail" and
+  "Continue without". With the mail before a meeting in the build
+  (`premeeting_mail_status` exists), one sign-in asks for sending and for
+  the sender and subject of mails (`gmail.metadata`: a guest's reply stops
+  the recording), `gmail_connect_for_meetings`; without it, send only,
+  `gmail_connect`. Google's notice beside Connect names exactly what that
+  sign-in asks for. A build without `gmail_status` has no Gmail row.
+- **Sample meeting** (`meeting/sample.rs`, `meetings/SampleMeeting.tsx`):
+  on an empty Meetings page, a two-minute call between three invented
+  people (`resources/sample-meeting/call.flac`, from
+  `testdata/sample_meeting/`, spoken by Kokoro-82M, Apache-2.0; macOS's
+  voices may not be redistributed). It plays out loud and runs through the
+  real pipeline in real time: the call in place of the system audio, a
+  silent stand-in microphone, the live transcript on screen, then speakers
+  and summary. Marked as a sample: not in "Your data" or the milestones,
+  no chat notice, and a real meeting started meanwhile replaces it.
+  Headless test: `scripts/test-sample.sh`.
 
 ## Other people's voices (Robin's decision, 2026-11-24)
 
@@ -230,6 +322,7 @@ The Videos page (camera, recording bar, looks) was removed on 2026-11-23
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
 | `crates/meeting-detect` | Which processes use the mic (Core Audio), meeting-app matching, debounce watcher |
+| `crates/meeting-chat` | Posting one line into a meeting's chat and watching it for "stop" (macOS Accessibility); `cargo run --example chat -- dump zoom` prints an app's tree |
 | `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `summary_eval`, `diarize_once`; `live_eval`: transcript during the call vs after it, time and word difference) |
 | `testdata/generate.py` | Builds the synthetic fixtures (macOS voices + ffmpeg) into `testdata/audio/` (gitignored) |
 | `testdata/real/` | Real-call eval data (gitignored, private): uncorrected transcripts, hand labels (34 misheard words, 37 words that must stay), dictionary |

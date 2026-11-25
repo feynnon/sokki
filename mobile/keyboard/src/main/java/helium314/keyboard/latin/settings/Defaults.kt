@@ -47,22 +47,26 @@ object Defaults {
     const val PREF_THEME_STYLE = KeyboardTheme.STYLE_MATERIAL
     fun PREF_ICON_STYLE(prefs: SharedPreferences) = prefs.getString(Settings.PREF_THEME_STYLE, PREF_THEME_STYLE)!!
     const val PREF_ACCENT_SHIFTED_ICON = false
-    const val PREF_THEME_COLORS = KeyboardTheme.THEME_LIGHT
-    const val PREF_THEME_COLORS_NIGHT = KeyboardTheme.THEME_DARK
-    const val PREF_THEME_KEY_BORDERS = false
+    // Sokki: Sokki's calm greys and blue, keys drawn as rounded tiles (like Gboard).
+    const val PREF_THEME_COLORS = KeyboardTheme.THEME_SOKKI
+    const val PREF_THEME_COLORS_NIGHT = KeyboardTheme.THEME_SOKKI_DARK
+    const val PREF_THEME_KEY_BORDERS = true
     @JvmField
     val PREF_THEME_DAY_NIGHT = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     const val PREF_CUSTOM_ICON_NAMES = ""
     const val PREF_TOOLBAR_CUSTOM_KEY_CODES = ""
     const val PREF_AUTO_CAP = true
-    const val PREF_VIBRATE_ON = false
+    const val PREF_VIBRATE_ON = false // Sokki: no buzz per key (Robin dislikes it; iPhone default too); a setting for those who want it
     const val PREF_VIBRATE_IN_DND_MODE = false
     const val PREF_SOUND_ON = false
-    const val PREF_SUGGEST_EMOJIS = true
+    const val PREF_SUGGEST_EMOJIS = false // Sokki: no suggestions of any kind
     const val PREF_INLINE_EMOJI_SEARCH = true
     const val PREF_SHOW_EMOJI_DESCRIPTIONS = true
     @JvmField
     var PREF_POPUP_ON = true
+    // Sokki: autocorrect fixes typos only and never swaps a real word (dev.verbatim.sokki.Typos).
+    // Robin found HeliBoard's own autocorrect "just pure bad"; Gboard's typo fixes he never noticed.
+    // No word suggestions are shown either way.
     const val PREF_AUTO_CORRECTION = true
     const val PREF_MORE_AUTO_CORRECTION = false
     const val PREF_AUTO_CORRECT_CONFIDENCE = 0.24f
@@ -70,16 +74,19 @@ object Defaults {
     const val PREF_BACKSPACE_REVERTS_AUTOCORRECT = true
     const val PREF_AUTOCORRECT_CAPITALIZED_SUGGESTION = true
     const val PREF_CENTER_SUGGESTION_TEXT_TO_ENTER = false
-    const val PREF_SHOW_SUGGESTIONS = true
+    const val PREF_SHOW_SUGGESTIONS = false
     const val PREF_ALWAYS_SHOW_SUGGESTIONS = false
     const val PREF_ALWAYS_SHOW_SUGGESTIONS_EXCEPT_WEB_TEXT = true
     const val PREF_KEY_USE_PERSONALIZED_DICTS = true
-    const val PREF_KEY_USE_DOUBLE_SPACE_PERIOD = true
+    const val PREF_KEY_USE_DOUBLE_SPACE_PERIOD = false // Sokki: two spaces stay two spaces
     const val PREF_BLOCK_POTENTIALLY_OFFENSIVE = true
-    const val PREF_SHOW_LANGUAGE_SWITCH_KEY = false
+    const val PREF_SHOW_LANGUAGE_SWITCH_KEY = true // Sokki: a globe key, only with two or more languages (like Gboard)
     const val PREF_LANGUAGE_SWITCH_KEY = "internal"
     const val PREF_SHOW_EMOJI_KEY = false
-    const val PREF_SHOW_DPAD_KEY = true
+    // Sokki: letter-aware key edges; off until a real typing test shows they help
+    const val PREF_SOKKI_KEY_TARGETING = false
+    const val PREF_SOKKI_RECORD_TAPS = false // Sokki: only when the user asks for it
+    const val PREF_SHOW_DPAD_KEY = false // Sokki: symbols page like Gboard, without the cursor pad
     const val PREF_VARIABLE_TOOLBAR_DIRECTION = true
     const val PREF_ADDITIONAL_SUBTYPES = "de${Separators.SET}${ExtraValue.KEYBOARD_LAYOUT_SET}=MAIN:qwerty${Separators.SETS}" +
             "fr${Separators.SET}${ExtraValue.KEYBOARD_LAYOUT_SET}=MAIN:qwertz${Separators.SETS}" +
@@ -114,9 +121,9 @@ object Defaults {
     const val PREF_AUTOSPACE_BEFORE_GESTURE_TYPING = true
     const val PREF_SHIFT_REMOVES_AUTOSPACE = false
     const val PREF_ALWAYS_INCOGNITO_MODE = false
-    const val PREF_BIGRAM_PREDICTIONS = true
+    const val PREF_BIGRAM_PREDICTIONS = false
     const val PREF_SUGGEST_PUNCTUATION = false
-    const val PREF_SUGGEST_CLIPBOARD_CONTENT = true
+    const val PREF_SUGGEST_CLIPBOARD_CONTENT = false // Sokki: the strip holds only the mic and the dictation status
     const val PREF_GESTURE_INPUT = true
     const val PREF_VIBRATION_DURATION_SETTINGS = -1
     const val PREF_KEYPRESS_SOUND_VOLUME = -0.01f
@@ -145,12 +152,12 @@ object Defaults {
     @SuppressLint("RtlHardcoded")
     const val PREF_ONE_HANDED_GRAVITY = Gravity.LEFT
     const val PREF_ONE_HANDED_SCALE = 1f
-    const val PREF_SHOW_NUMBER_ROW = false
+    const val PREF_SHOW_NUMBER_ROW = true // Sokki: digits always above the letters, like Gboard's number row (Robin's pick)
     const val PREF_SHOW_NUMBER_ROW_IN_SYMBOLS = true
     const val PREF_LOCALIZED_NUMBER_ROW = true
     const val PREF_SHOW_NUMBER_ROW_HINTS = false
     const val PREF_CUSTOM_CURRENCY_KEY = ""
-    const val PREF_SHOW_HINTS = true
+    const val PREF_SHOW_HINTS = false // Sokki: plain letters; long-press still offers ä ö ü ß, digits
     const val PREF_POPUP_KEYS_ORDER = POPUP_KEYS_ORDER_DEFAULT
     const val PREF_POPUP_KEYS_HINT_ORDER = POPUP_KEYS_LABEL_DEFAULT
     const val PREF_SHOW_POPUP_HINTS = false
@@ -172,7 +179,7 @@ object Defaults {
     const val PREF_SELECTED_SUBTYPE = ""
     const val PREF_URL_DETECTION = false
     const val PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG = false
-    const val PREF_TOOLBAR_MODE = "EXPANDABLE"
+    const val PREF_TOOLBAR_MODE = "SUGGESTION_STRIP" // Sokki: no toolbar arrow, the strip is just the mic
     const val PREF_TOOLBAR_HIDING_GLOBAL = true
     const val PREF_TOOLBAR_SWIPE_DOWN_TO_HIDE = false
     const val PREF_QUICK_PIN_TOOLBAR_KEYS = false

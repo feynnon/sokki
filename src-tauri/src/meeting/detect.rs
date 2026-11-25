@@ -18,6 +18,25 @@ pub struct DetectState {
     watcher: Mutex<Option<Watcher>>,
     /// (app id, meeting id) of a recording started from a detection prompt.
     started: Mutex<Option<(String, String)>>,
+    /// App id of the call running now, however the recording was started.
+    current: Mutex<Option<String>>,
+}
+
+/// A recording started (from the prompt, a shortcut or the window): if a
+/// call is running, Sokki says so in its chat (`chat_notice`).
+pub fn recording_started(app: &AppHandle, meeting_id: &str) {
+    let Some(state) = app.try_state::<Arc<DetectState>>() else {
+        return;
+    };
+    let call = state
+        .current
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .or_else(crate::test_mic::call);
+    if let Some(call) = call {
+        super::chat_notice::recording_started(app, meeting_id, &call);
+    }
 }
 
 /// Starts or stops the watcher to match the setting. Safe to call repeatedly.
@@ -49,7 +68,14 @@ pub fn sync_with_settings(app: &AppHandle) {
 fn on_event(app: &AppHandle, event: MeetingEvent) {
     match event {
         MeetingEvent::Started { app: meeting } => {
-            if app.state::<Arc<MeetingManager>>().is_recording() {
+            *app.state::<Arc<DetectState>>()
+                .current
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(meeting.id.to_string());
+            if let Some(recording) = app.state::<Arc<MeetingManager>>().active_id() {
+                // Recording already runs (started before the call): the
+                // call still gets its line.
+                super::chat_notice::recording_started(app, &recording, meeting.id);
                 return;
             }
             let handle = app.clone();
@@ -74,13 +100,20 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                         log::info!("Meeting start with screen via call detection ({name})");
                         // Without Screen Recording yet (macOS was just asked),
                         // the meeting is still recorded, without the screen.
-                        Some(crate::video::start(&handle, Some(name.clone())).or_else(|e| {
-                            log::warn!("Meeting with screen: {e}; recording the meeting without it");
-                            super::start_meeting(&handle, Some(name))
-                        }))
+                        Some(
+                            crate::video::start(&handle, Some(name.clone())).or_else(|e| {
+                                log::warn!(
+                                    "Meeting with screen: {e}; recording the meeting without it"
+                                );
+                                super::start_meeting(&handle, Some(name))
+                            }),
+                        )
                     }
                     _ => None,
                 };
+                if started.is_some() {
+                    crate::usage::count(&handle, crate::usage::Count::MeetingStartedFromCall);
+                }
                 if let Some(started) = started {
                     match started {
                         Ok(meeting_id) => {
@@ -95,6 +128,13 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
         }
         MeetingEvent::Ended { app: meeting, .. } => {
             let state = app.state::<Arc<DetectState>>();
+            {
+                let mut current = state.current.lock().unwrap_or_else(|e| e.into_inner());
+                if current.as_deref() == Some(meeting.id) {
+                    *current = None;
+                }
+            }
+            super::chat_notice::call_ended(app, meeting.id);
             let ours = state
                 .started
                 .lock()

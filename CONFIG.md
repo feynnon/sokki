@@ -44,6 +44,8 @@ Most useful keys:
 | Dictation shortcut | `bindings.transcribe.current_binding` |
 | Speech model | `selected_model` |
 | Custom words for dictation | `custom_words` |
+| Clean up dictations | `dictation_cleanup_enabled` |
+| Fix typos as you type (macOS) | `autocorrect_enabled` |
 
 
 ## Meeting settings (`meetings.*`)
@@ -55,13 +57,18 @@ Most useful keys:
 | `meetings.diarization_enabled` | `bool` | `true` | Separate speakers within each track. |
 | `meetings.glossary` | `Vec<String>` | `[]` | Your dictionary: correctly spelled company names, customers, colleagues, products and jargon, e.g. ["Kelasur", "OVDA", "Claude Code"]. The summary prompt lists them, so the summary spells them right where the transcript has a misheard form ("Cloud Code"). The transcript itself stays as recognised. The dictation `custom_words` are added automatically. |
 | `meetings.summary_enabled` | `bool` | `true` | Write a summary, decisions and action items with a language model. |
-| `meetings.footer_enabled` | `bool` | `true` | End every note, and the summary shown in the app and on the phone, with "Transcribed on my Mac with sokki.org". |
+| `meetings.footer_enabled` | `bool` | `true` | End every summary (note, app, phone, copy) with the Sokki line ("Summarized by AI. Local, free, open source. Dictation app and meeting notetaker: sokki.org"). Only a supporter (`supporter_code`) can turn it off; without a valid code the line stays even when this is false. |
+| `meetings.supporter_code` | `String` | `""` | Supporter code: proof of at least €20 paid for Sokki, checked offline (`sokki_engine::supporter`). Empty: none. |
 | `meetings.llm_provider` | `String` | `"builtin"` | Which language model summarises: "builtin" (Qwen 3.5 9B run by llama.cpp inside Sokki, on Macs with Apple silicon), "local" (the server at `llm_base_url`, normally Ollama; nothing leaves the computer either way), or a cloud provider: "anthropic", "openai" or "openrouter". A cloud provider gets the transcript; its API key is the one stored for that provider under `post_process_api_keys`. |
 | `meetings.cloud_model` | `String` | `""` | Model for the cloud provider. Empty: the provider's default (see `meeting::process::default_cloud_model`). |
 | `meetings.llm_base_url` | `String` | `"http://localhost:11434"` | Local server: Ollama (`http://localhost:11434`) or any OpenAI-compatible server (a URL ending in `/v1`). |
 | `meetings.llm_model` | `String` | `"qwen3.5:9b"` | Model on the local server. |
 | `meetings.keep_audio_days` | `u32` | `0` | Keep the recorded audio for this many days after the note is written. 0 deletes it as soon as processing succeeds. |
 | `meetings.detection_enabled` | `bool` | `true` | Offer to record when a meeting app starts using the microphone. |
+| `meetings.chat_notice_enabled` | `bool` | `false` | When Sokki records a detected call (Zoom, Teams, Google Meet in Chrome, Arc, Edge or Brave), post one line into the meeting's chat, once per call, from the user's account: that Sokki records, locally, and that "stop" in the chat stops and deletes the recording. Uses Accessibility. |
+| `meetings.mail_notes_auto` | `bool` | `false` | After a meeting, send its notes (summary, decisions, action items; no transcript) to everyone invited in the calendar, from the user's own Apple Mail and in their name. Off by default; the note's "Send to everyone" button works either way. |
+| `meetings.gmail_address` | `Option<String>` | `null` | The Gmail address notes are sent from, once Gmail is connected (Settings › Meetings › Notes by mail). Shown only; the token is in the Keychain. None: Apple Mail sends. |
+| `meetings.gmail_testing` | `bool` | `false` | Offer Gmail before Google has reviewed Sokki (test mode: only the Google project's test users can connect; everyone else would see Google's "Access blocked"). For Robin's test Mac; set by hand in the settings file. Off: Apple Mail only, until the review passes. |
 | `meetings.phone_link_enabled` | `bool` | `false` | Accept recordings from the Sokki phone app: direct and end-to-end encrypted from any network, paired by QR code. Pairing state (this Mac's key, code, paired phones) is in `phone_link.json` in the app data folder. |
 
 ## All other settings
@@ -124,6 +131,8 @@ Most useful keys:
 | `typing_tool` | `TypingTool` | `"auto"` | Linux only. |
 | `external_script_path` | `Option<String>` | `null` | Script for `paste_method = external_script`. |
 | `filler_word_removal_enabled` | `bool` | `true` | Remove ähm/um from dictation. |
+| `dictation_cleanup_enabled` | `bool` | `false` | Clean up each dictation with the built-in cleanup model before it is pasted (`dictation_cleanup`): fillers, repetitions and self-corrections out, misheard words and grammar fixed, paragraphs and lists in. Only while the model is downloaded. Off until Robin has tried it (release manager, 25.11.2026). |
+| `autocorrect_enabled` | `bool` | `false` | Fix typos as you type, in the apps where macOS doesn't (Chrome, Slack, Claude …), with the phone keyboard's model (`autocorrect`). Backspace right after a fix undoes it. Never in Apple's apps, terminals, code editors, password managers or password fields. macOS only. Off until the user turns it on (Robin, 25.11.2026: for everyone, off by default). |
 | `custom_filler_words` | `Option<Vec<String>>` | `null` | Your own filler words; `null` = built-in list. |
 | `chinese_script` | `ChineseScript` | `"simplified"` | Fresh installs default from the OS locale; existing stores are migrated in `apply_settings_migrations`. |
 | `transcribe_accelerator` | `TranscribeAcceleratorSetting` | `"auto"` | `auto`, `cpu` or `gpu`. |

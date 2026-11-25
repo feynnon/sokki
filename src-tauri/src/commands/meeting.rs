@@ -190,6 +190,111 @@ pub fn save_meeting_page(
     Ok(())
 }
 
+/// What "Send to everyone" would do for a meeting: the calendar event,
+/// who gets the mail and who is left out, and the mail itself. Never opens
+/// Mail or asks for anything.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_mail_preview(
+    app: AppHandle,
+    id: String,
+) -> Result<crate::meeting::mail::MailPreview, String> {
+    crate::meeting::mail::preview(&app, &id)
+}
+
+/// Sends the meeting's notes to everyone in its calendar event, from the
+/// person's Apple Mail. Asks for the calendar first if it never did.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_mail_send(
+    app: AppHandle,
+    id: String,
+) -> Result<crate::meeting::store::Mailed, String> {
+    tokio::task::spawn_blocking(move || crate::meeting::mail::send(&app, &id, false))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Asks for what sending needs (calendar, then control of Mail) and says
+/// where it stands. Called when the person turns automatic sending on.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn mail_setup(app: AppHandle) -> Result<crate::meeting::mail::MailSetup, String> {
+    tokio::task::spawn_blocking(move || crate::meeting::mail::setup(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Whether this build can send through Gmail, and the connected address.
+#[cfg(target_os = "macos")]
+#[derive(serde::Serialize, specta::Type)]
+pub struct GmailStatus {
+    pub available: bool,
+    pub connected: Option<String>,
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn gmail_status(app: AppHandle) -> GmailStatus {
+    GmailStatus {
+        available: crate::meeting::gmail_account::offered(&app),
+        connected: crate::meeting::gmail_account::connected(&app),
+    }
+}
+
+/// Opens Google's consent page (only `gmail.send`) and waits for the
+/// answer, up to 5 minutes. Returns the connected address.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn gmail_connect(app: AppHandle) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || crate::meeting::gmail_account::connect(&app))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Revokes Sokki's access at Google and forgets the token.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn gmail_disconnect(app: AppHandle) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::meeting::gmail_account::disconnect(&app))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// The people who asked for no more mail, lower case.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn mail_objections(app: AppHandle) -> Vec<String> {
+    crate::meeting::mail::objections(&app)
+        .list()
+        .iter()
+        .map(|o| o.email.clone())
+        .collect()
+}
+
+/// Puts an address on the no-more-mail list. False: no address, or listed.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn mail_objection_add(app: AppHandle, email: String) -> Result<bool, String> {
+    crate::meeting::mail::add_objection(&app, &email)
+}
+
+/// Takes an address off the no-more-mail list.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn mail_objection_remove(app: AppHandle, email: String) -> Result<bool, String> {
+    crate::meeting::mail::remove_objection(&app, &email)
+}
+
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
@@ -414,8 +519,10 @@ pub async fn start_ollama(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("{e:#}"))
 }
 
-/// Downloads the local language model through Ollama. Progress arrives as
-/// "meeting-llm-pull" events ({status, completed, total}).
+/// Downloads the local language model (built in, or through Ollama).
+/// Progress arrives as "meeting-llm-pull" events ({status, completed,
+/// total}). While a download runs, waits for it instead of starting another
+/// (`meeting::pull`).
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
@@ -423,13 +530,138 @@ pub async fn pull_meeting_llm(app: AppHandle) -> Result<(), String> {
     use tauri::Emitter;
     let settings = crate::settings::get_settings(&app).meetings;
     tauri::async_runtime::spawn_blocking(move || {
-        meeting::process::pull_model(&settings, |p| {
-            let _ = app.emit("meeting-llm-pull", p);
+        meeting::pull::LLM.run(|note| {
+            meeting::process::pull_model(&settings, |p| {
+                note(p.clone());
+                let _ = app.emit("meeting-llm-pull", p);
+            })
+            .map_err(|e| format!("{e:#}"))
         })
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
+}
+
+/// A running download of the language model.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct LlmDownload {
+    /// "starting", "downloading" or "verifying" (Ollama: its own words).
+    pub status: String,
+    pub completed: u64,
+    /// 0 until known.
+    pub total: u64,
+}
+
+/// What setup needs to offer the summary model.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct SummarySetup {
+    /// The Mac's memory, in bytes; 0 when unknown.
+    pub memory_bytes: u64,
+    /// The built-in model: "ready" (on disk), "missing" (can be
+    /// downloaded) or "unavailable" (this build or Mac has none).
+    pub builtin: String,
+    /// The download running now, if any.
+    pub download: Option<LlmDownload>,
+}
+
+/// The Mac's memory in bytes (`hw.memsize`), 0 when it can't be read.
+#[cfg(target_os = "macos")]
+fn memory_bytes() -> u64 {
+    let mut bytes: u64 = 0;
+    let mut len = std::mem::size_of::<u64>();
+    // SAFETY: hw.memsize is a u64; `len` holds its size.
+    let r = unsafe {
+        libc::sysctlbyname(
+            c"hw.memsize".as_ptr(),
+            &mut bytes as *mut u64 as *mut libc::c_void,
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if r == 0 {
+        bytes
+    } else {
+        0
+    }
+}
+
+/// Memory, the built-in summary model's state, and its download, for
+/// setup's summary screen. Cheap: no model is loaded.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn summary_model_setup(app: AppHandle) -> Result<SummarySetup, String> {
+    let all = crate::settings::get_settings(&app);
+    let builtin = MeetingSettings {
+        llm_provider: sokki_engine::llm::BUILTIN.to_string(),
+        ..all.meetings.clone()
+    };
+    let keys: std::collections::HashMap<String, String> = (*all.post_process_api_keys).clone();
+    let state = tauri::async_runtime::spawn_blocking(move || {
+        meeting::process::llm_status(&builtin, &keys, false).state
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(SummarySetup {
+        memory_bytes: memory_bytes(),
+        builtin: match state.as_str() {
+            "ready" => "ready",
+            "model_missing" => "missing",
+            _ => "unavailable",
+        }
+        .into(),
+        download: meeting::pull::LLM.progress().map(|p| LlmDownload {
+            status: p.status,
+            completed: p.completed,
+            total: p.total,
+        }),
+    })
+}
+
+/// Starts the sample meeting (`meeting::sample`): a two-minute call of
+/// invented people, played and recorded in real time, then processed.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn start_sample_meeting(app: AppHandle) -> Result<String, String> {
+    meeting::sample::start(&app)
+}
+
+/// Stops the sample meeting and deletes it. Does nothing to a real meeting.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn stop_sample_meeting(app: AppHandle) -> Result<(), String> {
+    if meeting::sample::active_id().is_some() {
+        meeting::discard_meeting(&app)?;
+    }
+    Ok(())
+}
+
+/// A line the live transcript has heard.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct LiveLine {
+    /// Seconds from the recording's start.
+    pub start_s: f64,
+    pub text: String,
+}
+
+/// What the running meeting's live transcript has heard so far, in order.
+/// Empty when nothing records.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_live_transcript(app: AppHandle) -> Vec<LiveLine> {
+    app.state::<Arc<MeetingManager>>()
+        .heard()
+        .map(|h| {
+            h.lines()
+                .into_iter()
+                .map(|(start_s, text)| LiveLine { start_s, text })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Renames a speaker of a processed meeting in its note. With `remember`,
@@ -676,6 +908,34 @@ pub async fn pull_meeting_llm() -> Result<(), String> {
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 #[specta::specta]
+pub async fn summary_model_setup() -> Result<SummarySetup, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn start_sample_meeting() -> Result<String, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn stop_sample_meeting() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_live_transcript() -> Vec<LiveLine> {
+    Vec::new()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
 pub fn rename_meeting_speaker(
     _id: String,
     _from: String,
@@ -714,4 +974,28 @@ mod tests {
         assert!(url.contains("Kick-off%20%C3%A4.md"));
         assert!(obsidian_url(&std::env::temp_dir().join("x.md")).is_none());
     }
+}
+
+/// Whether `code` is a valid supporter code (at least €20 paid), so the
+/// settings can unlock the Sokki line's switch. Processing checks the
+/// stored code again on its own.
+#[tauri::command]
+#[specta::specta]
+pub fn is_supporter_code(code: String) -> bool {
+    sokki_engine::supporter::verify(&code).is_some()
+}
+
+/// The Sokki line as it will stand under the next summary, for the
+/// settings preview: German or English (`german`), and without "local,
+/// free" when a cloud model writes the summary.
+#[tauri::command]
+#[specta::specta]
+pub fn sokki_line(app: AppHandle, german: bool) -> String {
+    let settings = crate::meeting::process::engine_settings(&crate::settings::get_settings(&app));
+    let language = if german {
+        meeting_core::lang::Language::German
+    } else {
+        meeting_core::lang::Language::English
+    };
+    meeting_core::note::sokki_line(language, settings.note_options().cloud_summary).to_string()
 }

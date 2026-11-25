@@ -209,9 +209,19 @@ impl Heard {
 
     /// Both tracks' pieces in the order they were said, as plain text.
     pub fn text(&self) -> String {
+        self.lines()
+            .into_iter()
+            .map(|(_, t)| t)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Both tracks' pieces in the order they were said, each with its start
+    /// in seconds from the recording's start.
+    pub fn lines(&self) -> Vec<(f64, String)> {
         let mut v = self.0.lock().unwrap_or_else(|e| e.into_inner()).clone();
         v.sort_by(|a, b| a.0.total_cmp(&b.0));
-        v.into_iter().map(|(_, t)| t).collect::<Vec<_>>().join(" ")
+        v
     }
 }
 

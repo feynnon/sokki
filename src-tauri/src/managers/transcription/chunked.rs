@@ -197,7 +197,11 @@ impl<'a> ChunkedDecode<'a> {
             _ => unreachable!("detected above"),
         };
         let committed = chunking::join_transcripts(
-            &self.transcripts.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(),
+            &self
+                .transcripts
+                .iter()
+                .map(|t| t.text.as_str())
+                .collect::<Vec<_>>(),
         );
         let mut tentative = String::new();
         if due {

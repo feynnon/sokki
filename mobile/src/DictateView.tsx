@@ -5,6 +5,8 @@ import { feedWav, startMic } from "./dictate";
 
 interface ModelInfo {
   present: boolean;
+  /** The previous speech model is there (before the streaming one). */
+  old_present: boolean;
   path: string;
   loaded: boolean;
 }
@@ -32,15 +34,31 @@ export function DictateView() {
   const stats = useRef<{ audio_s: number; ms: number; at: number }[]>([]);
   const started = useRef(0);
 
-  const prepare = async () => {
+  const fetchModel = async () => {
+    setPhase("downloading");
+    try {
+      await invoke("dictation_download");
+      await prepare();
+    } catch (e) {
+      setError(String(e));
+      setPhase("missing");
+    }
+  };
+
+  const prepare = async (): Promise<void> => {
     setError(null);
     const m = await invoke<ModelInfo>("dictation_model");
+    // Had the previous model: the person chose on-device dictation, so the
+    // new one comes by itself (it replaces the old one).
+    if (!m.present && m.old_present) return fetchModel();
     if (!m.present) return setPhase("missing");
     if (!m.loaded) {
       setPhase("loading");
       try {
+        // Tests read the load time here; people don't need it (it read
+        // "Model loaded in 0 s." with the streaming model).
         const ms = await invoke<number>("dictation_load");
-        setInfo(`Model loaded in ${(ms / 1000).toFixed(0)} s.`);
+        console.info(`Speech model loaded in ${ms} ms`);
       } catch (e) {
         setError(String(e));
         return setPhase("missing");
@@ -150,22 +168,13 @@ export function DictateView() {
     return (
       <section className="dictate">
         <p className="muted">
-          Dictation on the phone needs the speech model once (740 MB). It then
+          Dictation on the phone needs the speech model once (750 MB). It then
           works without the Mac and without internet.
         </p>
         <button
           className="primary"
           disabled={phase === "downloading"}
-          onClick={async () => {
-            setPhase("downloading");
-            try {
-              await invoke("dictation_download");
-              await prepare();
-            } catch (e) {
-              setError(String(e));
-              setPhase("missing");
-            }
-          }}
+          onClick={() => void fetchModel()}
         >
           {phase === "downloading"
             ? `Downloading… ${Math.round(download * 100)} %`

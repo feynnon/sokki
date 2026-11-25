@@ -37,9 +37,15 @@ card:
 - Speaker detection: NVIDIA Sortformer (streaming, 4 speakers)
 - Summaries on your Mac: Qwen 3.5 9B (Apache-2.0) by Alibaba's Qwen team,
   as a GGUF file quantized by Unsloth; optionally through [Ollama](https://ollama.com)
+- Dictation cleanup on your Mac: Gemma 4 E4B (Apache-2.0) by Google
+  DeepMind, with its MTP draft model, as GGUF files quantized by Unsloth
 
 Optional cloud summaries (Anthropic, OpenAI, OpenRouter) are subject to each
 provider's terms.
+
+The sample meeting's voices (`src-tauri/resources/sample-meeting/call.flac`)
+were spoken by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
+(Apache-2.0) from an invented script (`testdata/sample_meeting/`).
 
 ## Libraries
 
@@ -47,7 +53,8 @@ provider's terms.
   pure-Rust port of WebRTC's audio processing, for echo cancellation of the
   microphone track.
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT), whose
-  `llama-server` ships inside the app and runs the summary model on the GPU.
+  `llama-server` ships inside the app and runs the summary and dictation
+  cleanup models on the GPU.
 
 The Rust crates and npm packages Sokki depends on are listed in
 `Cargo.lock` and `bun.lock`, each under its own license.

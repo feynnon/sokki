@@ -11,6 +11,8 @@ export interface Recording {
   title: string | null;
   summary: string | null;
   transcript: string | null;
+  /** The transcript was made on the phone (no Mac): no speakers, no summary. */
+  onPhone?: boolean;
 }
 
 const LIST_KEY = "verbatim.recordings";

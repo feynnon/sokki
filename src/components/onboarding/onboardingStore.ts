@@ -11,6 +11,7 @@ export type OnboardingStep =
   | "purpose"
   | "permissions"
   | "model"
+  | "summary"
   | "voice"
   | "demo"
   | "try"
@@ -21,6 +22,7 @@ export const STEP_ORDER: OnboardingStep[] = [
   "purpose",
   "permissions",
   "model",
+  "summary",
   "voice",
   "demo",
   "try",

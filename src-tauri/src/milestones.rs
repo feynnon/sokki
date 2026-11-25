@@ -55,7 +55,7 @@ fn load(app: &AppHandle) -> State {
                 return state;
             };
             for m in store.list() {
-                if matches!(m.status, crate::meeting::store::MeetingStatus::Done) {
+                if matches!(m.status, crate::meeting::store::MeetingStatus::Done) && !m.sample {
                     state.seconds += m.duration_s;
                     state.meetings.push(m.id);
                 }
@@ -67,8 +67,7 @@ fn load(app: &AppHandle) -> State {
     if !state.words_started {
         // From before this counter: the dictations still in History.
         use tauri::Manager;
-        if let Some(h) =
-            app.try_state::<std::sync::Arc<crate::managers::history::HistoryManager>>()
+        if let Some(h) = app.try_state::<std::sync::Arc<crate::managers::history::HistoryManager>>()
         {
             // Only once History could be read, so a start before it is
             // ready doesn't lose the words from before.

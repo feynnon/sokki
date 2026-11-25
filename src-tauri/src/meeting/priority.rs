@@ -190,7 +190,10 @@ mod tests {
                 .args(["-o", "pri=", "-p", &pid.to_string()])
                 .output()
                 .unwrap();
-            String::from_utf8_lossy(&out.stdout).trim().parse::<i32>().unwrap()
+            String::from_utf8_lossy(&out.stdout)
+                .trim()
+                .parse::<i32>()
+                .unwrap()
         };
         let before = band();
         let mut state = Class::Normal;
@@ -204,7 +207,10 @@ mod tests {
         let after = band();
         let _ = child.kill();
         let _ = child.wait();
-        assert!(during < before, "not in the background band: {before} → {during}");
+        assert!(
+            during < before,
+            "not in the background band: {before} → {during}"
+        );
         assert_eq!(after, before);
     }
 }

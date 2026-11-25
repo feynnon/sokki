@@ -127,6 +127,16 @@ const SelectedStatus: React.FC<{ provider: string }> = ({ provider }) => {
     void refresh();
   }, [provider, settings?.meetings, refresh]);
 
+  // A download already running (setup starts one): show it, and join it.
+  useEffect(() => {
+    if (provider !== "builtin") return;
+    void commands.summaryModelSetup().then((r) => {
+      if (r.status === "ok" && r.data.download)
+        void run(() => commands.pullMeetingLlm());
+    });
+    // Once per model choice.
+  }, [provider]);
+
   useEffect(() => {
     const unlisten = listen<{ completed: number; total: number }>(
       "meeting-llm-pull",

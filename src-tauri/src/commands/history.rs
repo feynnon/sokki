@@ -83,14 +83,18 @@ pub fn cancel_history_entry_transcription(jobs: State<'_, Arc<TranscriptionJobMa
 #[tauri::command]
 #[specta::specta]
 pub async fn transcribe_file(
+    app: AppHandle,
     jobs: State<'_, Arc<TranscriptionJobManager>>,
     path: String,
 ) -> Result<HistoryEntry, String> {
     let jobs = Arc::clone(&jobs);
-    tauri::async_runtime::spawn_blocking(move || jobs.transcribe_file(PathBuf::from(path)))
-        .await
-        .map_err(|e| format!("Failed to read the file: {}", e))?
-        .map_err(|e| e.to_string())
+    let entry =
+        tauri::async_runtime::spawn_blocking(move || jobs.transcribe_file(PathBuf::from(path)))
+            .await
+            .map_err(|e| format!("Failed to read the file: {}", e))?
+            .map_err(|e| e.to_string())?;
+    crate::usage::count(&app, crate::usage::Count::FileTranscribed);
+    Ok(entry)
 }
 
 #[tauri::command]

@@ -5,6 +5,7 @@ mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod auto_update;
+mod autocorrect;
 mod autostart;
 pub mod brand;
 mod catalog;
@@ -13,17 +14,16 @@ pub mod cli;
 mod clipboard;
 mod commands;
 mod config_watch;
+mod dictation_cleanup;
 pub mod engine_supervisor;
 mod helpers;
 mod input;
 mod language_detection;
-mod legacy_data;
 mod languages;
+mod legacy_data;
 mod llm_client;
 mod managers;
 pub mod meeting;
-#[cfg(target_os = "macos")]
-pub mod video;
 mod memory;
 mod milestones;
 mod notices;
@@ -42,7 +42,10 @@ mod transcription_coordinator;
 mod transcription_hook;
 mod tray;
 mod tray_i18n;
+mod usage;
 mod utils;
+#[cfg(target_os = "macos")]
+pub mod video;
 pub mod voice_data;
 pub mod webkit_renderer;
 
@@ -269,6 +272,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
         }
         app_handle.manage(Arc::new(meeting::detect::DetectState::default()));
+        app_handle.manage(Arc::new(meeting::chat_notice::ChatNoticeState::default()));
         app_handle.manage(Arc::new(video::VideoManager::default()));
     }
     app_handle.manage(tray::TrayState::new());
@@ -276,6 +280,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     config_watch::start(app_handle);
     meeting::memguard::start(app_handle);
+    usage::init(app_handle);
     voice_data::start_notice_watch(app_handle.clone());
 
     #[cfg(target_os = "macos")]
@@ -875,8 +880,19 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::list_meetings,
             commands::meeting::open_meeting_note,
             commands::meeting::save_meeting_page,
+            commands::meeting::meeting_mail_preview,
+            commands::meeting::meeting_mail_send,
+            commands::meeting::mail_setup,
+            commands::meeting::mail_objections,
+            commands::meeting::gmail_status,
+            commands::meeting::gmail_connect,
+            commands::meeting::gmail_disconnect,
+            commands::meeting::mail_objection_add,
+            commands::meeting::mail_objection_remove,
             commands::meeting::reprocess_meeting,
             commands::meeting::summarize_meeting,
+            commands::meeting::is_supporter_code,
+            commands::meeting::sokki_line,
             commands::meeting::delete_meeting,
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
@@ -893,6 +909,7 @@ pub fn run(cli_args: CliArgs) {
             commands::voice::pending_message,
             commands::voice::answer_message,
             commands::voice::voice_data_set_choices,
+            commands::voice::usage_setup_step,
             commands::voice::voice_data_forget,
             commands::voice::voice_data_answer_buyer,
             commands::voice::voice_data_delete,
@@ -907,6 +924,14 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::remove_paired_phone,
             commands::meeting::start_ollama,
             commands::meeting::pull_meeting_llm,
+            dictation_cleanup::dictation_cleanup_model,
+            dictation_cleanup::download_dictation_cleanup_model,
+            dictation_cleanup::change_dictation_cleanup_setting,
+            autocorrect::change_autocorrect_setting,
+            commands::meeting::summary_model_setup,
+            commands::meeting::start_sample_meeting,
+            commands::meeting::stop_sample_meeting,
+            commands::meeting::meeting_live_transcript,
             commands::meeting::rename_meeting_speaker,
             commands::meeting::set_meeting_title,
             commands::meeting::date_format_locale,
@@ -1284,6 +1309,9 @@ pub fn run(cli_args: CliArgs) {
             // Keeps the keyboard hook in step with the Accessibility switch:
             // a hook left running while the switch goes off freezes all input.
             accessibility::start_watch(&app_handle);
+
+            // Fixes typos as you type; idle until its switch is on.
+            autocorrect::start(&app_handle);
 
             // Populate the overlay-enabled cache from initial settings so the
             // audio path (overlay::emit_levels, called ~24 Hz during recording)

@@ -17,15 +17,22 @@
 //! the first, while the first is processed (`SOKKI_TEST_GAP_S` between them),
 //! and logs how fast each one was recording; `SOKKI_TEST_NO_YIELD=1` lets
 //! processing compete with that recording, as before 2026-11-23, for
-//! comparing ([`crate::meeting::priority`]).
+//! comparing ([`crate::meeting::priority`]). `SOKKI_TEST_CALL=<app id>`
+//! ("zoom", "chrome", …) treats the test meeting as a call in that app:
+//! the chat notice is posted into its real meeting chat and watched for
+//! "stop" (`meeting::chat_notice`); banners are logged, not shown.
+//! `SOKKI_TEST_SYSTEM_DEAD_AT_S=<s>` makes the played system audio go dead
+//! (exact zeros) then, until the tap's watchdog rebuilds it;
+//! `SOKKI_TEST_OUTPUT_CHANGE_AT_S=<s>` changes the default output then
+//! (`meeting::system_tap`, `FakeTap`).
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
+use log::{info, warn};
 use sokki_recorder::testing::FakeMic;
 use sokki_recorder::{Error, Recorder, RecorderConfig, Sink};
-use log::{info, warn};
 
 const RATE: u32 = 16_000;
 
@@ -53,6 +60,16 @@ pub fn system_audio() -> Option<Vec<f32>> {
     }
     let path = PathBuf::from(std::env::var_os("SOKKI_TEST_SYSTEM").filter(|p| !p.is_empty())?);
     Some(load(&path))
+}
+
+/// The call app a test meeting pretends to record (`SOKKI_TEST_CALL`).
+pub fn call() -> Option<String> {
+    if !active() {
+        return None;
+    }
+    std::env::var("SOKKI_TEST_CALL")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// Transcribing during the recording is off for this test meeting.
@@ -179,6 +196,10 @@ pub fn drive(app: &tauri::AppHandle) {
         std::thread::spawn(move || crate::voice_data::test_forget(&app));
         return;
     }
+    if std::env::var_os("SOKKI_TEST_SAMPLE").is_some() {
+        std::thread::spawn(move || drive_sample(&app));
+        return;
+    }
     if meeting() {
         std::thread::spawn(move || drive_meeting(&app, hold));
         return;
@@ -262,6 +283,10 @@ fn wait_processed(app: &tauri::AppHandle, id: &str, which: &str, stopped: Instan
                 warn!("Test mode: the {which} meeting failed: {error}");
                 return;
             }
+            None => {
+                info!("Test mode: no speech, the {which} meeting was removed");
+                return;
+            }
             _ => {}
         }
     }
@@ -334,6 +359,79 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
             }
             Some(MeetingStatus::Failed { error }) => {
                 warn!("Test mode: the meeting failed: {error}");
+                return;
+            }
+            // Only a meeting without speech leaves the list by itself.
+            None => {
+                info!(
+                    "Test mode: no speech, the meeting was removed {:.1}s after the stop",
+                    stopped.elapsed().as_secs_f64()
+                );
+                return;
+            }
+            _ => {}
+        }
+    }
+}
+
+/// With `SOKKI_TEST_SAMPLE=1`: plays the sample meeting as its button does
+/// (`meeting::sample`, silently in test mode), logs the live transcript as
+/// it grows, and how long after the call's end the note was done. Logs
+/// "Test mode: sample processed" or "Test mode: the sample failed".
+fn drive_sample(app: &tauri::AppHandle) {
+    use crate::meeting::store::{MeetingStatus, MeetingStore};
+    use tauri::Manager;
+    std::thread::sleep(Duration::from_secs(3));
+    let started = Instant::now();
+    let id = match crate::meeting::sample::start(app) {
+        Ok(id) => id,
+        Err(e) => {
+            warn!("Test mode: the sample failed: {e}");
+            return;
+        }
+    };
+    info!("Test mode: sample {id} started");
+    let meetings = app.state::<std::sync::Arc<crate::meeting::MeetingManager>>();
+    let store = app.state::<std::sync::Arc<MeetingStore>>().inner().clone();
+    let mut heard = 0;
+    let mut stopped: Option<Instant> = None;
+    loop {
+        std::thread::sleep(Duration::from_millis(250));
+        if let Some(lines) = meetings.heard().map(|h| h.lines()) {
+            for (at, text) in lines.iter().skip(heard) {
+                info!(
+                    "Test mode: sample live at {:.1}s: [{at:.1}] {text}",
+                    started.elapsed().as_secs_f64()
+                );
+            }
+            heard = heard.max(lines.len());
+        }
+        let Some(record) = store.get(&id) else {
+            warn!("Test mode: the sample failed: its record is gone");
+            return;
+        };
+        if stopped.is_none() && !matches!(record.status, MeetingStatus::Recording) {
+            stopped = Some(Instant::now());
+            info!(
+                "Test mode: sample stopped itself after {:.1}s",
+                started.elapsed().as_secs_f64()
+            );
+        }
+        match record.status {
+            MeetingStatus::Done => {
+                info!(
+                    "Test mode: sample processed {:.1}s after the call ended; title {:?}, speakers {:?}, sample {}, warnings {:?}, note {:?}",
+                    stopped.map_or(0.0, |s| s.elapsed().as_secs_f64()),
+                    record.title,
+                    record.speakers,
+                    record.sample,
+                    record.warnings,
+                    record.note_path
+                );
+                return;
+            }
+            MeetingStatus::Failed { error } => {
+                warn!("Test mode: the sample failed: {error}");
                 return;
             }
             _ => {}

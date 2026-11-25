@@ -107,6 +107,9 @@ public final class InputLogic {
     }
 
     public LastComposedWord mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD;
+    // Sokki: the last key was a letter (or other non-separator) typed here, so a
+    // separator now ends a word that was just typed (dev.verbatim.sokki.Spacing).
+    private boolean mSokkiJustTyped = false;
     // This has package visibility so it can be accessed from InputLogicHandler.
     /* package */ final WordComposer mWordComposer;
     public final RichInputConnection mConnection;
@@ -162,6 +165,7 @@ public final class InputLogic {
      */
     public void startInput(final String combiningSpec, final SettingsValues settingsValues) {
         mEnteredText = null;
+        mSokkiJustTyped = false;
         mWordBeingCorrectedByCursor = null;
         mConnection.onStartInput();
         if (!mWordComposer.getTypedWord().isEmpty()) {
@@ -461,6 +465,8 @@ public final class InputLogic {
                     newSelStart, newSelEnd, false /* shouldFinishComposition */);
         }
 
+        // Sokki: a late cursor update from the dictation's last words.
+        if (SystemClock.uptimeMillis() < mSokkiDictationUntil) sokkiPhantomAfterDictation();
         // The cursor has been moved : we now accept to perform recapitalization
         mRecapitalizeStatus.enable();
         // We moved the cursor. If we are touching a word, we need to resume suggestion.
@@ -1030,6 +1036,8 @@ public final class InputLogic {
     private void handleNonSeparatorEvent(final Event event, final SettingsValues settingsValues,
             final InputTransaction inputTransaction) {
         final int codePoint = event.getCodePoint();
+        mSokkiJustTyped = true;
+        mSokkiDictationUntil = 0;
         // TODO: refactor this method to stop flipping isComposingWord around all the time, and
         // make it shorter (possibly cut into several pieces). Also factor
         // handleNonSpecialCharacterEvent which has the same name as other handle* methods but is
@@ -1180,6 +1188,11 @@ public final class InputLogic {
             }
         }
 
+        // Sokki: "done.we" -> "done. We", "klar,dass" -> "klar, dass" (also with no
+        // suggestions, when nothing is composed).
+        if (mSokkiJustTyped) sokkiAddMissingSpace(settingsValues);
+        mSokkiJustTyped = false;
+
         final boolean swapWeakSpace = tryStripSpaceAndReturnWhetherShouldSwapInstead(event, inputTransaction);
 
         final boolean isInsideDoubleQuoteOrAfterDigit = Constants.CODE_DOUBLE_QUOTE == codePoint
@@ -1277,6 +1290,7 @@ public final class InputLogic {
     private void handleBackspaceEvent(final Event event, final InputTransaction inputTransaction,
             final String currentKeyboardScript) {
         mSpaceState = SpaceState.NONE;
+        mSokkiJustTyped = false; // a space the user just deleted stays deleted
         mDeleteCount++;
 
         // In many cases after backspace, we need to update the shift state. Normally we need
@@ -1441,10 +1455,12 @@ public final class InputLogic {
                         // TODO: Add a new StatsUtils method onBackspaceWhenNoText()
                         return;
                     }
-                    int lengthToDelete = mConnection.getCharCountToDeleteBeforeCursor();
+                    // Sokki: holding delete goes on to whole words (see sokkiWordToDelete).
+                    final int wordLength = sokkiWordToDelete(event);
+                    int lengthToDelete = wordLength > 0 ? wordLength : mConnection.getCharCountToDeleteBeforeCursor();
                     mConnection.deleteTextBeforeCursor(lengthToDelete);
                     int totalDeletedLength = lengthToDelete;
-                    if (mDeleteCount > Constants.DELETE_ACCELERATE_AT) {
+                    if (wordLength == 0 && mDeleteCount > Constants.DELETE_ACCELERATE_AT) {
                         // If this is an accelerated (i.e., double) deletion, then we need to
                         // consider unlearning here because we may have already reached
                         // the previous word, and will lose it after next deletion.
@@ -1473,6 +1489,19 @@ public final class InputLogic {
                 restartSuggestionsOnWordTouchedByCursor(inputTransaction.getSettingsValues(), currentKeyboardScript);
             }
         }
+    }
+
+    /** Sokki: deletes held long enough (after the 2-at-a-time phase, about 2.5 s)
+     *  remove the word before the cursor at once, with the spaces after it, as
+     *  in Gboard. Returns how many chars that is, or 0 for one-char deletion. */
+    private int sokkiWordToDelete(final Event event) {
+        if (!event.isKeyRepeat() || mDeleteCount <= Constants.SOKKI_DELETE_WORDS_AT) return 0;
+        final CharSequence before = mConnection.getTextBeforeCursor(48, 0);
+        if (before == null) return 0;
+        int i = before.length();
+        while (i > 0 && Character.isWhitespace(before.charAt(i - 1))) i--;
+        while (i > 0 && !Character.isWhitespace(before.charAt(i - 1))) i--;
+        return before.length() - i;
     }
 
     String getWordAtCursor(final SettingsValues settingsValues, final String currentKeyboardScript) {
@@ -1970,6 +1999,11 @@ public final class InputLogic {
         if (!TextUtils.isEmpty(committedWord)) {
             unlearnWord(committedWordString, inputTransaction.getSettingsValues(), DictionaryFacilitator.UnlearnEvent.REVERT);
         }
+        dev.verbatim.sokki.TapLog.logUndo(originallyTypedWord.toString(), committedWordString);
+        // Sokki: a fix undone with backspace means the typed word was meant; never change it again.
+        if (!TextUtils.equals(originallyTypedWord, committedWord) && TextUtils.indexOf(originallyTypedWord, ' ') < 0) {
+            dev.verbatim.sokki.Typos.learn(originallyTypedWord.toString());
+        }
         final String stringToCommit = originallyTypedWord +
                 (usePhantomSpace ? "" : separatorString);
         final SpannableString textToCommit = new SpannableString(stringToCommit);
@@ -2178,6 +2212,7 @@ public final class InputLogic {
     // TODO: how is this different from startInput ?!
     private void resetEntireInputState(final int newSelStart, final int newSelEnd,
             final boolean clearSuggestionStrip) {
+        mSokkiJustTyped = false; // the cursor moved
         final boolean shouldFinishComposition = mWordComposer.isComposingWord();
         resetComposingState(true /* alsoResetLastComposedWord */);
         if (clearSuggestionStrip) {
@@ -2310,6 +2345,53 @@ public final class InputLogic {
         }
     }
 
+    /** Sokki: the word just typed sticks to a "." or "," before it: put the space in. */
+    private void sokkiAddMissingSpace(final SettingsValues settingsValues) {
+        final int inputType = settingsValues.mInputAttributes.mInputType;
+        if (!settingsValues.mSpacingAndPunctuations.mCurrentLanguageHasSpaces
+                || InputTypeUtils.isUriOrEmailType(inputType)
+                || InputTypeUtils.isAnyPasswordInputType(inputType)
+                || mConnection.hasSelection()) return;
+        final CharSequence before = mConnection.getTextBeforeCursor(64, 0);
+        if (before == null) return;
+        int from = before.length();
+        while (from > 0 && !Character.isWhitespace(before.charAt(from - 1))) from--;
+        if (from == 0 && before.length() == 64) return; // a very long run: a link or code
+        final String token = before.subSequence(from, before.length()).toString();
+        final String fixed = dev.verbatim.sokki.Spacing.fix(token, settingsValues.mAutoCap);
+        if (fixed == null) return;
+        int same = 0;
+        while (same < token.length() && token.charAt(same) == fixed.charAt(same)) same++;
+        mConnection.deleteTextBeforeCursor(token.length() - same);
+        mConnection.commitText(fixed.substring(same), 1);
+        // A backspace now deletes a letter; undoing an autocorrection of the moved word would cut wrongly.
+        mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD;
+    }
+
+    /** Sokki: until then, a cursor update is still the dictation's own typing. */
+    private long mSokkiDictationUntil = 0;
+
+    /** Sokki: a dictation typed text, and the cursor is at [selStart, selEnd]
+     * (the last update seen while dictating). HeliBoard didn't follow the
+     * dictation's typing, so its caches are reloaded; then the next typed word
+     * gets a space and a capital where due, as after picking a suggestion
+     * ("gut." + "und" -> "gut. Und"). A punctuation mark typed next doesn't. */
+    public void sokkiAfterDictation(final int selStart, final int selEnd) {
+        mSokkiJustTyped = false;
+        if (selStart >= 0) mConnection.resetCachesUponCursorMoveAndReturnSuccess(selStart, selEnd, false);
+        mSokkiDictationUntil = SystemClock.uptimeMillis() + 1500;
+        sokkiPhantomAfterDictation();
+    }
+
+    private void sokkiPhantomAfterDictation() {
+        if (mConnection.hasSelection() || mWordComposer.isComposingWord()) return;
+        final int before = mConnection.getCodePointBeforeCursor();
+        if (before == Constants.NOT_A_CODE || Character.isWhitespace(before)) return;
+        final CharSequence after = mConnection.getTextAfterCursor(1, 0);
+        if (after != null && after.length() > 0 && !Character.isWhitespace(after.charAt(0))) return; // inside a word
+        mSpaceState = SpaceState.PHANTOM;
+    }
+
     private boolean textBeforeCursorMayBeUrlOrSimilar(final SettingsValues settingsValues, final Boolean forAutoSpace) {
         // URL / mail field and no space -> may be URL
         if (InputTypeUtils.isUriOrEmailType(settingsValues.mInputAttributes.mInputType) &&
@@ -2415,11 +2497,13 @@ public final class InputLogic {
         }
         final SuggestedWordInfo autoCorrectionOrNull = mWordComposer.getAutoCorrectionOrNull();
         final String typedWord = mWordComposer.getTypedWord();
+        if (sokkiSpaceFix(settingsValues, typedWord, separator)) return;
         final String stringToCommit = (autoCorrectionOrNull != null) ? autoCorrectionOrNull.mWord : typedWord;
         if (stringToCommit != null) {
             final boolean isBatchMode = mWordComposer.isBatchMode();
             commitChosenWord(settingsValues, stringToCommit, LastComposedWord.COMMIT_TYPE_DECIDED_WORD, separator);
             if (!typedWord.equals(stringToCommit)) {
+                dev.verbatim.sokki.TapLog.logFix("word", typedWord, stringToCommit);
                 // This will make the correction flash for a short while as a visual clue
                 // to the user that auto-correction happened. It has no other effect; in particular
                 // note that this won't affect the text inside the text field AT ALL: it only makes
@@ -2439,6 +2523,39 @@ public final class InputLogic {
                 StatsUtils.onWordCommitUserTyped(stringToCommit, isBatchMode);
             }
         }
+    }
+
+    /**
+     * Sokki: a letter that slipped across the space ("th ecar" -> "the car",
+     * dev.verbatim.sokki.Typos#spaceFix). Replaces both words and returns true.
+     * Backspace right after undoes it like any autocorrection: the undo record
+     * holds both words.
+     */
+    private boolean sokkiSpaceFix(final SettingsValues settingsValues, final String typedWord, final String separator) {
+        if (!settingsValues.mAutoCorrectEnabled || mWordComposer.isBatchMode() || mWordComposer.isResumed()
+                || typedWord == null || typedWord.isEmpty()) return false;
+        final int max = 64;
+        final CharSequence before = mConnection.getTextBeforeCursor(max, 0);
+        if (before == null) return false;
+        final String text = before.toString();
+        if (!text.endsWith(typedWord)) return false;
+        final String head = text.substring(0, text.length() - typedWord.length());
+        if (!head.endsWith(" ") || head.endsWith("  ")) return false;
+        int start = head.length() - 1;
+        while (start > 0 && Character.isLetter(head.charAt(start - 1))) start--;
+        if (start == 0 && text.length() >= max) return false; // the word may go on before what we read
+        final String prev = head.substring(start, head.length() - 1);
+        final String[] fix = dev.verbatim.sokki.Typos.spaceFix(prev, typedWord);
+        if (fix == null) return false;
+        mConnection.finishComposingText();
+        mConnection.deleteTextBeforeCursor(prev.length() + 1 + typedWord.length());
+        mConnection.commitText(fix[0] + " ", 1);
+        commitChosenWord(settingsValues, fix[1], LastComposedWord.COMMIT_TYPE_DECIDED_WORD, separator);
+        final LastComposedWord c = mLastComposedWord;
+        mLastComposedWord = new LastComposedWord(c.mEvents, c.mInputPointers, prev + " " + typedWord,
+                fix[0] + " " + fix[1], c.mSeparatorString, c.mNgramContext, c.mCapitalizedMode);
+        dev.verbatim.sokki.TapLog.logFix("space", prev + " " + typedWord, fix[0] + " " + fix[1]);
+        return true;
     }
 
     /**

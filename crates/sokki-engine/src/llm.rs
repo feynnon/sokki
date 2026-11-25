@@ -74,6 +74,42 @@ pub struct BuiltinModel {
     /// fallback (temperature 0.8, top-k 40, min-p 0.05) is not the model's.
     /// Requests still send no sampling values.
     pub sampling: &'static [&'static str],
+    /// Context the server runs with, in tokens.
+    pub context: usize,
+    /// A small draft model from the same publisher for speculative
+    /// decoding (llama.cpp's `--spec-type draft-mtp`): it guesses the next
+    /// tokens and the model checks them in one pass, which makes writing
+    /// faster without changing what is written.
+    pub draft: Option<ModelFile>,
+}
+
+/// One downloadable model file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelFile {
+    /// File name under the models directory's `llm/` folder.
+    pub file: &'static str,
+    /// Pinned to one revision, so the checksum stays valid.
+    pub url: &'static str,
+    pub sha256: &'static str,
+    pub size: u64,
+}
+
+impl BuiltinModel {
+    /// The model's files: its weights, then its draft model if it has one.
+    pub fn files(&self) -> Vec<ModelFile> {
+        let weights = ModelFile {
+            file: self.file,
+            url: self.url,
+            sha256: self.sha256,
+            size: self.size,
+        };
+        std::iter::once(weights).chain(self.draft).collect()
+    }
+
+    /// Bytes to download for all of [`files`](Self::files).
+    pub fn download_size(&self) -> u64 {
+        self.files().iter().map(|f| f.size).sum()
+    }
 }
 
 /// Qwen 3.5 9B, Q4_K_M: the same model as Ollama's `qwen3.5:9b` (there
@@ -90,10 +126,35 @@ pub const BUILTIN_MODEL: BuiltinModel = BuiltinModel {
         "--temp", "1.0", "--top-k", "20", "--top-p", "0.95", "--min-p", "0",
         "--presence-penalty", "1.5", "--repeat-penalty", "1.0",
     ],
+    // The same as Ollama's (`num_ctx`).
+    context: 16_384,
+    draft: None,
 };
 
-/// Context the built-in model runs with: the same as Ollama's (`num_ctx`).
-const BUILTIN_CONTEXT: usize = 16_384;
+/// Gemma 4 E4B, Q4_K_M, with its MTP draft model: cleans up dictations
+/// (`crate::cleanup`). Apache-2.0. Chosen on 24.11.2026 from blind ratings
+/// against 15 of Robin's own ideal corrections (3.0 of 5, the fewest meaning
+/// errors of the models that really clean up; Qwen 3.5 4B/9B scored lower).
+/// On an M1 Pro it writes 53 tokens/s with the draft model (82 % of drafted
+/// tokens accepted; 33 tokens/s without) and holds 4.5–5 GB.
+pub const CLEANUP_MODEL: BuiltinModel = BuiltinModel {
+    id: "gemma-4-e4b-it-q4_k_m",
+    file: "gemma-4-E4B-it-Q4_K_M.gguf",
+    url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf",
+    sha256: "85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87",
+    size: 4_977_171_584,
+    // Gemma 4's model card: temperature 1.0, top-p 0.95, top-k 64.
+    sampling: &["--temp", "1.0", "--top-p", "0.95", "--top-k", "64"],
+    // A dictation step is the prompt (~650 tokens), up to 800 characters
+    // of context and about 60 words in and out: 8192 is plenty.
+    context: 8_192,
+    draft: Some(ModelFile {
+        file: "mtp-gemma-4-E4B-it.gguf",
+        url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/mtp-gemma-4-E4B-it.gguf",
+        sha256: "b6a723115efa510d3b3215db1e26790dae84cd08c2134a764f3d194f1f0c3376",
+        size: 98_653_248,
+    }),
+};
 
 /// Where the built-in engine and its model live; set once by the host.
 #[derive(Debug, Clone, Default)]
@@ -121,16 +182,71 @@ fn builtin_server() -> Option<PathBuf> {
 
 /// Where the built-in model file belongs, whether or not it is there yet.
 pub fn builtin_model_path() -> Option<PathBuf> {
+    file_path(BUILTIN_MODEL.file)
+}
+
+/// Where a model file belongs, whether or not it is there yet.
+fn file_path(file: &str) -> Option<PathBuf> {
     BUILTIN_PATHS
         .get()
         .and_then(|p| p.models_dir.as_ref())
-        .map(|d| d.join("llm").join(BUILTIN_MODEL.file))
+        .map(|d| d.join("llm").join(file))
 }
 
 fn builtin_model_present() -> bool {
-    builtin_model_path()
-        .and_then(|p| std::fs::metadata(p).ok())
-        .is_some_and(|m| m.len() == BUILTIN_MODEL.size)
+    model_present(&BUILTIN_MODEL)
+}
+
+/// Whether all of a model's files are downloaded.
+pub fn model_present(m: &BuiltinModel) -> bool {
+    m.files().iter().all(|f| {
+        file_path(f.file)
+            .and_then(|p| std::fs::metadata(p).ok())
+            .is_some_and(|d| d.len() == f.size)
+    })
+}
+
+/// Whether this build ships llama-server, which runs the built-in models.
+pub fn builtin_server_available() -> bool {
+    builtin_server().is_some_and(|p| p.exists())
+}
+
+/// Downloads all of a model's files, resuming partial downloads; progress
+/// counts all files together.
+pub fn download_model(m: &BuiltinModel, mut progress: impl FnMut(PullProgress)) -> Result<()> {
+    let total = m.download_size();
+    let mut before = 0;
+    for f in m.files() {
+        let dest = file_path(f.file).context("No folder for the model")?;
+        download_file(&f, &dest, &mut |p: PullProgress| {
+            // Each file's "success" only ends that file.
+            if p.status == "success" {
+                return;
+            }
+            progress(PullProgress {
+                status: p.status,
+                completed: before + p.completed,
+                total,
+            })
+        })?;
+        before += f.size;
+    }
+    progress(PullProgress {
+        status: "success".into(),
+        completed: total,
+        total,
+    });
+    Ok(())
+}
+
+/// Starts llama-server with `m` for one job; dropping the server stops it.
+/// `background`: macOS's background band (see [`open_with`]).
+pub fn start_server(m: &BuiltinModel, background: bool) -> Result<Server> {
+    let bin = builtin_server().context("This build of Sokki has no built-in language model")?;
+    if !model_present(m) {
+        bail!("The language model is not downloaded");
+    }
+    Server::start(&bin, m, background)
 }
 
 /// Provider ids that can summarise in the cloud, as in Sokki's provider list.
@@ -177,7 +293,7 @@ pub fn config(s: &LlmSettings, user_name: &str) -> LlmConfig {
     if provider == BUILTIN {
         // The address and key are filled in by [`open`] once the server runs.
         let mut cfg = LlmConfig::openai_compatible("", BUILTIN_MODEL.id, None);
-        cfg.context_tokens = BUILTIN_CONTEXT;
+        cfg.context_tokens = BUILTIN_MODEL.context;
         cfg.keep_alive = None;
         cfg.user_name = Some(user_name.to_string());
         return cfg;
@@ -434,8 +550,7 @@ pub struct PullProgress {
 /// reporting progress.
 pub fn pull_model(s: &LlmSettings, mut progress: impl FnMut(PullProgress)) -> Result<()> {
     if s.provider.trim() == BUILTIN {
-        let dest = builtin_model_path().context("No folder for the model")?;
-        return download_builtin(&dest, &mut progress);
+        return download_model(&BUILTIN_MODEL, progress);
     }
     let base = s.base_url.trim().trim_end_matches('/');
     let model = s.model.trim();
@@ -554,6 +669,7 @@ pub fn warm_up(s: &LlmSettings, user_name: &str) {
 pub struct Llm {
     cfg: LlmConfig,
     _server: Option<Server>,
+    _job: Option<LocalJob>,
 }
 
 impl Llm {
@@ -561,6 +677,41 @@ impl Llm {
     pub fn config(&self) -> LlmConfig {
         self.cfg.clone()
     }
+}
+
+/// Counts one job in [`LOCAL_JOBS`] while it lives.
+struct LocalJob;
+
+impl LocalJob {
+    fn new() -> Self {
+        LOCAL_JOBS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        LocalJob
+    }
+}
+
+impl Drop for LocalJob {
+    fn drop(&mut self) {
+        LOCAL_JOBS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Jobs (summaries, titles) with a local language model open now.
+static LOCAL_JOBS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Called before a job opens a local language model, so the host can free
+/// memory first (it stops the dictation cleanup model).
+static BEFORE_LOCAL_JOB: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Sets what runs before a job opens a local language model. Once; later
+/// calls are ignored.
+pub fn set_before_local_job(f: fn()) {
+    let _ = BEFORE_LOCAL_JOB.set(f);
+}
+
+/// Whether a summary or title is being written with a local model now (the
+/// built-in one or Ollama): its memory is in use.
+pub fn local_job_running() -> bool {
+    LOCAL_JOBS.load(std::sync::atomic::Ordering::SeqCst) > 0
 }
 
 /// Gets the language model ready for one job. The built-in model starts its
@@ -574,19 +725,28 @@ pub fn open(s: &LlmSettings, user_name: &str) -> Result<Llm> {
 /// while a meeting records.
 pub fn open_with(s: &LlmSettings, user_name: &str, background: bool) -> Result<Llm> {
     let mut cfg = config(s, user_name);
-    if s.provider.trim() != BUILTIN {
-        return Ok(Llm { cfg, _server: None });
+    let local = !CLOUD_PROVIDERS.contains(&s.provider.trim());
+    if local {
+        if let Some(f) = BEFORE_LOCAL_JOB.get() {
+            f();
+        }
     }
-    let bin = builtin_server().context("This build of Sokki has no built-in language model")?;
-    let model = builtin_model_path()
-        .filter(|_| builtin_model_present())
-        .context("The language model is not downloaded")?;
-    let server = Server::start(&bin, &model, cfg.context_tokens, background)?;
-    cfg.base_url = format!("http://127.0.0.1:{}/v1", server.port);
+    // Counted from here, so nothing local starts while this one loads.
+    let job = local.then(LocalJob::new);
+    if s.provider.trim() != BUILTIN {
+        return Ok(Llm {
+            cfg,
+            _server: None,
+            _job: job,
+        });
+    }
+    let server = start_server(&BUILTIN_MODEL, background)?;
+    cfg.base_url = server.base_url();
     cfg.api_key = Some(server.key.clone());
     Ok(Llm {
         cfg,
         _server: Some(server),
+        _job: job,
     })
 }
 
@@ -606,8 +766,9 @@ s=$?
 kill $w 2>/dev/null
 exit $s"#;
 
-/// A running llama-server with the built-in model.
-struct Server {
+/// A running llama-server with a built-in model. Dropping it stops the
+/// server, which frees the model's memory.
+pub struct Server {
     child: std::process::Child,
     stdin: Option<std::process::ChildStdin>,
     port: u16,
@@ -615,13 +776,30 @@ struct Server {
 }
 
 impl Server {
-    fn start(
-        bin: &std::path::Path,
-        model: &std::path::Path,
-        context: usize,
-        background: bool,
-    ) -> Result<Server> {
+    /// The OpenAI-style base URL, ending in `/v1`.
+    pub fn base_url(&self) -> String {
+        format!("http://127.0.0.1:{}/v1", self.port)
+    }
+
+    /// The key requests need (`Authorization: Bearer …`).
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    /// The server process's id.
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
+    /// Whether the server process is still running.
+    pub fn running(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    fn start(bin: &std::path::Path, m: &BuiltinModel, background: bool) -> Result<Server> {
         use std::process::{Command, Stdio};
+        let model = file_path(m.file).context("No folder for the model")?;
+        let context = m.context;
         let port = std::net::TcpListener::bind("127.0.0.1:0")?
             .local_addr()?
             .port();
@@ -637,15 +815,21 @@ impl Server {
             .arg(model)
             .args(["--host", "127.0.0.1", "--port", &port.to_string()])
             .args(["--api-key", &key])
-            // One request at a time, with the context Ollama used.
+            // One request at a time, with the model's context.
             .args(["--ctx-size", &context.to_string(), "--parallel", "1"])
-            // The summary asks for JSON directly; Qwen 3.5 would think first.
+            // The summary asks for JSON directly and a dictation is cleaned
+            // as it is spoken; both models would think first otherwise.
             .args(["--jinja", "--reasoning", "off"])
             // The model's own sampling defaults (see `BuiltinModel::sampling`).
-            .args(BUILTIN_MODEL.sampling)
+            .args(m.sampling)
             // No prompt cache in RAM (default 8 GB), no chat page.
-            .args(["--cache-ram", "0", "--no-ui"])
-            .stdin(Stdio::piped())
+            .args(["--cache-ram", "0", "--no-ui"]);
+        if let Some(draft) = m.draft {
+            let path = file_path(draft.file).context("No folder for the model")?;
+            cmd.args(["--spec-type", "draft-mtp", "--model-draft"])
+                .arg(path);
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
         #[cfg(unix)]
@@ -698,7 +882,8 @@ impl Server {
             std::thread::sleep(Duration::from_millis(250));
         }
         log::info!(
-            "Built-in language model loaded in {:.1} s",
+            "Built-in language model {} loaded in {:.1} s",
+            m.id,
             t0.elapsed().as_secs_f64()
         );
         Ok(server)
@@ -744,12 +929,15 @@ fn random_key() -> String {
         .collect()
 }
 
-/// Downloads the built-in model to `dest`, resuming a partial download and
+/// Downloads one model file to `dest`, resuming a partial download and
 /// checking its SHA-256 before it is used.
-fn download_builtin(dest: &std::path::Path, progress: &mut dyn FnMut(PullProgress)) -> Result<()> {
+fn download_file(
+    m: &ModelFile,
+    dest: &std::path::Path,
+    progress: &mut dyn FnMut(PullProgress),
+) -> Result<()> {
     use sha2::{Digest, Sha256};
     use std::io::{Read, Write};
-    let m = BUILTIN_MODEL;
     if std::fs::metadata(dest).is_ok_and(|d| d.len() == m.size) {
         return Ok(());
     }
@@ -924,6 +1112,43 @@ mod tests {
         assert_eq!(arg("--temp"), "1.0");
         assert_eq!(arg("--top-k"), "20");
         assert_eq!(arg("--presence-penalty"), "1.5");
+    }
+
+    #[test]
+    fn a_local_job_counts_while_open_a_cloud_one_does_not() {
+        let ollama = LlmSettings {
+            provider: "local".into(),
+            ..Default::default()
+        };
+        let llm = open(&ollama, "Ich").unwrap();
+        assert!(llm._job.is_some());
+        assert!(local_job_running());
+        drop(llm);
+        let cloud = LlmSettings {
+            provider: "anthropic".into(),
+            ..Default::default()
+        };
+        assert!(open(&cloud, "Ich").unwrap()._job.is_none());
+    }
+
+    #[test]
+    fn cleanup_model_has_gemmas_sampling_and_its_draft_model() {
+        let m = CLEANUP_MODEL;
+        let files = m.files();
+        assert_eq!(files.len(), 2);
+        for f in &files {
+            assert!(f.url.ends_with(f.file), "{f:?}");
+            assert!(f.url.contains("/resolve/bfc15c38"), "pinned: {f:?}");
+            assert_eq!(f.sha256.len(), 64);
+        }
+        assert_eq!(files[1].file, "mtp-gemma-4-E4B-it.gguf");
+        assert_eq!(m.download_size(), 4_977_171_584 + 98_653_248);
+        assert_eq!(m.context, 8_192);
+        assert_eq!(
+            m.sampling,
+            ["--temp", "1.0", "--top-p", "0.95", "--top-k", "64"]
+        );
+        assert_eq!(BUILTIN_MODEL.files().len(), 1);
     }
 
     #[cfg(unix)]

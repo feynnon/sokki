@@ -275,12 +275,77 @@ impl Handler for MacHandler {
             Request::Status { id } => {
                 status_json(&self.app, &id).ok_or_else(|| "No such meeting.".to_string())
             }
+            Request::Journal { file } => save_phone_journal(&self.app, &file, &body)
+                .map(|saved| json!({ "saved": saved }))
+                .map_err(|e| format!("{e:#}")),
         }
     }
 }
 
 fn hello() -> Value {
     json!({ "name": crate::brand::app_name(), "version": env!("CARGO_PKG_VERSION") })
+}
+
+/// One day of the phone keyboard's journal (developer page "Keep what I
+/// write" on the phone), into `<app data>/typing_log/phone/<file>` next to
+/// the Mac's own journal (same line format). Lines already there are skipped
+/// (same opened, written and text), so sending a day again adds only what's
+/// new, and deleting on the phone deletes nothing here. Returns the lines
+/// added. Text only, on this Mac.
+fn save_phone_journal(app: &AppHandle, file: &str, body: &[u8]) -> anyhow::Result<usize> {
+    if !is_journal_name(file) {
+        anyhow::bail!("Not a journal file: {file}");
+    }
+    let body =
+        std::str::from_utf8(body).map_err(|_| anyhow::anyhow!("The journal is not text."))?;
+    let dir = app.path().app_data_dir()?.join("typing_log").join("phone");
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(file);
+    let old = std::fs::read_to_string(&path).unwrap_or_default();
+    let new = new_journal_lines(&old, body);
+    if !new.is_empty() {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)?;
+        for line in &new {
+            writeln!(f, "{line}")?;
+        }
+    }
+    log::info!("Phone link: journal {file}, {} new entries", new.len());
+    Ok(new.len())
+}
+
+/// The lines of `body` not in `old` yet (by opened, written and text).
+fn new_journal_lines<'a>(old: &str, body: &'a str) -> Vec<&'a str> {
+    fn key(line: &str) -> Option<String> {
+        let v: Value = serde_json::from_str(line).ok()?;
+        Some(format!("{}|{}|{}", v["opened"], v["written"], v["text"]))
+    }
+    let mut seen: std::collections::HashSet<String> = old.lines().filter_map(key).collect();
+    body.lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter(|l| key(l).is_none_or(|k| seen.insert(k)))
+        .collect()
+}
+
+/// `journal-YYYY-MM-DD.jsonl`, nothing else (no paths).
+fn is_journal_name(file: &str) -> bool {
+    let Some(date) = file
+        .strip_prefix("journal-")
+        .and_then(|r| r.strip_suffix(".jsonl"))
+    else {
+        return false;
+    };
+    date.len() == 10
+        && date.char_indices().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
+        })
 }
 
 /// Stores the audio as a new meeting and starts processing it.
@@ -319,6 +384,8 @@ fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Res
         online: None,
         title_by_hand: false,
         title_provisional: false,
+        sample: false,
+        mailed: None,
     };
     store.insert(record)?;
     log::info!(
@@ -417,5 +484,33 @@ mod tests {
         let t = ticket(&s);
         assert!(Ticket::parse(&t).is_ok());
         assert!(qr_svg(&t).starts_with("<?xml") || qr_svg(&t).contains("<svg"));
+    }
+
+    #[test]
+    fn journal_names() {
+        assert!(is_journal_name("journal-2026-11-24.jsonl"));
+        for bad in [
+            "journal-2026-11-24.json",
+            "../journal-2026-11-24.jsonl",
+            "journal-2026-1-24.jsonl",
+            "journal-2026-11-24.jsonl/x",
+            "taps-2026-11-24.jsonl",
+            "journal-2026/11/24.jsonl",
+            "",
+        ] {
+            assert!(!is_journal_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn journal_lines_merge() {
+        let a = r#"{"t":"entry","opened":1,"written":2,"text":"one"}"#;
+        let b = r#"{"t":"entry","opened":3,"written":4,"text":"two"}"#;
+        assert_eq!(new_journal_lines("", &format!("{a}\n{b}\n")), vec![a, b]);
+        assert_eq!(
+            new_journal_lines(&format!("{a}\n"), &format!("{a}\n{b}\n")),
+            vec![b]
+        );
+        assert!(new_journal_lines(&format!("{a}\n{b}\n"), &format!("{a}\n{b}\n")).is_empty());
     }
 }

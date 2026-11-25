@@ -548,6 +548,18 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onCreate() {
         mSettings.startListener();
+        // Sokki: letter-aware key edges read the two letters before the cursor.
+        dev.verbatim.sokki.KeyTargeting.init(this);
+        dev.verbatim.sokki.TapLog.init(this);
+        dev.verbatim.sokki.Journal.init(this);
+        // Sokki: after a dictation, the next typed word gets its space.
+        dev.verbatim.sokki.SokkiVoice.INSTANCE.setOnTyped(() -> {
+            mInputLogic.sokkiAfterDictation(mSokkiSelStart, mSokkiSelEnd);
+            mKeyboardSwitcher.updateShiftState(getCurrentAutoCapsState(), getCurrentRecapitalizeState());
+            return kotlin.Unit.INSTANCE;
+        });
+        dev.verbatim.sokki.Typos.init(this);
+        dev.verbatim.sokki.KeyTargeting.textBefore = () -> mInputLogic.mConnection.getTextBeforeCursor(2, 0);
         KeyboardIconsSet.Companion.getInstance().loadIcons(this);
         mRichImm = RichInputMethodManager.getInstance();
         AudioAndHapticFeedbackManager.init(this);
@@ -823,6 +835,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onFinishInput() {
+        dev.verbatim.sokki.Journal.onFinish(); // Sokki
         mHandler.onFinishInput();
         BackgroundGatheringCache.saveOrClear(this);
     }
@@ -917,6 +930,7 @@ public class LatinIME extends InputMethodService implements
         switcher.updateKeyboardTheme(mDisplayContext);
         MainKeyboardView mainKeyboardView = switcher.getMainKeyboardView();
         currentSettingsValues = mSettings.getCurrent(); // settingsValues may have been reloaded
+        dev.verbatim.sokki.Journal.onStart(this, editorInfo, restarting); // Sokki (if on)
 
         if (editorInfo == null) {
             Log.e(TAG, "Null EditorInfo in onStartInputView()");
@@ -1037,6 +1051,8 @@ public class LatinIME extends InputMethodService implements
                 currentSettingsValues.mGestureFloatingPreviewTextEnabled);
 
         if (TRACE) Debug.startMethodTracing("/data/trace/latinime");
+        // Sokki: debug builds replay <files>/sokki_bench.jsonl through the decoder when it exists
+        dev.verbatim.sokki.SokkiBench.maybeRun(getFilesDir(), mInputLogic.mSuggest);
     }
 
     @Override
@@ -1092,12 +1108,18 @@ public class LatinIME extends InputMethodService implements
         mKeyboardSwitcher.deallocateMemory();
     }
 
+    private int mSokkiSelStart = -1;
+    private int mSokkiSelEnd = -1;
+
     @Override
     public void onUpdateSelection(final int oldSelStart, final int oldSelEnd,
                                   final int newSelStart, final int newSelEnd,
                                   final int composingSpanStart, final int composingSpanEnd) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
                 composingSpanStart, composingSpanEnd);
+        dev.verbatim.sokki.Journal.onChange(); // Sokki: the journal notes the field's text (if on)
+        mSokkiSelStart = newSelStart; // Sokki: where a dictation left the cursor
+        mSokkiSelEnd = newSelEnd;
         // Sokki: while dictating, the text in the field is Sokki's (provisional
         // words are replaced as they become final); HeliBoard must not pick
         // them up as a word to correct. It catches up on the next change after.

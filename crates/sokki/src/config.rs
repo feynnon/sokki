@@ -32,8 +32,12 @@ pub struct Meetings {
     pub summary: bool,
     /// Names and terms the summary spells right.
     pub glossary: Vec<String>,
-    /// End notes with "Transcribed on my computer with sokki.org".
+    /// End summaries with the Sokki line ("Summarized by AI. Local, free,
+    /// open source. Dictation app and meeting notetaker: sokki.org"). Turning it off needs a valid
+    /// `supporter_code` (at least €20 paid for Sokki).
     pub footer: bool,
+    /// Supporter code, checked offline. Empty: none.
+    pub supporter_code: String,
     /// Keep the audio this many days after the note is written (0: delete
     /// right away).
     pub keep_audio_days: u32,
@@ -73,6 +77,7 @@ impl Default for Meetings {
             // know (the demo call came out as "Omati" without them).
             glossary: vec!["Omarchy".into(), "Hyprland".into()],
             footer: true,
+            supporter_code: String::new(),
             keep_audio_days: 0,
             call_app_only: false,
         }
@@ -135,6 +140,7 @@ impl Config {
             summary: m.summary,
             glossary: m.glossary.clone(),
             footer: m.footer,
+            supporter_code: m.supporter_code.clone(),
             notes_dir: crate::paths::expand(&m.notes_dir),
             llm: self.llm.clone(),
             language: Some(if german() {

@@ -12,12 +12,19 @@
 //!
 //! Dictation has its own recorder and state; this module shares none of them.
 
+#[cfg(target_os = "macos")]
+pub mod calendar;
+pub mod chat_notice;
 pub mod detect;
 pub mod diarize_worker;
 pub mod flac;
+#[cfg(target_os = "macos")]
+pub mod gmail_account;
 pub mod indicator;
 pub mod keep_awake;
 pub mod live;
+#[cfg(target_os = "macos")]
+pub mod mail;
 pub mod memguard;
 pub mod mic;
 #[cfg(target_os = "macos")]
@@ -26,7 +33,9 @@ pub mod phone_link;
 pub mod priority;
 pub mod process;
 pub mod prompt;
+pub mod pull;
 pub mod rate;
+pub mod sample;
 pub mod store;
 pub mod system_tap;
 pub mod title;
@@ -61,6 +70,24 @@ pub fn note_level(meter: &std::sync::atomic::AtomicU32, samples: &[f32]) {
         (rms > f32::from_bits(old)).then_some(rms.to_bits())
     });
 }
+
+/// Microseconds on a monotonic clock (since its first use in this process),
+/// for the activity marks below.
+pub fn mono_us() -> u64 {
+    static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    EPOCH
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_micros() as u64
+}
+
+/// When the call track last had a sample that was not exactly zero, and
+/// when its last callback came ([`mono_us`]; 0 = not in this meeting). A
+/// dead tap keeps calling back with exact zeros (2026-11-24); a quiet call
+/// still has noise in it. Written by the tap's callback, read by its
+/// watchdog and the indicator's ticker.
+pub static SYSTEM_SOUND_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static SYSTEM_CALLBACK_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Wall-clock time (µs since the epoch) of the first sample of each track of
 /// the running meeting; 0 until it arrives. The two captures start a little
@@ -142,11 +169,13 @@ impl MeetingManager {
 
         MIC_FIRST_US.store(0, std::sync::atomic::Ordering::Relaxed);
         SYSTEM_FIRST_US.store(0, std::sync::atomic::Ordering::Relaxed);
+        SYSTEM_SOUND_US.store(0, std::sync::atomic::Ordering::Relaxed);
+        SYSTEM_CALLBACK_US.store(0, std::sync::atomic::Ordering::Relaxed);
         // System audio first: it is the step that can fail on permission.
         // Without it the meeting still records the microphone.
         let mut warnings = Vec::new();
         // Asked before the captures start, so the first samples go in too.
-        let with_system = system_tap::is_supported();
+        let with_system = system_tap::is_supported() || sample::active();
         let live = app.and_then(|app| live::Live::start(app, with_system, dir));
         let tee = |track| live.as_ref().map(|l| l.tee(track));
         let system_begun = std::time::Instant::now();
@@ -248,7 +277,23 @@ pub fn start_meeting(
     app: &AppHandle,
     source_app: Option<String>,
 ) -> std::result::Result<String, String> {
+    // A real meeting outranks the sample: the sample goes, at once.
+    if let Some(id) = sample::active_id() {
+        log::info!("Sample meeting {id} replaced by a real one");
+        let _ = discard_meeting(app);
+    }
+    start_meeting_as(app, source_app, false)
+}
+
+/// Starts a meeting; `sample` marks the sample meeting ([`sample`]).
+pub(crate) fn start_meeting_as(
+    app: &AppHandle,
+    source_app: Option<String>,
+    sample: bool,
+) -> std::result::Result<String, String> {
     let begun = std::time::Instant::now();
+    // The dictation cleanup model never runs next to a recording.
+    crate::dictation_cleanup::stop_model();
     let meetings = app.state::<Arc<MeetingManager>>();
     let store = app.state::<Arc<MeetingStore>>();
     let now = chrono::Local::now();
@@ -278,6 +323,8 @@ pub fn start_meeting(
         online: None,
         title_by_hand: false,
         title_provisional: false,
+        sample,
+        mailed: None,
     };
     if let Err(e) = store.insert(record) {
         log::warn!("Saving the meeting record failed: {e:#}");
@@ -289,16 +336,58 @@ pub fn start_meeting(
     indicator::show(app);
     indicator::start_ticker(app);
     emit_changed(app, &meeting_id);
+    if sample {
+        crate::usage::count(app, crate::usage::Count::SampleMeetingStarted);
+    } else {
+        crate::usage::count(app, crate::usage::Count::MeetingStarted);
+        crate::usage::time(app, crate::usage::Timing::MeetingStart, begun.elapsed());
+    }
     log::info!(
         "Meeting {meeting_id} shown as recording {} ms after the start{}",
         begun.elapsed().as_millis(),
-        if process::busy() { ", while an earlier meeting is processed" } else { "" }
+        if process::busy() {
+            ", while an earlier meeting is processed"
+        } else {
+            ""
+        }
     );
+    // Never a chat notice for the sample, even with a real call running.
+    if !sample {
+        detect::recording_started(app, &meeting_id);
+    }
+    Ok(meeting_id)
+}
+
+/// Stops the recording and deletes it: audio, record and screen video, no
+/// note. For when someone in the call objects (wrote "stop" in its chat).
+pub fn discard_meeting(app: &AppHandle) -> std::result::Result<String, String> {
+    sample::end();
+    let meetings = app.state::<Arc<MeetingManager>>();
+    let store = app.state::<Arc<MeetingStore>>();
+    let stopped = meetings.stop();
+    indicator::hide(app);
+    let (meeting_id, duration, _recording) = match stopped {
+        Ok(r) => r,
+        Err(e) => return Err(raise_failure(app, NoticeCode::MeetingStopFailed, &e)),
+    };
+    #[cfg(target_os = "macos")]
+    {
+        crate::video::on_meeting_stopped(app, &meeting_id, duration);
+        crate::video::delete_for_meeting(&meeting_id);
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = duration;
+    if let Err(e) = store.remove(&meeting_id) {
+        log::warn!("Meeting {meeting_id}: deleting the discarded recording failed: {e:#}");
+    }
+    emit_changed(app, &meeting_id);
+    notices::clear(app, NoticeSource::Meeting);
     Ok(meeting_id)
 }
 
 /// Stops the meeting and starts processing it in the background.
 pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
+    sample::end();
     let begun = std::time::Instant::now();
     let meetings = app.state::<Arc<MeetingManager>>();
     let store = app.state::<Arc<MeetingStore>>();
@@ -506,6 +595,8 @@ mod resume_tests {
             online: None,
             title_by_hand: false,
             title_provisional: false,
+            sample: false,
+            mailed: None,
         }
     }
 

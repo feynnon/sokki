@@ -80,6 +80,14 @@ impl RateTracker {
     pub fn current(&self) -> Option<u32> {
         self.current
     }
+
+    /// Forgets the arrival window but keeps the current rate: after a gap
+    /// (the tap was rebuilt), the pause would otherwise read as a slower
+    /// rate for two seconds and could switch it.
+    pub fn restart(&mut self) {
+        self.window.clear();
+        self.candidate = None;
+    }
 }
 
 /// The nearest standard rate within 6 %, or `None`.

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import { useOsType } from "@/hooks/useOsType";
 import type { OverlayStyle, ShortcutActivation } from "@/bindings";
 import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { SettingContainer } from "@/components/ui/SettingContainer";
@@ -15,6 +16,8 @@ import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
 import { AppendTrailingSpace } from "../AppendTrailingSpace";
 import { FillerWordRemoval } from "../FillerWordRemoval";
+import { DictationCleanup } from "../DictationCleanup";
+import { Autocorrect } from "../Autocorrect";
 import { VoiceActivityDetection } from "../VoiceActivityDetection";
 import { ModelUnloadTimeoutSetting } from "../ModelUnloadTimeout";
 import { TranslateToEnglish } from "../TranslateToEnglish";
@@ -114,6 +117,7 @@ const OverlayPosition: React.FC = () => {
 export const SokkiSettingsPage: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
+  const osType = useOsType();
   // Discard is only offered where a dictation keeps running after the key
   // is let go (Auto after a tap, and Tap); in Hold, letting go ends it.
   const activation = (getSetting("shortcut_activation") ??
@@ -180,6 +184,7 @@ export const SokkiSettingsPage: React.FC = () => {
           description=""
         />
         <DictationMode />
+        <DictationCleanup descriptionMode="inline" grouped />
         {activation !== "push_to_talk" && (
           <ShortcutInput
             shortcutId="cancel"
@@ -190,6 +195,11 @@ export const SokkiSettingsPage: React.FC = () => {
           />
         )}
       </SettingsGroup>
+      {osType === "macos" && (
+        <SettingsGroup title={t("sokki.settings.typing")}>
+          <Autocorrect descriptionMode="inline" grouped />
+        </SettingsGroup>
+      )}
       <SettingsGroup title={t("sokki.settings.meetings")}>
         <ShortcutInput
           shortcutId="meeting"

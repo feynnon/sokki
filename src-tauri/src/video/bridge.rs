@@ -12,7 +12,6 @@ extern "C" {
     fn sokki_video_free(s: *mut c_char);
 }
 
-
 /// A running recording. Stopping consumes it.
 pub struct Handle(*mut c_void);
 // SAFETY: the Swift side guards its own state; the handle is only passed back
@@ -40,14 +39,17 @@ pub fn request_screen() -> bool {
     unsafe { sokki_video_request_screen() }
 }
 
-
 pub fn start(config: &serde_json::Value) -> Result<Handle, String> {
     let config = CString::new(config.to_string()).map_err(|e| e.to_string())?;
     let mut error: *mut c_char = std::ptr::null_mut();
     let handle = unsafe { sokki_video_start(config.as_ptr(), &mut error) };
     if handle.is_null() {
         let message = take(error);
-        return Err(if message.is_empty() { "Recording could not start.".into() } else { message });
+        return Err(if message.is_empty() {
+            "Recording could not start.".into()
+        } else {
+            message
+        });
     }
     Ok(Handle(handle))
 }
@@ -66,6 +68,10 @@ pub fn render(config: &serde_json::Value) -> Result<(), String> {
         Ok(())
     } else {
         let message = take(error);
-        Err(if message.is_empty() { "The video could not be rendered.".into() } else { message })
+        Err(if message.is_empty() {
+            "The video could not be rendered.".into()
+        } else {
+            message
+        })
     }
 }

@@ -130,4 +130,4 @@ tags: [meeting]
 
 **[04:53] Ich:** Danke euch, bis nächste Woche.
 
-Transkribiert auf meinem Mac mit sokki.org
+Von KI zusammengefasst. Lokal, kostenlos, Open Source. Diktier-App und Meeting-Notetaker: sokki.org

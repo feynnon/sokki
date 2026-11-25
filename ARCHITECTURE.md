@@ -53,7 +53,9 @@ A meeting, on any platform:
 | `crates/meeting-core` | The platform-independent pipeline. Defines the ports `Diarizer`, `Transcriber`, `Summarizer`, `SpeakerNamer`. No I/O except the language-model HTTP client in `summary.rs`. |
 | `crates/diarize` | `Diarizer` implementations (Sortformer via transcribe.cpp; sherpa-onnx), voice embeddings, `VoiceProfiles`, model downloads. |
 | `crates/meeting-detect` | Mic-client sources (`macos.rs`, `linux.rs`), the app table (`apps.rs`), the pure debounce `Detector` and the `Watcher` thread. |
-| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in model (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. |
+| `crates/meeting-mail` | Notes to everyone in a meeting: calendar events and which one a recording belongs to, recipients, the objection list, the mail text, and sending through Apple Mail (AppleScript) or Gmail (`gmail.send`). The calendar itself is read by the host (macOS: EventKit, `src-tauri/swift/calendar.swift`). |
+| `crates/meeting-chat` | The chat notice (macOS): find a meeting's chat field through Accessibility, post one line, watch for "stop". |
+| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in models (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. `cleanup`: cleaning up a dictation while it is spoken. |
 | `crates/sokki` | The Linux host. One binary: `sokki daemon` (systemd user service), the CLI (`sokki meeting …`, `sokki dictation …`, `sokki events`), and `sokki process` (the model worker). |
 | `crates/sokki-link` | Phone ↔ computer link over iroh: pairing, sending a recording, getting the note back. |
 | `crates/meeting-e2e` | Headless harness: real speech recognition on synthetic fixtures (`testdata/audio`), with word error rate and speaker metrics. |
@@ -70,9 +72,10 @@ These hold everywhere; a change that breaks one is a bug.
   from a person's action: the prompt, a shortcut, a menu item, a CLI call.
   The prompt's timeout means no.
 - **Audio stays on the device.** The only network traffic: model downloads,
-  the language model when the person picks a cloud provider, and the phone
-  link. Each lives in one named place (`diarize::models`,
-  `meeting_core::summary`, `sokki-link`, `crates/sokki/src/models.rs`).
+  the language model when the person picks a cloud provider, the phone
+  link, and Gmail when the person connects it to send notes. Each lives in
+  one named place (`diarize::models`, `meeting_core::summary`, `sokki-link`,
+  `crates/sokki/src/models.rs`, `meeting_mail::gmail`).
 - **The core has no platform code.** No Core Audio, PipeWire or Hyprland
   types in `meeting-core`, `diarize`, `sokki-engine`. Platform code sits in
   files compiled only on that platform.
@@ -156,6 +159,17 @@ Short records of choices that are not obvious from the code.
   links ggml through transcribe.cpp, and two ggml copies in one binary
   clash. Same model (Qwen 3.5 9B, Q4_K_M), same prompts, measured as fast
   as Ollama (KNOWN_ISSUES.md F8). Ollama and cloud providers stay options.
+- **Dictations cleaned while they are spoken.** `cleanup` cuts the
+  transcript's final part into pieces of about 60 words at sentence ends
+  and cleans each one with Gemma 4 E4B in a second `llama-server` (MTP
+  speculative decoding: about 53 tokens/s on an M1 Pro), keeping the last
+  paragraph open for the next piece; at the stop only the rest is left
+  (about 1 s for 30–60 words, 1.6–4.6 s for 140–484). The server stays up
+  between dictations and stops after 2 minutes without one. It never runs
+  next to a meeting: not while one records or is processed, not while a
+  local summary model is open (it is stopped when one of those begins).
+  A model that fails or takes over 20 s leaves the transcript as it was.
+  Off by default until Robin has tried it.
 - **Echo cancellation, not voice merging.** WebRTC AEC3 on the mic track
   (with the call track as reference) removed the extra "speaker" the call
   audio created on the mic. Merging similar voices exists but is off until a

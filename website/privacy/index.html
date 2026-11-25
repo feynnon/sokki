@@ -61,7 +61,11 @@ Sokki</a>
 <li>your Mac’s model, chip, cores, memory, disk size and free space, macOS version and region setting</li>
 <li>how many dictations and meetings you had, how long, in which language, how many speakers, which meeting app, which day</li>
 <li>warnings and errors from Sokki’s log, with quoted words and your home folder blanked</li>
+<li>which setup steps you reached and when, when you first dictated, updates</li>
+<li>which features you use and how often (dictation, meetings, summaries, files), and switches and fixed choices in Settings, never what you typed into them</li>
+<li>crashes (where in Sokki’s code, no text), and how fast dictations and meetings are ready</li>
 </ul>
+<p>Sokki counts these on your Mac and sends them only once this is on; the first report includes what was counted before, such as setup. The counter passes the report on to PostHog in Frankfurt for charts, without your IP address. <strong>Delete what was shared</strong> deletes it there too.</p>
 <p>With this or <strong>Share all my recordings</strong> on, at most hourly: how many of your own recordings you keep, and how many hours per language. Never audio, never anyone’s words.</p>
 
 <h3>Share all my recordings</h3>
@@ -100,7 +104,7 @@ Sokki</a>
 <p>With your permission, Sokki reads your Mac’s calendar through macOS to name meetings and know who attended. Calendar data stays on your Mac. Attendees’ addresses leave only in the mails Sokki sends for you.</p>
 
 <h2 class="title">Delete everything</h2>
-<p>On the <strong>Your data</strong> page: delete your recordings, and <strong>Delete what was shared</strong> to remove everything the counter holds of your Mac; this also turns sharing off. Meeting notes are plain files: delete them like any file.</p>
+<p>On the <strong>Your data</strong> page: delete your recordings, and <strong>Delete what was shared</strong> to remove everything the counter holds of your Mac; this also turns sharing off. Transcripts and counts are deleted at once; the audio files within a few days at most. Meeting notes are plain files: delete them like any file.</p>
 
 <h2 class="title">Permissions</h2>
 <div class="rows" style="margin-top: 24px">
@@ -145,7 +149,7 @@ Sokki</a>
 <li><strong>Your consent</strong> (Art. 6(1)(a) GDPR): Help improve Sokki, Share all my recordings, I’m interested, the phone link, cloud models and connected accounts. Turn the switch off or disconnect to withdraw it.</li>
 <li><strong>Our legitimate interest</strong> (Art. 6(1)(f) GDPR) in a working, safe, up-to-date app and website: model downloads, updates, messages from Sokki, and knowing how many people visit sokki.org and where they come from.</li>
 </ul>
-<p>Who processes it: Cloudflare runs the counter and keeps shared data (Workers KV and D1) until you delete it; it counts writes per IP address in memory to stop abuse and stores none. GitHub hosts the website and the updates, Cloudflare passes on requests to it, PostHog keeps its visitor counts in Frankfurt. Hugging Face and Handy’s mirror host the models, n0 the phone link’s address service and relays. Cloudflare, GitHub, PostHog and Hugging Face are US companies.</p>
+<p>Who processes it: Cloudflare runs the counter and keeps shared data (Workers KV and D1) until you delete it; it counts writes per IP address in memory to stop abuse and stores none. GitHub hosts the website and the updates, Cloudflare passes on requests to it, PostHog keeps its visitor counts and the Help improve Sokki reports in Frankfurt. Hugging Face and Handy’s mirror host the models, n0 the phone link’s address service and relays. Cloudflare, GitHub, PostHog and Hugging Face are US companies.</p>
 <p>Your rights: ask what is stored under your Mac’s random ID, have it corrected or deleted, restrict it, take it with you, object to it, and complain to a data protection authority, such as the Bayerisches Landesamt für Datenschutzaufsicht.</p>
 
 <h2 class="title">Questions</h2>

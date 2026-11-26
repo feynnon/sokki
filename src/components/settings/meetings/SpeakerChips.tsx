@@ -31,8 +31,9 @@ export const SpeakerChips: React.FC<{
   const { t } = useTranslation();
   const [proposals, setProposals] = useState<SpeakerProposal[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
-  // Where the card hangs: under the clicked chip, kept inside the column.
-  const [at, setAt] = useState({ left: 0, arrow: 16 });
+  // Where the card hangs: under the clicked chip (also when the chips wrap
+  // to a second row), kept inside the column.
+  const [at, setAt] = useState({ top: 30, left: 0, arrow: 16 });
   const box = useRef<HTMLDivElement>(null);
   // Names shown at once, before the note catches up.
   const [given, setGiven] = useState<Record<string, string>>({});
@@ -79,7 +80,11 @@ export const SpeakerChips: React.FC<{
                 const room = (box.current?.clientWidth ?? PANEL_W) - PANEL_W;
                 const left = Math.max(0, Math.min(chip.offsetLeft, room));
                 const middle = chip.offsetLeft + chip.offsetWidth / 2 - left;
-                setAt({ left, arrow: Math.max(12, middle - 5) });
+                setAt({
+                  top: chip.offsetTop + chip.offsetHeight + 8,
+                  left,
+                  arrow: Math.max(12, middle - 5),
+                });
                 setEditing(editing === sp ? null : sp);
               }}
               className={`h-[22px] px-2 inline-flex items-center rounded-md text-[11px] font-medium cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${suggest ? "text-text bg-wash border border-logo-primary" : "bg-wash text-ink-2 hover:text-text"}`}
@@ -127,7 +132,7 @@ const NamePanel: React.FC<{
   onNamed: (name: string) => void;
   onDone: () => void;
   onClose: () => void;
-  at: { left: number; arrow: number };
+  at: { top: number; left: number; arrow: number };
 }> = ({ record, speaker, candidates, onNamed, onDone, onClose, at }) => {
   const { t } = useTranslation();
   const clip = useVoiceClip();
@@ -181,8 +186,8 @@ const NamePanel: React.FC<{
       ref={card}
       role="dialog"
       aria-label={t("speakers.is", { speaker })}
-      style={{ left: at.left, width: PANEL_W }}
-      className="vb-card p-3 flex flex-col gap-2.5 absolute z-20 top-[30px] border border-line-strong shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+      style={{ top: at.top, left: at.left, width: PANEL_W }}
+      className="vb-card p-3 flex flex-col gap-2.5 absolute z-20 border border-line-strong shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
     >
       <span
         aria-hidden="true"

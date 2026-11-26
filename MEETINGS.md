@@ -374,7 +374,9 @@ Goal (Robin): every speaker named in transcripts and summaries.
   The chip opens a small card hanging from it, over the note: the
   proposals, "Jemand anderes …" for a name and email addresses, and
   "Benennen" at the bottom right; Enter names, a click outside or Esc
-  closes it (Robin chose this, 26 Nov 2026).
+  closes it (Robin chose this, 26 Nov 2026). It hangs under the clicked
+  chip's own row when the chips wrap (the night check, 27 Nov 2026, found
+  it over the chip).
 - **Keeping voices** (in a meeting): naming asks nothing about the voice.
   Once every speaker has a name, Sokki asks once "Künftig von selbst
   erkennen?" with an unticked box per person whose voice it doesn't know

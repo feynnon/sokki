@@ -340,4 +340,89 @@ test.describe("names in a meeting", () => {
     });
     await expect(card).toHaveCount(0);
   });
+
+  test("chips on a second row: the card hangs under the clicked chip", async ({
+    page,
+  }) => {
+    // Made-up names, long enough that the chips wrap.
+    const people = [
+      "Du",
+      "Annika Brandtmüller",
+      "Konstantin Oberhauser",
+      "Friederike Wallenstein",
+      "Maximilian Hohenberger",
+      "Theresa Lichtenfeld",
+      "Bartholomäus Grünwald",
+      "Speaker 8",
+    ];
+    await open(page, {
+      lang: "de",
+      theme: "dark",
+      section: "meetings",
+      extra: {
+        list_meetings: [
+          {
+            id: "w1",
+            started_at: new Date().toISOString(),
+            duration_s: 45 * 60,
+            status: { kind: "done" },
+            tracks: ["mic.flac", "system.flac"],
+            source_app: "Zoom",
+            title: "Großes Planungstreffen",
+            note_path: "/tmp/sokki-notes/w1.md",
+            speakers: people,
+            warnings: [],
+            summary_missing: null,
+            audio_deleted: false,
+            online: true,
+          },
+        ],
+        get_meeting_note: {
+          summary: "- Speaker 8 bucht den Raum.",
+          transcript: "[00:04] Speaker 8: Ich buche den Raum.",
+        },
+        meeting_speaker_proposals: [
+          {
+            speaker: "Speaker 8",
+            candidates: [
+              {
+                name: "Lena Vogt",
+                email: "lena@example.com",
+                source: "invited",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const first = page.getByRole("button", { name: "Du", exact: true });
+    const chip = page.getByRole("button", { name: "Lena?" });
+    const [f, c0] = await Promise.all([
+      first.boundingBox(),
+      chip.boundingBox(),
+    ]);
+    // The test only means something when the chip really sits lower.
+    expect(c0!.y).toBeGreaterThan(f!.y + f!.height);
+
+    await chip.click();
+    const card = page.getByRole("dialog", { name: "Speaker 8 ist …" });
+    await expect(card).toBeVisible();
+    const arrow = card.locator("span[aria-hidden=true]").first();
+    const [c, k, a] = await Promise.all([
+      chip.boundingBox(),
+      card.boundingBox(),
+      arrow.boundingBox(),
+    ]);
+    // Below the chip, not over it; the arrow points at this chip.
+    expect(k!.y).toBeGreaterThanOrEqual(c!.y + c!.height);
+    expect(k!.y - (c!.y + c!.height)).toBeLessThan(14);
+    const tip = a!.x + a!.width / 2;
+    expect(tip).toBeGreaterThan(c!.x);
+    expect(tip).toBeLessThan(c!.x + c!.width);
+    // And it stays inside the window.
+    const width = page.viewportSize()!.width;
+    expect(k!.x).toBeGreaterThanOrEqual(0);
+    expect(k!.x + k!.width).toBeLessThanOrEqual(width);
+    await shot(page, "zweite-reihe");
+  });
 });

@@ -5,7 +5,9 @@
 //! reads the focused field on its own, so typing never waits for it. The thread does nothing
 //! while Accessibility isn't granted, and the hook itself stays in step with that permission
 //! (`accessibility.rs`). The model's tables load only when the switch is first turned on.
-//! Never logs what was typed: only the app, what happened and how long it took.
+//! Sokki's log never holds what was typed: only the app, what happened and how long it took.
+//! The words of each fix go only into the list of fixes on this Mac,
+//! `autocorrect_fixes.jsonl` in the app data folder (`sokki_autocorrect::fixlog`).
 
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
@@ -48,11 +50,12 @@ pub fn start(app: &AppHandle) {
                 return;
             }
         };
-        let kept_file = app
-            .path()
-            .app_data_dir()
-            .ok()
+        let data_dir = app.path().app_data_dir().ok();
+        let kept_file = data_dir
+            .as_ref()
             .map(|d| d.join("autocorrect_kept_words.txt"));
+        let fixes = data_dir
+            .map(|d| sokki_autocorrect::fixlog::FixLog::new(d.join("autocorrect_fixes.jsonl")));
         let settings_app = app.clone();
         runner::start(runner::Options {
             load: Box::new(move || sokki_typos::Typos::load(&tables, &lexicon)),
@@ -63,7 +66,12 @@ pub fn start(app: &AppHandle) {
                 crate::settings::get_settings(&settings_app).autocorrect_enabled
             }),
             front: front_app,
-            report: Box::new(|app, outcome, took| {
+            report: Box::new(move |app, outcome, took| {
+                if let Some(fixes) = &fixes {
+                    if let Err(e) = fixes.record(app, outcome, took) {
+                        log::warn!("autocorrect: can't add to the list of fixes: {e}");
+                    }
+                }
                 let what = match outcome {
                     Outcome::Fixed { exact: true, .. } => "fixed a word".to_string(),
                     Outcome::Fixed { exact: false, .. } => {

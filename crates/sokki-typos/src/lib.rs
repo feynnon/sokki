@@ -54,6 +54,23 @@ jede jeder jedes jeden jedem alle allen viele vielen mehr mehrere mehreren welch
 zum zur im am beim vom ins ans aufs für mit von zu bei nach aus über unter auf in an um durch ohne gegen \
 pro per via vor hinter neben zwischen ne nen nem ner";
 
+/// How much a word counts for the sentence's language when the phone's table has it as common in
+/// both languages but only one dictionary has it (the, you, have: English only). The table counts
+/// most common English words as German too, so an English sentence never leaned English and its
+/// nouns took German capitals (Robin, 26.11.2026: "option" became "Option"). Measured on Robin's
+/// typing (47,494 words): 108 capitals better, 16 worse at 0.25; at 1.0: 113 better, 31 worse.
+/// Also used for `english-only.txt` (and, is, these), which the legacy German list took in
+/// (Robin, 26.11.2026: "in these cases" became "in These cases"); higher weights there only lost
+/// more German nouns (docs/research/mac-autocorrect-2026-11.md).
+const DICT_LEAN: f64 = 0.25;
+
+/// Off until Robin picks it (26.11.2026): compound repair leaves a part alone that is itself two
+/// known words (gas|turbinen), instead of changing a correct compound by a letter
+/// ("Gasturbinenantriebe" -> "Gastuabinenantriebe"). On 10,000 edited German sentences: 404 wrong
+/// word changes -> 364. On Robin's 349 typos: 1 fewer fixed (landignpages), 1 fixed differently
+/// (docs/research/mac-autocorrect-2026-11.md).
+const COMPOUND_PART_CHECK: bool = false;
+
 fn ln10(x: f64) -> f64 {
     x.log10()
 }
@@ -222,6 +239,9 @@ pub struct Lexicon {
     /// words the user typed before (the keyboard's history), exact
     personal: HashSet<String>,
     personal_by_fold: HashMap<String, Vec<String>>,
+    /// lower-case English words the legacy German list took in (and, is, these): only for the
+    /// sentence's language (`english-only.txt`, see tools/gen_lexicon.py)
+    english_only: HashSet<String>,
 }
 
 impl Lexicon {
@@ -288,7 +308,11 @@ impl Lexicon {
     pub fn load(dir: &Path) -> std::io::Result<Lexicon> {
         let de = std::fs::read_to_string(dir.join("lexicon-de.txt"))?;
         let en = std::fs::read_to_string(dir.join("lexicon-en.txt"))?;
-        Ok(Lexicon::from_lists(&de, &en))
+        let mut lex = Lexicon::from_lists(&de, &en);
+        if let Ok(eo) = std::fs::read_to_string(dir.join("english-only.txt")) {
+            lex.english_only = eo.lines().map(str::to_string).collect();
+        }
+        Ok(lex)
     }
 
     /// The user's own words (typed before): they are never changed.
@@ -548,6 +572,11 @@ impl Typos {
             valid.clear(); // the history learned a noun typed in lower case
         }
         let cap_word = cap.as_ref().map(|c| c.0.clone());
+        // "an" right before a vowel is the English article: German puts one in between ("an der
+        // Option"). Robin, 26.11.2026: "pick an option" became "pick an Option".
+        let english_an = last.is_some_and(|l| fold(l) == "an")
+            && t.starts_with(['a', 'e', 'i', 'o', 'u'])
+            && table.common_in('e', &t);
         let sentence = || self.sentence_lang(prevs, next);
         let truecase = || -> Option<String> {
             if let Some(l) = last {
@@ -565,6 +594,9 @@ impl Typos {
             }
             let fl = fold(l);
             if PRONOUNS.contains(&fl.as_str()) || sentence() != "de" {
+                return None;
+            }
+            if english_an {
                 return None;
             }
             if table.common_in('e', &t)
@@ -637,6 +669,7 @@ impl Typos {
                     && sentence() == "de"
                     && !at_start(last)
                     && self.determiners.contains(fold(last.unwrap()).as_str())
+                    && !english_an
                     && self.lean(next) != Some('e')
                 {
                     return Some(c.clone());
@@ -803,7 +836,25 @@ impl Typos {
             _ => 0.0,
         };
         for w in prevs[prevs.len().saturating_sub(3)..].iter().rev() {
-            score += weight * sign(self.lean(Some(w)));
+            let l = self.lean(Some(w));
+            let s = if l.is_some() {
+                sign(l)
+            } else if *w != BOS
+                && self.table.common_in('d', &fold(w))
+                && self.table.common_in('e', &fold(w))
+            {
+                // common in both tables: only one dictionary has it (see DICT_LEAN)
+                let langs = self.lexicon.langs(w);
+                match (langs.contains("de"), langs.contains("en")) {
+                    (true, false) => DICT_LEAN,
+                    (false, true) => -DICT_LEAN,
+                    _ if self.lexicon.english_only.contains(&w.to_lowercase()) => -DICT_LEAN,
+                    _ => 0.0,
+                }
+            } else {
+                0.0
+            };
+            score += weight * s;
             weight /= 2.0;
         }
         score += 0.5 * sign(self.lean(next));
@@ -966,7 +1017,16 @@ impl Typos {
                 return true;
             }
             for end in GERMAN_ENDINGS {
-                if w.ends_with(end) && common(strip_end(w, end)) {
+                if !w.ends_with(end) {
+                    continue;
+                }
+                let stem = strip_end(w, end);
+                // German never ends a stem in t with -t/-te/-ten: arbeit-et, not arbeitt
+                // (Robin, 26.11.2026: "Justt" counted as just + t and was left)
+                if stem.ends_with('t') && end.starts_with('t') {
+                    continue;
+                }
+                if common(stem) {
                     return true;
                 }
             }
@@ -975,6 +1035,32 @@ impl Typos {
     }
 
     /// The German compound one slip from folded `t` (bchhaltungs|thema), or None when none or two compete.
+    /// Two words the table knows, with a linking s if any (gas|turbinen, arbeit|s|zeit): a
+    /// compound part that is a compound itself, not a typo.
+    fn two_words(&self, w: &str) -> bool {
+        let tb = &self.table;
+        let c = chars(w);
+        let n = c.len();
+        let word = |x: &str, short: bool| {
+            let x = if x.chars().count() >= 5 {
+                x.strip_suffix('s').filter(|y| tb.candidate(y)).unwrap_or(x)
+            } else {
+                x
+            };
+            if short {
+                tb.common_in('d', x) || tb.common_in('e', x)
+            } else {
+                tb.candidate(x)
+            }
+        };
+        (3..n.saturating_sub(2)).any(|i| {
+            let (a, b) = (sub(&c, 0, i), sub(&c, i, n));
+            // a 3-letter part only when both are common words (gas|turbinen, not bch|haltungs)
+            let short = i < 4 || n - i < 4;
+            word(&a, short) && word(&b, short)
+        })
+    }
+
     fn compound_fix(&self, t: &str) -> Option<String> {
         let tb = &self.table;
         let common = |w: &str, left: bool| {
@@ -989,7 +1075,10 @@ impl Typos {
         for i in 4..n.saturating_sub(3) {
             let (a, b) = (sub(&c, 0, i), sub(&c, i, n));
             for (fixed, typed_part, left) in [(&b, &a, true), (&a, &b, false)] {
-                if !common(fixed, !left) || tb.candidate(typed_part) {
+                if !common(fixed, !left)
+                    || tb.candidate(typed_part)
+                    || (COMPOUND_PART_CHECK && self.two_words(typed_part))
+                {
                     continue;
                 }
                 for cand in one_slip(typed_part) {

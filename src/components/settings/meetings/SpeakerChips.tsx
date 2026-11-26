@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pause, Play } from "lucide-react";
 import {
@@ -31,6 +31,9 @@ export const SpeakerChips: React.FC<{
   const { t } = useTranslation();
   const [proposals, setProposals] = useState<SpeakerProposal[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
+  // Where the card hangs: under the clicked chip, kept inside the column.
+  const [at, setAt] = useState({ left: 0, arrow: 16 });
+  const box = useRef<HTMLDivElement>(null);
   // Names shown at once, before the note catches up.
   const [given, setGiven] = useState<Record<string, string>>({});
   const key = `${record.id}|${record.speakers.join(",")}|${record.status.kind}`;
@@ -59,7 +62,7 @@ export const SpeakerChips: React.FC<{
   const unnamed = record.speakers.some((s) => PLACEHOLDER.test(s));
 
   return (
-    <div className="flex flex-col gap-2">
+    <div ref={box} className="flex flex-col gap-2 relative">
       <div className="flex flex-wrap gap-1.5">
         {record.speakers.map((sp) => {
           const shown = given[sp] ?? sp;
@@ -71,7 +74,14 @@ export const SpeakerChips: React.FC<{
               type="button"
               aria-expanded={editing === sp}
               title={t("meetings.renameSpeaker")}
-              onClick={() => setEditing(editing === sp ? null : sp)}
+              onClick={(e) => {
+                const chip = e.currentTarget;
+                const room = (box.current?.clientWidth ?? PANEL_W) - PANEL_W;
+                const left = Math.max(0, Math.min(chip.offsetLeft, room));
+                const middle = chip.offsetLeft + chip.offsetWidth / 2 - left;
+                setAt({ left, arrow: Math.max(12, middle - 5) });
+                setEditing(editing === sp ? null : sp);
+              }}
               className={`h-[22px] px-2 inline-flex items-center rounded-md text-[11px] font-medium cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${suggest ? "text-text bg-wash border border-logo-primary" : "bg-wash text-ink-2 hover:text-text"}`}
             >
               {suggest ? guess(p.candidates, or) : shown}
@@ -95,29 +105,55 @@ export const SpeakerChips: React.FC<{
             setEditing(null);
           }}
           onDone={onDone}
+          onClose={() => setEditing(null)}
+          at={at}
         />
       )}
+      {!unnamed && !editing && <VoiceOffer key={key} record={record} />}
     </div>
   );
 };
 
+const PANEL_W = 300;
+
+/** A small card hanging from the clicked chip, over the note: who this
+ * voice is (proposals, or a name and email addresses), "Benennen" at the
+ * bottom right. A click outside or Esc closes it (Robin chose 6a,
+ * 26 Nov 2026). */
 const NamePanel: React.FC<{
   record: MeetingRecord;
   speaker: string;
   candidates: NameCandidate[];
   onNamed: (name: string) => void;
   onDone: () => void;
-}> = ({ record, speaker, candidates, onNamed, onDone }) => {
+  onClose: () => void;
+  at: { left: number; arrow: number };
+}> = ({ record, speaker, candidates, onNamed, onDone, onClose, at }) => {
   const { t } = useTranslation();
   const clip = useVoiceClip();
   const [other, setOther] = useState(candidates.length === 0);
   const [name, setName] = useState(PLACEHOLDER.test(speaker) ? "" : speaker);
   const [emails, setEmails] = useState("");
-  // Consent is the person's, so the box starts empty (GDPR Art. 7).
-  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const audio = !record.audio_deleted;
-  const first = name.trim().split(" ")[0];
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // A chip toggles the card itself.
+      const chip = (target as Element).closest?.("[aria-expanded]");
+      if (card.current && !card.current.contains(target) && !chip) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      document.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
 
   const give = async (to: string, mails: string[]) => {
     const n = to.trim();
@@ -127,14 +163,32 @@ const NamePanel: React.FC<{
       [{ meeting_id: record.id, speaker }],
       n,
       mails,
-      consent,
+      // Keeping the voice is asked once, for everyone, at the end
+      // (VoiceOffer).
+      false,
     );
     if (r.status === "ok") onDone();
     else setError(r.error);
   };
 
+  const submit = () => void give(name, parseEmails(emails));
+  const onEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") submit();
+  };
+
   return (
-    <div className="vb-card p-3 flex flex-col gap-2.5 max-w-[520px]">
+    <div
+      ref={card}
+      role="dialog"
+      aria-label={t("speakers.is", { speaker })}
+      style={{ left: at.left, width: PANEL_W }}
+      className="vb-card p-3 flex flex-col gap-2.5 absolute z-20 top-[30px] border border-line-strong shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+    >
+      <span
+        aria-hidden="true"
+        style={{ left: at.arrow }}
+        className="absolute -top-[6px] size-[10px] rotate-45 bg-[var(--vb-card)] border-l border-t border-line-strong"
+      />
       <div className="flex items-center gap-2">
         {audio && (
           <button
@@ -184,50 +238,112 @@ const NamePanel: React.FC<{
         </div>
       )}
       {other && (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <Input
-              autoFocus
-              value={name}
-              placeholder={t("speakers.name")}
-              aria-label={t("speakers.name")}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void give(name, parseEmails(emails));
-              }}
-              className="flex-1"
-            />
-            <Button
-              size="sm"
-              onClick={() => void give(name, parseEmails(emails))}
-              disabled={!name.trim()}
-            >
-              {t("speakers.nameButton")}
-            </Button>
-          </div>
+        <>
+          <Input
+            autoFocus
+            value={name}
+            placeholder={t("speakers.name")}
+            aria-label={t("speakers.name")}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={onEnter}
+            className="w-full"
+          />
           <Input
             value={emails}
             placeholder={t("speakers.emails")}
             aria-label={t("speakers.emails")}
             onChange={(e) => setEmails(e.target.value)}
+            onKeyDown={onEnter}
+            className="w-full"
           />
-        </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={submit} disabled={!name.trim()}>
+              {t("speakers.nameButton")}
+            </Button>
+          </div>
+        </>
       )}
-      <label className="flex items-center gap-2 text-[12px] text-ink-2">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        {first
-          ? t("speakers.consent", { name: first })
-          : t("speakers.consentAnyone")}
-      </label>
       {(error || clip.error) && (
         <p className="text-[12px] text-red-500 select-text">
           {error ?? clip.error}
         </p>
       )}
+    </div>
+  );
+};
+
+/** Once every speaker has a name: one question whether Sokki may keep the
+ * new voices, with a box per person that starts empty, since consent is
+ * theirs (GDPR Art. 7, 9). Answered once per meeting. */
+const VoiceOffer: React.FC<{ record: MeetingRecord }> = ({ record }) => {
+  const { t } = useTranslation();
+  const [names, setNames] = useState<string[]>([]);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void commands
+      .meetingVoiceOffer(record.id)
+      .then((r) => {
+        if (live && r?.status === "ok")
+          setNames(Array.isArray(r.data) ? r.data : []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [record.id]);
+  if (names.length === 0) return null;
+
+  const answer = async (keep: string[]) => {
+    // The card goes at once; the voices are saved in the background.
+    setNames([]);
+    for (const n of keep) {
+      const r = await commands.nameVoice(
+        [{ meeting_id: record.id, speaker: n }],
+        n,
+        [],
+        true,
+      );
+      if (r.status !== "ok") {
+        setError(r.error);
+        return;
+      }
+    }
+    await commands.voiceOfferDone(record.id);
+  };
+
+  return (
+    <div className="vb-card p-3 flex flex-col gap-2 max-w-[520px]">
+      <div className="text-[13px] font-medium">{t("speakers.offerTitle")}</div>
+      <div className="text-[12px] text-ink-3">{t("speakers.offerHint")}</div>
+      {names.map((n) => (
+        <label key={n} className="flex items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={ticked.includes(n)}
+            onChange={(e) =>
+              setTicked((x) =>
+                e.target.checked ? [...x, n] : x.filter((y) => y !== n),
+              )
+            }
+          />
+          {n}
+        </label>
+      ))}
+      <div className="flex gap-2 pt-1">
+        <Button
+          size="sm"
+          disabled={ticked.length === 0}
+          onClick={() => void answer(ticked)}
+        >
+          {t("speakers.offerKeep")}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => void answer([])}>
+          {t("speakers.offerLater")}
+        </Button>
+      </div>
+      {error && <p className="text-[12px] text-red-500 select-text">{error}</p>}
     </div>
   );
 };

@@ -1437,8 +1437,8 @@
     },
     "milestone": {
       "title": "{{hours}} Stunden mit Sokki",
-      "body": "So viel hat Sokki für dich mitgeschrieben, alles auf diesem Mac. Sokki bleibt kostenlos, aber beim Bauen futtert die KI Tokens eimerweise. War es dir das wert, spendier mir ein paar! – Robin",
-      "sponsor": "Tokens spendieren",
+      "body": "So viel hat Sokki für dich mitgeschrieben, alles auf diesem Mac. Sokki bleibt kostenlos, und ich baue es mit KI. War es dir das wert, spendier mir ein paar Tokens, damit ich weiterbauen kann! – Robin",
+      "sponsor": "Tokens spenden",
       "save": "Bild speichern",
       "saved": "Gespeichert",
       "notNow": "Nicht jetzt",
@@ -1574,6 +1574,10 @@
     "fromVoice": "gleiche Stimme",
     "invited": "eingeladen",
     "hint": "Klick auf einen Sprecher, um ihn zu benennen. Sokki ändert Transkript und Zusammenfassung.",
-    "or": "oder"
+    "or": "oder",
+    "offerTitle": "Künftig von selbst erkennen?",
+    "offerHint": "Haken nur bei denen, die einverstanden sind.",
+    "offerKeep": "Merken",
+    "offerLater": "Nicht jetzt"
   }
 }

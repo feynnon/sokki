@@ -276,3 +276,13 @@ fn fixes_in_a_rich_editor_with_no_break_spaces() {
     );
     assert!(f.text.borrow().starts_with("Ich habe das nicht"));
 }
+
+#[test]
+fn a_word_the_model_gives_back_unchanged_is_left_alone() {
+    // the model answers "weiß" with "weiß": Sokki must not select and retype it
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    let got = type_in(&mut ac, &f, "Das weiß ich schon ");
+    assert_eq!(got, vec![]);
+    assert_eq!(f.text.borrow().as_str(), "Das weiß ich schon ");
+}

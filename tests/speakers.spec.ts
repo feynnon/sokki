@@ -184,6 +184,8 @@ test.describe("names in a meeting", () => {
     await shot(page, "huddle-vorschlag");
     await chips.first().click();
     await expect(page.getByText("Speaker 2 ist …")).toBeVisible();
+    // Naming asks nothing about the voice; that comes once, at the end.
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
     await shot(page, "huddle-auswahl");
     await page.getByRole("button", { name: /^Lena Vogt/ }).click();
     const named = await args(page, "name_voice");
@@ -195,5 +197,147 @@ test.describe("names in a meeting", () => {
     });
     // Shown at once, before the note catches up.
     await expect(page.getByRole("button", { name: "Lena Vogt" })).toBeVisible();
+  });
+
+  test("everyone named: one question whether to keep their voices", async ({
+    page,
+  }) => {
+    await open(page, {
+      lang: "de",
+      theme: "dark",
+      section: "meetings",
+      extra: {
+        list_meetings: [
+          {
+            id: "h2",
+            started_at: new Date().toISOString(),
+            duration_s: 18 * 60,
+            status: { kind: "done" },
+            tracks: ["mic.flac", "system.flac"],
+            source_app: "Slack",
+            title: "Launch-Plan Dezember",
+            note_path: "/tmp/sokki-notes/h2.md",
+            speakers: ["Du", "Lena Vogt", "Jonas Weber"],
+            warnings: [],
+            summary_missing: null,
+            audio_deleted: false,
+            online: true,
+          },
+        ],
+        get_meeting_note: {
+          summary: "- Lena Vogt schickt die Folien.",
+          transcript:
+            "[00:04] Lena Vogt: Ich schick die Folien.\n[00:09] Jonas Weber: Danke.",
+        },
+        meeting_voice_offer: ["Lena Vogt", "Jonas Weber"],
+      },
+    });
+    await expect(page.getByText("Künftig von selbst erkennen?")).toBeVisible();
+    const lena = page.getByRole("checkbox", { name: "Lena Vogt" });
+    await expect(lena).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: "Jonas Weber" }),
+    ).not.toBeChecked();
+    const keep = page.getByRole("button", { name: "Merken" });
+    await expect(keep).toBeDisabled();
+    await shot(page, "huddle-am-ende");
+    await lena.check();
+    await keep.click();
+    await expect(page.getByText("Künftig von selbst erkennen?")).toHaveCount(0);
+    await expect
+      .poll(async () => (await args(page, "voice_offer_done")).length)
+      .toBe(1);
+    const kept = await args(page, "name_voice");
+    expect(kept).toEqual([
+      {
+        members: [{ meeting_id: "h2", speaker: "Lena Vogt" }],
+        name: "Lena Vogt",
+        emails: [],
+        consent: true,
+      },
+    ]);
+  });
+
+  test("someone else: a small card at the chip, Benennen at the bottom right", async ({
+    page,
+  }) => {
+    await open(page, {
+      lang: "de",
+      theme: "dark",
+      section: "meetings",
+      extra: {
+        list_meetings: [
+          {
+            id: "h3",
+            started_at: new Date().toISOString(),
+            duration_s: 18 * 60,
+            status: { kind: "done" },
+            tracks: ["mic.flac", "system.flac"],
+            source_app: "Slack",
+            title: "Launch-Plan Dezember",
+            note_path: "/tmp/sokki-notes/h3.md",
+            speakers: ["Du", "Speaker 2", "Jonas Weber"],
+            warnings: [],
+            summary_missing: null,
+            audio_deleted: false,
+            online: true,
+          },
+        ],
+        get_meeting_note: {
+          summary: "- Speaker 2 schickt die Folien bis Freitag.",
+          transcript: "[00:04] Speaker 2: Ich schick die Folien bis Freitag.",
+        },
+        meeting_speaker_proposals: [
+          {
+            speaker: "Speaker 2",
+            candidates: [
+              {
+                name: "Lena Vogt",
+                email: "lena@example.com",
+                source: "invited",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const chip = page.getByRole("button", { name: "Lena?" });
+    await chip.click();
+    const card = page.getByRole("dialog", { name: "Speaker 2 ist …" });
+    await expect(card).toBeVisible();
+    // A click outside closes it; so does Esc.
+    await page.getByRole("heading", { name: "Launch-Plan Dezember" }).click();
+    await expect(card).toHaveCount(0);
+    await chip.click();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+
+    await chip.click();
+    await card.getByRole("button", { name: "Jemand anderes …" }).click();
+    await card
+      .getByRole("textbox", { name: "Name", exact: true })
+      .fill("Mia Sand");
+    const mail = card.getByRole("textbox", { name: "E-Mail-Adressen" });
+    await mail.fill("mia@example.com");
+    const button = card.getByRole("button", { name: "Benennen" });
+    const [b, m, c] = await Promise.all([
+      button.boundingBox(),
+      mail.boundingBox(),
+      card.boundingBox(),
+    ]);
+    // Below the last field, at the card's right edge, and the card is small.
+    expect(b!.y).toBeGreaterThan(m!.y + m!.height);
+    expect(Math.abs(b!.x + b!.width - (m!.x + m!.width))).toBeLessThan(2);
+    expect(c!.width).toBeLessThan(320);
+    await shot(page, "jemand-anderes");
+    await mail.press("Enter");
+    const named = await args(page, "name_voice");
+    expect(named[0]).toEqual({
+      members: [{ meeting_id: "h3", speaker: "Speaker 2" }],
+      name: "Mia Sand",
+      emails: ["mia@example.com"],
+      consent: false,
+    });
+    await expect(card).toHaveCount(0);
   });
 });

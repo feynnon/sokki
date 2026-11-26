@@ -270,6 +270,12 @@ Chrome (posted in 2.1 s; "stop" → same).
   workspace; guests from other companies in a Slack Connect channel may
   have none and are left out ("no address").
 
+## Phone app (Android, 2026-11-26)
+
+| # | Problem | Fix idea |
+|---|---|---|
+| P1 | A transcript written on the phone (no Mac) only runs while Sokki is on screen. Leave the app or lock the phone and Android freezes it (`isFrozen=true`), and the transcript waits until Sokki is opened again. Pixel 7: a 3-minute clip stood at 0 words for 6 minutes in the background, then finished 59 s after Sokki came back. A 30-minute meeting takes 12.6 minutes with the screen on (`docs/research/android-phone-transcript-2026-11.md`) | run the transcript in a foreground service with a "Writing the transcript" notification, in Rust or Kotlin, not in the WebView |
+
 ## Keyboard (Android)
 
 Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2026-11-23).

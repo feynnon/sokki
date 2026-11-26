@@ -487,6 +487,35 @@ pub fn names_from_call(
     out
 }
 
+/// Who Sokki may ask to keep the voice of, once every speaker of a meeting
+/// has a name: the named speakers with a voice print who are not the user
+/// and whose voice Sokki doesn't know yet (`has_voice`). Empty while a
+/// speaker is still unnamed. One question for all of them, at the end, so
+/// naming stays one click and the speaker Sokki named by itself is asked
+/// too (Robin chose this, 26 Nov 2026).
+pub fn voice_offer(
+    speakers: &[SavedSpeaker],
+    user_name: &str,
+    has_voice: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    if speakers.iter().any(|s| is_placeholder(&s.name)) {
+        return Vec::new();
+    }
+    let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
+    let mut out: Vec<String> = Vec::new();
+    for s in speakers {
+        let voiced = s.embedding.as_ref().is_some_and(|e| !e.is_empty());
+        if voiced
+            && !same(&s.name, user_name)
+            && !has_voice(&s.name)
+            && !out.iter().any(|n| same(n, &s.name))
+        {
+            out.push(s.name.clone());
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -498,6 +527,30 @@ mod tests {
             track: None,
             speech_s: None,
         }
+    }
+
+    #[test]
+    fn voice_offer_waits_until_everyone_is_named() {
+        let speakers = [
+            sp("Ich", &[1.0]),
+            sp("Lena Berg", &[0.5]),
+            sp("Speaker 3", &[0.2]),
+        ];
+        assert!(voice_offer(&speakers, "Ich", |_| false).is_empty());
+    }
+
+    #[test]
+    fn voice_offer_skips_the_user_known_voices_and_speakers_without_a_voice() {
+        let mut silent = sp("Mia Sand", &[]);
+        silent.embedding = None;
+        let speakers = [
+            sp("Ich", &[1.0]),
+            sp("Lena Berg", &[0.5]),
+            sp("Jonas Weber", &[0.2]),
+            silent,
+        ];
+        let offer = voice_offer(&speakers, "ich", |n| n == "Jonas Weber");
+        assert_eq!(offer, vec!["Lena Berg".to_string()]);
     }
 
     fn meeting(id: &str, at: &str, speakers: Vec<SavedSpeaker>) -> MeetingSpeakers {

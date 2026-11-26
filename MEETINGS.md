@@ -359,6 +359,17 @@ Goal (Robin): every speaker named in transcripts and summaries.
   leaves one unnamed speaker and one invitee, Sokki names that one too
   (`voices::propose`, `left`). Also right after processing, before the
   note is mailed (a 1:1 call is named without a click).
+  The chip opens a small card hanging from it, over the note: the
+  proposals, "Jemand anderes …" for a name and email addresses, and
+  "Benennen" at the bottom right; Enter names, a click outside or Esc
+  closes it (Robin chose this, 26 Nov 2026).
+- **Keeping voices** (in a meeting): naming asks nothing about the voice.
+  Once every speaker has a name, Sokki asks once "Künftig von selbst
+  erkennen?" with an unticked box per person whose voice it doesn't know
+  yet, also the one it named by itself (`voices::voice_offer`). "Merken"
+  keeps the ticked voices with their consent date; "Nicht jetzt" or
+  "Merken" ends the question for that meeting (`voice_offer_done` file in
+  its folder). Robin chose this over a box next to the names (26 Nov 2026).
 - **Naming** changes the note (transcript, summary, tasks: generic
   "Speaker N" is replaced everywhere), `speakers.json` and the list. Sent
   mails and Slack posts stay as they were.
@@ -384,7 +395,7 @@ Goal (Robin): every speaker named in transcripts and summaries.
 - Tests: `cargo test voices` (sokki-engine), `cargo test --lib profiles`
   (diarize), `tests/speakers.spec.ts` (Playwright), and a Sokki Test run
   with made-up voices: `CALENDAR=events.json NAME_SPEAKER="Speaker 2=…"
-  CONSENT=1 KEEP_MEETINGS=1 scripts/test-meeting.sh mic.wav system.wav`.
+  KEEP_VOICES=all KEEP_MEETINGS=1 scripts/test-meeting.sh mic.wav system.wav`.
 
 ## Meeting with screen
 

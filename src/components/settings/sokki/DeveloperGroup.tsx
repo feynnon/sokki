@@ -28,7 +28,7 @@ function day(iso: string, locale: string): string {
 export const DeveloperGroup: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
-  const on = getSetting("keep_what_i_write") ?? false;
+  const on = getSetting("keep_what_i_write") ?? true;
   const [stats, setStats] = useState<JournalStats | null>(null);
   const [asking, setAsking] = useState(false);
 
@@ -70,7 +70,7 @@ export const DeveloperGroup: React.FC = () => {
             <dd className="text-ink-2">{t("sokki.developer.whereText")}</dd>
           </dl>
           <ToggleSwitch
-            checked={getSetting("learn_words") ?? true}
+            checked={getSetting("learn_words") ?? false}
             onChange={(enabled) => updateSetting("learn_words", enabled)}
             isUpdating={isUpdating("learn_words")}
             label={t("sokki.developer.learn")}

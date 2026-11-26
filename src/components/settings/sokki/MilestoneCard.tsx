@@ -5,7 +5,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { commands, type Milestone } from "@/bindings";
 import { useCardStore } from "@/stores/cardStore";
 
-/** Where "Chip in tokens" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
+/** Where "Donate tokens" leads; sokki.org/sponsor/ forwards to GitHub Sponsors. */
 const SPONSOR_URL = "https://sokki.org/sponsor/?s=stats";
 
 /**

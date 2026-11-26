@@ -415,6 +415,31 @@ fn test_voices(app: &tauri::AppHandle, id: &str) {
             Err(e) => warn!("Test mode: naming {from} failed: {e:#}"),
         }
     }
+    // The question at the end: whose voice Sokki may keep.
+    let offer = voices::voice_offer(app, id);
+    info!("Test mode: voice offer {offer:?}");
+    if let Ok(keep) = std::env::var("SOKKI_TEST_KEEP_VOICES") {
+        for name in offer
+            .iter()
+            .filter(|n| keep == "all" || keep.split(',').any(|k| k == *n))
+        {
+            let member = voices::VoiceMember {
+                meeting_id: id.to_string(),
+                speaker: name.clone(),
+            };
+            match voices::name_voice(app, &[member], name, &[], true) {
+                Ok(_) => info!("Test mode: kept the voice of {name:?}"),
+                Err(e) => warn!("Test mode: keeping {name:?} failed: {e:#}"),
+            }
+        }
+        if let Err(e) = voices::voice_offer_done(app, id) {
+            warn!("Test mode: answering the voice offer failed: {e:#}");
+        }
+        info!(
+            "Test mode: voice offer after answering {:?}",
+            voices::voice_offer(app, id)
+        );
+    }
     if let Some(note) = store.get(id).and_then(|r| r.note_path) {
         let md = std::fs::read_to_string(note).unwrap_or_default();
         let lines: Vec<&str> = md

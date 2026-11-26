@@ -782,6 +782,28 @@ pub async fn meeting_speaker_proposals(
         .map_err(|e| e.to_string())
 }
 
+/// Whom Sokki may ask, once all speakers of a meeting are named, whether
+/// it may keep their voice.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_voice_offer(app: AppHandle, id: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || meeting::voices::voice_offer(&app, &id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The voice question of a meeting was answered ("Merken" or "Nicht jetzt").
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn voice_offer_done(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || meeting::voices::voice_offer_done(&app, &id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("{e:#}"))
+}
+
 /// Gives speakers of one or more meetings a name. With `consent`, the
 /// person agreed and Sokki keeps their voice. Returns how many meetings
 /// changed.
@@ -1065,6 +1087,20 @@ pub async fn meeting_speaker_proposals(
     _id: String,
 ) -> Result<Vec<crate::meeting::voice_types::SpeakerProposal>, String> {
     Ok(Vec::new())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_voice_offer(_id: String) -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn voice_offer_done(_id: String) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(not(target_os = "macos"))]

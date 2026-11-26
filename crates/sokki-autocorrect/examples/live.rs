@@ -94,6 +94,8 @@ fn main() {
     )
     .unwrap();
     let mut ac = Autocorrect::new(typos, None);
+    // the same list of fixes the app keeps, next to the out file
+    let fixes = sokki_autocorrect::fixlog::FixLog::new(format!("{}.fixes.jsonl", a[4]).into());
     // as Sokki's thread does about once a second
     mac::prepare(Some((pid, app.clone())), &[]);
     if std::env::var("LAB_FRONT").is_ok() || a.get(5).map(|s| s.as_str()) == Some("front") {
@@ -141,6 +143,9 @@ fn main() {
         }
         if o != Outcome::Nothing {
             say!(out, "{o:?}");
+            if let Err(e) = fixes.record(&app, &o, std::time::Duration::ZERO) {
+                say!(out, "fix list: {e}");
+            }
         }
         if v != last_text {
             say!(out, "text: {v:?} sel {:?}", field.selection());

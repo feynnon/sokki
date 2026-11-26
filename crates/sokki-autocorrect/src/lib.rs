@@ -24,6 +24,7 @@
 //! correctors on one word would fight). Off until the user switches it on.
 //! SPDX-License-Identifier: GPL-3.0-only
 
+pub mod fixlog;
 mod text;
 
 #[cfg(target_os = "macos")]
@@ -261,6 +262,11 @@ impl Autocorrect {
         let Some(fix) = self.typos.correction(&word, &prev_refs, None) else {
             return Outcome::Nothing;
         };
+        // the model also answers with the typed word itself (heißt -> heißt: 6 in 10 of its
+        // answers on edited German text); retyping it would only touch the field
+        if fix == word {
+            return Outcome::Nothing;
+        }
         if !field.replaceable() {
             return Outcome::Skipped("field can't be replaced");
         }

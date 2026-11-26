@@ -472,8 +472,9 @@ pub struct AppSettings {
     /// or leaves in any app, with the app and the time, in
     /// `<app data>/typing_log/` on this Mac only (`sokki-journal`). Never
     /// password fields, secure input, terminals or password managers.
-    /// Off by default.
-    #[serde(default)]
+    /// On by default since schema 9 (Robin, 2026-11-26: the data stays on
+    /// the Mac, and word learning and autocorrect learn from it).
+    #[serde(default = "default_keep_what_i_write")]
     pub keep_what_i_write: bool,
     /// Apps "Keep what I write" never reads, as bundle ids, on top of the
     /// built-in list (password managers, terminals). E.g. ["com.apple.mail"].
@@ -483,6 +484,8 @@ pub struct AppSettings {
     /// day while the Mac is idle, a local language model checks each new
     /// word and Sokki speaks it to itself to hear how the speech model
     /// writes it (`learn_words.rs`). Does nothing while the journal is off.
+    /// Off by default until the learned words have been checked on real
+    /// writing (schema 9 turns it off once for everyone).
     #[serde(default = "default_learn_words")]
     pub learn_words: bool,
     /// Words learned from the user's writing (Vocabulary › Learned from
@@ -580,6 +583,8 @@ pub struct AppSettings {
     /// right after a fix undoes it. Never in Apple's apps, terminals, code
     /// editors, password managers or password fields. macOS only. Off until
     /// the user turns it on (Robin, 25.11.2026: for everyone, off by default).
+    /// Each fix, undo and skipped fix is listed in `autocorrect_fixes.jsonl`
+    /// in the app data folder (typed word and fix only, stays on this Mac).
     #[serde(default)]
     pub autocorrect_enabled: bool,
     #[serde(default)]
@@ -792,7 +797,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 8;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 9;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -817,7 +822,21 @@ fn default_hold_threshold_ms() -> u64 {
 }
 
 fn default_learn_words() -> bool {
+    false
+}
+
+fn default_keep_what_i_write() -> bool {
     true
+}
+
+/// "Keep what I write" became on by default (schema 9, Robin, 2026-11-26:
+/// "All data stays on the mac ... this data helps us learn"). It shipped
+/// off a day earlier, so it turns on once for everyone; a switch set after
+/// that stays as set. Word learning turns off once until the words it would
+/// learn have been checked on real writing.
+fn journal_on_by_default(settings: &mut AppSettings) {
+    settings.keep_what_i_write = true;
+    settings.learn_words = false;
 }
 
 /// One "heard as" form of a word.
@@ -1325,7 +1344,7 @@ pub fn get_default_settings() -> AppSettings {
         debug_mode: false,
         log_level: default_log_level(),
         custom_words: default_custom_words(),
-        keep_what_i_write: false,
+        keep_what_i_write: default_keep_what_i_write(),
         journal_excluded_apps: Vec::new(),
         learn_words: default_learn_words(),
         vocabulary_learned: Vec::new(),
@@ -1716,6 +1735,11 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 9 {
+        journal_on_by_default(settings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -1893,6 +1917,39 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A store from 0.2.14 (schema 8, journal off, learning on).
+    fn v8_store(keep: bool, learn: bool) -> (AppSettings, serde_json::Value) {
+        let mut settings = get_default_settings();
+        settings.settings_schema_version = 8;
+        settings.keep_what_i_write = keep;
+        settings.learn_words = learn;
+        let raw = serde_json::to_value(&settings).unwrap();
+        (serde_json::from_value(raw.clone()).unwrap(), raw)
+    }
+
+    #[test]
+    fn journal_turns_on_once_and_learning_off() {
+        let (mut s, raw) = v8_store(false, true);
+        assert!(apply_settings_migrations(&mut s, &raw));
+        assert!(s.keep_what_i_write, "the journal turns on");
+        assert!(!s.learn_words, "learning waits for the check");
+        assert_eq!(s.settings_schema_version, CURRENT_SETTINGS_SCHEMA_VERSION);
+
+        // Switched off afterwards: stays off on the next start.
+        s.keep_what_i_write = false;
+        let raw = serde_json::to_value(&s).unwrap();
+        apply_settings_migrations(&mut s, &raw);
+        assert!(!s.keep_what_i_write, "a switch set after that stays");
+
+        let new = get_default_settings();
+        assert!(new.keep_what_i_write && !new.learn_words, "new installs");
+        let empty: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(
+            empty.keep_what_i_write && !empty.learn_words,
+            "missing keys"
+        );
+    }
 
     #[test]
     fn notes_mail_turns_on_once_unless_the_person_set_it() {

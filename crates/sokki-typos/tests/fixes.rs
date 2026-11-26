@@ -53,3 +53,39 @@ fn keeps_offsets_in_chars() {
         "nihct"
     );
 }
+
+#[test]
+fn english_nouns_keep_lower_case_after_an() {
+    // Robin, 26.11.2026: "option" became "Option" in an English sentence
+    let t = typos();
+    for s in [
+        "pick an option and go",
+        "there is an option here",
+        "you have an option",
+        "an apple a day",
+    ] {
+        assert_eq!(fixed(&t, s), vec![], "{s}");
+    }
+    assert_eq!(
+        fixed(&t, "Die option ist gut"),
+        vec![("option".into(), "Option".into())]
+    );
+}
+
+#[test]
+fn english_after_in_stays_english() {
+    // Robin, 26.11.2026: "in these cases" became "in These cases", and "Justt" was left
+    let t = typos();
+    assert_eq!(
+        fixed(&t, "I guess leaving as typed is ok in these cases"),
+        vec![]
+    );
+    assert_eq!(
+        fixed(&t, "Justt now in typing"),
+        vec![("Justt".into(), "Just".into())]
+    );
+    assert_eq!(
+        fixed(&t, "Das steht in der these"),
+        vec![("these".into(), "These".into())]
+    );
+}

@@ -43,6 +43,7 @@
 #                                                     # would show it (speaker-names), for a
 #                                                     # made-up call in Chrome
 #   NAME_SPEAKER="Speaker 2=Lena Vogt" CONSENT=1 scripts/test-meeting.sh ...
+#   KEEP_VOICES=all scripts/test-meeting.sh ...       # answer "keep these voices?" (or "Lena Vogt,Jonas Weber")
 #                                                     # name a speaker after processing, as a
 #                                                     # click would (speaker-names)
 #   MAIL_TO=me@example.com scripts/test-meeting.sh ... # notes to everyone (meeting/mail.rs): the
@@ -183,7 +184,7 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
-  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} -a "$TESTAPP"
+  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"

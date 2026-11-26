@@ -411,6 +411,38 @@ pub fn name_voice(
     Ok(changed)
 }
 
+/// Marks a meeting whose "remember these voices?" question was answered.
+const VOICE_OFFER_DONE: &str = "voice_offer_done";
+
+/// Whom to ask, once, whether Sokki may keep their voice: everyone named
+/// in meeting `id` whose voice Sokki doesn't know yet
+/// ([`voices::voice_offer`]). Empty once the question was answered.
+pub fn voice_offer(app: &AppHandle, id: &str) -> Vec<String> {
+    let store = store(app);
+    if store.get(id).filter(processed).is_none() {
+        return Vec::new();
+    }
+    let dir = store.audio_dir(id);
+    if dir.join(VOICE_OFFER_DONE).exists() {
+        return Vec::new();
+    }
+    let profiles = process::voice_profiles(app);
+    let has_voice = |name: &str| {
+        profiles
+            .as_ref()
+            .and_then(|p| p.person(name))
+            .is_some_and(|p| !p.embeddings.is_empty())
+    };
+    voices::voice_offer(&process::load_speakers(&dir), &user_name(app), has_voice)
+}
+
+/// The question of [`voice_offer`] was answered for meeting `id`.
+pub fn voice_offer_done(app: &AppHandle, id: &str) -> Result<()> {
+    let dir = store(app).audio_dir(id);
+    std::fs::write(dir.join(VOICE_OFFER_DONE), b"")
+        .with_context(|| format!("Can't write to {}", dir.display()))
+}
+
 /// Sets a person's email addresses (all of them).
 pub fn set_emails(app: &AppHandle, name: &str, emails: Vec<String>) -> Result<()> {
     let mut profiles = process::voice_profiles(app).context("Voice profiles unavailable")?;

@@ -1600,6 +1600,29 @@ async meetingSpeakerProposals(id: string) : Promise<Result<SpeakerProposal[], st
 }
 },
 /**
+ * Whom Sokki may ask, once all speakers of a meeting are named, whether
+ * it may keep their voice.
+ */
+async meetingVoiceOffer(id: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_voice_offer", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The voice question of a meeting was answered ("Merken" or "Nicht jetzt").
+ */
+async voiceOfferDone(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("voice_offer_done", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Gives speakers of one or more meetings a name. With `consent`, the
  * person agreed and Sokki keeps their voice. Returns how many meetings
  * changed.
@@ -1972,7 +1995,8 @@ spoken_languages?: string[]; overlay_position?: OverlayPosition; debug_mode?: bo
  * or leaves in any app, with the app and the time, in
  * `<app data>/typing_log/` on this Mac only (`sokki-journal`). Never
  * password fields, secure input, terminals or password managers.
- * Off by default.
+ * On by default since schema 9 (Robin, 2026-11-26: the data stays on
+ * the Mac, and word learning and autocorrect learn from it).
  */
 keep_what_i_write?: boolean; 
 /**
@@ -1985,6 +2009,8 @@ journal_excluded_apps?: string[];
  * day while the Mac is idle, a local language model checks each new
  * word and Sokki speaks it to itself to hear how the speech model
  * writes it (`learn_words.rs`). Does nothing while the journal is off.
+ * Off by default until the learned words have been checked on real
+ * writing (schema 9 turns it off once for everyone).
  */
 learn_words?: boolean; 
 /**

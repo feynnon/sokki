@@ -383,6 +383,8 @@ export async function open(page: Page, s: Scenario) {
           once: data.voices.length ? 21 : 0,
         }),
         meeting_speaker_proposals: () => [],
+        meeting_voice_offer: () => [],
+        voice_offer_done: () => null,
         name_voice: (a) => (a.members as unknown[]).length + 1,
         set_person_emails: () => null,
         // A tenth of a second of silence.

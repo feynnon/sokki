@@ -2,12 +2,15 @@
 //! own mailbox and in their name (board card `notes-to-all`): their Gmail
 //! when connected (`meeting/gmail_account.rs`), else their Apple Mail.
 //!
-//! - **Who:** the calendar event the recording belongs to (by time and
-//!   meeting link, `meeting_mail::calendar::find_event`), its attendees
-//!   minus the person, people who declined, rooms, and the objection list.
-//!   After a Slack huddle (Slack connected): everyone else who was in it,
-//!   from Slack (`meeting/slack.rs::huddle_event`), with the same filters;
-//!   no calendar needed.
+//! - **Who:** only people who were there (Robin, 2026-11-26): the meeting's
+//!   named speakers with an address, and after a Slack huddle (Slack
+//!   connected) everyone else who was in it (`meeting/slack.rs::huddle_event`).
+//!   A speaker's address is their own (Sprecher page, name field), else the
+//!   matching invitee's from the calendar event (`recipients::address_for`),
+//!   which is then kept on their profile. Invitees who didn't speak get
+//!   nothing. Never the person: not their own name, not their addresses (the
+//!   calendar's "me" mark is not used: in a colleague's shared calendar it
+//!   marks the colleague). Minus the objection list.
 //! - **What:** the note's summary, decisions and action items, no
 //!   transcript, ending with the note's Sokki line when the note has one,
 //!   and how to say no ("reply stop").
@@ -26,6 +29,7 @@
 //!
 //! Test mode: nothing is sent unless `SOKKI_TEST_MAIL_TO=<address>` is set,
 //! and then every mail goes to that address only, never to the attendees.
+//! `SOKKI_TEST_MAIL_DRY=1` instead logs who would get the notes.
 //! `SOKKI_TEST_CALENDAR` (meeting/calendar.rs) supplies the event.
 
 use std::collections::HashSet;
@@ -36,7 +40,7 @@ use std::time::{Duration, Instant};
 use meeting_mail::apple_mail::AppleMail;
 use meeting_mail::calendar::CalendarEvent;
 use meeting_mail::objections::{Objections, Source};
-use meeting_mail::recipients::{recipients, Skipped};
+use meeting_mail::recipients::{address_for, recipients, with_speakers, Skipped};
 use meeting_mail::{compose, Mail, MailSender, Recipient, SendError};
 use serde::Serialize;
 use specta::Type;
@@ -76,6 +80,8 @@ pub enum MailProblem {
     NoEvent,
     /// The event has nobody to send to (only the person, or all objected).
     NoRecipients,
+    /// Nobody who spoke has a name and an address yet.
+    NoPeople,
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
@@ -173,27 +179,71 @@ fn plan(app: &AppHandle, r: &MeetingRecord, resolve: bool) -> Plan {
         plan.problem = Some(MailProblem::NoEvent);
         return plan;
     }
-    // A recorded Slack huddle: the people come from Slack, not the calendar.
-    if let Some(event) = super::slack::huddle_event(app, r, resolve) {
-        plan.event = Some(event);
-        return plan;
-    }
-    match calendar::access() {
-        CalendarAccess::Allowed => {}
-        CalendarAccess::NotDetermined => {
-            plan.problem = Some(MailProblem::CalendarNotAsked);
-            return plan;
-        }
-        _ => {
-            plan.problem = Some(MailProblem::CalendarDenied);
-            return plan;
-        }
-    }
-    plan.event = find_event(r);
+    // Only people who were there (Robin, 2026-11-26): the meeting's named
+    // speakers, and after a Slack huddle everyone in it. The invite is only
+    // where a speaker's address is looked up, never a list of recipients.
+    let huddle = super::slack::huddle_event(app, r, resolve);
+    let start = chrono::DateTime::parse_from_rfc3339(&r.started_at)
+        .map(|t| t.timestamp() as f64)
+        .unwrap_or(0.0);
+    plan.event = with_speakers(
+        huddle,
+        &speaker_addresses(app, r, resolve),
+        r.title.as_deref().unwrap_or("Meeting"),
+        start,
+        start + r.duration_s.max(0.0),
+    );
     if plan.event.is_none() {
-        plan.problem = Some(MailProblem::NoEvent);
+        plan.problem = Some(match calendar::access() {
+            CalendarAccess::NotDetermined => MailProblem::CalendarNotAsked,
+            _ => MailProblem::NoPeople,
+        });
     }
     plan
+}
+
+/// The meeting's named speakers with an address: (name, address). Not the
+/// person using Sokki, not "Speaker 2". The address is the speaker's own
+/// (Sprecher page or name field), else the matching invitee's, which is then
+/// kept on the speaker's profile when `keep` (a send, not a preview).
+fn speaker_addresses(app: &AppHandle, r: &MeetingRecord, keep: bool) -> Vec<(String, String)> {
+    let user = crate::settings::get_settings(app).meetings.user_name;
+    let people = super::voices::people(app);
+    let store = app.state::<Arc<MeetingStore>>().inner().clone();
+    let invited: Vec<(Option<String>, Option<String>)> = super::voices::invitees(&store, r)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|i| (i.name, i.email))
+        .collect();
+    let mut out = Vec::new();
+    for name in &r.speakers {
+        if name.trim().is_empty() || *name == user || sokki_engine::speakers::is_placeholder(name) {
+            continue;
+        }
+        let own = people
+            .iter()
+            .find(|p| p.name == *name)
+            .and_then(|p| p.emails.first().cloned());
+        let email = match own {
+            Some(e) => Some(e),
+            None => {
+                let found = address_for(name, &invited);
+                if let (Some(e), true) = (&found, keep) {
+                    match super::voices::set_emails(app, name, vec![e.clone()]) {
+                        Ok(()) => {
+                            log::info!("Meeting {}: a speaker's address came from the invite", r.id)
+                        }
+                        Err(e) => log::warn!("Keeping a speaker's address failed: {e:#}"),
+                    }
+                }
+                found
+            }
+        };
+        if let Some(e) = email {
+            out.push((name.clone(), e));
+        }
+    }
+    out
 }
 
 fn skipped_name(s: Skipped) -> &'static str {
@@ -316,6 +366,11 @@ fn problem_text(app: &AppHandle, p: MailProblem) -> String {
             "Sokki may not read the calendar. Allow it in System Settings › Privacy & Security › Calendars.",
         ),
         MailProblem::NoEvent => say(app, "Kein Kalendertermin zu diesem Meeting.", "No calendar event for this meeting."),
+        MailProblem::NoPeople => say(
+            app,
+            "Noch hat niemand, der gesprochen hat, Namen und Adresse. Benenne die Sprecher.",
+            "Nobody who spoke has a name and an address yet. Name the speakers.",
+        ),
         MailProblem::NoRecipients => say(app, "Niemand zum Anschreiben im Termin.", "Nobody in the event to send to."),
     }
 }
@@ -363,7 +418,8 @@ fn send_inner(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, Fail> {
     let started = Instant::now();
     let test = crate::test_mic::active() || std::env::var_os("SOKKI_TEST_CALENDAR").is_some();
     let test_to = test_mail_to();
-    if test && test_to.is_none() {
+    let dry = test && std::env::var_os("SOKKI_TEST_MAIL_DRY").is_some();
+    if test && test_to.is_none() && !dry {
         return Err(Fail::skip("Test mode: set SOKKI_TEST_MAIL_TO to send"));
     }
     let _guard = SendingGuard::take(id)
@@ -392,6 +448,17 @@ fn send_inner(app: &AppHandle, id: &str, auto: bool) -> Result<Mailed, Fail> {
         return Err(Fail::skip(problem_text(app, MailProblem::NoEvent)));
     };
 
+    // Test mode, dry: who would get the notes (made-up addresses), no mail
+    // app touched.
+    if dry {
+        let list = recipients(&event, &[], &objections(app));
+        log::info!(
+            "Test mode: notes would go to {:?}; left out {:?}",
+            list.to.iter().map(|r| r.email.as_str()).collect::<Vec<_>>(),
+            list.skipped
+        );
+        return Err(Fail::skip("Test mode: dry run, nothing sent"));
+    }
     let mut objections = objections(app);
     // Gmail when it is connected, else Apple Mail.
     let gmail = super::gmail_account::sender(app);

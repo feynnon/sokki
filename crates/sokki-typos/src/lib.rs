@@ -66,8 +66,9 @@ const DICT_LEAN: f64 = 0.25;
 
 /// Off until Robin picks it (26.11.2026): compound repair leaves a part alone that is itself two
 /// known words (gas|turbinen), instead of changing a correct compound by a letter
-/// ("Gasturbinenantriebe" -> "Gastuabinenantriebe"). On 10,000 edited German sentences: 404 wrong
-/// word changes -> 364. On Robin's 349 typos: 1 fewer fixed (landignpages), 1 fixed differently
+/// (a correct compound changed by a letter). On 10,000 edited German sentences, on top of the
+/// Bloom filter cross-check in `compound_fix`: 385 wrong word changes -> 355. On Robin's 349
+/// typos: 1 fewer fixed (landignpages), 1 fixed differently
 /// (docs/research/mac-autocorrect-2026-11.md).
 const COMPOUND_PART_CHECK: bool = false;
 
@@ -1082,7 +1083,14 @@ impl Typos {
                     continue;
                 }
                 for cand in one_slip(typed_part) {
-                    if cand.chars().count() >= 4 && common(&cand, left) {
+                    if cand.chars().count() >= 4
+                        && common(&cand, left)
+                        // the table is a Bloom filter: among the hundreds of variants of a long
+                        // part, one false "common" is likely (urbinenantriebe -> uabinenantriebe).
+                        // Its frequency is a second, independent lookup; a real word has one.
+                        && (tb.zipf(&cand) > 0.0
+                            || (left && tb.zipf(cand.strip_suffix('s').unwrap_or(&cand)) > 0.0))
+                    {
                         let w = if left {
                             format!("{cand}{b}")
                         } else {

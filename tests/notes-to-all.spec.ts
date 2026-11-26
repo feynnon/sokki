@@ -76,7 +76,7 @@ test.describe("notes to everyone, on by default", () => {
     await expect(toggle).toBeChecked();
     await expect(
       page.getByText(
-        "Zusammenfassung und Aufgaben, kein Transkript, an alle Eingeladenen.",
+        "Zusammenfassung und Aufgaben, kein Transkript, an alle, die dabei waren.",
       ),
     ).toBeVisible();
     await shot(page, "standard-an");

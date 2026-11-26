@@ -5,7 +5,6 @@ import { DictateView } from "./DictateView";
 import { KeyboardSetup } from "./KeyboardSetup";
 import { GetComputerCard } from "./GetComputerCard";
 import { JournalView, journalAvailable } from "./JournalView";
-import { NO_MODEL, transcribeOnPhone } from "./phoneTranscript";
 
 /** "https://sokki.org/p#sokki1:…" or "sokki1:…" → the ticket. */
 function ticketOf(text: string) {
@@ -93,19 +92,21 @@ const STAGE: Record<string, string> = {
   writing: "Saving note…",
 };
 
-function stateLine(r: Recording) {
+/** Without a Mac a recording waits on the phone: meetings are never
+ * transcribed on the phone, it costs too much battery (Robin, 26.11.2026;
+ * 30 minutes took 12.6 minutes and ~7 % battery on a Pixel 7,
+ * docs/research/android-phone-transcript-2026-11.md). */
+function stateLine(r: Recording, paired: boolean) {
   switch (r.state) {
     case "waiting":
-      if (r.error === NO_MODEL)
-        return "Waiting for the speech model (Dictate tab)";
+      if (!paired) return "Connect your Mac for a transcript";
       return r.error ? "Not sent: Mac not reachable" : "Not sent yet";
     case "uploading":
       return "Sending to the Mac…";
     case "processing":
-      if (r.stage === "phone") return "Transcribing on this phone…";
       return STAGE[r.stage ?? ""] ?? "Processing on the Mac…";
     case "done":
-      return r.onPhone ? "Transcript ready, on this phone" : "Ready";
+      return "Ready";
     case "failed":
       return r.error ?? "Failed";
   }
@@ -243,37 +244,8 @@ export default function App() {
     [update],
   );
 
-  /** No Mac: the transcript is made on the phone. */
-  const local = useCallback(
-    async (r: Recording) => {
-      const audio = await getAudio(r.localId);
-      if (!audio) {
-        update(r.localId, { state: "failed", error: "The audio is gone." });
-        return;
-      }
-      update(r.localId, { state: "processing", stage: "phone", error: null });
-      try {
-        const text = await transcribeOnPhone(audio);
-        update(r.localId, {
-          state: "done",
-          stage: null,
-          transcript: text,
-          onPhone: true,
-        });
-      } catch (e) {
-        const msg = (e as Error).message;
-        update(r.localId, {
-          state: "waiting",
-          stage: null,
-          error: msg === NO_MODEL ? NO_MODEL : msg,
-        });
-      }
-    },
-    [update],
-  );
-
-  /** A finished recording: keep it on the phone, then send it to the Mac,
-   * or without a Mac transcribe it here. */
+  /** A finished recording: keep it on the phone, then send it to the Mac
+   * (without a Mac it waits until one is connected). */
   const add = useCallback(
     async (audio: Blob, startedAt: Date, durationS: number) => {
       const r: Recording = {
@@ -293,11 +265,10 @@ export default function App() {
       listRef.current = next;
       setList(next);
       saveList(next);
-      if (!pairingRef.current) void local(r);
-      else void send(r);
+      if (pairingRef.current) void send(r);
       return r.localId;
     },
-    [send, local],
+    [send],
   );
 
   /** Only when the user asks (and once right after recording): send what
@@ -309,10 +280,7 @@ export default function App() {
     let open = 0;
     for (const r of listRef.current) {
       if (r.state === "waiting" || r.state === "uploading") {
-        if (!pairingRef.current) {
-          await local(r);
-          continue;
-        }
+        if (!pairingRef.current) continue;
         if (!(await send(r))) unreachable++;
       } else if (r.state === "processing" && r.remoteId) {
         try {
@@ -344,29 +312,7 @@ export default function App() {
           ? "The Mac is still working on it. Check again in a minute."
           : null,
     );
-  }, [send, update, local]);
-
-  // Recordings waiting for the speech model: start once it's there (back
-  // from the Dictate tab, or back in the app).
-  useEffect(() => {
-    const retry = () => {
-      if (document.visibilityState !== "visible") return;
-      for (const r of listRef.current)
-        if (r.state === "waiting" && r.error === NO_MODEL) void local(r);
-    };
-    retry();
-    document.addEventListener("visibilitychange", retry);
-    return () => document.removeEventListener("visibilitychange", retry);
-  }, [mode, local]);
-
-  /** A phone transcript to the Mac, for speakers and a summary. */
-  const toMac = useCallback(
-    async (r: Recording) => {
-      update(r.localId, { state: "waiting", onPhone: false });
-      await send({ ...r, state: "waiting" });
-    },
-    [send, update],
-  );
+  }, [send, update]);
 
   // For automated tests: add a recording without the microphone.
   useEffect(() => {
@@ -473,6 +419,9 @@ export default function App() {
         fromLink={view.ticket}
         onDone={(p) => {
           setPairing(p);
+          // Recordings made before the Mac was connected go to it now.
+          pairingRef.current = p;
+          void checkAgain();
           setView({ name: "list" });
         }}
         onUnpair={async () => {
@@ -504,7 +453,7 @@ export default function App() {
         checking={checking}
         onCheck={() => void checkAgain()}
         paired={!!pairing}
-        onToMac={() => void toMac(r)}
+        onConnect={() => setView({ name: "setup" })}
         onBack={() => setView({ name: "list" })}
         onDelete={async () => {
           await deleteAudio(r.localId);
@@ -543,7 +492,7 @@ export default function App() {
 
       <GetComputerCard
         paired={!!pairing}
-        finishedRecording={list.some((r) => r.state === "done")}
+        recorded={list.length > 0}
       />
 
       {mode === "dictate" ? (
@@ -577,19 +526,23 @@ export default function App() {
             )}
             {micError && <p className="error">{micError}</p>}
             <p className="hint">Tell everyone you are recording.</p>
-            {!pairing && (
+            {pairingKnown && !pairing && (
               <p className="hint">
-                On this phone: a transcript. A Mac adds speakers and a
-                summary.
+                The transcript comes from Sokki on your Mac.{" "}
+                <button
+                  className="link inline"
+                  onClick={() => setView({ name: "setup" })}
+                >
+                  Connect your Mac
+                </button>
               </p>
             )}
           </section>
 
-          {list.some(
-            (r) =>
-              (r.state === "waiting" && r.error !== NO_MODEL) ||
-              (r.state === "processing" && r.stage !== "phone"),
-          ) && (
+          {pairing &&
+            list.some(
+              (r) => r.state === "waiting" || r.state === "processing",
+            ) && (
             <div className="check">
               <button
                 className="secondary"
@@ -607,7 +560,7 @@ export default function App() {
               <p className="empty">
                 {pairing
                   ? "Your recordings appear here. The Mac turns each one into a note with a summary."
-                  : "Your recordings appear here, with a transcript written on this phone."}
+                  : "Your recordings appear here. Connect Sokki on your Mac for a transcript, with speakers and a summary."}
               </p>
             )}
             {list.map((r) => (
@@ -620,7 +573,7 @@ export default function App() {
                   {r.title ?? when(r.startedAt)}
                 </span>
                 <span className={`item-state s-${r.state}`}>
-                  {clock(r.durationS)} · {stateLine(r)}
+                  {clock(r.durationS)} · {stateLine(r, !!pairing)}
                 </span>
               </button>
             ))}
@@ -775,7 +728,7 @@ function Detail({
   checking,
   onCheck,
   paired,
-  onToMac,
+  onConnect,
   onBack,
   onDelete,
 }: {
@@ -783,7 +736,7 @@ function Detail({
   checking: boolean;
   onCheck: () => void;
   paired: boolean;
-  onToMac: () => void;
+  onConnect: () => void;
   onBack: () => void;
   onDelete: () => void;
 }) {
@@ -810,7 +763,7 @@ function Detail({
       </header>
       <h1>{r.title ?? when(r.startedAt)}</h1>
       <p className="muted">
-        {when(r.startedAt)} · {clock(r.durationS)} · {stateLine(r)}
+        {when(r.startedAt)} · {clock(r.durationS)} · {stateLine(r, paired)}
       </p>
       {r.state === "done" ? (
         <>
@@ -819,17 +772,6 @@ function Detail({
           </button>
           {r.summary ? (
             <Summary md={r.summary} />
-          ) : r.onPhone ? (
-            <>
-              <p className="muted">
-                Speakers and a summary come from Sokki on a Mac.
-              </p>
-              {paired && (
-                <button className="secondary" onClick={onToMac}>
-                  Send to the Mac
-                </button>
-              )}
-            </>
           ) : (
             <p className="muted">No summary.</p>
           )}
@@ -841,20 +783,24 @@ function Detail({
       ) : (
         <>
           <p className="muted">
-            {r.error === NO_MODEL
-              ? "The transcript is made on this phone once the speech model is downloaded (Dictate tab). Then tap Check again."
-              : r.stage === "phone"
-                ? "Sokki is writing the transcript on this phone."
-                : r.state === "waiting"
-                  ? "This recording is on your phone. It is sent when you tap Check again and the Mac is on."
-                  : "The Mac turns it into a note. Tap Check again to fetch it."}
+            {!paired
+              ? "This recording stays on your phone. Connect Sokki on your Mac and it writes the transcript, with speakers and a summary."
+              : r.state === "waiting"
+                ? "This recording is on your phone. It is sent when you tap Check again and the Mac is on."
+                : "The Mac turns it into a note. Tap Check again to fetch it."}
           </p>
-          {r.error && r.error !== NO_MODEL && r.state === "waiting" && (
+          {paired && r.error && r.state === "waiting" && (
             <p className="muted small">{r.error}</p>
           )}
-          <button className="secondary" disabled={checking} onClick={onCheck}>
-            {checking ? "Checking…" : "Check again"}
-          </button>
+          {paired ? (
+            <button className="secondary" disabled={checking} onClick={onCheck}>
+              {checking ? "Checking…" : "Check again"}
+            </button>
+          ) : (
+            <button className="primary" onClick={onConnect}>
+              Connect your Mac
+            </button>
+          )}
         </>
       )}
     </main>

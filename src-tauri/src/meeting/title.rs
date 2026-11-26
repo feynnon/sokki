@@ -31,7 +31,9 @@ const RETRY_EVERY: Duration = Duration::from_secs(60);
 /// safe yet. On 2026-11-24 heavy load on the Mac silenced the system-audio
 /// tap for the rest of a call, and nothing brings the tap back yet. Turn
 /// this on once the capture recovers from a dead tap and a test meeting
-/// under load shows no gaps in `system.flac`.
+/// under load shows no gaps in `system.flac`. Before that, let it use the
+/// model loaded for the summary (`preload.rs`): as it is, it would load a
+/// second one in the background band next to it.
 const DURING_RECORDING: bool = false;
 
 /// When the provisional title runs, if it does: `SOKKI_TEST_TITLE_AFTER_S`

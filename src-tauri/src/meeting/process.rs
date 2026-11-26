@@ -51,6 +51,10 @@ pub fn spawn(app: AppHandle, id: String, live: Option<super::live::Live>) {
                 process(&app, &store, &id, live)
             }));
             super::memguard::set_current(None);
+            // A model loaded during the meeting that no summary took.
+            if sokki_engine::llm::drop_preloaded() {
+                log::info!("Meeting {id}: stopped the summary model loaded during the meeting");
+            }
             let error = match result {
                 Ok(Ok(())) => None,
                 Ok(Err(e)) => Some((format!("{e:#}"), failure_message(&e))),
@@ -790,7 +794,7 @@ pub fn move_to_gemma(app: &AppHandle) {
         });
 }
 
-fn models_dir(app: &AppHandle) -> PathBuf {
+pub(crate) fn models_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| std::env::temp_dir())

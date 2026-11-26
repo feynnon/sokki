@@ -78,7 +78,9 @@ pub fn start(app: &AppHandle) {
                         "fixed a word, but the field doesn't hold what was meant".to_string()
                     }
                     Outcome::Undone { .. } => "fix undone with Backspace; word kept".to_string(),
-                    Outcome::Skipped(why) => format!("left a word: {why}"),
+                    Outcome::Skipped(why) | Outcome::Missed { why, .. } => {
+                        format!("left a word: {why}")
+                    }
                     Outcome::Nothing => return,
                 };
                 log::info!("autocorrect: {app}: {what} ({} ms)", took.as_millis());

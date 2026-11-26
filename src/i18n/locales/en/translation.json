@@ -1214,6 +1214,11 @@
     "screenVideo": "Screen video",
     "screenNotAllowed": "Allow Screen Recording for Sokki in System Settings, then reopen Sokki.",
     "prompt": {
+      "autoTitle": "Recording a conversation",
+      "autoHint": "Sokki heard a voice it knows and started.",
+      "turnOff": "Turn off auto start",
+      "keepAuto": "Keep",
+      "discard": "Discard",
       "startedTitle": "{{app}} meeting started",
       "startedHint": "Tell everyone you're recording.",
       "screen": "Record screen too",
@@ -1270,7 +1275,7 @@
     "mail": {
       "title": "Notes by mail",
       "auto": "Send to everyone after each meeting",
-      "autoHint": "Summary and action items, no transcript, to everyone invited.",
+      "autoHint": "Summary and action items, no transcript, to everyone who was there.",
       "noCalendar": "Sokki can't read your calendar: System Settings › Privacy › Calendars.",
       "objections": "No mail to",
       "remove": "Remove",
@@ -1286,7 +1291,8 @@
         "calendar_not_asked": "The first time you send, Sokki asks for your calendar.",
         "calendar_denied": "Sokki may not read the calendar. Allow it in System Settings › Privacy & Security › Calendars.",
         "no_event": "No calendar event for this meeting.",
-        "no_recipients": "Nobody in the event but you."
+        "no_recipients": "Nobody in the event but you.",
+        "no_people": "Nobody who spoke has a name and an address yet. Name the speakers."
       },
       "gmail": "Gmail",
       "gmailNotice": "Sokki asks Google to send email on your behalf and to see your address. Sokki can't read your mail. Notes go from this Mac straight to Gmail.",

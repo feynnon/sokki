@@ -9,7 +9,7 @@ Sprich, und die Wörter erscheinen, während du redest. Kopiere sie, wohin du wi
 Die Sokki-Tastatur diktiert in jede App: Mikro antippen, sprechen, wieder antippen. Die Autokorrektur verbessert nur Tippfehler. Deutsch und Englisch nebeneinander, ohne Umschalten.
 
 <b>Meetings</b>
-Nimm ein Meeting auf dem Handy auf, auch mit einem Tipp in den Schnelleinstellungen. Sokki schreibt das Transkript direkt auf dem Handy. Mit Sokki auf dem Mac, kostenlos auf sokki.org, kommen Sprecher, Zusammenfassung und Aufgaben dazu. Handy und Mac verbinden sich direkt, Ende-zu-Ende verschlüsselt.
+Nimm ein Meeting auf dem Handy auf, auch mit einem Tipp in den Schnelleinstellungen. Sokki auf dem Mac, kostenlos auf sokki.org, macht daraus ein Transkript mit Sprechern, Zusammenfassung und Aufgaben. Handy und Mac verbinden sich direkt, Ende-zu-Ende verschlüsselt.
 
 <b>Privat</b>
 Aufnahmen und Text bleiben auf deinem Handy oder gehen an deinen eigenen Mac. Sokki sammelt nichts.

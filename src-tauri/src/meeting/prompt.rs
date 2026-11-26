@@ -32,6 +32,8 @@ pub enum Kind {
     Started { screen: bool },
     /// The call ended: "keep" or "stop".
     Ended,
+    /// A meeting started by itself (`super::auto`): "discard" or "keep".
+    AutoStarted,
 }
 
 /// Shows the window and waits for the answer, at most `timeout`. `None`
@@ -49,6 +51,7 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
             if screen { 168.0 } else { 124.0 },
         ),
         Kind::Ended => ("kind=ended".to_string(), 124.0),
+        Kind::AutoStarted => ("kind=auto".to_string(), 124.0),
     };
     let url = format!(
         "src/meeting-prompt/index.html?{query}&app={}",

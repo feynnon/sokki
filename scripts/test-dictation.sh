@@ -12,6 +12,7 @@
 #   scripts/test-dictation.sh audio.wav [12]   # your own 16 kHz mono WAV, stop after 12 s
 #   OVERLAY=none scripts/test-dictation.sh ...  # the same run without live text (A/B)
 #   CLEANUP=1 scripts/test-dictation.sh ...     # with the dictation cleanup on
+#   CLEANUP=1 PIECE=60 scripts/test-dictation.sh ... # … live pieces of 60 words (default 30)
 #   (needs Sokki's cleanup model; the "not pasted" line then shows the
 #   cleaned text, "live text" the transcript)
 #   SOKKI_TEST_LLM=1 scripts/test-dictation.sh  # also start the built-in language
@@ -146,7 +147,8 @@ sleep 1
 FROM=$(($(stat -f %z "$LOG" 2>/dev/null || echo 0) + 1))
 # The app starts the dictation itself 3 s after launch and stops it after HOLD.
 echo "Dictating ${LENGTH}s of audio, stopping after ${HOLD}s…"
-open -g --env SOKKI_TEST_MIC="$WAV" --env SOKKI_TEST_HOLD_S="$HOLD" ${LLM_ENV[@]+"${LLM_ENV[@]}"} -a "$TESTAPP"
+open -g --env SOKKI_TEST_MIC="$WAV" --env SOKKI_TEST_HOLD_S="$HOLD" ${LLM_ENV[@]+"${LLM_ENV[@]}"} \
+  ${PIECE:+--env SOKKI_TEST_PIECE_WORDS="$PIECE"} -a "$TESTAPP"
 # Wait for the paste: the dictation itself, then up to 60 s more.
 for _ in $(seq 1 $(( (${HOLD%.*} + 63) * 2 ))); do
   tail -c +"$FROM" "$LOG" 2>/dev/null | grep -q "Test mode, not pasted" && break

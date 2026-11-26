@@ -7,6 +7,12 @@ words before it in its sentence, the next word unknown (as when a word is commit
     cargo build --release --features cli   (in crates/sokki-typos)
     ~/.cache/sokki-eval-venv/bin/python crates/sokki-typos/tools/parity.py <sokki-typos binary>
 Prints how many answers differ, and the first few that do (to the terminal only).
+
+Since 26 Nov 2026 the Rust model differs on purpose: the fixes for German capitals in English
+sentences ("an option", "in these cases"), "-t" after a t-stem ("justt") and the Bloom filter
+cross-check in compound repair went into Rust only (docs/research/mac-autocorrect-2026-11.md).
+Measured then: about 150 of 47,494 words of Robin's text, 17 of 4,000 in typing37k and in 136m.
+Until the Python twin gets them too, read a difference here against that list.
 SPDX-License-Identifier: GPL-3.0-only
 """
 import json

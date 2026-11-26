@@ -181,3 +181,17 @@ Same 8 Gemma 4 E4B and 8 Qwen3.5 9B summaries (4 meetings × 2 runs), mixed and 
 - Gemma scored higher in every one of the 4 meetings, for both raters.
 - Both models leave out a lot; Gemma about as much as the 9B.
 - Hard for raters: garbled transcript in one meeting, speaker labels that shift between people in two meetings.
+
+## Small talk and the dictionary with Gemma (26 Nov)
+
+**Task (Robin):** a summary of a 45-minute English team meeting (24 Nov, written by Qwen3.5 9B) opened with a small-talk point about the weekend. Does Gemma 4 E4B skip it with today's prompt, or does the small-talk rule need tightening? Does the dictionary fix misheard names?
+
+**Setup:** `summary_bench` with Sokki's llama-server, one run each, speakers named, dictionary of 20 terms, among them three from that meeting. A: today's prompt ("Leave out greetings and pure small talk"). B: a stricter rule ("…write no point about it, not even that it happened").
+
+**Result:**
+- Small talk: neither A nor B has a small-talk point. Gemma already follows today's rule, so the prompt stays unchanged.
+- Timing: 39.7 s (A) and 35.5 s (B) for about 8,200 tokens, one request.
+- Dictionary: terms the transcript nearly has are fixed (two product names written as two words or slightly off). A name the speech recognition hears as another real word is not: a product name transcribed as a common first name stayed that first name in both runs, and "Cloud Code" stayed Cloud Code although "Claude Code" is listed.
+- Run-to-run spread is large: A kept 4 tasks, B 2. One run per prompt can't rank the two.
+
+**Sources:** a local run on 26 Nov (bench output in the session's scratch folder, not kept).

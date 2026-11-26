@@ -75,6 +75,7 @@ Most useful keys:
 | `meetings.slack_post_huddles` | `bool` | `false` | After a Slack huddle, post the summary (with the Sokki line) into the huddle's thread as the user, with the transcript as a file. Needs "Connect Slack"; connecting turns it on. |
 | `meetings.phone_link_enabled` | `bool` | `false` | Accept recordings from the Sokki phone app: direct and end-to-end encrypted from any network, paired by QR code. Pairing state (this Mac's key, code, paired phones) is in `phone_link.json` in the app data folder. |
 | `meetings.silence_hint_enabled` | `bool` | `true` | While a meeting records: say so when the microphone brings no speech (muted, wrong device) or a detected call brings no sound, once per recording (`meeting/silence.rs`). |
+| `meetings.auto_start_enabled` | `bool` | `false` | Start a meeting by itself when a known voice (the user's own, or a person who agreed) talks near the Mac and no call app runs; stop it after two minutes without speech. A card offers "Discard" and "Turn off auto start" (`meeting/auto.rs`). Off for everyone and no switch in the window: on only where set by hand in the settings file, until it is proven (Robin, 2026-11-26). While on, the microphone stays open. |
 
 ## All other settings
 

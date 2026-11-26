@@ -167,8 +167,17 @@ Short records of choices that are not obvious from the code.
   GB). Summaries and dictation
   cleanup share its files, so it is one download; the 9B's file is deleted
   once Gemma is there. Ollama and cloud providers stay options.
+- **The summary model loads during the meeting.** A minute into a
+  recording, `meeting/preload.rs` loads the built-in model when a quarter of
+  the Mac's memory stays free after it (`llm::preload`, throttled disk
+  reads; macOS's background band would also slow the summary, and it can't
+  be lifted later). It waits idle and the summary takes it (`llm::open`);
+  processing stops it if no summary does. The transcript itself is read only
+  after the stop: speaker names and the list of speakers, which open the
+  prompt, are known only then (KNOWN_ISSUES S14).
 - **Dictations cleaned while they are spoken.** `cleanup` cuts the
-  transcript's final part into pieces of about 60 words at sentence ends
+  transcript's settled sentences into pieces of about 30 words while it is
+  spoken (60 at the stop)
   and cleans each one with the built-in model in its own `llama-server` (MTP
   speculative decoding: about 53 tokens/s on an M1 Pro), keeping the last
   paragraph open for the next piece; at the stop only the rest is left
@@ -177,7 +186,12 @@ Short records of choices that are not obvious from the code.
   next to a meeting: not while one records or is processed, not while a
   local summary model is open (it is stopped when one of those begins).
   A model that fails or takes over 20 s leaves the transcript as it was.
-  Off by default until Robin has tried it.
+  The live panel shows one growing text: the cleaned part, then the newest
+  words raw on the same line, replaced in place once cleaned; with the
+  cleanup on it is six lines tall instead of three (`overlay::set_tall_live`).
+  On by default since 26.11.2026 (turned on once for existing installs,
+  settings schema 10); without the model (8 GB Macs, or not downloaded
+  yet) it does nothing and the transcript is pasted as before.
 - **Echo cancellation, not voice merging.** WebRTC AEC3 on the mic track
   (with the call track as reference) removed the extra "speaker" the call
   audio created on the mic. Merging similar voices exists but is off until a

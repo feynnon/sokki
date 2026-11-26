@@ -9,6 +9,9 @@
 #
 #   TEST_ID=org.sokki.test.sample TEST_NAME="Sokki Test Sample" scripts/test-dictation.sh --build
 #   TEST_ID=org.sokki.test.sample TEST_NAME="Sokki Test Sample" scripts/test-sample.sh
+#   NO_PRELOAD=1 scripts/test-sample.sh ...   # the summary model loads only for the summary
+#                                              # (meeting/preload.rs), for comparing
+#   PRELOAD_AFTER=20 scripts/test-sample.sh ... # it loads 20 s into the call (default 60)
 #
 # Needs Sokki's downloaded language model (linked, not copied). A heavy run:
 # never while one of Robin's meetings records or processes.
@@ -102,7 +105,9 @@ trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null || true; quit_test_app; rm -
 sleep 1
 PATTERN="Test mode|Sample meeting|Live transcript|live transcript|Meeting step|Diarized|anguage model|summary|ERROR|WARN"
 echo "Playing the sample meeting (about 2 minutes, silent)…"
-open -g --env SOKKI_TEST_MIC="$WORK/silence.wav" --env SOKKI_TEST_SAMPLE=1 -a "$TESTAPP"
+open -g --env SOKKI_TEST_MIC="$WORK/silence.wav" --env SOKKI_TEST_SAMPLE=1 \
+  ${PRELOAD_AFTER:+--env SOKKI_TEST_PRELOAD_AFTER_S="$PRELOAD_AFTER"} \
+  ${NO_PRELOAD:+--env SOKKI_TEST_NO_PRELOAD=1} -a "$TESTAPP"
 
 SAMPLES="$WORK/samples.txt"
 for _ in $(seq 1 240); do

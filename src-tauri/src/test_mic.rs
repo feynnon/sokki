@@ -82,6 +82,12 @@ pub fn no_yield() -> bool {
     active() && std::env::var_os("SOKKI_TEST_NO_YIELD").is_some_and(|v| !v.is_empty())
 }
 
+/// A WAV file's audio, 16 kHz mono, for other test hooks; `None` when empty.
+pub fn load_wav(path: &std::path::Path) -> Option<Vec<f32>> {
+    let audio = load(&path.to_path_buf());
+    (!audio.is_empty()).then_some(audio)
+}
+
 /// The file's audio, 16 kHz mono (other rates are resampled crudely by
 /// nearest sample; tests should pass 16 kHz).
 fn load(path: &PathBuf) -> Vec<f32> {
@@ -139,24 +145,34 @@ fn mic(block: usize) -> &'static FakeMic {
 
 fn play(mic: &FakeMic, audio: &[f32], block: usize) {
     let silence = vec![0.0f32; block];
+    // `SOKKI_TEST_MIC_CONTINUE=1`: the next recording goes on where the last
+    // one stopped instead of starting the file again, like a room that keeps
+    // talking (the auto-meeting listener hands over to the meeting).
+    let resume = std::env::var_os("SOKKI_TEST_MIC_CONTINUE").is_some_and(|v| !v.is_empty());
+    let mut at = 0usize;
     loop {
         // Wait for the next recording's stream; it plays until that ends.
         while !mic.is_streaming() {
             std::thread::sleep(Duration::from_millis(2));
         }
-        info!("Test mode: playing the file into the recording");
+        info!(
+            "Test mode: playing the file into the recording from {:.1}s",
+            if resume { at as f64 / RATE as f64 } else { 0.0 }
+        );
         let started = Instant::now();
-        let mut sent = 0usize;
+        let first = if resume { at } else { 0 };
+        let mut sent = first;
         loop {
             let piece = match audio.get(sent..(sent + block).min(audio.len())) {
                 Some(p) if !p.is_empty() => p,
                 _ => &silence,
             };
             if !mic.push(piece) {
+                at = sent;
                 break;
             }
             sent += piece.len();
-            let due = started + Duration::from_secs_f64(sent as f64 / RATE as f64);
+            let due = started + Duration::from_secs_f64((sent - first) as f64 / RATE as f64);
             if let Some(wait) = due.checked_duration_since(Instant::now()) {
                 std::thread::sleep(wait);
             }
@@ -198,6 +214,12 @@ pub fn drive(app: &tauri::AppHandle) {
     }
     if std::env::var_os("SOKKI_TEST_SAMPLE").is_some() {
         std::thread::spawn(move || drive_sample(&app));
+        return;
+    }
+    if std::env::var_os("SOKKI_TEST_AUTO").is_some_and(|v| !v.is_empty()) {
+        // `scripts/test-auto-meeting.sh`: nothing is pressed; the
+        // auto-meeting listener (`meeting::auto`) decides by itself.
+        info!("Test mode: auto meeting, the listener decides");
         return;
     }
     if meeting() {
@@ -378,9 +400,11 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
 
 /// Speaker names (board card speaker-names), after a test meeting: logs
 /// its speakers, what Sokki proposes, a clip and the voices across the test
-/// meetings. `SOKKI_TEST_NAME_SPEAKER="Speaker 2=Lena Vogt"` then names one
-/// as a click would (`SOKKI_TEST_CONSENT=1`: with the person's consent) and
-/// logs the speakers again.
+/// meetings. `SOKKI_TEST_NAME_SPEAKER="Speaker 2=Lena Vogt <lena@example.com>"`
+/// (several with ";") then names them as a click would
+/// (`SOKKI_TEST_CONSENT=1`: with the person's consent) and logs the speakers
+/// again; `SOKKI_TEST_MAIL_DRY=1` then presses "Send to everyone" without
+/// sending.
 #[cfg(target_os = "macos")]
 fn test_voices(app: &tauri::AppHandle, id: &str) {
     use crate::meeting::{store::MeetingStore, voices};
@@ -398,21 +422,40 @@ fn test_voices(app: &tauri::AppHandle, id: &str) {
             Err(e) => warn!("Test mode: no clip of {sp}: {e:#}"),
         }
     }
-    if let Some((from, to)) = std::env::var("SOKKI_TEST_NAME_SPEAKER").ok().and_then(|v| {
-        v.split_once('=')
-            .map(|(a, b)| (a.to_string(), b.to_string()))
-    }) {
+    // Several with ";", each with an optional address:
+    // "Speaker 2=Lena Vogt <lena@example.com>;Speaker 3=Jonas Weber".
+    let naming = std::env::var("SOKKI_TEST_NAME_SPEAKER").unwrap_or_default();
+    for one in naming.split(';').filter(|s| !s.trim().is_empty()) {
+        let Some((from, to)) = one.split_once('=') else {
+            continue;
+        };
+        let (from, to) = (from.trim().to_string(), to.trim());
+        let (to, emails) = match to.split_once('<') {
+            Some((n, e)) => (
+                n.trim().to_string(),
+                vec![e.trim_end_matches('>').trim().to_string()],
+            ),
+            None => (to.to_string(), Vec::new()),
+        };
         let consent = std::env::var_os("SOKKI_TEST_CONSENT").is_some();
         let member = voices::VoiceMember {
             meeting_id: id.to_string(),
             speaker: from.clone(),
         };
-        match voices::name_voice(app, &[member], &to, &[], consent) {
+        match voices::name_voice(app, &[member], &to, &emails, consent) {
             Ok(n) => info!(
                 "Test mode: named {from} {to:?} (consent {consent}), {n} change(s); speakers {:?}",
                 speakers()
             ),
             Err(e) => warn!("Test mode: naming {from} failed: {e:#}"),
+        }
+    }
+    // "Send to everyone" after naming, as a click would; with
+    // SOKKI_TEST_MAIL_DRY the send only logs who would get the notes.
+    if std::env::var_os("SOKKI_TEST_MAIL_DRY").is_some() {
+        match crate::meeting::mail::send(app, id, false) {
+            Ok(m) => info!("Test mode: send button mailed {:?}", m.to),
+            Err(e) => info!("Test mode: send button: {e}"),
         }
     }
     // The question at the end: whose voice Sokki may keep.

@@ -86,19 +86,42 @@ The one lost typo is an English compound ("touchpoints" with a doubled letter): 
 
 **Set:** `de-clean-10k`: 10,000 sentences, a third each from the Leipzig corpora German news 2023, German web 2021 and German Wikipedia 2021 (156,983 words). News and web spread over 6,651 websites (one sentence per site before any site gets a second); seed 1. Lives outside the repo: `~/sokki-typing-data/eval-samples/de-clean-10k.jsonl`, with `make_de_clean.py`, which rebuilds it from `~/sokki-typing-data/corpora`.
 
-**Result** (typos model, `fixes` mode):
+**Result** (typos model, `fixes` mode; `~/sokki-typing-data/eval-samples/score_de_clean.py`):
 
 | | 0.2.15 | 0.2.16 |
 |---|---|---|
 | Sentences with an edit | 919 | 918 |
-| Edits that return the typed word unchanged (heißt → heißt) | 597 | 595 |
+| Answers that are the typed word unchanged (heißt → heißt) | 486 | 486 |
+| Capitals added | 111 | 109 |
 | Words changed | 404 | 404 |
 
 - The day's fixes added no wrong edit on German text and removed 2.
-- 6 in 10 of the model's answers on this text are the typed word itself (a ß or capital rule answering with the same spelling). Autocorrect selected and retyped such a word. It now leaves it alone (`crates/sokki-autocorrect`, test `a_word_the_model_gives_back_unchanged_is_left_alone`).
+- About half of the model's answers on this text (486 of 1,001) are the typed word itself (a ß or capital rule answering with the same spelling). Autocorrect selected and retyped such a word. It now leaves it alone (`crates/sokki-autocorrect`, test `a_word_the_model_gives_back_unchanged_is_left_alone`).
 - The 404 changed words are 0.26 % of words, about one wrong edit per 390 correctly typed German words. Many are long correct compounds that compound repair changes by one letter ("Gasturbinenantriebe" → "Gastuabinenantriebe"), others are names and Swiss spellings.
 
-**Option, switched off (`COMPOUND_PART_CHECK`):** compound repair leaves a part alone that is itself two known words (gas|turbinen); a 3-letter part counts only when both parts are common words. Wrong word changes 404 → 364 (42 gone, 2 new). On Robin's 349 typos: 1 fewer fixed ("landignpages"), 1 changed differently ("Abstraktionelevel" → "Abstraktionlevel" instead of left; meant "Abstraktionslevel"). A looser version (any 3-letter part) removed 67 but cost 3 typo fixes. Waiting for Robin's choice.
+**Cause of the mangled compounds, and fix (same day):** the word table is a Bloom filter. Compound repair tries the hundreds of one-letter variants of a long part and takes one the table calls a common word; among that many tries, a false "common" is likely ("urbinenantriebe" → "uabinenantriebe", "schreiboffensive" → "schreiboffeneive"). A candidate now also needs a frequency above 0, a second, independent lookup in the same table. Wrong word changes 404 → 385 (19 gone, none new); Robin's typos and both public sets unchanged.
+
+**Option, switched off (`COMPOUND_PART_CHECK`):** first measured against 404, now on top of the cross-check: 385 → 355 (1 new). Same cost on Robin's typos as below. Originally: compound repair leaves a part alone that is itself two known words (gas|turbinen); a 3-letter part counts only when both parts are common words. Wrong word changes 404 → 364 (42 gone, 2 new). On Robin's 349 typos: 1 fewer fixed ("landignpages"), 1 changed differently ("Abstraktionelevel" → "Abstraktionlevel" instead of left; meant "Abstraktionslevel"). A looser version (any 3-letter part) removed 67 but cost 3 typo fixes. Waiting for Robin's choice.
+
+### Typos left in real typing (26 Nov 2026)
+
+**Task:** Robin saw many typos not caught. Sort the ones left in his typing journal of the day (`typing_log/journal-2026-11-26.jsonl`, 119 entries, 2,326 words typed key by key, mostly the Claude app) by cause. Counts only; script in the session's scratchpad (`miss.py`).
+
+| Cause | Typos |
+|---|---|
+| The model has no fix (letters swapped or doubled in short or long words, also where it is one slip away) | 9 |
+| The model fixes it, Sokki didn't see the word typed: mid-text | 7 |
+| Same, first word of a message or after a line break | 4 |
+| Same, last word, sent with Enter (nothing to fix it on) | 1 |
+
+Another 20 words the model left were names, product names, English spellings, slang or code, rightly left.
+
+**Fixes the same day** (`crates/sokki-autocorrect`):
+- The first word in an empty field, and a word typed right after a click, were never fixed: Sokki only counted a word from its second letter. Tests `a_typo_as_the_first_word_of_an_empty_field_is_fixed`, `a_word_typed_after_a_click_into_the_text_is_fixed`.
+- A Backspace inside a word made Sokki forget it was typed, so a word corrected by hand while typing was never fixed. Now a Backspace shrinks what counts as typed by one character. Test `a_word_corrected_with_backspace_while_typing_is_still_fixed`. Whether this explains the 7 mid-text losses is not shown yet: the journal holds no keys.
+- The fix list now also has a line `"what":"missed"` for every word the model would fix that Sokki leaves because it didn't see it typed, with the reason, so the next losses show their cause.
+
+The 9 the model doesn't fix are a model question shared with the phone keyboard; not changed here.
 
 There is no language setting for autocorrect: it handles German and English sentence by sentence. Robin's `spoken_languages` (en, de) is the dictation setting.
 

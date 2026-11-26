@@ -74,8 +74,10 @@ pub fn invitees(store: &MeetingStore, r: &MeetingRecord) -> Option<Vec<Invitee>>
     let event = super::mail::find_event(r);
     let list: Vec<Invitee> = event
         .map(|e| {
-            e.attendees
+            // The organizer is invited too (often the one who runs it).
+            e.organizer
                 .iter()
+                .chain(e.attendees.iter())
                 .filter(|a| {
                     use meeting_mail::calendar::{Kind, Status};
                     a.status != Status::Declined && !matches!(a.kind, Kind::Room | Kind::Resource)
@@ -88,7 +90,11 @@ pub fn invitees(store: &MeetingStore, r: &MeetingRecord) -> Option<Vec<Invitee>>
                 .collect()
         })
         .unwrap_or_default();
-    let _ = std::fs::write(&path, serde_json::to_string(&list).unwrap_or_default());
+    // An empty list isn't kept: the event may come later (a calendar added
+    // afterwards, as on 2026-11-26).
+    if !list.is_empty() {
+        let _ = std::fs::write(&path, serde_json::to_string(&list).unwrap_or_default());
+    }
     Some(list)
 }
 

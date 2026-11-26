@@ -168,8 +168,19 @@ fn never_touches_pastes_paths_or_fields_it_cant_replace() {
     f.keys.set(f.keys.get() + 1);
     assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
     let got = type_in(&mut ac, &f, " see src/maion ");
-    // the pasted word wasn't just typed; the path isn't a word
-    assert!(got.is_empty(), "{got:?}");
+    // the pasted word wasn't just typed (only listed); the path isn't a word
+    assert_eq!(
+        got,
+        vec![Outcome::Missed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            why: "word not seen typed (a paste, dictation)"
+        }]
+    );
+    assert_eq!(
+        f.text.borrow().as_str(),
+        "Ich habe das nihct see src/maion "
+    );
     let mut g = Fake::new("com.google.Chrome");
     g.replaceable = false;
     let got = type_in(&mut ac, &g, "Ich hbae ");
@@ -285,4 +296,47 @@ fn a_word_the_model_gives_back_unchanged_is_left_alone() {
     let got = type_in(&mut ac, &f, "Das weiß ich schon ");
     assert_eq!(got, vec![]);
     assert_eq!(f.text.borrow().as_str(), "Das weiß ich schon ");
+}
+
+#[test]
+fn a_typo_as_the_first_word_of_an_empty_field_is_fixed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.anthropic.claudefordesktop");
+    let got = type_in(&mut ac, &f, "nihct ");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+    // the message is sent: Enter, the field empties, the next one starts
+    type_in(&mut ac, &f, "\n");
+    *f.text.borrow_mut() = String::new();
+    f.sel.set((0, 0));
+    let got = type_in(&mut ac, &f, "nihct ");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "nicht ");
+}
+
+#[test]
+fn a_word_typed_after_a_click_into_the_text_is_fixed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich das gesehen");
+    // a click puts the cursor after "Ich " (no key, no read)
+    f.sel.set((4, 0));
+    let got = type_in(&mut ac, &f, "hbae ");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Ich habe das gesehen");
+}
+
+#[test]
+fn a_word_corrected_with_backspace_while_typing_is_still_fixed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.anthropic.claudefordesktop");
+    let got = type_in(&mut ac, &f, "Das ist nihx\u{8}ct ");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Das ist nicht ");
 }

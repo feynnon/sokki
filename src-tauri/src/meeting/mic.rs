@@ -118,6 +118,25 @@ impl MicCapture {
         if let Some(tee) = tee {
             writer.set_tee(tee);
         }
+        // A meeting that started by itself (`super::auto`): what was heard
+        // before the start comes first, and the track's start time moves
+        // back by as much, so it still lines up with the system track.
+        if let Some(preroll) = super::auto::take_preroll().filter(|p| !p.is_empty()) {
+            if sample_rate == 16_000 {
+                writer.write_interleaved(&preroll, 1)?;
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_micros() as u64)
+                    .unwrap_or(0);
+                let preroll_us = preroll.len() as u64 * 1_000_000 / 16_000;
+                super::MIC_FIRST_US.store(
+                    now.saturating_sub(preroll_us),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            } else {
+                log::warn!("Auto meeting: microphone at {sample_rate} Hz, the start is left out");
+            }
+        }
         recorder
             .start(MicSink {
                 writer: Some(writer),

@@ -31,6 +31,7 @@ const PROCESS_OBJECT_LIST: u32 = fourcc(b"prs#"); // kAudioHardwarePropertyProce
 const PROCESS_PID: u32 = fourcc(b"ppid"); // kAudioProcessPropertyPID
 const PROCESS_BUNDLE_ID: u32 = fourcc(b"pbid"); // kAudioProcessPropertyBundleID
 const PROCESS_IS_RUNNING_INPUT: u32 = fourcc(b"piri"); // kAudioProcessPropertyIsRunningInput
+const PROCESS_IS_RUNNING_OUTPUT: u32 = fourcc(b"piro"); // kAudioProcessPropertyIsRunningOutput
 
 const CF_STRING_ENCODING_UTF8: u32 = 0x0800_0100;
 
@@ -225,11 +226,19 @@ pub(crate) fn responsible_pid(pid: u32) -> Option<u32> {
 }
 
 pub(crate) fn audio_input_clients() -> Result<Vec<AudioClient>> {
+    clients_running(PROCESS_IS_RUNNING_INPUT)
+}
+
+pub(crate) fn audio_output_clients() -> Result<Vec<AudioClient>> {
+    clients_running(PROCESS_IS_RUNNING_OUTPUT)
+}
+
+fn clients_running(selector: u32) -> Result<Vec<AudioClient>> {
     let mut clients = Vec::new();
     for id in process_object_ids()? {
         // A process can disconnect between the list read and these reads;
         // skip it rather than failing the whole poll.
-        let running: u32 = match get_scalar(id, PROCESS_IS_RUNNING_INPUT) {
+        let running: u32 = match get_scalar(id, selector) {
             Ok(v) => v,
             Err(_) => continue,
         };

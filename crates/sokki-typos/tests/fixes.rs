@@ -89,3 +89,15 @@ fn english_after_in_stays_english() {
         vec![("these".into(), "These".into())]
     );
 }
+
+#[test]
+fn correct_long_compounds_stay_as_typed() {
+    // 26.11.2026, edited German text: compound repair took a Bloom filter's false "common word"
+    let t = typos();
+    for s in [
+        "Die Schiffe haben Gasturbinenantriebe.",
+        "Der Medienentwicklungsplan kommt.",
+    ] {
+        assert_eq!(fixed(&t, s), vec![], "{s}");
+    }
+}

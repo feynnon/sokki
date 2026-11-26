@@ -46,6 +46,12 @@ pub enum Count {
     SummaryCloud,
     SummaryFailed,
     FileTranscribed,
+    /// Started by itself because people talked (`meeting/auto.rs`).
+    AutoMeetingStarted,
+    /// An auto-started meeting the user discarded: a false start.
+    AutoMeetingDiscarded,
+    /// "Turn off auto start" on the card.
+    AutoMeetingTurnedOff,
 }
 
 impl Count {
@@ -64,6 +70,9 @@ impl Count {
             Count::SummaryCloud => "summary_cloud",
             Count::SummaryFailed => "summary_failed",
             Count::FileTranscribed => "file_transcribed",
+            Count::AutoMeetingStarted => "auto_meeting_started",
+            Count::AutoMeetingDiscarded => "auto_meeting_discarded",
+            Count::AutoMeetingTurnedOff => "auto_meeting_turned_off",
         }
     }
 }

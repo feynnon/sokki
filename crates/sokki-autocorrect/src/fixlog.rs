@@ -6,8 +6,9 @@
 //! ```
 //!
 //! `what`: `fixed`, `fixed_inexact` (the field doesn't hold exactly what was meant), `undone`
-//! (Backspace right after the fix: the word is kept from now on) or `skipped` (with `why`, no
-//! words). It holds only the typed word and its fix, never the text around them, and stays on
+//! (Backspace right after the fix: the word is kept from now on), `skipped` (with `why`, no
+//! words) or `missed` (the model had a fix, but Sokki didn't see the whole word typed; with
+//! `why`). It holds only the typed word and its fix, never the text around them, and stays on
 //! this Mac. Sokki's general log keeps leaving the words out, since that log goes into bug
 //! reports. The file keeps about the last [`MAX_BYTES`].
 //! SPDX-License-Identifier: GPL-3.0-only
@@ -110,6 +111,9 @@ fn line(at: SystemTime, app: &str, outcome: &Outcome, took: Duration) -> Option<
         } => words("fixed_inexact", typed, fix),
         Outcome::Undone { typed, fix } => words("undone", typed, fix),
         Outcome::Skipped(why) => format!(r#""what":"skipped","why":{}"#, quote(why)),
+        Outcome::Missed { typed, fix, why } => {
+            format!(r#"{},"why":{}"#, words("missed", typed, fix), quote(why))
+        }
     };
     Some(format!(
         r#"{{"at":"{}","app":{},{body},"ms":{}}}"#,

@@ -7,7 +7,8 @@
 //! 24.11.2026; prompt [`PROMPT`] is "v4" of that test series).
 //!
 //! Live: the transcript is cut at sentence ends into pieces of about
-//! [`PIECE_WORDS`] words. Each step sends the paragraph still open plus the
+//! [`LIVE_PIECE_WORDS`] words while it is spoken, and the rest at the stop
+//! into pieces of about [`PIECE_WORDS`]. Each step sends the paragraph still open plus the
 //! next raw piece, with the end of the text already cleaned as context; every
 //! paragraph of the reply but the last is final, the last stays open for the
 //! next step. When the dictation ends, the open paragraph and the rest of the
@@ -24,8 +25,14 @@ use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-/// A piece is cut at the first sentence end after this many words.
+/// At the stop, the rest is cut at the first sentence end after this many
+/// words.
 pub const PIECE_WORDS: usize = 60;
+
+/// While the person speaks, a piece is cut at the first sentence end after
+/// this many words, so the raw words after the cleaned text stay few
+/// (Robin, 26.11.2026: one text that grows and is cleaned as it goes).
+pub const LIVE_PIECE_WORDS: usize = 30;
 
 /// How much of the text already cleaned goes along as context, in characters.
 const CONTEXT_CHARS: usize = 800;
@@ -337,6 +344,8 @@ pub struct Live {
     /// The state before each step, to go back to when the transcript
     /// changes under a piece already cleaned.
     snaps: Vec<Snap>,
+    /// Words per live piece ([`LIVE_PIECE_WORDS`]).
+    piece_words: usize,
 }
 
 /// What [`Live`] looked like before one step.
@@ -356,7 +365,14 @@ impl Live {
             steps: 0,
             cleaned_keys: Vec::new(),
             snaps: Vec::new(),
+            piece_words: LIVE_PIECE_WORDS,
         }
+    }
+
+    /// Cuts live pieces at `n` words instead of [`LIVE_PIECE_WORDS`].
+    pub fn with_piece_words(mut self, n: usize) -> Self {
+        self.piece_words = n.max(1);
+        self
     }
 
     /// Steps run so far.
@@ -382,7 +398,7 @@ impl Live {
 
     /// The pieces ready to clean in `text`, the transcript as final as it is
     /// so far: whole sentences after what earlier pieces took, in pieces of
-    /// [`PIECE_WORDS`] words. A rest that is shorter, or a sentence not yet
+    /// [`LIVE_PIECE_WORDS`] words. A rest that is shorter, or a sentence not yet
     /// ended, waits. The pieces returned count as taken.
     pub fn ready(&mut self, text: &str) -> Vec<String> {
         if after_prefix_close(text, &self.consumed).is_none() {
@@ -401,7 +417,7 @@ impl Live {
             }
             cur.push(s);
             n += s.split_whitespace().count();
-            if n >= PIECE_WORDS {
+            if n >= self.piece_words {
                 out.push(cur.join(" "));
                 cur.clear();
                 n = 0;
@@ -786,8 +802,14 @@ impl Engine {
         words: &[String],
         on_change: impl Fn() + Send + 'static,
     ) -> Session {
+        self.begin_with(Live::new(words), on_change)
+    }
+
+    /// Like [`begin`](Self::begin), with the step logic set up by the caller
+    /// (another piece size, for measuring).
+    pub fn begin_with(self: &Arc<Self>, live: Live, on_change: impl Fn() + Send + 'static) -> Session {
         self.warm();
-        Session::start(Arc::clone(self), Live::new(words), Box::new(on_change))
+        Session::start(Arc::clone(self), live, Box::new(on_change))
     }
 }
 
@@ -1011,6 +1033,17 @@ mod tests {
     }
 
     #[test]
+    fn live_pieces_are_shorter_than_the_pieces_at_the_stop() {
+        let mut live = Live::new(&[]);
+        let (s1, s2, s3) = (sentence("a", 20), sentence("b", 15), sentence("c", 40));
+        // 35 words make a live piece; the 40 after it wait for their end.
+        let ps = live.ready(&format!("{s1} {s2} {s3} not yet ended"));
+        assert_eq!(ps, vec![format!("{s1} {s2}"), s3.clone()]);
+        assert_eq!(LIVE_PIECE_WORDS, 30);
+        assert!(PIECE_WORDS > LIVE_PIECE_WORDS);
+    }
+
+    #[test]
     fn live_pieces_keep_the_last_paragraph_open_and_the_end_commits_all() {
         // The model makes each sentence its own paragraph, wrapped in <>.
         let model = Fake::new(|u| {
@@ -1021,7 +1054,7 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join("\n\n")
         });
-        let mut live = Live::new(&["Sokki".into()]);
+        let mut live = Live::new(&["Sokki".into()]).with_piece_words(60);
         let (s1, s2, s3, s4) = (
             sentence("a", 50),
             sentence("b", 20),

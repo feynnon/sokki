@@ -44,6 +44,8 @@ Status: open unless marked.
 | S10 | Gemma 4 E4B once wrote a placeholder instead of a name | "[the person being referred to]" | a prompt rule, or drop such items |
 | S11 | Gemma 4 E4B still gives details to the wrong side (twice in one meeting) | who handles leads; whose call funnel it is | correct the transcript first (D1) |
 | S12 | Not yet tested with Gemma: a meeting long enough to be summarised in parts, a second meeting set, and summaries with the MTP draft model (tested in dictation only, where quality was the same) | – | the next long real meeting |
+| S13 | The summary model loads during a meeting only with memory to spare: at least a quarter of the Mac's memory must stay free after its 5.6 GB, so an 8 GB Mac never, a 16 GB Mac only with 9.6 GB free; otherwise it loads for the summary as before (summary step 11.9–14.9 s instead of 8.4–9.5 s in the sample meeting) | 26.11.: loading this model raises macOS's memory warning whether during a recording (4 of 7 test meetings, free memory at least 34 %) or for the summary (2 of 2 measured); during a recording the warning can stay while the model waits, with half of memory free; so it is stopped only at critical pressure, below 15 % free, or at a warning below 25 % free | – |
+| S14 | Reading the transcript, not loading the model, is most of a long summary's wait: 3.6 s for 1,000 words, 11.8 s for 3,000, 30.8 s for 6,000, 52 s for 9,000 (M1 Pro, 26.11.). Doing it during the meeting would need the prompt to start with the transcript as it was heard (speaker names and the speaker list come only after the stop) and GPU work during the call | – | summarise parts of a long meeting while it records, after a test meeting under that load shows no gaps in the call audio |
 
 ## Dictation cleanup (Gemma 4 E4B, 2026-11-24)
 
@@ -56,13 +58,13 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 | C3 | When the final transcript does not start with what was cleaned live, everything was cleaned again at the stop | a 480-word dictation (26.11.): one early change, all of it again at the stop, the 20 s limit hit, raw pasted 23 s after the stop | fixed 26.11.: the cleanup goes back to the step before the first changed word and goes on from there, live and at the stop (`Live::roll_back`) |
 | C4 | Live cleanup needs live text: with the overlay off, the decoded chunks are not handed on, so the whole dictation is cleaned at the stop | – | hand decoded chunks to the cleanup without the preview |
 | C5 | Memory next to meetings: the cleanup model (4.5–5 GB) next to the summary model (then the 9B) would be ~11 GB for Sokki | – | fixed 25.11.: it stops 2 min after the last dictation, stops when a meeting starts or is processed or a local summary model opens, and does not start then (those dictations are pasted uncleaned) |
-| C9 | Off by default: the cleanup changes every dictated text and adds 3.5–4 s before the paste, and its meaning errors (C1) are real | – | Robin tries it with the switch on and decides the default |
+| C9 | On by default since 26.11.2026 (Robin), also turned on once for existing installs: the cleanup changes every dictated text and adds about 2 s before the paste, and its meaning errors (C1) are real. Without the model (8 GB Macs, or not downloaded yet) nothing changes: the transcript is pasted as before | – | watch for complaints about changed meaning; the switch is in Settings › Dictation |
 | C6 | A failed or slow cleanup shows Post Process's notice ("Pasted Without Post-Processing") | – | its own notice text |
 | C7 | Not measured on the phone; Android does not clean dictations yet | – | out of scope for the Mac build |
 | C8 | Transcribing a History entry again gives the transcript uncleaned (the retry runs no cleanup) | – | run the cleanup in the retry job too |
-| C10 | Short dictations get no live cleanup: a piece needs 60 words of settled sentences, so in 34 of Robin's dictations (26.11.) 8 showed cleaned paragraphs while he spoke; the others are cleaned once at the stop (1.5–2.5 s for up to 60 words) | – | a smaller first piece, if Robin wants to see the cleanup sooner (60 words was the approved piece size) |
-| C11 | The live panel shows about three lines (window 400 × 120), so cleaned paragraphs scroll up out of view while the newest raw words show | – | a taller panel while the cleanup is on |
-| C12 | The open last paragraph shown live is cleaned again at the stop and may change (unchanged in 3 of 7 dictations, 26.11.); finished paragraphs did not change (6 of 6) | – | by design: the open paragraph is re-cleaned with the next piece |
+| C10 | Short dictations get no live cleanup: a live piece needs 30 words of settled sentences (60 until 26.11.), so in 34 of Robin's dictations 16 showed cleaned text while he spoke (8 with 60 words); the others are cleaned once at the stop (median 1.7 s up to 30 words, 2.1 s up to 60) | – | smaller pieces clean more live but go back more often when the live text changes (31 times instead of 5 in the replay; 20-word pieces: 21 of 34 dictations, 37 times) |
+| C11 | The live panel showed about three lines, so cleaned paragraphs scrolled out of view while the newest raw words showed | – | fixed 26.11.: with the cleanup on, the panel is six lines tall (400 × 184) and the raw words follow the cleaned text on the same line. Still, the raw words after it are a median 40 words (p90 77) because the sentence being spoken is never cleaned, so the end of the cleaned text is in view in about 58 % of panel updates (`docs/research/live-pieces-and-summary-preload-2026-11.md`) |
+| C12 | The open last paragraph shown live is cleaned again at the stop and may change: it stayed the same in 1 of 8 dictations, while finished paragraphs shown live stayed the same in 19 of 20 (26.11., 60-word pieces, `docs/research/live-vs-final-2026-11.md`) | – | by design: the open paragraph is cleaned again with the next piece, now in place in the panel |
 
 ## Speakers
 
@@ -274,7 +276,7 @@ Chrome (posted in 2.1 s; "stop" → same).
 
 | # | Problem | Fix idea |
 |---|---|---|
-| P1 | A transcript written on the phone (no Mac) only runs while Sokki is on screen. Leave the app or lock the phone and Android freezes it (`isFrozen=true`), and the transcript waits until Sokki is opened again. Pixel 7: a 3-minute clip stood at 0 words for 6 minutes in the background, then finished 59 s after Sokki came back. A 30-minute meeting takes 12.6 minutes with the screen on (`docs/research/android-phone-transcript-2026-11.md`) | run the transcript in a foreground service with a "Writing the transcript" notification, in Rust or Kotlin, not in the WebView |
+| P1 | **Gone 2026-11-26: the phone no longer writes meeting transcripts** (Robin: too battery intensive; without a Mac a recording waits for one). It was: a transcript written on the phone (no Mac) only runs while Sokki is on screen. Leave the app or lock the phone and Android freezes it (`isFrozen=true`), and the transcript waits until Sokki is opened again. Pixel 7: a 3-minute clip stood at 0 words for 6 minutes in the background, then finished 59 s after Sokki came back. A 30-minute meeting takes 12.6 minutes with the screen on (`docs/research/android-phone-transcript-2026-11.md`) | run the transcript in a foreground service with a "Writing the transcript" notification, in Rust or Kotlin, not in the WebView |
 
 ## Keyboard (Android)
 
@@ -321,3 +323,12 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 
 - **D1** LLM correction pass over the transcript (context window + glossary), measured against truth. Built, then removed on 2026-11-20 (R17).
 - **D2** Live pipeline during the recording: utterance-wise ASR and correction, so the note is ready right after the call.
+
+## Meetings that start by themselves (2026-11-26, `meeting/auto.rs`, off by default)
+
+| # | Problem | Example | Fix idea |
+|---|---|---|---|
+| AM1 | The microphone stays open while auto start is on | macOS shows the orange dot all the time | none planned; it's the price of listening, said in the setting's doc |
+| AM2 | A known voice in a video on headphones, or a TV in the room with a known voice in it, could start a meeting | not seen yet; the test only had strangers' voices | compare system output with the mic, if a real case shows up |
+| AM3 | The user's own voice may be known from one stored sample only | Robin's Mac: one sample; untested how well 3 s pieces from the built-in mic match it | read "best similarity" in sokki.log; add the user's voice from each meeting if it misses |
+| AM4 | Music counts as speech for the voice detector | synthesised music: 28–30 s of 30 s "speech" | harmless while the known-voice check holds; noted in the research doc |

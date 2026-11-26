@@ -30,7 +30,9 @@
                          center longer labels; shared by Live (collapsed) + minimal */
   --ov-open-w: 392px; /* Live panel, expanded */
   --ov-base-h: 40px; /* control-row height (.sbase) */
-  --ov-cap-max-h: 64px; /* max height of the scrolling live-text region */
+  --ov-cap-max-h: 124px; /* max height of the scrolling live-text region; the
+                            window height caps it (three lines in the 120px
+                            panel, six in the 184px one with the cleanup on) */
 }
 /* ============================================================
    Unified overlay stage — one fixed, transparent container shared by the compact

@@ -238,6 +238,7 @@ const SendToAll: React.FC<{
   const blocked =
     preview.problem === "no_event" ||
     preview.problem === "no_recipients" ||
+    preview.problem === "no_people" ||
     preview.problem === "calendar_denied";
   const hint = mailed
     ? t("meetings.mail.sentTo", { names: (mailed.to ?? []).join(", ") })

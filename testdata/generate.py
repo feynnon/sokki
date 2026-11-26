@@ -19,6 +19,8 @@ Scenarios:
                  and the mic also picks up the remote voices from the laptop
                  speakers (echo), which cross-track dedup must remove
   three_remote   three speakers on the system track
+  four_remote    four speakers on the system track, none on the mic (notes
+                 to named speakers: two with an address, one without, one unnamed)
   silence        ten seconds of faint noise on the mic track
   demo_en        an English laptop call for demos: me on mic, two remote
                  speakers on system audio, speaker echo on the mic
@@ -226,6 +228,23 @@ def scenario_three_remote():
     save("three_remote", *place(turns))
 
 
+def scenario_four_remote():
+    anna, sandy = ANNA, "Sandy (German (Germany))"
+    turns = [
+        ("system", "R1", EDDY, "de", "Willkommen zum Planungsmeeting, wir haben heute vier Themen.", None),
+        ("system", "R2", anna, "de", "Ich fange mit dem Budget an, wir liegen gut im Plan.", None),
+        ("system", "R3", REED, "de", "Beim Recruiting haben wir zwei starke Kandidaten gefunden.", None),
+        ("system", "R4", sandy, "de", "Ich kümmere mich bis Freitag um die neue Website.", None),
+        ("system", "R1", EDDY, "de", "Dann laden wir beide Kandidaten zum zweiten Gespräch ein.", None),
+        ("system", "R2", anna, "de", "Einverstanden, ich schicke die Einladungen morgen raus.", None),
+        ("system", "R3", REED, "de", "Ich bereite die Fragen für die Gespräche vor.", None),
+        ("system", "R4", sandy, "de", "Und ich zeige euch nächste Woche den ersten Entwurf.", None),
+    ]
+    tracks, truth, total = place(turns)
+    tracks["mic"] = np.zeros(total, dtype=np.float32)
+    save("four_remote", tracks, truth, total)
+
+
 def scenario_silence():
     total = 10 * SR
     save("silence", {"mic": np.zeros(total, dtype=np.float32)}, [], total)
@@ -238,6 +257,7 @@ SCENARIOS = {
     "call_tracks": scenario_call_tracks,
     "demo_en": scenario_demo_en,
     "three_remote": scenario_three_remote,
+    "four_remote": scenario_four_remote,
     "silence": scenario_silence,
 }
 

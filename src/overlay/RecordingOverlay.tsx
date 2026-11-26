@@ -404,16 +404,10 @@ const RecordingOverlay: React.FC = () => {
                     </span>
                   )}
                   {noticeText && <span className="ndetail">{noticeText}</span>}
-                  {/* What the dictation cleanup has finished, as paragraphs
-                      and lists; the newest part follows raw. */}
-                  {cleaned && (
-                    <span className="cleaned">
-                      {cleaned +
-                        (streamText.committed || streamText.tentative
-                          ? "\n\n"
-                          : " ")}
-                    </span>
-                  )}
+                  {/* One text: what the dictation cleanup has finished, as
+                      paragraphs and lists, with the newest words appended
+                      raw right after it until their piece is cleaned. */}
+                  {cleaned && <span className="cleaned">{cleaned + " "}</span>}
                   <span className="committed">
                     {streamText.committed ? streamText.committed + " " : ""}
                   </span>

@@ -337,8 +337,14 @@ fn on_hint(
     // Short, as Robin asked (2026-11-25): no "for 40 seconds", and no
     // banner for the call; the strip in the window says that one.
     let banner = match (hint, german) {
-        (Hint::Mic, true) => Some(("Sokki hört dich nicht", "Nimmst du mit dem richtigen Mikrofon auf?")),
-        (Hint::Mic, false) => Some(("Sokki can't hear you", "Are you recording with the right microphone?")),
+        (Hint::Mic, true) => Some((
+            "Sokki hört dich nicht",
+            "Nimmst du mit dem richtigen Mikrofon auf?",
+        )),
+        (Hint::Mic, false) => Some((
+            "Sokki can't hear you",
+            "Are you recording with the right microphone?",
+        )),
         (Hint::Call, _) => None,
     };
     let in_front = app

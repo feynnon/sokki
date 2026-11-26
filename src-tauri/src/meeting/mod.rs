@@ -13,6 +13,7 @@
 //! Dictation has its own recorder and state; this module shares none of them.
 
 #[cfg(target_os = "macos")]
+pub mod auto;
 pub mod calendar;
 #[cfg(target_os = "macos")]
 pub mod call_speakers;
@@ -35,6 +36,7 @@ pub mod phone_link;
 pub mod priority;
 pub mod process;
 pub mod prompt;
+pub mod preload;
 pub mod pull;
 pub mod rate;
 pub mod sample;
@@ -367,6 +369,7 @@ pub(crate) fn start_meeting_as(
     if let Some(heard) = meetings.heard() {
         title::spawn_provisional(app.clone(), meeting_id.clone(), heard);
     }
+    preload::spawn(app.clone(), meeting_id.clone());
     notices::clear(app, NoticeSource::Meeting);
     indicator::show(app);
     indicator::start_ticker(app);
@@ -405,6 +408,10 @@ pub fn discard_meeting(app: &AppHandle) -> std::result::Result<String, String> {
         Ok(r) => r,
         Err(e) => return Err(raise_failure(app, NoticeCode::MeetingStopFailed, &e)),
     };
+    // No summary for it: a model loaded for one is stopped.
+    if !process::busy() {
+        sokki_engine::llm::drop_preloaded();
+    }
     #[cfg(target_os = "macos")]
     {
         crate::video::on_meeting_stopped(app, &meeting_id, duration);

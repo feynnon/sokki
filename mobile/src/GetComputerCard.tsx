@@ -22,15 +22,15 @@ function dictations(): number {
 }
 
 /** "Get Sokki on your computer": only for people who use Sokki already
- * (a finished meeting note, or 20 dictations in the app and keyboard
+ * (a recorded meeting, or 20 dictations in the app and keyboard
  * together), never at first launch, and not when a Mac is paired. The
  * person shares the link themselves; Sokki sends nothing. */
 export function GetComputerCard({
   paired,
-  finishedRecording,
+  recorded,
 }: {
   paired: boolean;
-  finishedRecording: boolean;
+  recorded: boolean;
 }) {
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -44,11 +44,11 @@ export function GetComputerCard({
 
   useEffect(() => {
     const check = () =>
-      setUsed(finishedRecording || dictations() >= DICTATIONS_NEEDED);
+      setUsed(recorded || dictations() >= DICTATIONS_NEEDED);
     check();
     window.addEventListener("focus", check);
     return () => window.removeEventListener("focus", check);
-  }, [finishedRecording]);
+  }, [recorded]);
 
   if (paired || dismissed || !used) return null;
 
@@ -79,7 +79,7 @@ export function GetComputerCard({
         </button>
       </div>
       <p className="muted small">
-        Meetings you record here become notes there, with summary and tasks.
+        Meetings you record here get their transcript there, with speakers, summary and tasks.
         Free, and it runs on your own computer.
       </p>
       <div className="row">

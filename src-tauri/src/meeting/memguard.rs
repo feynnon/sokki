@@ -71,6 +71,36 @@ pub fn memory_to_spare() -> bool {
 /// Free memory, in percent, below which background model work waits.
 pub const MIN_FREE_PERCENT: i64 = 25;
 
+/// macOS's memory pressure (0/1 normal, 2 warning, 4 critical) and free
+/// memory in percent, where they can be read.
+pub fn pressure_and_free_percent() -> Option<(i64, i64)> {
+    Some((
+        sysctl_int(c"kern.memorystatus_vm_pressure_level")?,
+        sysctl_int(c"kern.memorystatus_level")?,
+    ))
+}
+
+/// The Mac's memory, in bytes.
+pub fn total_bytes() -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        let mut v: u64 = 0;
+        let mut size = std::mem::size_of::<u64>();
+        let r = libc::sysctlbyname(
+            c"hw.memsize".as_ptr(),
+            &mut v as *mut u64 as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        );
+        (r == 0).then_some(v)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
 fn sysctl_int(name: &std::ffi::CStr) -> Option<i64> {
     #[cfg(target_os = "macos")]
     unsafe {

@@ -14,13 +14,13 @@ interface DictationCleanupProps {
 }
 
 /** Cleans up each dictation with the built-in cleanup model (Gemma 4 E4B,
- * `src-tauri/src/dictation_cleanup.rs`). Off by default; when on, it works
- * once the model is downloaded, which this row offers. */
+ * `src-tauri/src/dictation_cleanup.rs`). On by default since 26.11.2026; it
+ * works once the model is downloaded, which this row offers. */
 export const DictationCleanup: React.FC<DictationCleanupProps> = React.memo(
   ({ descriptionMode = "inline", grouped = false }) => {
     const { t, i18n } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
-    const enabled = getSetting("dictation_cleanup_enabled") ?? false;
+    const enabled = getSetting("dictation_cleanup_enabled") ?? true;
     const [model, setModel] = useState<CleanupModel | null>(null);
     const [download, setDownload] = useState<LlmDownload | null>(null);
     const [failed, setFailed] = useState(false);

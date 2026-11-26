@@ -43,6 +43,10 @@
 #                                                     # would show it (speaker-names), for a
 #                                                     # made-up call in Chrome
 #   NAME_SPEAKER="Speaker 2=Lena Vogt" CONSENT=1 scripts/test-meeting.sh ...
+#   NAME_SPEAKER="Speaker 2=Lena Vogt <lena@example.com>;Speaker 3=Jonas Weber" \
+#     MAIL_DRY=1 scripts/test-meeting.sh ...         # name several (with addresses), then press
+#                                                     # "Send to everyone": logs who would get the
+#                                                     # notes, sends nothing (summary on, no calendar)
 #   KEEP_VOICES=all scripts/test-meeting.sh ...       # answer "keep these voices?" (or "Lena Vogt,Jonas Weber")
 #                                                     # name a speaker after processing, as a
 #                                                     # click would (speaker-names)
@@ -95,7 +99,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$DATA"
 # Robin's settings, minus everything that reaches outside the test app.
-jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --arg slack "${SLACK:-}" '.settings.onboarding_completed = true
+jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --arg slack "${SLACK:-}" --arg dry "${MAIL_DRY:-}" '.settings.onboarding_completed = true
   | .settings.start_hidden = true
   | .settings.autostart_enabled = false
   | .settings.update_checks_enabled = false
@@ -103,7 +107,7 @@ jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --
   | .settings.meetings.detection_enabled = false
   | .settings.meetings.phone_link_enabled = false
   | .settings.meetings.correction_enabled = false
-  | .settings.meetings.summary_enabled = ($title != "" or $mail != "")
+  | .settings.meetings.summary_enabled = ($title != "" or $mail != "" or $dry != "")
   | .settings.meetings.mail_notes_auto = ($mail != "")
   | .settings.meetings.chat_notice_enabled = ($chat != "")
   | .settings.meetings.slack_post_huddles = ($slack != "")
@@ -114,7 +118,7 @@ if [[ -n "${SLACK:-}" ]]; then
   # Releases leave Slack out; the test app gets the client id at run time.
   SLACK_ID="$(sed -n 's/^Client ID: `\(.*\)`$/\1/p' "$(dirname "$0")/../crates/sokki-slack/SLACK_APP.md")"
 fi
-if [[ -n "${TITLE_AFTER:-}" || -n "${MAIL_TO:-}" ]]; then
+if [[ -n "${TITLE_AFTER:-}" || -n "${MAIL_TO:-}" || -n "${MAIL_DRY:-}" ]]; then
   # Sokki's downloaded language model (Gemma 4 E4B and its draft model),
   # linked, not copied.
   REAL_LLM="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm"
@@ -161,6 +165,13 @@ if [[ -n "${MAIL_TO:-}" && -z "${CALENDAR:-}" ]]; then
     ]}]' > "$CALENDAR"
 fi
 
+# Dry run: a calendar with no events (an in-person meeting), so the test
+# app never asks for Robin's calendar.
+if [[ -n "${MAIL_DRY:-}" && -z "${CALENDAR:-}" ]]; then
+  CALENDAR="$WORK/events.json"
+  echo '[]' > "$CALENDAR"
+fi
+
 quit_test_app
 sleep 1
 # Only the test app's own meetings: a run cut short by quitting would
@@ -184,7 +195,7 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
-  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} -a "$TESTAPP"
+  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"

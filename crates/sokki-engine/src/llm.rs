@@ -314,11 +314,87 @@ pub fn download_model(m: &BuiltinModel, mut progress: impl FnMut(PullProgress)) 
 /// Starts llama-server with `m` for one job; dropping the server stops it.
 /// `background`: macOS's background band (see [`open_with`]).
 pub fn start_server(m: &BuiltinModel, background: bool) -> Result<Server> {
+    let band = if background { Band::Background } else { Band::Normal };
+    start_server_in(m, band)
+}
+
+/// How llama-server runs next to other work (macOS; elsewhere always
+/// [`Band::Normal`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Band {
+    Normal,
+    /// macOS's background band: efficiency cores, low GPU priority,
+    /// throttled disk reads. It cannot be lifted later from outside (on
+    /// 26.11.2026 neither `taskpolicy -B -p` nor `setpriority` sped up a
+    /// process started this way), so only for work that stays in it.
+    Background,
+    /// Normal priority with throttled disk reads: loading the model during a
+    /// meeting reads its 5 GB behind the recording's own disk access, and
+    /// the summary afterwards runs at full speed.
+    ThrottledReads,
+}
+
+fn start_server_in(m: &BuiltinModel, band: Band) -> Result<Server> {
     let bin = builtin_server().context("This build of Sokki has no built-in language model")?;
     if !model_present(m) {
         bail!("The language model is not downloaded");
     }
-    Server::start(&bin, m, background)
+    Server::start(&bin, m, band)
+}
+
+/// The built-in model loaded ahead of a summary, while a meeting records
+/// ([`preload`]): the next job that opens the built-in model takes it
+/// instead of loading the model again.
+static PRELOADED: std::sync::Mutex<Option<Server>> = std::sync::Mutex::new(None);
+
+fn preloaded_slot() -> std::sync::MutexGuard<'static, Option<Server>> {
+    PRELOADED.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Loads the built-in summary model now and keeps it running for the next
+/// summary, with throttled disk reads ([`Band::ThrottledReads`]). Returns
+/// the server's pid; does nothing when one is loaded already.
+pub fn preload() -> Result<u32> {
+    {
+        let mut slot = preloaded_slot();
+        if let Some(s) = slot.as_mut() {
+            if s.running() {
+                return Ok(s.pid());
+            }
+        }
+    }
+    let server = start_server_in(&BUILTIN_MODEL, Band::ThrottledReads)?;
+    let pid = server.pid();
+    // Two preloads at once: the second one's server is dropped.
+    let mut slot = preloaded_slot();
+    if slot.as_mut().is_some_and(|s| s.running()) {
+        return Ok(pid);
+    }
+    *slot = Some(server);
+    Ok(pid)
+}
+
+/// Whether a preloaded model is waiting.
+pub fn preloaded() -> bool {
+    preloaded_slot().as_mut().is_some_and(|s| s.running())
+}
+
+/// Stops a preloaded model that no summary took, freeing its memory.
+/// Returns whether one was there. The server quits on its own thread.
+pub fn drop_preloaded() -> bool {
+    let Some(server) = preloaded_slot().take() else {
+        return false;
+    };
+    let _ = std::thread::Builder::new()
+        .name("llm-preload-stop".into())
+        .spawn(move || drop(server));
+    true
+}
+
+/// Takes the preloaded model, if it still runs.
+fn take_preloaded() -> Option<Server> {
+    let mut server = preloaded_slot().take()?;
+    server.running().then_some(server)
 }
 
 /// Provider ids that can summarise in the cloud, as in Sokki's provider list.
@@ -812,7 +888,15 @@ pub fn open_with(s: &LlmSettings, user_name: &str, background: bool) -> Result<L
             _job: job,
         });
     }
-    let server = start_server(&BUILTIN_MODEL, background)?;
+    // A model loaded during the meeting is taken, unless this job belongs
+    // in the background band (a title while a meeting records).
+    let server = match take_preloaded().filter(|_| !background) {
+        Some(server) => {
+            log::info!("Built-in language model: the one loaded during the meeting");
+            server
+        }
+        None => start_server(&BUILTIN_MODEL, background)?,
+    };
     cfg.base_url = server.base_url();
     cfg.api_key = Some(server.key.clone());
     Ok(Llm {
@@ -868,7 +952,7 @@ impl Server {
         matches!(self.child.try_wait(), Ok(None))
     }
 
-    fn start(bin: &std::path::Path, m: &BuiltinModel, background: bool) -> Result<Server> {
+    fn start(bin: &std::path::Path, m: &BuiltinModel, band: Band) -> Result<Server> {
         use std::process::{Command, Stdio};
         let model = file_path(m.file).context("No folder for the model")?;
         let context = m.context;
@@ -879,8 +963,16 @@ impl Server {
         let t0 = std::time::Instant::now();
         let mut cmd = Command::new("/bin/sh");
         cmd.arg("-c").arg(WATCHDOG).arg("sokki-llm");
-        if background && cfg!(target_os = "macos") {
-            cmd.args(["/usr/sbin/taskpolicy", "-b"]);
+        if cfg!(target_os = "macos") {
+            match band {
+                Band::Normal => {}
+                Band::Background => {
+                    cmd.args(["/usr/sbin/taskpolicy", "-b"]);
+                }
+                Band::ThrottledReads => {
+                    cmd.args(["/usr/sbin/taskpolicy", "-d", "throttle"]);
+                }
+            }
         }
         cmd.arg(bin)
             .arg("--model")

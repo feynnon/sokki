@@ -3,11 +3,16 @@
 - **Date:** 26 Nov 2026.
 - **Task:** session keyboard-improve, for the Play Store launch (card
   android-play-store). Option A of the phone app (no Mac: the phone writes
-  the transcript itself, `mobile/src/phoneTranscript.ts`) on a real phone.
+  the transcript itself, `mobile/src/phoneTranscript.ts`, removed the same
+  day) on a real phone.
   How long does a long recording take, and what does it cost in battery?
 - **Result:** 30 minutes take 12.6 minutes (2.4× real time) and about 7 % of
   the battery (296 mAh), with 3 % word errors on clean voices. The
   transcript only runs while Sokki is on screen (KNOWN_ISSUES P1).
+- **Decision:** Robin, 26 Nov 2026: "meeting transcription never happens on
+  the phone - just too battery intensive". The phone records; without a Mac
+  it says "Connect your Mac for a transcript". Streaming to the Mac is not
+  needed either.
 - **Sources:** our own measurement on Robin's Pixel 7 (below). Battery
   capacity 4,355 mAh: Google's Pixel 7 spec sheet.
 

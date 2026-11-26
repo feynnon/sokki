@@ -106,6 +106,13 @@ pub enum Outcome {
     },
     /// Backspace right after a fix: the typed word is back and kept from now on.
     Undone { typed: String, fix: String },
+    /// The model has a fix, but Sokki didn't see every letter of the word typed (a paste,
+    /// dictation, or a read it missed), so it left the word. Recorded to find such losses.
+    Missed {
+        typed: String,
+        fix: String,
+        why: &'static str,
+    },
 }
 
 struct Last {
@@ -216,6 +223,29 @@ impl Autocorrect {
             {
                 p.run + (cursor - p.cursor)
             }
+            // a run starts with one typed character: the last read's text plus that character
+            // just before the cursor (after a click elsewhere in the text, or a key the last
+            // read missed) ...
+            Some(p)
+                if cursor > 0
+                    && keys_at_read > p.keys
+                    && same_text(&text::remove_u16(&text, cursor - 1, 1), &p.text) =>
+            {
+                1
+            }
+            // Backspace right before the cursor, one character per key: the run shrinks by what
+            // was deleted, so a word corrected by hand mid-typing still counts as typed. (A field
+            // emptied when a message is sent deletes more than keys were pressed.)
+            Some(p)
+                if cursor < p.cursor
+                    && p.cursor - cursor <= keys_at_read.saturating_sub(p.keys) as usize
+                    && same_text(&text, &text::remove_u16(&p.text, cursor, p.cursor - cursor)) =>
+            {
+                p.run.saturating_sub(p.cursor - cursor)
+            }
+            // ... or the first character in an empty field (a new message, a sent one cleared).
+            // Without this the first word of a message was never fixed.
+            _ if cursor == 1 && u16_len(&text) == 1 => 1,
             _ => 0,
         };
         self.last = Some(Last {
@@ -251,10 +281,6 @@ impl Autocorrect {
         let Some((start, word, prevs)) = text::word_before(&u, cursor - 1) else {
             return Outcome::Nothing;
         };
-        // every letter of the word and the character after it were typed
-        if run < cursor - start {
-            return Outcome::Nothing;
-        }
         if self.kept.contains(&sokki_typos::fold(&word)) {
             return Outcome::Nothing;
         }
@@ -262,10 +288,24 @@ impl Autocorrect {
         let Some(fix) = self.typos.correction(&word, &prev_refs, None) else {
             return Outcome::Nothing;
         };
-        // the model also answers with the typed word itself (heißt -> heißt: 6 in 10 of its
+        // the model also answers with the typed word itself (heißt -> heißt: about half of its
         // answers on edited German text); retyping it would only touch the field
         if fix == word {
             return Outcome::Nothing;
+        }
+        // every letter of the word and the character after it were typed; else leave it, and
+        // say so in the fix list
+        if run < cursor - start {
+            return Outcome::Missed {
+                typed: word,
+                fix,
+                // the run holds the character after the word
+                why: if run <= 1 {
+                    "word not seen typed (a paste, dictation)"
+                } else {
+                    "start of the word not seen typed"
+                },
+            };
         }
         if !field.replaceable() {
             return Outcome::Skipped("field can't be replaced");

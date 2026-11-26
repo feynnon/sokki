@@ -94,7 +94,7 @@ mod earshot;
 mod silero;
 mod smoothed;
 
-pub use earshot::EarshotVad;
+pub use earshot::{EarshotVad, EARSHOT_FRAME_SAMPLES};
 pub use silero::SileroVad;
 pub use smoothed::SmoothedVad;
 

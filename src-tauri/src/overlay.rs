@@ -54,6 +54,19 @@ const OVERLAY_HEIGHT: f64 = 50.0;
 // Actual is 394x118, just a little extra
 const OVERLAY_STREAM_WIDTH: f64 = 400.0;
 const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
+// With the dictation cleanup on, the live panel shows six lines instead of
+// three, so the cleaned text stays in view while the newest words follow it
+// (Robin, 26.11.2026). The text area is the window height less 60.
+const OVERLAY_STREAM_TALL_HEIGHT: f64 = 184.0;
+
+/// The live panel is tall: the dictation cleanup is on.
+static TALL_LIVE: AtomicBool = AtomicBool::new(false);
+
+/// Sets whether the live panel is tall (the dictation cleanup is on); the
+/// next dictation's panel has that height.
+pub fn set_tall_live(tall: bool) {
+    TALL_LIVE.store(tall, Ordering::Relaxed);
+}
 
 const NOTICE_STATE: &str = "notice";
 const LIVE_NOTICE_STATE: &str = "live_notice";
@@ -78,7 +91,12 @@ fn notice_state(session_is_live: bool) -> &'static str {
 /// Overlay window size (logical) for a given UI state.
 fn overlay_dimensions(state: &str) -> (f64, f64) {
     if is_live_state(state) {
-        (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
+        let height = if TALL_LIVE.load(Ordering::Relaxed) {
+            OVERLAY_STREAM_TALL_HEIGHT
+        } else {
+            OVERLAY_STREAM_HEIGHT
+        };
+        (OVERLAY_STREAM_WIDTH, height)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
     }

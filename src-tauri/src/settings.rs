@@ -574,9 +574,10 @@ pub struct AppSettings {
     /// Clean up each dictation with the built-in cleanup model before it
     /// is pasted (`dictation_cleanup`): fillers, repetitions and
     /// self-corrections out, misheard words and grammar fixed, paragraphs
-    /// and lists in. Only while the model is downloaded. Off until Robin
-    /// has tried it (release manager, 25.11.2026).
-    #[serde(default)]
+    /// and lists in. Only while the model is downloaded; without it (8 GB
+    /// Macs, or before the download) dictations are pasted as transcribed.
+    /// On by default since 26.11.2026 (Robin: "Cleanup standardmäßig an").
+    #[serde(default = "default_dictation_cleanup_enabled")]
     pub dictation_cleanup_enabled: bool,
     /// Fix typos as you type, in the apps where macOS doesn't (Chrome, Slack,
     /// Claude …), with the phone keyboard's model (`autocorrect`). Backspace
@@ -694,7 +695,7 @@ pub struct MeetingSettings {
     /// Uses Accessibility (`meeting/call_speakers.rs`).
     pub call_names_enabled: bool,
     /// After a meeting, send its notes (summary, decisions, action items; no
-    /// transcript) to everyone invited in the calendar, from the user's own
+    /// transcript) to everyone who was there (named speakers), from the user's own
     /// Gmail or Apple Mail and in their name. On by default (Robin,
     /// 2026-11-25: "summaries sent to everyone is on by default, and can be
     /// deactivated"); the note's "Send to everyone" button works either way
@@ -724,6 +725,13 @@ pub struct MeetingSettings {
     /// (muted, wrong device) or a detected call brings no sound, once per
     /// recording (`meeting/silence.rs`).
     pub silence_hint_enabled: bool,
+    /// Start a meeting by itself when a known voice (the user's own, or a
+    /// person who agreed) talks near the Mac and no call app runs; stop it
+    /// after two minutes without speech. A card offers "Discard" and "Turn
+    /// off auto start" (`meeting/auto.rs`). Off for everyone and no switch in the
+    /// window: on only where set by hand in the settings file, until it is
+    /// proven (Robin, 2026-11-26). While on, the microphone stays open.
+    pub auto_start_enabled: bool,
 }
 
 impl Default for MeetingSettings {
@@ -751,6 +759,7 @@ impl Default for MeetingSettings {
             slack_post_huddles: false,
             phone_link_enabled: false,
             silence_hint_enabled: true,
+            auto_start_enabled: false,
         }
     }
 }
@@ -797,7 +806,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 9;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 10;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -834,6 +843,17 @@ fn default_keep_what_i_write() -> bool {
 /// off a day earlier, so it turns on once for everyone; a switch set after
 /// that stays as set. Word learning turns off once until the words it would
 /// learn have been checked on real writing.
+fn default_dictation_cleanup_enabled() -> bool {
+    true
+}
+
+/// Schema 10 (26.11.2026): Robin wants the dictation cleanup on by default.
+/// It shipped off, behind a switch few had found, so it turns on once for
+/// everyone; a switch set after that stays as set.
+fn cleanup_on_by_default(settings: &mut AppSettings) {
+    settings.dictation_cleanup_enabled = true;
+}
+
 fn journal_on_by_default(settings: &mut AppSettings) {
     settings.keep_what_i_write = true;
     settings.learn_words = false;
@@ -1381,7 +1401,7 @@ pub fn get_default_settings() -> AppSettings {
         typing_tool: default_typing_tool(),
         external_script_path: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
-        dictation_cleanup_enabled: false,
+        dictation_cleanup_enabled: default_dictation_cleanup_enabled(),
         autocorrect_enabled: false,
         custom_filler_words: None,
         chinese_script: default_chinese_script(),
@@ -1740,6 +1760,11 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 10 {
+        cleanup_on_by_default(settings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -1949,6 +1974,34 @@ mod tests {
             empty.keep_what_i_write && !empty.learn_words,
             "missing keys"
         );
+    }
+
+    #[test]
+    fn dictation_cleanup_turns_on_once() {
+        let mut settings = get_default_settings();
+        settings.settings_schema_version = 9;
+        settings.dictation_cleanup_enabled = false;
+        let raw = serde_json::to_value(&settings).unwrap();
+        let mut s: AppSettings = serde_json::from_value(raw.clone()).unwrap();
+        assert!(apply_settings_migrations(&mut s, &raw));
+        assert!(s.dictation_cleanup_enabled, "turns on once");
+        assert_eq!(s.settings_schema_version, CURRENT_SETTINGS_SCHEMA_VERSION);
+
+        // Switched off afterwards: stays off on the next start.
+        s.dictation_cleanup_enabled = false;
+        let raw = serde_json::to_value(&s).unwrap();
+        apply_settings_migrations(&mut s, &raw);
+        assert!(
+            !s.dictation_cleanup_enabled,
+            "a switch set after that stays"
+        );
+
+        assert!(
+            get_default_settings().dictation_cleanup_enabled,
+            "new installs"
+        );
+        let empty: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(empty.dictation_cleanup_enabled, "missing key");
     }
 
     #[test]

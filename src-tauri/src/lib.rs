@@ -289,6 +289,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
         meeting::detect::sync_with_settings(app_handle);
+        meeting::auto::spawn(app_handle);
         // A click on one of Sokki's banners opens its window.
         let handle = app_handle.clone();
         meeting::notify_macos::on_click(move || {
@@ -461,6 +462,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     // Apply show_tray_icon setting
     let settings = settings::get_settings(app_handle);
+    overlay::set_tall_live(dictation_cleanup::active(app_handle));
     if !settings.show_tray_icon {
         tray::set_tray_visibility(app_handle, false);
     }

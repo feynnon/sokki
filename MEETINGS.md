@@ -85,7 +85,7 @@ Icons are drawn as SVG in
      the note, switch `meetings.mail_notes_auto`, on by default since
      2026-11-25, schema 8 turns it on once for older installs): the
      note's summary, decisions and action items (no transcript, ending with
-     the note's Sokki line) go to everyone invited in the calendar event,
+     the note's Sokki line) go to the people who were there (below),
      from the user's own mailbox in their name: Gmail when connected
      (Settings › Notes by mail › Connect Gmail: Google's consent page,
      only `gmail.send` + `openid email`, loopback + PKCE, refresh token in
@@ -107,7 +107,14 @@ Icons are drawn as SVG in
      Slack instead of the calendar: everyone else in the huddle's
      `participant_history`, with their Slack addresses (`users.info`,
      scope `users:read.email`), through the same filters
-     (`meeting/slack.rs::huddle_event`). Test app: `SOKKI_TEST_CALENDAR=<events.json>` replaces the
+     (`meeting/slack.rs::huddle_event`). Since 2026-11-26 (Robin) only
+     people who were there get the notes: the named speakers with an
+     address (their own from the name field or the Sprecher page, else the
+     matching invitee's, `meeting_mail::recipients::address_for`, then kept
+     on their profile) and, after a huddle, everyone in it. Invitees who
+     didn't speak get nothing; the person never (their name, their
+     addresses; not the calendar's "me" mark, which marks the colleague in a
+     shared calendar). Test app: `SOKKI_TEST_CALENDAR=<events.json>` replaces the
      calendar, and nothing is sent unless `SOKKI_TEST_MAIL_TO` names the one
      address every mail then goes to.
    - **Notes into the Slack huddle's thread** (`meeting/slack.rs`, crate
@@ -188,8 +195,13 @@ Icons are drawn as SVG in
       their embedding;
    6. summary, decisions, tasks with the local LLM (Gemma 4 E4B built in
       since 25.11.2026: llama.cpp's `llama-server` on the GPU, 12–33 s per
-      summary on an M1 Pro, 22 s median, without the draft model; started
-      for the summary, stopped right after); the
+      summary on an M1 Pro, 22 s median, without the draft model; stopped
+      right after the summary). Since 26.11.2026 it loads a minute into the
+      recording when the Mac has the memory (`meeting/preload.rs`: a quarter
+      of memory still free after its 5.6 GB, no memory pressure), with
+      throttled disk reads, and then only waits (1 % of one core) until the
+      summary takes it: the summary starts about 5 s sooner. Under lasting
+      memory pressure it is stopped and loads for the summary as before; the
       dictionary is in its prompt, so names come out spelled right. The
       transcript stays as recognised: a separate correction pass cost a
       whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);

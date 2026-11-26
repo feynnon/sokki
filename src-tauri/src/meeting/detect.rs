@@ -22,6 +22,16 @@ pub struct DetectState {
     current: Mutex<Option<String>>,
 }
 
+impl DetectState {
+    /// App id of the call running now, if call detection saw one.
+    pub fn current_call(&self) -> Option<String> {
+        self.current
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+}
+
 /// A recording started (from the prompt, a shortcut or the window): if a
 /// call is running, Sokki says so in its chat (`chat_notice`).
 pub fn recording_started(app: &AppHandle, meeting_id: &str) {

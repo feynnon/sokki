@@ -2310,7 +2310,11 @@ export type MailProblem =
 /**
  * The event has nobody to send to (only the person, or all objected).
  */
-"no_recipients"
+"no_recipients" | 
+/**
+ * Nobody who spoke has a name and an address yet.
+ */
+"no_people"
 export type MailRecipient = { name: string | null; email: string }
 export type MailSkipped = { 
 /**
@@ -2520,7 +2524,7 @@ chat_notice_enabled: boolean;
 call_names_enabled: boolean; 
 /**
  * After a meeting, send its notes (summary, decisions, action items; no
- * transcript) to everyone invited in the calendar, from the user's own
+ * transcript) to everyone who was there (named speakers), from the user's own
  * Gmail or Apple Mail and in their name. On by default (Robin,
  * 2026-11-25: "summaries sent to everyone is on by default, and can be
  * deactivated"); the note's "Send to everyone" button works either way

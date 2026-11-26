@@ -1214,6 +1214,11 @@
     "screenVideo": "Bildschirmvideo",
     "screenNotAllowed": "Erlaube Sokki die Bildschirmaufnahme in den Systemeinstellungen und öffne Sokki dann neu.",
     "prompt": {
+      "autoTitle": "Gespräch wird aufgenommen",
+      "autoHint": "Sokki hat eine bekannte Stimme gehört und begonnen.",
+      "turnOff": "Auto-Start aus",
+      "keepAuto": "Behalten",
+      "discard": "Verwerfen",
       "startedTitle": "{{app}}-Meeting gestartet",
       "startedHint": "Sag allen, dass du aufnimmst.",
       "screen": "Bildschirm auch aufnehmen",
@@ -1270,7 +1275,7 @@
     "mail": {
       "title": "Notizen per Mail",
       "auto": "Nach jedem Meeting an alle senden",
-      "autoHint": "Zusammenfassung und Aufgaben, kein Transkript, an alle Eingeladenen.",
+      "autoHint": "Zusammenfassung und Aufgaben, kein Transkript, an alle, die dabei waren.",
       "noCalendar": "Sokki darf deinen Kalender nicht lesen: Systemeinstellungen › Datenschutz › Kalender.",
       "objections": "Keine Mails an",
       "remove": "Entfernen",
@@ -1286,7 +1291,8 @@
         "calendar_not_asked": "Beim ersten Senden fragt Sokki nach deinem Kalender.",
         "calendar_denied": "Sokki darf den Kalender nicht lesen. Erlaube es unter Systemeinstellungen › Datenschutz & Sicherheit › Kalender.",
         "no_event": "Kein Kalendertermin zu diesem Meeting.",
-        "no_recipients": "Im Termin steht niemand außer dir."
+        "no_recipients": "Im Termin steht niemand außer dir.",
+        "no_people": "Noch hat niemand, der gesprochen hat, Namen und Adresse. Benenne die Sprecher."
       },
       "gmail": "Gmail",
       "gmailNotice": "Sokki bittet Google, in deinem Namen Mails zu senden und deine Adresse zu sehen. Sokki kann deine Mails nicht lesen. Die Notizen gehen von diesem Mac direkt an Gmail.",

@@ -212,6 +212,20 @@ pub fn audio_input_clients() -> Result<Vec<AudioClient>> {
     Ok(Vec::new())
 }
 
+/// Every process currently playing audio (Core Audio's
+/// `kAudioProcessPropertyIsRunningOutput`). Like [`audio_input_clients`] it
+/// opens nothing. macOS only; elsewhere always empty.
+#[cfg(target_os = "macos")]
+pub fn audio_output_clients() -> Result<Vec<AudioClient>> {
+    macos::audio_output_clients()
+}
+
+/// Stub for other platforms: nothing is ever reported as playing.
+#[cfg(not(target_os = "macos"))]
+pub fn audio_output_clients() -> Result<Vec<AudioClient>> {
+    Ok(Vec::new())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

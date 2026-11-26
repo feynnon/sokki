@@ -5,7 +5,8 @@
 //! - [`begin`] when a dictation starts: the model's server starts (or is
 //!   still running from the last dictation) and a session waits for text.
 //! - [`live_text`] with the transcript's final part as it grows (the live
-//!   text's committed part): pieces of about 60 words are cleaned at once.
+//!   text's committed part and its settled sentences): pieces of about 30
+//!   words are cleaned at once.
 //! - [`take`] when the dictation stops, then [`Pending::finish`] with the
 //!   final transcript: the rest is cleaned, and the cleaned text is pasted.
 //!   When the model fails or takes too long, the transcript is pasted as it
@@ -102,6 +103,28 @@ fn blocked(
     }
 }
 
+/// Test mode only: `SOKKI_TEST_PIECE_WORDS` sets the live piece size, for
+/// measuring it on recorded dictations.
+fn test_piece_words() -> Option<usize> {
+    std::env::var("SOKKI_TEST_PIECE_WORDS")
+        .ok()
+        .filter(|_| crate::test_mic::active())
+        .and_then(|s| s.parse().ok())
+}
+
+/// Test mode: how many words the panel shows cleaned and raw (counts only),
+/// to measure how much raw text Robin sees while speaking.
+fn log_panel(cleaned: &str, committed: &str, tentative: &str) {
+    if crate::test_mic::active() {
+        let n = |t: &str| t.split_whitespace().count();
+        info!(
+            "Test mode, panel: {} cleaned, {} raw",
+            n(cleaned),
+            n(committed) + n(tentative)
+        );
+    }
+}
+
 /// A dictation starts: begins its cleanup, if it is on.
 pub fn begin(app: &AppHandle) {
     let settings = get_settings(app);
@@ -120,7 +143,12 @@ pub fn begin(app: &AppHandle) {
         info!("Dictation cleanup is on, but its model is not downloaded");
         return;
     }
-    let session = ENGINE.begin(&settings.custom_words, redraw);
+    let live = sokki_engine::cleanup::Live::new(&settings.custom_words);
+    let live = match test_piece_words() {
+        Some(n) => live.with_piece_words(n),
+        None => live,
+    };
+    let session = ENGINE.begin_with(live, redraw);
     // A session left from an earlier dictation is dropped, which cancels it.
     *current() = Some(Current {
         session,
@@ -150,7 +178,9 @@ pub fn live_text(committed: &str, tentative: &str) -> (String, String, String) {
         c.last = text.clone();
         c.session.text(&text);
     }
-    c.panel(committed)
+    let shown = c.panel(committed);
+    log_panel(&shown.0, &shown.1, &shown.2);
+    shown
 }
 
 /// A live step finished: the panel shows its cleaned paragraphs at once.
@@ -172,6 +202,7 @@ fn redraw() {
                 "Test mode, live cleaned: {} ‖ {} | {}",
                 event.cleaned, event.committed, event.tentative
             );
+            log_panel(&event.cleaned, &event.committed, &event.tentative);
         }
         use tauri_specta::Event;
         let _ = event.emit(&app);
@@ -276,9 +307,21 @@ pub fn dictation_cleanup_model() -> CleanupModel {
 #[tauri::command]
 #[specta::specta]
 pub async fn download_dictation_cleanup_model(app: AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::meeting::process::download_builtin(&app))
-        .await
-        .map_err(|e| e.to_string())?
+    let done = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || crate::meeting::process::download_builtin(&app)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    crate::overlay::set_tall_live(active(&app));
+    done
+}
+
+/// Whether dictations are cleaned up now: the switch is on and the model is
+/// there. Without the model (8 GB Macs, or not downloaded yet) the cleanup
+/// does nothing and the live panel keeps its three lines.
+pub fn active(app: &AppHandle) -> bool {
+    get_settings(app).dictation_cleanup_enabled && ENGINE.available()
 }
 
 #[tauri::command]
@@ -287,6 +330,7 @@ pub fn change_dictation_cleanup_setting(app: AppHandle, enabled: bool) -> Result
     let mut settings = get_settings(&app);
     settings.dictation_cleanup_enabled = enabled;
     crate::settings::write_settings(&app, settings);
+    crate::overlay::set_tall_live(active(&app));
     if !enabled {
         cancel();
         stop_model();

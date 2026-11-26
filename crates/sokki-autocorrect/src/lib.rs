@@ -145,6 +145,9 @@ pub struct Autocorrect {
     done: Option<Done>,
     /// words the user undid a fix of: never changed again
     kept: HashSet<String>,
+    /// the user's own words (Sokki's Vocabulary): never changed, and a typo one slip from one
+    /// is fixed to it
+    user_words: Vec<String>,
     kept_file: Option<PathBuf>,
     /// The last read showed the field as before although keys were pressed: the app hasn't
     /// updated what Accessibility sees yet (Chrome takes a few ms). Look again soon.
@@ -174,6 +177,7 @@ impl Autocorrect {
             last: None,
             done: None,
             kept,
+            user_words: Vec::new(),
             kept_file,
             stale: false,
         }
@@ -182,6 +186,26 @@ impl Autocorrect {
     /// The letter keys of the layout in use, row by row ([`sokki_typos::Typos::set_keyboard`]).
     pub fn set_keyboard(&mut self, rows: &[String; 3]) {
         self.typos.set_keyboard(rows);
+    }
+
+    /// The user's own words (Sokki's Vocabulary, its learned words). An entry of several words
+    /// adds each of them. Returns how many words the model now has from the user.
+    pub fn set_user_words(&mut self, words: &[String]) -> usize {
+        let mut out: Vec<String> = Vec::new();
+        for w in words.iter().flat_map(|w| w.split_whitespace()) {
+            let w = w.trim_matches(|c: char| !c.is_alphanumeric());
+            if w.chars().count() >= 2 && !out.iter().any(|x| x == w) {
+                out.push(w.to_string());
+            }
+        }
+        self.user_words = out;
+        self.refresh_personal();
+        self.user_words.len()
+    }
+
+    fn refresh_personal(&mut self) {
+        let words = self.kept.iter().chain(&self.user_words).cloned();
+        self.typos.lexicon.set_personal(words.collect::<Vec<_>>());
     }
 
     /// Forget the field: focus moved, or the switch went off.
@@ -222,6 +246,8 @@ impl Autocorrect {
         // holds the last read's text plus no more characters than keys were pressed, at the
         // cursor. A paste (one key, many characters), dictation (no keys) or a move resets it.
         let prev = self.last.take().filter(|p| p.app == app);
+        // the text changed since the last look in this field (not a move, not a new field)
+        let changed = prev.as_ref().is_some_and(|p| !same_text(&p.text, &text));
         // an edit at the cursor with no more characters added and deleted than keys were
         // pressed (typing, Backspace, or both between two looks): where it starts
         let edit_from = prev.as_ref().and_then(|p| {
@@ -267,7 +293,8 @@ impl Autocorrect {
                 return self.undo(field, d, &text, keys, keys_at_read);
             }
         }
-        if run == 0 || cursor == 0 {
+        // nothing typed: only worth a look (for the list of misses) when the text changed
+        if cursor == 0 || (run == 0 && !changed) {
             return Outcome::Nothing;
         }
         let u = Utf16::new(&text);
@@ -299,7 +326,10 @@ impl Autocorrect {
                 typed: word,
                 fix,
                 // the run holds the character after the word
-                why: if run <= 1 {
+                why: if run == 0 {
+                    // a change that doesn't fit the keys pressed or the cursor
+                    "edit not seen typed (a paste, dictation, or a read that didn't fit)"
+                } else if run == 1 {
                     "word not seen typed (a paste, dictation)"
                 } else {
                     "start of the word not seen typed"
@@ -447,7 +477,7 @@ impl Autocorrect {
         if !self.kept.insert(w.clone()) {
             return;
         }
-        self.typos.lexicon.set_personal(self.kept.iter().cloned());
+        self.refresh_personal();
         if let Some(p) = &self.kept_file {
             use std::io::Write;
             let saved = std::fs::OpenOptions::new()

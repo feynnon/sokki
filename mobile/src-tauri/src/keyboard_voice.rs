@@ -434,10 +434,14 @@ mod mac {
         if CONNECTING.swap(true, Ordering::SeqCst) {
             return;
         }
-        // Debug builds: `<data>/debug_relay_only` keeps the link on n0's relay
-        // (tests the path a phone away from home takes).
-        let relay_only = cfg!(debug_assertions)
-            && data_dir(model_path).is_some_and(|d| d.join("debug_relay_only").exists());
+        // Through n0's relay only (still encrypted end to end; the relay
+        // passes bytes on). When the link moved from the relay to a direct
+        // path, the audio of the next dictation reached the Mac ~20 s late:
+        // Robin's Pixel and the emulator, 2026-11-26 (KNOWN_ISSUES K12).
+        // Relay only: first words 0.7–1.3 s, no stall. Debug builds:
+        // `<data>/debug_direct` allows the direct path, to work on K12.
+        let relay_only = !(cfg!(debug_assertions)
+            && data_dir(model_path).is_some_and(|d| d.join("debug_direct").exists()));
         rt().spawn(async move {
             let t = Instant::now();
             let ep = ENDPOINT.lock().unwrap().clone();
@@ -605,14 +609,16 @@ mod mac {
         // Stopped: the Mac reads the whole dictation (0.3 s at the median,
         // ~3 s for 3 minutes); give it more before taking over.
         let audio_s = kept.iter().map(Vec::len).sum::<usize>() as f64 / RATE as f64;
-        // Reading it all again here takes longer than the Mac ever does.
+        // Reading it all again here takes longer than the Mac ever does, so
+        // wait while it says it's at it (a Mac that reads sends something
+        // every second; older ones don't, for them the deadline).
         let deadline = Duration::from_secs_f64(5.0 + audio_s * 0.05);
         let since = Instant::now();
         loop {
             match state.load(Ordering::SeqCst) {
                 FINISHED => return,
                 FAILED => return take_over_now("failed at the stop", kept, None),
-                _ if since.elapsed() > deadline => {
+                _ if since.elapsed() > deadline && last.lock().unwrap().elapsed() > SILENT => {
                     return take_over_now("no final text in time", kept, None)
                 }
                 _ => std::thread::sleep(Duration::from_millis(20)),

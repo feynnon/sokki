@@ -419,3 +419,29 @@ fn a_key_landing_between_text_and_cursor_reads_keeps_the_word_typed() {
     assert_eq!(got.len(), 1, "{got:?}");
     assert_eq!(f.text.borrow().as_str(), "Ich habe das nicht gesehen");
 }
+
+#[test]
+fn the_users_own_words_are_loaded_word_by_word() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let n = ac.set_user_words(&[
+        "Meta Ads".into(),
+        "Velorama".into(),
+        "Velorama".into(),
+        "X".into(),
+    ]);
+    assert_eq!(n, 3); // Meta, Ads, Velorama
+}
+
+#[test]
+fn a_word_that_changed_without_a_key_is_listed_as_missed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.anthropic.claudefordesktop");
+    type_in(&mut ac, &f, "Das ist ");
+    // dictation puts text in without a key
+    f.put("nihct ");
+    let got = ac.on_key(&f, &|| f.keys.get());
+    assert!(matches!(got, Outcome::Missed { .. }), "{got:?}");
+    // looking again without a change lists nothing more
+    assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
+    assert_eq!(f.text.borrow().as_str(), "Das ist nihct ");
+}

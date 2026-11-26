@@ -35,6 +35,14 @@ Word learning on a copy of one day of Robin's Mac journal (131 messages, all wit
 
 Three of the four wrong "add" words only ever stood at a sentence start, where German capitalizes every word; none of the four right ones did. Rule since then: a word counts only if it was capitalized inside a sentence at least once (`learn.rs`, `starts_sentence`). With it, 1 wrong of 5 "add" words remains. Robin's own rating of each word is pending.
 
+## Robin's rating, second check (26 Nov, evening)
+
+Task: run word learning in report mode (`scripts/learn-review.sh`, Gemma 4 E4B, with the sentence-start rule) over Robin's journal (326 typed entries, 24–26 Nov). Robin rated every verdict on a review page.
+
+- 17 unknown words. The model said "add" to 14: 10 right, 4 wrong (71 %). It said "no" to 3: all 3 right.
+- All 4 wrong "add" words were typos of a known word: one of a word already in Robin's glossary (1 letter apart), three of a German word macOS knows (one letter wrong, a missing umlaut, a wrong plural ending).
+- A check against macOS spelling guesses (`NSSpellChecker.guesses`, de and en, Damerau distance): "1 edit from a word macOS knows" catches those three, but also 3 right words (two product names and a surname, each 1 edit from an ordinary word). So that test alone drops good names. "At most 1 edit from a word already in the word list, and not that word" catches the glossary typo and nothing else.
+
 ## How others do it (research agent, 24 Nov)
 
 - Wispr Flow learns from edits in the field after a paste (vocabulary only; a deleted word never comes back), reads context through Accessibility, skips password fields, banking and URL bars.
@@ -52,8 +60,10 @@ Sources: docs.wisprflow.ai/articles/4052411709, docs.wisprflow.ai/articles/46782
 - The swap uses learned and glossary words only at 6+ letters; `custom_words` as before; heard-as pairs are fixed exactly.
 - "Keep what I write" and word learning are on by default for everyone; the data stays on the Mac (Robin, 26 Nov).
 - A word must be capitalized inside a sentence at least once (first real-writing check, above).
+- A word one slip (one letter wrong, missing, extra, or two swapped) from a word already in the user's list is a typo of it, not a new word; words of 5+ letters only (Robin, 26 Nov: "als Sicherheitsnetz", since autocorrect is off by default). On the second check it removes the glossary typo and none of the 10 right words: the model's "add" goes from 10 of 14 to 10 of 13 right.
+- Typos of ordinary German words (a wrong letter, a missing umlaut) are autocorrect's job: its model fixes them, but on 26 Nov it left them unfixed and unlogged; handed to the autocorrect session, with the user's word list as autocorrect words and a German word missing from its list.
 
 ## Open
 
-- Robin's rating of the first check; a second check after a week of writing, when words typed in 2+ messages exist.
+- A third check after a week of writing, when more words are typed in 2+ messages.
 - Parakeet word list through CTC word spotting (proposed follow-up).

@@ -357,7 +357,12 @@ impl Lexicon {
     }
 
     pub fn load(dir: &Path) -> std::io::Result<Lexicon> {
-        let de = std::fs::read_to_string(dir.join("lexicon-de.txt"))?;
+        let mut de = std::fs::read_to_string(dir.join("lexicon-de.txt"))?;
+        // words the phone's German dictionary lacks (`extra-de.txt`, by hand)
+        if let Ok(extra) = std::fs::read_to_string(dir.join("extra-de.txt")) {
+            de.push('\n');
+            de.push_str(&extra);
+        }
         let en = std::fs::read_to_string(dir.join("lexicon-en.txt"))?;
         let mut lex = Lexicon::from_lists(&de, &en);
         if let Ok(eo) = std::fs::read_to_string(dir.join("english-only.txt")) {

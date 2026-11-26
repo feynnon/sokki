@@ -317,6 +317,38 @@ const DICTATE_PREVIEW_EVERY: std::time::Duration = std::time::Duration::from_mil
 /// stays and a new one starts (the final text is read whole anyway).
 const DICTATE_PIECE: usize = 15 * 16_000;
 
+/// While a read runs, the phone hears from the Mac this often: a busy Mac
+/// (a 10 s piece took 4.5 s on Robin's Mac under load, 2026-11-26) isn't
+/// a Mac that's gone, and the phone takes over only from one that's gone.
+const DICTATE_KEEPALIVE: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Reads `audio` on another thread and meanwhile sends the phone the last
+/// text again every second.
+fn read_keeping_alive(
+    tm: &TranscriptionManager,
+    audio: Vec<f32>,
+    heard: u64,
+    shown: &str,
+    text: &dyn Fn(DictationText),
+) -> Result<String, String> {
+    let tm = tm.clone();
+    let read = std::thread::spawn(move || tm.transcribe(audio).map_err(|e| format!("{e:#}")));
+    let mut beat = std::time::Instant::now();
+    while !read.is_finished() {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if beat.elapsed() >= DICTATE_KEEPALIVE {
+            beat = std::time::Instant::now();
+            text(DictationText {
+                is_final: false,
+                heard,
+                text: shown.to_string(),
+            });
+        }
+    }
+    read.join()
+        .map_err(|_| "The Mac's read failed.".to_string())?
+}
+
 /// The phone keyboard dictates through this Mac: the same model and
 /// settings as dictating here. Live text every 0.5 s (the growing piece read
 /// again, as the Mac's own live text with Parakeet does), then the whole
@@ -348,6 +380,7 @@ fn dictate_for_phone(
     let mut last_read = 0usize;
     let mut ended = false;
     let mut previews = 0usize;
+    let mut shown = String::new();
     while !ended {
         match audio.recv_timeout(DICTATE_PREVIEW_EVERY) {
             Ok(a) => heard.extend(a),
@@ -370,16 +403,16 @@ fn dictate_for_phone(
         last_read = heard.len();
         let piece = heard[piece_start..].to_vec();
         let piece_len = piece.len();
-        let read = tm.transcribe(piece).map_err(|e| format!("{e:#}"))?;
+        let read = read_keeping_alive(tm, piece, last_read as u64, &shown, text)?;
         previews += 1;
-        let shown = format!("{done_text} {}", read.trim()).trim().to_string();
+        shown = format!("{done_text} {}", read.trim()).trim().to_string();
         text(DictationText {
             is_final: false,
             heard: heard.len() as u64,
             text: shown.clone(),
         });
         if piece_len >= DICTATE_PIECE {
-            done_text = shown;
+            done_text = shown.clone();
             piece_start = heard.len();
         }
     }
@@ -387,7 +420,7 @@ fn dictate_for_phone(
     let final_text = if heard.is_empty() {
         String::new()
     } else {
-        tm.transcribe(heard.clone()).map_err(|e| format!("{e:#}"))?
+        read_keeping_alive(tm, heard.clone(), heard.len() as u64, &shown, text)?
     };
     text(DictationText {
         is_final: true,

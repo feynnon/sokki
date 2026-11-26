@@ -184,6 +184,14 @@ Task: find why 0.2.18 still left 5 typos as "start of the word not seen typed" (
 - Cause, reproduced in `tests/typing.rs`: a key that lands while Sokki reads the field. Sokki counts the keys, then reads the text, then the cursor, and each read takes a few ms in Electron. A key between the count and the text read gives one character more than keys counted. A key between the text and cursor reads gives a cursor the text doesn't have. Either way the edit doesn't fit and the word's typed run starts again mid-word. The journal doesn't lose these words: it allows one character more than keys and doesn't use the cursor.
 - Fix: when the key count changed during the read, the read counts as stale. Sokki keeps the last read and looks again (it already does that when an app hasn't caught up with a key). Both race tests pass, and so do the 15 earlier typing tests.
 
+### Silent misses, the user's own words, missing German words (26 Nov 2026, evening)
+
+Task (from the word-learning session, Robin's words: "typos 1 letter off from my vocab should be autocorrected"): four typos typed key by key and followed by a space were neither fixed nor listed (capitalised German nouns, one wrong letter, swap or missing umlaut each; Claude and T3 Code, under 0.2.17 and 0.2.18). A typo of a Vocabulary word (a company name) wasn't fixed to it, and a mix of a German and an English plural had no German word to go to (the dictionary lacks "Transkript").
+
+- **Silent misses:** typed cleanly in the test field, all four are fixed. In the app a look with no typed run at all (an edit that didn't fit the keys or the cursor) returned before the model ran, so nothing was listed. The likeliest cause is the read race above, fixed in 0.2.19. From now on such a look is listed as missed too ("edit not seen typed"), but only when the text changed since the last look, so a click or an arrow key lists nothing.
+- **Own words:** autocorrect now reads Sokki's Vocabulary (Advanced list, meeting glossary, learned words; `all_vocabulary`) every 5 s. They are never changed, an entry of several words counts word by word, and Robin's settings give 26 words. They don't fix typos yet: the model only takes as a fix a word its frequency table knows (`table.candidate`, `CAND_ZIPF`), and the user's words aren't in that table. Making them fix targets is a model change; it has to be measured for wrong changes first (`SOKKI_TYPOS_PERSONAL=<file>` gives the CLI the same words).
+- **Missing German words:** `crates/sokki-typos/data/extra-de.txt`, a list by hand next to the generated one: Transkript, Transkripte, Transkripten. They are now known words and won't be changed, but for the same reason as above they aren't fix targets yet. "Transkripts" stays out on purpose, so the model change can fix it to "Transkripte" (Robin: "closer is Transkripte").
+
 ## Open questions
 
 - Not yet tested in the installed app by a person (first release with these fixes: 0.2.15).

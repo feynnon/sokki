@@ -36,6 +36,17 @@ fn main() {
         };
         typos.set_keyboard(&rows);
     }
+    // the user's own words, one per line (as the Mac app gives autocorrect its Vocabulary)
+    if let Ok(p) = std::env::var("SOKKI_TYPOS_PERSONAL") {
+        let words = std::fs::read_to_string(&p).unwrap_or_default();
+        typos.lexicon.set_personal(
+            words
+                .lines()
+                .map(str::trim)
+                .filter(|w| !w.is_empty())
+                .map(String::from),
+        );
+    }
     eprintln!("loaded in {} ms", t0.elapsed().as_millis());
     let out = std::io::stdout();
     let mut out = out.lock();

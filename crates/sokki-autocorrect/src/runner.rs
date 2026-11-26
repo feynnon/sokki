@@ -38,6 +38,9 @@ pub struct Options {
     /// The letter keys of the layout in use, row by row ([`sokki_typos::Typos::set_keyboard`]);
     /// read every few seconds while autocorrect is on. None keeps what the model has.
     pub keyboard: Box<dyn Fn() -> Option<[String; 3]> + Send>,
+    /// The user's own words (Sokki's Vocabulary and learned words), read every few seconds
+    /// while autocorrect is on ([`Autocorrect::set_user_words`]).
+    pub user_words: Box<dyn Fn() -> Vec<String> + Send>,
 }
 
 /// The app list, shared with the thread.
@@ -76,6 +79,7 @@ fn run(h: Handle, o: Options) {
     let mut checked = Instant::now() - Duration::from_secs(10);
     let mut key_at = Instant::now();
     let mut rows: Option<[String; 3]> = None;
+    let mut user_words: Option<Vec<String>> = None;
     let mut rows_at = Instant::now() - Duration::from_secs(60);
     loop {
         std::thread::sleep(TICK);
@@ -129,6 +133,12 @@ fn run(h: Handle, o: Options) {
                     );
                 }
                 rows = now_rows;
+            }
+            let now_words = (o.user_words)();
+            if user_words.as_ref() != Some(&now_words) {
+                let n = ac.set_user_words(&now_words);
+                log::info!("autocorrect: {n} of the user's own words");
+                user_words = Some(now_words);
             }
         }
         if checked.elapsed() < TICK {

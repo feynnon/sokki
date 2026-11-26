@@ -187,12 +187,13 @@ pub fn candidates_with(
             }
         }
     }
-    // Only ever capitalized at a sentence start ("Zeigs mir …", "Gedimmt
+    // Only ever capitalized at a sentence start ("Machs gleich …", "Gelb
     // finde ich besser"): on Robin's writing (26 Nov 2026) 3 of the model's
     // 4 wrong words, none of its 4 right ones.
     let mut out: Vec<Candidate> = seen
         .into_values()
         .filter(|(_, n, _, inside)| *n >= min_messages && *inside)
+        .filter(|(w, _, _, _)| !slip_of_known(w, skip))
         .filter(|(w, _, _, _)| !known(w))
         .map(|(word, messages, sentence, _)| Candidate {
             word,
@@ -203,6 +204,46 @@ pub fn candidates_with(
     out.sort_by(|a, b| b.messages.cmp(&a.messages).then(a.word.cmp(&b.word)));
     out.truncate(max);
     out
+}
+
+/// One slip (a letter wrong, missing, extra, or two swapped) away from a
+/// word already in the user's list, so a typo of it, not a new word: on
+/// Robin's writing (26 Nov 2026) a name from his glossary with two letters
+/// swapped, like "Mrolando" for "Morlando".
+/// Autocorrect fixes such typos where it runs; this keeps them out of the
+/// dictionary where it doesn't (it is off by default). Only for words of 5+
+/// letters, where one slip rarely makes another real name.
+fn slip_of_known(word: &str, skip: &HashSet<String>) -> bool {
+    let w: Vec<char> = word.to_lowercase().chars().collect();
+    w.len() >= 5
+        && skip.iter().any(|k| {
+            let k: Vec<char> = k.chars().collect();
+            k.len() >= 5 && k != w && one_slip(&w, &k)
+        })
+}
+
+/// `a` and `b` differ by exactly one edit (Damerau: substitution, insertion,
+/// deletion, or two neighbours swapped). Equal words are not one slip apart.
+fn one_slip(a: &[char], b: &[char]) -> bool {
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if long.len() - short.len() > 1 {
+        return false;
+    }
+    let p = short.iter().zip(long).take_while(|(x, y)| x == y).count();
+    if short.len() == long.len() {
+        if p == short.len() {
+            return false;
+        }
+        // one substitution, or two neighbours swapped
+        short[p + 1..] == long[p + 1..]
+            || (p + 1 < short.len()
+                && short[p] == long[p + 1]
+                && short[p + 1] == long[p]
+                && short[p + 2..] == long[p + 2..])
+    } else {
+        // one letter extra in `long`
+        short[p..] == long[p + 1..]
+    }
 }
 
 /// How a word sounds, roughly, in German and English spelling: letters
@@ -392,9 +433,9 @@ mod tests {
     #[test]
     fn a_word_only_at_sentence_starts_is_no_name() {
         let es = vec![
-            entry("Zeigs mir bitte. Gruß an Tarnisio"),
-            entry("Ok. Zeigs mir noch mal, Tarnisio kommt auch"),
-            entry("Liste:\nZeigs nochmal"),
+            entry("Machs gleich. Gruß an Tarnisio"),
+            entry("Ok. Machs gleich noch mal, Tarnisio kommt auch"),
+            entry("Liste:\nMachs nochmal"),
         ];
         let c = candidates(&es, &mut |_| false, &HashSet::new());
         let words: Vec<_> = c.iter().map(|c| c.word.as_str()).collect();
@@ -479,6 +520,37 @@ mod tests {
         ];
         let skip: HashSet<String> = ["kelvaro".to_string()].into();
         assert!(candidates(&entries, &mut known, &skip).is_empty());
+    }
+
+    #[test]
+    fn a_typo_of_a_listed_word_is_not_a_new_word() {
+        let entries = [
+            entry("Die Rechnung an Kelavsor geht morgen raus, Brannwick auch"),
+            entry("Hallo, Kelavsor ist fertig und Brannwick auch"),
+        ];
+        // "kelvasor" (two letters swapped) is in the list; "Brannwick" is two
+        // slips from "brannwyk" and stays a candidate.
+        let skip: HashSet<String> = ["kelvasor".to_string(), "brannwyk".to_string()].into();
+        let c = candidates(&entries, &mut known, &skip);
+        let words: Vec<_> = c.iter().map(|c| c.word.as_str()).collect();
+        assert_eq!(words, ["Brannwick"]);
+    }
+
+    #[test]
+    fn one_slip_is_one_edit() {
+        let s = |a: &str, b: &str| {
+            one_slip(
+                &a.chars().collect::<Vec<_>>(),
+                &b.chars().collect::<Vec<_>>(),
+            )
+        };
+        assert!(s("mrolando", "morlando")); // two neighbours swapped
+        assert!(s("brannwik", "brannwick")); // one missing
+        assert!(s("brannwickk", "brannwick")); // one extra
+        assert!(s("brannwuck", "brannwick")); // one wrong
+        assert!(!s("brannwick", "brannwick"));
+        assert!(!s("brannwyk", "brannwick")); // two edits
+        assert!(!s("tarnisio", "brannwick"));
     }
 
     #[test]

@@ -33,7 +33,8 @@
       "../mobile/keyboard/src/main/assets/sokki/bigrams.bin",
       "../crates/sokki-typos/data/lexicon-de.txt",
       "../crates/sokki-typos/data/lexicon-en.txt",
-      "../crates/sokki-typos/data/english-only.txt"
+      "../crates/sokki-typos/data/english-only.txt",
+      "../crates/sokki-typos/data/extra-de.txt"
     ],
     "license": "MIT",
     "icon": [

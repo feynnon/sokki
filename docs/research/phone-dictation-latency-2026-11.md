@@ -62,6 +62,22 @@ The Mac app serves the dictation (`meeting/phone_link.rs`), and `crates/sokki-li
   - Relay only: first words 0.7–1.3 s.
   - First dictation on a brand-new link: see `KNOWN_ISSUES.md` K12.
 
+## On Robin's Pixel 7 (26 Nov, 21:00, Mac 0.2.19, keyboard over the relay)
+
+Test clips played as the microphone (debug hook), right after the keyboard opened:
+
+| | First words | Done after stop |
+|---|---|---|
+| Through the Mac, German 27 s | 0.75 s | 0.63 s |
+| Through the Mac, English 14 s | 1.11 s | 0.27 s |
+| Phone alone (Parakeet in pieces), German 27 s | 0.64 s | 3.1 s |
+| Phone alone, English 14 s | 1.39 s | 3.6 s |
+
+- **The link opens in 0.2–0.7 s** when the keyboard opens.
+- **Before the relay-only fix:** the first dictation after the link moved to a direct path reached the Mac ~20 s late, and the phone took over (K12).
+- **A busy Mac:** one read took 4.5 s while the Mac was under load. The Mac now sends a keep-alive every second while it reads (from 0.2.21).
+- **The text came out right** in all four runs, with nothing left underlined.
+
 ## Parakeet on the phone, faster (26 Nov, the fallback without a Mac)
 
 Robin (26 Nov): without the Mac, "using the local parakeet, and looking to making that as fast as possible", especially the first words.

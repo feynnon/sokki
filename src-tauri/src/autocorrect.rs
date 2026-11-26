@@ -73,10 +73,14 @@ pub fn start(app: &AppHandle) {
             .map(|d| sokki_autocorrect::fixlog::FixLog::new(d.join("autocorrect_fixes.jsonl")));
         let settings_app = app.clone();
         let keyboard_app = app.clone();
+        let words_app = app.clone();
         runner::start(runner::Options {
             keyboard: Box::new(move || keyboard_rows(&keyboard_app)),
             load: Box::new(move || sokki_typos::Typos::load(&tables, &lexicon)),
             kept_file,
+            user_words: Box::new(move || {
+                crate::settings::get_settings(&words_app).all_vocabulary()
+            }),
             keys: sokki_keys::key_downs,
             trusted: crate::accessibility::trusted,
             enabled: Box::new(move || {

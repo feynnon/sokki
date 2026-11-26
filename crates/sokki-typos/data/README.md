@@ -12,3 +12,7 @@ The word and pair tables (`words.bin`, `bigrams.bin`) are the phone's own, in
 `english-only.txt`: lower-case English words the legacy German list took in (and, is, these,
 meeting) that the newer `main_de` dictionary doesn't have. Only the sentence's language guess
 uses it. Made by the same script.
+
+`extra-de.txt`: German words the phone's dictionary lacks, added by hand, one per line, as
+they are spelled. Kept apart so `tools/gen_lexicon.py` doesn't overwrite them. Each one came
+from a real typo Sokki couldn't fix (26 Nov 2026: Transkript and its forms). Only correct spellings go in: a word listed here is never changed.

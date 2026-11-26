@@ -199,6 +199,10 @@ impl Autocorrect {
             }
         }
         self.user_words = out;
+        // they also fix a typo one slip away (Zenrtix -> Zentrix); kept words don't
+        self.typos
+            .lexicon
+            .set_targets(self.user_words.iter().cloned());
         self.refresh_personal();
         self.user_words.len()
     }
@@ -273,6 +277,34 @@ impl Autocorrect {
             _ if cursor == 1 && u16_len(&text) == 1 => 1,
             _ => 0,
         };
+        // A typed run broke although keys were pressed: say how, in numbers only (no text), to
+        // find the cases autocorrect still loses (the Claude app, 26 Nov 2026).
+        if let (Some(p), None) = (&prev, edit_from) {
+            if keys_at_read > p.keys && p.run > 1 && changed {
+                let (a, b): (Vec<u16>, Vec<u16>) = (
+                    p.text.encode_utf16().collect(),
+                    text.encode_utf16().collect(),
+                );
+                let start = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+                let end = a
+                    .iter()
+                    .rev()
+                    .zip(b.iter().rev())
+                    .take(a.len().min(b.len()) - start)
+                    .take_while(|(x, y)| x == y)
+                    .count();
+                log::debug!(
+                    "autocorrect: typed run of {} lost: length {} -> {}, cursor {} -> {}, keys +{}, \
+                     same start {start}, same end {end}, selection {sel}",
+                    p.run,
+                    a.len(),
+                    b.len(),
+                    p.cursor,
+                    cursor,
+                    keys_at_read - p.keys
+                );
+            }
+        }
         self.last = Some(Last {
             app: app.clone(),
             text: text.clone(),
@@ -511,7 +543,12 @@ fn edit_at_cursor(
         return None;
     }
     let same = |x: u16, y: u16| x == y || (is_space(x) && is_space(y));
+    // Whitespace at the very end may come and go without a key: rich editors (Claude's
+    // composer) show an empty last line or a trailing space while one types.
+    let trim =
+        |s: &[u16]| -> usize { s.len() - s.iter().rev().take_while(|&&u| is_space(u)).count() };
     let (ta, tb) = (&a[old_cursor..], &b[cursor..]);
+    let (ta, tb) = (&ta[..trim(ta)], &tb[..trim(tb)]);
     if ta.len() != tb.len() || !ta.iter().zip(tb).all(|(&x, &y)| same(x, y)) {
         return None;
     }

@@ -29,6 +29,11 @@ const MIN_LEN: usize = 3;
 const OOV: f64 = -10.0; // log10 P of a typed non-word
 const TAU: f64 = 0.95; // share the best word needs
 const CAND_ZIPF: f64 = 2.0; // candidates are at least this common
+/// How common a word of the user's Vocabulary (or `extra-de.txt`) counts as a fix one slip away.
+/// Measured 26.11.2026 (docs/research/mac-autocorrect-2026-11.md): 2.0 fixes almost nothing (a
+/// swap needs ~2.7 against an unknown word), 4.0 fixes 70 % of made-up slips with no wrong change
+/// on any set, 5.0 changed the first of Robin's words.
+const TARGET_ZIPF: f64 = 4.0;
 const FIRST: f64 = -0.3; // slips on the first letter are 2-3 times rarer
 const UMLAUT: f64 = -0.2; // log10 P of the plain vowel for an umlaut (a missed long-press)
 const SWITCH: f64 = -1.0; // log10 P(an English-only word in a German sentence)
@@ -269,6 +274,10 @@ pub struct Lexicon {
     /// words the user typed before (the keyboard's history), exact
     personal: HashSet<String>,
     personal_by_fold: HashMap<String, Vec<String>>,
+    /// folded words that replace a typed word one slip away as if common (`TARGET_ZIPF`), whatever
+    /// the frequency table says: the user's Vocabulary (`set_targets`) and `extra-de.txt`
+    targets: HashSet<String>,
+    extra_de: HashSet<String>,
     /// lower-case English words the legacy German list took in (and, is, these): only for the
     /// sentence's language (`english-only.txt`, see tools/gen_lexicon.py)
     english_only: HashSet<String>,
@@ -359,12 +368,17 @@ impl Lexicon {
     pub fn load(dir: &Path) -> std::io::Result<Lexicon> {
         let mut de = std::fs::read_to_string(dir.join("lexicon-de.txt"))?;
         // words the phone's German dictionary lacks (`extra-de.txt`, by hand)
-        if let Ok(extra) = std::fs::read_to_string(dir.join("extra-de.txt")) {
-            de.push('\n');
-            de.push_str(&extra);
-        }
+        let extra = std::fs::read_to_string(dir.join("extra-de.txt")).unwrap_or_default();
+        de.push('\n');
+        de.push_str(&extra);
         let en = std::fs::read_to_string(dir.join("lexicon-en.txt"))?;
         let mut lex = Lexicon::from_lists(&de, &en);
+        lex.extra_de = extra
+            .lines()
+            .map(str::trim)
+            .filter(|w| !w.is_empty())
+            .map(fold)
+            .collect();
         if let Ok(eo) = std::fs::read_to_string(dir.join("english-only.txt")) {
             lex.english_only = eo.lines().map(str::to_string).collect();
         }
@@ -384,6 +398,17 @@ impl Lexicon {
         for v in self.personal_by_fold.values_mut() {
             v.sort();
         }
+    }
+
+    /// The user's own words that fix a typo one slip away (Sokki's Vocabulary: Zenrtix ->
+    /// Zentrix). Not the words kept by undoing a fix: some of those are typos themselves.
+    pub fn set_targets<I: IntoIterator<Item = String>>(&mut self, words: I) {
+        self.targets = words.into_iter().map(|w| fold(&w)).collect();
+    }
+
+    /// A folded word that replaces a typed one as if common, whatever the frequency table says.
+    fn target(&self, folded: &str) -> bool {
+        self.targets.contains(folded) || self.extra_de.contains(folded)
     }
 
     /// The languages whose dictionaries know the typed word as is ("user": the history).
@@ -791,10 +816,18 @@ impl Typos {
         }
         for c in slip_set_sorted(&slip_set) {
             let cf = c.chars().next().unwrap();
-            if (keep_first && base(cf).unwrap_or(cf) != tf) || !table.candidate(&c) {
+            if keep_first && base(cf).unwrap_or(cf) != tf {
                 continue;
             }
-            let zc = table.zipf(&c);
+            let mut zc = if table.candidate(&c) {
+                table.zipf(&c)
+            } else {
+                0.0
+            };
+            // the user's own words and the hand-added German ones compete as a word of TARGET_ZIPF
+            if self.lexicon.target(&c) {
+                zc = zc.max(TARGET_ZIPF);
+            }
             if zc >= CAND_ZIPF {
                 let s = self.lm(&c, zc, p.as_deref()) + self.channel(&t, &c);
                 scored.push((s, c));

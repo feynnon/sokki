@@ -316,6 +316,7 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | M2 | Cmd-Z after a fix: unknown whether apps undo a word replaced through Accessibility (a 2008 report says TextEdit doesn't). Backspace right after a fix works | try it in Chrome, Slack, Claude |
 | M3 | Third-party apps built on Apple's text fields (not Chromium/Electron) get macOS's autocorrect and Sokki's: two correctors on one word | exclude them once a real case shows up |
 | M4 | The same open cases as the phone (K2–K5): two plausible fixes are left alone, the user's own names can get changed until undone once | as K4, K5 |
+| M6 | A German noun + s that is a real genitive stays as typed, also where the plural was meant ("die Transkripts" for Transkripte); the English "transcripts" is one slip away too (`docs/research/mac-autocorrect-2026-11.md`, "The user's own words as fixes") | an -s form after "die" competes with the -e plural, once more real cases show up; needs the sentence's language to outweigh the English word |
 
 ## Usage data, "Help improve Sokki" (2026-11-24)
 

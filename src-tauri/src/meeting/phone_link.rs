@@ -315,14 +315,15 @@ const BUSY: &str = "The Mac is busy transcribing.";
 /// How often the phone gets the text so far, as Mac dictation's live text.
 const DICTATE_PREVIEW_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
 /// Live text re-reads the piece still growing; a piece ends at a pause
-/// after this long (at most the second), is read once more and kept. The
-/// final text is read whole anyway; these pieces are what the cleanup
-/// works on while the person speaks, so they should come out as the whole
-/// read does: cut at pauses (fixed 15 s cuts made the cleanup redo all its
-/// live steps at the stop, 7.3 s for a 65 s dictation, 2026-11-26), and
-/// long, as the Mac's own dictation (25–32 s).
-const DICTATE_PIECE_MIN_S: f32 = 15.0;
-const DICTATE_PIECE_MAX_S: f32 = 30.0;
+/// after this long (at most the second), is read once more and kept. These
+/// pieces are the final text and what the cleanup works on while the person
+/// speaks: cut at pauses (fixed 15 s cuts, with the whole dictation read
+/// again at the stop, made the cleanup redo all its live steps: 7.3 s for a
+/// 65 s dictation, 2026-11-26). 8–20 s pieces were as accurate as whole
+/// dictations on Robin's 34 (10.5 % vs 10.3 % of words different), and the
+/// shorter the last piece, the sooner the draft is there at the stop.
+const DICTATE_PIECE_MIN_S: f32 = 8.0;
+const DICTATE_PIECE_MAX_S: f32 = 20.0;
 
 /// While a read runs, the phone hears from the Mac this often: a busy Mac
 /// (a 10 s piece took 4.5 s on Robin's Mac under load, 2026-11-26) isn't
@@ -347,6 +348,7 @@ fn keeping_alive<T: Send + 'static>(
                 is_final: false,
                 heard,
                 text: now(),
+                ..Default::default()
             });
         }
     }
@@ -373,7 +375,7 @@ fn read_keeping_alive(
 /// The phone keyboard dictates through this Mac: the same model and
 /// settings as dictating here. Live text every 0.5 s (the growing piece read
 /// again, as the Mac's own live text with Parakeet does); a piece that ends
-/// at a pause after 15–30 s is read once more and kept; at the stop the
+/// at a pause after 8–20 s is read once more and kept; at the stop the
 /// rest is read. With the dictation cleanup on, the text is cleaned and laid out as for a
 /// dictation here, live too: the phone gets the cleaned paragraphs and the
 /// rest as transcribed, and the cleaned dictation at the end. Nothing is
@@ -430,6 +432,7 @@ fn dictate_for_phone(
                 is_final: false,
                 heard: last_read as u64,
                 text: shown.clone(),
+                ..Default::default()
             });
         }
         loop {
@@ -474,6 +477,7 @@ fn dictate_for_phone(
             is_final: false,
             heard: heard.len() as u64,
             text: shown.clone(),
+            ..Default::default()
         });
     }
     let t = std::time::Instant::now();
@@ -498,16 +502,41 @@ fn dictate_for_phone(
         final_text = format!("{final_text} {}", read.trim()).trim().to_string();
     }
     let read_ms = t.elapsed().as_millis();
+    let mut draft_ms = None;
     let final_text = match cleanup.take() {
         Some(c) => {
+            // As the Mac's instant paste: the draft (paragraphs cleaned so
+            // far, the rest as transcribed) goes to the phone at once, ready
+            // to send; the cleaned text follows. Built here: the cleanup's
+            // own draft waits for a step that still runs (0.2–1.7 s after
+            // the stop; Robin wants the text within 0.7 s). Meanwhile the
+            // keep-alive repeats the draft, flagged, so the phone shows it
+            // once.
             let raw = final_text.clone();
-            keeping_alive(
-                move || c.finish(&raw),
-                heard.len() as u64,
-                &|| shown.clone(),
-                text,
-            )?
-            .unwrap_or(final_text)
+            let draft = c.draft(&raw);
+            draft_ms = Some(t.elapsed().as_millis());
+            text(DictationText {
+                heard: heard.len() as u64,
+                text: draft.clone(),
+                draft: true,
+                ..Default::default()
+            });
+            let job = std::thread::spawn(move || c.finish(&raw, |_| {}));
+            let mut beat = std::time::Instant::now();
+            while !job.is_finished() {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                if beat.elapsed() >= DICTATE_KEEPALIVE {
+                    beat = std::time::Instant::now();
+                    text(DictationText {
+                        heard: heard.len() as u64,
+                        text: draft.clone(),
+                        draft: true,
+                        ..Default::default()
+                    });
+                }
+            }
+            let draft = Some(draft);
+            job.join().ok().flatten().or(draft).unwrap_or(final_text)
         }
         None => final_text,
     };
@@ -515,9 +544,10 @@ fn dictate_for_phone(
         is_final: true,
         heard: heard.len() as u64,
         text: final_text.trim().to_string(),
+        ..Default::default()
     });
     log::info!(
-        "Phone link: dictation for {peer}: {:.1} s of audio, {previews} live updates, final read in {read_ms} ms, done {} ms after the stop, {:.1} s in all",
+        "Phone link: dictation for {peer}: {:.1} s of audio, {previews} live updates, final read in {read_ms} ms, draft {draft_ms:?} ms, done {} ms after the stop, {:.1} s in all",
         heard.len() as f64 / 16_000.0,
         t.elapsed().as_millis(),
         started.elapsed().as_secs_f64()

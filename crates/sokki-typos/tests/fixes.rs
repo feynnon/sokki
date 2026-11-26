@@ -129,3 +129,25 @@ fn a_word_two_slips_from_a_common_one_is_fixed() {
     let got = fixed(&t, "Das hat gestern gut fuktionirt.");
     assert_eq!(got, vec![("fuktionirt".into(), "funktioniert".into())]);
 }
+
+#[test]
+fn a_typo_of_the_users_own_word_becomes_that_word() {
+    // a made-up company name from the user's Vocabulary, one swap away
+    let mut t = typos();
+    t.set_keyboard(&["qwertyuiop", "asdfghjkl", "zxcvbnm"]);
+    let text = "Morgen rufe ich bei Zenrtix an.";
+    assert!(fixed(&t, text).is_empty(), "{:?}", fixed(&t, text));
+    t.lexicon.set_personal(["Zentrix".to_string()]);
+    t.lexicon.set_targets(["Zentrix".to_string()]);
+    assert_eq!(fixed(&t, text), vec![("Zenrtix".into(), "Zentrix".into())]);
+    assert!(fixed(&t, "Morgen rufe ich bei Zentrix an.").is_empty());
+}
+
+#[test]
+fn a_typo_of_a_hand_added_german_word_becomes_that_word() {
+    // extra-de.txt: the frequency table lacks Transkripten
+    let mut t = typos();
+    t.set_keyboard(&["qwertyuiop", "asdfghjkl", "zxcvbnm"]);
+    let got = fixed(&t, "Ich arbeite mit den Transkripetn von gestern.");
+    assert_eq!(got, vec![("Transkripetn".into(), "Transkripten".into())]);
+}

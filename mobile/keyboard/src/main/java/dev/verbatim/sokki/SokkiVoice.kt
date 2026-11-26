@@ -44,6 +44,7 @@ object SokkiVoice {
     private const val FINAL = "\u0000final:"
     private const val LIVE = "\u0000live:"
     private const val PARTS = "\u0000parts:"
+    private const val DRAFT = "\u0000draft:"
     const val MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
     /** The model from 25 to 26 Nov 2026 (Nemotron Streaming); the app
      * replaces it by itself. */
@@ -77,6 +78,10 @@ object SokkiVoice {
     private var typed = 0
     /** The text as last shown. */
     private var lastText = ""
+    /** Through the Mac with its cleanup: the draft is typed and the keyboard
+     * is free again; the cleaned text, when it comes, replaces the end that
+     * changed. */
+    private var drafted = false
     /** Each start is a new session; a poll loop of an older one ends. */
     @Volatile private var session = 0
 
@@ -171,6 +176,7 @@ object SokkiVoice {
         lead = null
         typed = 0
         lastText = ""
+        drafted = false
         val mine = ++session
         state = State.LISTENING
         onState?.invoke(State.LISTENING) // right away, on the tap
@@ -296,7 +302,10 @@ object SokkiVoice {
                     text == DONE -> return done(mine, null)
                     text.startsWith(ERROR) -> return done(mine, text.removePrefix(ERROR))
                     text.startsWith(TEXT) -> text.removePrefix(TEXT).let { show(it, maxOf(0, it.lastIndexOf(' '))) }
-                    text.startsWith(FINAL) -> text.removePrefix(FINAL).let { show(it, it.length) }
+                    text.startsWith(FINAL) -> text.removePrefix(FINAL).let {
+                        if (drafted) swapIn(it) else show(it, it.length)
+                    }
+                    text.startsWith(DRAFT) -> showDraft(text.removePrefix(DRAFT))
                     text.startsWith(PARTS) -> text.removePrefix(PARTS).split('\u0001', limit = 2).let { p ->
                         val kept = p[0]
                         val growing = p.getOrElse(1) { "" }
@@ -344,6 +353,39 @@ object SokkiVoice {
             val before = ic.getTextBeforeCursor(1, 0)
             (if (!before.isNullOrEmpty() && !before.last().isWhitespace()) " " else "").also { lead = it }
         }
+    }
+
+    /** Through the Mac with its cleanup, at the stop: the whole dictation,
+     * typed for good, so it can be sent at once (as the Mac's instant paste).
+     * The keyboard is free again; the cleaned text may still follow. */
+    private fun showDraft(text: String) {
+        show(text, text.length)
+        drafted = true
+        state = State.IDLE
+        onState?.invoke(State.IDLE)
+        onTyped?.invoke()
+    }
+
+    /** The cleaned text after a draft: replaces the end that changed, only
+     * while the field still ends with exactly the draft at the cursor
+     * (nothing typed, sent or moved since). Otherwise the field stays. */
+    private fun swapIn(cleaned: String) {
+        val draft = lastText
+        if (cleaned == draft || cleaned.isBlank()) return
+        val ic = connection?.invoke() ?: return
+        val before = ic.getTextBeforeCursor(draft.length + 1, 0)?.toString()
+        val selected = ic.getSelectedText(0)
+        if (before == null || !before.endsWith(draft) || !selected.isNullOrEmpty()) {
+            Log.i(TAG, "the field changed after the draft; it stays")
+            return
+        }
+        val same = draft.commonPrefixWith(cleaned).length
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(draft.length - same, 0)
+        ic.commitText(cleaned.substring(same), 1)
+        ic.endBatchEdit()
+        lastText = cleaned
+        Log.i(TAG, "cleaned text swapped in: ${draft.length - same} chars replaced")
     }
 
     /** Through the Mac: the text so far, all of it still changeable, so all

@@ -50,6 +50,10 @@ const LIVE: &str = "\u{0}live:";
 /// "\0parts:<kept>\u{1}<growing>": on the phone, the text of the pieces
 /// that ended (typed for good) and the growing piece's latest reading.
 const PARTS: &str = "\u{0}parts:";
+/// "\0draft:<text>": through the Mac with the cleanup on, the whole
+/// dictation at the stop, ready to send (typed for good); "\0final:" then
+/// brings the cleaned text, swapped in where it changed.
+const DRAFT: &str = "\u{0}draft:";
 
 const RATE: usize = 16_000;
 enum Msg {
@@ -506,14 +510,17 @@ mod mac {
         let last = Arc::new(Mutex::new(Instant::now()));
         let abandoned = Arc::new(AtomicBool::new(false));
         let keep = Arc::new(AtomicBool::new(false));
+        // The draft is typed: the phone never takes over after it.
+        let drafted = Arc::new(AtomicBool::new(false));
         let stopped: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
         {
-            let (state, last, abandoned, stopped, keep) = (
+            let (state, last, abandoned, stopped, keep, drafted) = (
                 state.clone(),
                 last.clone(),
                 abandoned.clone(),
                 stopped.clone(),
                 keep.clone(),
+                drafted.clone(),
             );
             rt().spawn(async move {
                 let mut first = true;
@@ -539,6 +546,19 @@ mod mac {
                                 .map_or(0, |s| s.elapsed().as_millis()),
                             t.text.chars().count()
                         ));
+                    } else if t.draft {
+                        // Once: the keep-alive repeats it.
+                        if !drafted.swap(true, Ordering::SeqCst) {
+                            send(mine, format!("{DRAFT}{}", t.text));
+                            log(&format!(
+                                "Mac: draft {} ms after stop, {} chars",
+                                stopped
+                                    .lock()
+                                    .unwrap()
+                                    .map_or(0, |s| s.elapsed().as_millis()),
+                                t.text.chars().count()
+                            ));
+                        }
                     } else {
                         if first && !t.text.is_empty() {
                             first = false;
@@ -617,9 +637,21 @@ mod mac {
         loop {
             match state.load(Ordering::SeqCst) {
                 FINISHED => return,
+                // The draft is in the field, ready to send: it stays.
+                FAILED if drafted.load(Ordering::SeqCst) => {
+                    log("Mac: no cleaned text after the draft; the draft stays");
+                    send(mine, DONE.to_string());
+                    return;
+                }
                 FAILED => return take_over_now("failed at the stop", kept, None),
                 _ if since.elapsed() > deadline && last.lock().unwrap().elapsed() > SILENT => {
-                    return take_over_now("no final text in time", kept, None)
+                    if drafted.load(Ordering::SeqCst) {
+                        abandoned.store(true, Ordering::SeqCst);
+                        log("Mac: no cleaned text in time; the draft stays");
+                        send(mine, DONE.to_string());
+                        return;
+                    }
+                    return take_over_now("no final text in time", kept, None);
                 }
                 _ => std::thread::sleep(Duration::from_millis(20)),
             }

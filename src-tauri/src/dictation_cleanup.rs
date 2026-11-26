@@ -330,14 +330,39 @@ impl PhoneCleanup {
         }
     }
 
+    /// The whole dictation right away, for its final `transcript`: the
+    /// paragraphs cleaned so far, a blank line, the rest as transcribed (as
+    /// the cleanup's own draft, without waiting for a step that runs).
+    pub fn draft(&self, transcript: &str) -> String {
+        let view = self.session.view();
+        match view.rest(transcript) {
+            Some(rest) if !view.cleaned.is_empty() && !rest.trim().is_empty() => {
+                format!("{}\n\n{}", view.cleaned, rest.trim())
+            }
+            Some(_) if !view.cleaned.is_empty() => view.cleaned,
+            _ => transcript.trim().to_string(),
+        }
+    }
+
     /// The cleaned dictation for its final `transcript`, or `None` when the
-    /// model failed or took too long. Blocks.
-    pub fn finish(self, transcript: &str) -> Option<String> {
+    /// model failed or took too long. Blocks. `on_draft` gets the whole text
+    /// before the last steps (the paragraphs cleaned so far, the rest as
+    /// transcribed), as the instant paste does.
+    pub fn finish(
+        self,
+        transcript: &str,
+        on_draft: impl FnOnce(String) + Send + 'static,
+    ) -> Option<String> {
         if transcript.trim().is_empty() {
             return None;
         }
         let t0 = Instant::now();
-        match self.session.finish(transcript, FINISH_TIMEOUT) {
+        let on_draft: Box<dyn FnOnce(sokki_engine::cleanup::Draft) + Send> =
+            Box::new(move |d| on_draft(d.text()));
+        match self
+            .session
+            .finish_with_draft(transcript, FINISH_TIMEOUT, Some(on_draft))
+        {
             Ok(text) if !text.trim().is_empty() => {
                 info!(
                     "Phone dictation cleaned up ({} words) {:.2} s after the transcript",

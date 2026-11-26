@@ -100,6 +100,24 @@ Measured with the Mac test app and `examples/dictate`; first words are unchanged
   - The text arrived formatted in the field: paragraphs, a bullet list, a colon.
 - **Formatting of a German test letter:** greeting on its own line, paragraphs, and in one run a shopping list as bullet points.
 
+## Draft at once, cleaned text after (26 Nov, 23:15; as the Mac's instant paste)
+
+Robin: "the full text is there after dictation end within 0.7s, and I can already send it, even if the formatting is not done".
+
+- **Draft first.** At the stop the Mac sends a draft: the paragraphs cleaned so far, a blank line, then the rest as transcribed. The keyboard types it for good and is free again.
+- **Then the swap.** The cleaned text replaces only the end that changed, and only while the field still ends with exactly the draft.
+- **Results** (Mac test app, 8–20 s pieces):
+
+| Clip | Draft after stop | Cleaned after stop |
+|---|---|---|
+| German 27 s | 0.66 s | 3.1 s |
+| English 14 s | 0.44 s | 1.8 s |
+| Mixed 9 s | 0.25 s | 1.3 s |
+| Robin 65 s / 30 s / 20 s | 0.13 / 0.02 / 0.22 s | 1.6 / 1.5 / 2.8 s |
+
+- **The cleanup's own draft was too late:** 0.2–1.7 s after the stop, because it waits for a step that is still running. The Mac now builds the draft itself.
+- **Pieces of 8–20 s** instead of 15–30 s shorten the last read at the stop (65 s dictation: done 1.6 s instead of 2.5 s).
+
 ## Parakeet on the phone, faster (26 Nov, the fallback without a Mac)
 
 Robin (26 Nov): without the Mac, "using the local parakeet, and looking to making that as fast as possible", especially the first words.

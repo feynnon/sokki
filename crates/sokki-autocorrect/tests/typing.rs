@@ -433,6 +433,16 @@ fn the_users_own_words_are_loaded_word_by_word() {
 }
 
 #[test]
+fn a_typo_of_the_users_own_word_is_fixed_to_it() {
+    let mut ac = Autocorrect::new(typos(), None);
+    ac.set_keyboard(&["qwertyuiop".into(), "asdfghjkl".into(), "zxcvbnm".into()]);
+    ac.set_user_words(&["Velorama".into()]);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Morgen bin ich bei Veloarma ");
+    assert_eq!(f.text.borrow().as_str(), "Morgen bin ich bei Velorama ");
+}
+
+#[test]
 fn a_word_that_changed_without_a_key_is_listed_as_missed() {
     let mut ac = Autocorrect::new(typos(), None);
     let f = Fake::new("com.anthropic.claudefordesktop");
@@ -444,4 +454,18 @@ fn a_word_that_changed_without_a_key_is_listed_as_missed() {
     // looking again without a change lists nothing more
     assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
     assert_eq!(f.text.borrow().as_str(), "Das ist nihct ");
+}
+
+#[test]
+fn a_line_break_the_app_adds_after_the_cursor_keeps_the_word_typed() {
+    // rich editors (Claude's composer) may show or drop an empty last line while one types
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.anthropic.claudefordesktop");
+    type_in(&mut ac, &f, "Das ist ni");
+    let at = f.sel.get();
+    f.text.borrow_mut().push('\n');
+    f.sel.set(at);
+    let got = type_in(&mut ac, &f, "hct ");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Das ist nicht \n");
 }

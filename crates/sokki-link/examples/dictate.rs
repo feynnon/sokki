@@ -45,11 +45,23 @@ async fn main() -> anyhow::Result<()> {
     let show = std::env::var("SHOW").is_ok();
     let mut shown = String::new();
     let mut formatted_live = 0usize;
+    let mut draft_at: Option<f64> = None;
     sokki_link::dictate(&conn, rx, |u| {
         let now = start.elapsed().as_secs_f64();
         if u.is_final {
             finished = Some(now - audio_s);
             text = u.text;
+        } else if u.draft {
+            if draft_at.is_none() {
+                draft_at = Some(now - audio_s);
+                if show {
+                    println!(
+                        "draft {:5.2} s after stop: {}",
+                        now - audio_s,
+                        u.text.replace('\n', "⏎")
+                    );
+                }
+            }
         } else if !u.text.is_empty() {
             // Keep-alives repeat the last text: only new text counts.
             if u.text != shown {
@@ -68,10 +80,11 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
     println!(
-        "first words {:.2} s; behind speech median {:.2} s, worst {:.2} s; done {:.2} s after stop; {formatted_live} live texts with paragraphs",
+        "first words {:.2} s; behind speech median {:.2} s, worst {:.2} s; draft {} s, done {:.2} s after stop; {formatted_live} live texts with paragraphs",
         first.unwrap_or(f64::NAN),
         lags.get(lags.len() / 2).copied().unwrap_or(f64::NAN),
         lags.last().copied().unwrap_or(f64::NAN),
+        draft_at.map_or("-".to_string(), |d| format!("{d:.2}")),
         finished.unwrap_or(f64::NAN)
     );
     println!("final: {}", text.replace('\n', "⏎"));

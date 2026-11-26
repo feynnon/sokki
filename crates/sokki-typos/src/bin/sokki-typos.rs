@@ -8,6 +8,8 @@
 //!
 //! SOKKI_TYPOS_KEYBOARD sets the letter keys (`Typos::set_keyboard`): "qwerty", "qwertz" (the
 //! default, the phone's), or three rows separated by spaces.
+//! SOKKI_TYPOS_PERSONAL=<file>: the user's Vocabulary, one word per line: never changed, and a fix
+//! for a typo one slip away; with SOKKI_TYPOS_NO_TARGETS set, only never changed (the model before 26.11.2026).
 //! SPDX-License-Identifier: GPL-3.0-only
 
 use std::io::{BufRead, Read, Write};
@@ -39,13 +41,16 @@ fn main() {
     // the user's own words, one per line (as the Mac app gives autocorrect its Vocabulary)
     if let Ok(p) = std::env::var("SOKKI_TYPOS_PERSONAL") {
         let words = std::fs::read_to_string(&p).unwrap_or_default();
-        typos.lexicon.set_personal(
-            words
-                .lines()
-                .map(str::trim)
-                .filter(|w| !w.is_empty())
-                .map(String::from),
-        );
+        let words: Vec<String> = words
+            .lines()
+            .map(str::trim)
+            .filter(|w| !w.is_empty())
+            .map(String::from)
+            .collect();
+        typos.lexicon.set_personal(words.iter().cloned());
+        if std::env::var("SOKKI_TYPOS_NO_TARGETS").is_err() {
+            typos.lexicon.set_targets(words);
+        }
     }
     eprintln!("loaded in {} ms", t0.elapsed().as_millis());
     let out = std::io::stdout();

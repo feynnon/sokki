@@ -192,6 +192,48 @@ Task (from the word-learning session, Robin's words: "typos 1 letter off from my
 - **Own words:** autocorrect now reads Sokki's Vocabulary (Advanced list, meeting glossary, learned words; `all_vocabulary`) every 5 s. They are never changed, an entry of several words counts word by word, and Robin's settings give 26 words. They don't fix typos yet: the model only takes as a fix a word its frequency table knows (`table.candidate`, `CAND_ZIPF`), and the user's words aren't in that table. Making them fix targets is a model change; it has to be measured for wrong changes first (`SOKKI_TYPOS_PERSONAL=<file>` gives the CLI the same words).
 - **Missing German words:** `crates/sokki-typos/data/extra-de.txt`, a list by hand next to the generated one: Transkript, Transkripte, Transkripten. They are now known words and won't be changed, but for the same reason as above they aren't fix targets yet. "Transkripts" stays out on purpose, so the model change can fix it to "Transkripte" (Robin: "closer is Transkripte").
 
+### The user's own words as fixes (26 Nov 2026, night)
+
+**Task:** fix a typo one slip from a word of the user's Vocabulary (Robin's example: a company name with two letters swapped) and from a word in `extra-de.txt` ("Transkripts" → "Transkripte"). Pick how common such a word counts by measuring, and measure the wrong changes first. Numbers only; examples below are made up.
+
+**Why they weren't fixed:** a word one slip away competes only at zipf ≥ 2 in the frequency table, and Vocabulary words aren't in it. Giving them zipf 2 (as the Python twin's `PERSONAL_TARGETS` does) isn't enough. Against an unknown 7-letter word a swap reaches 79 % of the vote and needs 95 %, which takes about zipf 2.7.
+
+**Change:** `Lexicon::set_targets`. The Mac's Vocabulary (`set_user_words`: Advanced list, meeting glossary, learned words) and `extra-de.txt` count as at least zipf 4 (`TARGET_ZIPF`) when they are one slip from the typed word. The words kept by undoing a fix stay out, since some of them are typos. The CLI's `SOKKI_TYPOS_PERSONAL` now does the same (`SOKKI_TYPOS_NO_TARGETS` turns it off).
+
+**Measured** on QWERTY with Robin's Vocabulary (26 words): his 401 labelled typos and 48,600 words, typing37k and 136m (4,000 each), `de-clean-10k`, the day's journal (343 entries, typed spans only). "Made-up slips" are every one-slip typo of each Vocabulary word of 4+ letters (first letter kept, wrong letters only on QWERTY neighbours).
+
+| Zipf for own words | Robin: typos right / wrong / missed | Robin's words changed | Journal fixes | de-clean changes | Public right / wrong (136m, typing37k) | Made-up slips fixed to the word / to another word (of 985) |
+|---|---|---|---|---|---|---|
+| none (before) | 290 / 3 / 108 | 47 | 38 | 386 | 558 / 56, 539 / 55 | 455 / 2 |
+| 2.0 | 290 / 3 / 108 | 47 | 38 | 386 | same | 458 / 1 |
+| 2.5 | 290 / 3 / 108 | 47 | 38 | 386 | same | 464 / 0 |
+| 3.0 | 291 / 3 / 107 | 47 | 40 | 386 | same | 534 / 0 |
+| 3.5 | 292 / 3 / 106 | 47 | 40 | 386 | same | 653 / 0 |
+| **4.0 (chosen)** | 292 / 3 / 106 | 47 | 40 | 386 | same | 689 / 0 |
+| 5.0 | 292 / 3 / 106 | **48** | 40 | 386 | same | 730 / 0 |
+
+The 2 new journal fixes are both Robin's real typo of the company name (once capitalised, once not). Zipf 5 is the first to change one of his words. The final version also lifts a Vocabulary word the table knows below zipf 4 (708 of 985 made-up slips, otherwise the same as 4.0). None of the 26 words is ever changed.
+
+**Larger vocabularies** (the same sets, the user's list replaced by 500 rare capitalised dictionary words of zipf 0):
+
+| List | de-clean changes | Robin, public | Made-up slips fixed to the word / to another word |
+|---|---|---|---|
+| 500 words of 5–8 letters (name-like) | 386 → 387 (1 new: a word one slip from a listed name) | unchanged | 167 → 20,278 / 602 → 93 (of 24,529) |
+| 500 words of any length (mostly compounds) | 386 → 386 | unchanged | 21,458 → 47,695 / 1,962 → 19 (of 49,387) |
+
+Speed: a slip of a Vocabulary word now finds its fix one slip away, so the two-slip search is skipped. On a debug build that's 1.2 ms per word instead of 9.8 ms (median, 4,000 made-up slips).
+
+**"Transkripts" stays as typed.** The frequency table already has Transkript (zipf 2.75) and Transkripte (2.25), so they were fix targets before. "Transkripts" is the genitive of Transkript ("des Transkripts"), so the model counts it as a known German word and never changes it. Letting it compete after "die" wasn't enough either: the English "transcripts" is one slip away too, and "Transkripte" got 54 % of the vote. Only a rule for "-s after die" plus one against English in German sentences would fix it, and the second was measured as a wash in "The model's own misses". Left out (KNOWN_ISSUES M6). `extra-de.txt` still pays off where the table lacks a word: a swap in "Transkripten" (zipf 1.25) is now fixed.
+
+**Phone:** no change needed now. The phone keyboard (`Typos.kt`) doesn't get Sokki's Vocabulary. Its personal list holds only words kept by undoing a fix, and those stay out of the fixes here too. Its twin's `PERSONAL_TARGETS` (learned history words at zipf 2.0, off since 23 Nov) is the same idea at a zipf too low to fix a swap. If the phone ever gets the Vocabulary, the same `TARGET_ZIPF` would apply, measured again on the phone's QWERTZ.
+
+### Typed words still lost in the Claude app (26 Nov 2026, late evening, 0.2.19/0.2.21)
+
+Task: the count from 20:30 to 23:00. Result: 17 fixed, 1 undone, 2 skipped, 4 missed, all 4 in the Claude app, and all 4 typed key by key according to the journal (T3 Code wasn't used, so the read-race fix is unconfirmed there).
+- One came 4 s after a fix that didn't arrive: Claude took 911 ms, a key landed on the word, Sokki reset. Its miss line is that same word, left as typed.
+- The other three: cause not known from the counts. One possible cause is fixed in the code and covered by a test: whitespace at the very end of the field that comes or goes without a key (rich editors show an empty last line) made the edit not fit, so the word's run was lost. That the Claude app does this is not proven.
+- To find the rest: a debug log line, numbers only (lengths, cursor before and after, keys pressed, same start and end), whenever a typed run of more than one character breaks although keys were pressed.
+
 ## Open questions
 
 - Not yet tested in the installed app by a person (first release with these fixes: 0.2.15).

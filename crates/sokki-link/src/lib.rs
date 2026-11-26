@@ -77,6 +77,12 @@ pub struct DictationText {
     pub heard: u64,
     /// Everything heard so far; earlier words may still change until final.
     pub text: String,
+    /// The whole dictation, ready to send, before the cleanup's last steps:
+    /// the phone types it for good at once and swaps in the final text only
+    /// where it changed. Sent at the stop; repeated as the keep-alive until
+    /// the final text. Phones that don't know it show it as live text.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub draft: bool,
 }
 
 /// What the Mac does with requests. Called on a blocking thread.
@@ -521,12 +527,14 @@ mod tests {
                     is_final: false,
                     heard,
                     text: format!("{heard}"),
+                    ..Default::default()
                 });
             }
             text(DictationText {
                 is_final: true,
                 heard,
                 text: format!("all {heard}"),
+                ..Default::default()
             });
             Ok(())
         }

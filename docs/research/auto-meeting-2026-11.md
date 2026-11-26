@@ -48,6 +48,22 @@ No desktop app we found starts recording because people talk. They start on the 
 
 Not built (ideas for later, unverified): comparing system output with the mic (echo correlation) to tell a TV in the room from people; Now Playing (closed to third-party apps since macOS 15.4).
 
+## Why these numbers (2026-11-26)
+
+| What | Value | Change it | Why |
+|---|---|---|---|
+| Speech to begin listening in | 12 s in the last 30 s | code (`MIN_SPEECH_S`, `WINDOW_S`) | A conversation, not a remark. Since listening in, it only starts the silent recording, so it may stay low. Robin's first real start had 13.4 s. |
+| The user's voice | 2 of the 3 s speech pieces, similarity ≥ 0.5 | code (`MIN_KNOWN_PIECES`, `KNOWN_VOICE`) | One matching piece could be chance. Robin's real voice scores 0.64–0.70 against one sample, other speech at most 0.47. |
+| Show as a meeting after | 60 s | `meetings.auto_start_show_after_s` | Robin: "30s in or so is when I'd know earliest", then "Show at 60 s". |
+| Drop while listening in | 30 s without speech | code (`TRIAL_QUIET_S`) | Within the first minute, a 30 s pause means it was no conversation. |
+| Keep only conversations of | 2 min | `meetings.auto_start_min_talk_s` | Robin: "Conversation keeps going for more than 2 mins (else drop)". Kept at 2 min on 2026-11-26, knowing a 1–2 min chat shows the pill and is then deleted. |
+| Stop after | 2 min without speech | code (`QUIET_STOP_S`) | Real conversations pause; Granola waits 15 min, but here no call ends the meeting. |
+| Kept from before | 35 s | code (`PREROLL_S`) | Covers the 30 s window, so the note starts where the talk did. |
+| Card on screen | 20 s | code (`CARD_S`) | Long enough to notice, gone without a click. |
+| No auto start after the user stops one | 15 min | code (`COOLDOWN_S`) | The same conversation must not start it again. |
+
+The two settings can be changed with `sokki config` (CLI.md) or in the settings file; there's no field for them in the window yet.
+
 ## Headless test (2026-11-26, Sokki Test, `scripts/test-auto-meeting.sh`)
 
 Made-up audio only (macOS voices and synthesised music), played into the test microphone, never through the speakers. Known voice: one 8 s sample of the voice "Anna" (a sentence not in any test clip), the test's stand-in for the user's own voice. Build d53aca7e plus the test fixes.

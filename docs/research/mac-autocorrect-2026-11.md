@@ -139,7 +139,7 @@ There is no language setting for autocorrect: it handles German and English sent
 4. Capitals: at a sentence start the capitalised and the lower-case form of the same swap get the same answer (86 % share for both), so "the capital changes the answer" did not reproduce.
 
 **Fix:**
-- The Mac reads which letter each physical key types in the layout in use (macOS UCKeyTranslate, on the main thread, every 5 s while autocorrect is on), and the model takes those rows as neighbours (`Typos::set_keyboard`). The phone keeps QWERTZ. Log line: "autocorrect: keyboard rows set (26 letters)".
+- The Mac reads which letter each physical key types in the layout in use (macOS UCKeyTranslate, on the main thread, every 5 s while autocorrect is on), and the model takes those rows as neighbours (`Typos::set_keyboard`). The phone reads the keys on its screen instead (`phone-autocorrect-2026-11.md`). Log line: "autocorrect: keyboard rows set (26 letters)".
 - British -ise spellings (optimised, organising) count as English words when the US list has the -ize form. With QWERTY neighbours they would otherwise become -ize.
 - A word with no candidate one slip away gets the dictionary's common words (zipf ≥ 3) two slips away; the same 95 % rule decides. A letter-count bound keeps it fast: 3 ms per long unknown word (95th percentile), 38 ms without it. A minimum word length made no difference (3 to 8 letters measured the same).
 
@@ -175,6 +175,14 @@ The hardware-keyboard rates remove 56 wrong changes on German text but lose as m
 **Not fixed, and what would:** 7 of the day's 8 misses stay (cause 3, and two long words where keeping the typed word still scores higher than two slips). Two paths, both outside this change:
 - Decide a doubtful word once the next word is typed (`NEXT_CONTEXT` in the Python twin, off because the app decides at the space). Autocorrect would have to replace the word before last.
 - Give autocorrect the words Sokki learns from the journal. The Python twin's `SPLIT_DECISION` (off since 23 Nov: as many of Robin's names and tool words changed as typos fixed) could then be measured again.
+
+### Words lost to a key during a read (26 Nov 2026, 0.2.18)
+
+Task: find why 0.2.18 still left 5 typos as "start of the word not seen typed" (its fix list from 15:01 to 18:20: 54 fixed, 1 undone, 7 missed, of them 5 start of word and 2 paste or dictation).
+
+- All 5 were in T3 Code (an Electron app). In 4 of them the typing journal holds the whole word as typed key by key, so the keys were there and autocorrect lost them. The fifth came 6 s after an undone fix, with one character inside the word not typed; unclear, left.
+- Cause, reproduced in `tests/typing.rs`: a key that lands while Sokki reads the field. Sokki counts the keys, then reads the text, then the cursor, and each read takes a few ms in Electron. A key between the count and the text read gives one character more than keys counted. A key between the text and cursor reads gives a cursor the text doesn't have. Either way the edit doesn't fit and the word's typed run starts again mid-word. The journal doesn't lose these words: it allows one character more than keys and doesn't use the cursor.
+- Fix: when the key count changed during the read, the read counts as stale. Sokki keeps the last read and looks again (it already does that when an app hasn't caught up with a key). Both race tests pass, and so do the 15 earlier typing tests.
 
 ## Open questions
 

@@ -25,10 +25,12 @@
 //!   doesn't, and nothing plays then).
 //!
 //! It stops by itself after [`QUIET_STOP_S`] without speech. Both happen
-//! without asking; a small card shows for [`CARD_S`]: "Discard" (one click
-//! deletes the recording, audio and record, so nothing is learned from it;
-//! then no auto start for [`COOLDOWN_S`]), "Keep recording", and "Turn off
-//! auto start" (sets `auto_start_enabled` to false; the recording goes on).
+//! without asking. A one-line card (canvas M2.2, Robin's pick 2026-11-26)
+//! shows for [`CARD_S`]: "Von selbst aufgenommen", an Auto-Start switch
+//! (sets `auto_start_enabled` to false; the recording goes on) and an X that
+//! only closes the card. The pill shows the recording. Stopping an
+//! auto-started meeting in the pill means it wasn't wanted: no auto start
+//! for [`COOLDOWN_S`], so the same conversation doesn't start it again.
 //!
 //! Every decision is logged with its reason and timing ("Auto meeting: …"),
 //! never with what was said, so false and missed starts can be counted.
@@ -67,9 +69,9 @@ pub const MIN_KNOWN_PIECES: usize = 2;
 const RECHECK_S: f64 = 15.0;
 /// An auto-started meeting stops after this long without speech.
 pub const QUIET_STOP_S: f64 = 120.0;
-/// How long the "Discard" card stays.
+/// How long the card stays.
 pub const CARD_S: u64 = 20;
-/// After a discard, no auto start for this long.
+/// After the user stops an auto-started meeting, no auto start for this long.
 pub const COOLDOWN_S: u64 = 15 * 60;
 /// The same threshold dictation uses for Earshot.
 const VAD_THRESHOLD: f32 = 0.5;
@@ -347,7 +349,7 @@ fn run(app: &AppHandle) {
             std::thread::sleep(Duration::from_millis(500));
             continue;
         }
-        forget_ours_if_gone();
+        forget_ours_if_gone(app);
         if !on {
             if let Some(l) = listening.take() {
                 close_listener(l);
@@ -473,7 +475,7 @@ fn run(app: &AppHandle) {
                     started_mono_us: super::mono_us(),
                 });
                 crate::usage::count(app, crate::usage::Count::AutoMeetingStarted);
-                offer_discard(app, id);
+                offer_card(app, id);
             }
             Err(e) => log::warn!("Auto meeting: starting failed: {e}"),
         }
@@ -487,7 +489,7 @@ fn describe(b: &Block) -> String {
         Block::Call(app) => format!("a call runs in {app} (call detection asks)"),
         Block::Dictation => "a dictation runs".into(),
         Block::Playing(apps) => format!("sound plays from {}", apps.join(", ")),
-        Block::Cooldown(s) => format!("discarded {s} s ago"),
+        Block::Cooldown(s) => format!("stopped by the user {s} s ago"),
     }
 }
 
@@ -539,18 +541,18 @@ fn playing_apps() -> Vec<String> {
     names
 }
 
-/// The card after a start: "Discard" deletes the recording, "Turn off auto
-/// start" switches the setting off. Test mode shows no window;
-/// `SOKKI_TEST_AUTO_DISCARD=1` clicks Discard after 3 s,
-/// `SOKKI_TEST_AUTO_DISCARD=off` clicks "Turn off auto start".
-fn offer_discard(app: &AppHandle, id: String) {
+/// The card after a start: the Auto-Start switch ("off") turns the setting
+/// off, the X ("close") only closes the card. Test mode shows no window;
+/// `SOKKI_TEST_AUTO_DISCARD=off` flips the switch after 3 s,
+/// `SOKKI_TEST_AUTO_DISCARD=close` clicks the X.
+fn offer_card(app: &AppHandle, id: String) {
     let handle = app.clone();
     std::thread::spawn(move || {
         let shown = Instant::now();
         let answer = if crate::test_mic::active() {
             std::env::var("SOKKI_TEST_AUTO_DISCARD").ok().map(|v| {
                 std::thread::sleep(Duration::from_secs(3));
-                if v == "off" { "off" } else { "discard" }.to_string()
+                v
             })
         } else {
             super::prompt::ask(
@@ -560,43 +562,22 @@ fn offer_discard(app: &AppHandle, id: String) {
                 Duration::from_secs(CARD_S),
             )
         };
-        if answer.as_deref() == Some("off") {
-            let mut settings = crate::settings::get_settings(&handle);
-            settings.meetings.auto_start_enabled = false;
-            crate::settings::write_settings(&handle, settings);
-            log::info!(
-                "Auto meeting: turned off by the user from the card {:.1} s after starting {id}; the recording goes on",
-                shown.elapsed().as_secs_f64()
-            );
-            crate::usage::count(&handle, crate::usage::Count::AutoMeetingTurnedOff);
-            return;
-        }
-        if answer.as_deref() != Some("discard") {
-            if answer.as_deref() == Some("keep") {
-                log::info!("Auto meeting: {id} kept by the user");
-            }
-            return;
-        }
-        let still =
-            handle.state::<Arc<MeetingManager>>().active_id().as_deref() == Some(id.as_str());
-        if !still {
-            return;
-        }
-        // Forgotten and cooled down first, so the listener neither logs it
-        // as stopped by the user nor starts again in between.
-        *OURS.lock().unwrap_or_else(|e| e.into_inner()) = None;
-        *COOLDOWN_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) =
-            Some(Instant::now() + Duration::from_secs(COOLDOWN_S));
-        match super::discard_meeting(&handle) {
-            Ok(_) => {
+        match answer.as_deref() {
+            Some("off") => {
+                let mut settings = crate::settings::get_settings(&handle);
+                settings.meetings.auto_start_enabled = false;
+                crate::settings::write_settings(&handle, settings);
                 log::info!(
-                    "Auto meeting: {id} discarded by the user {:.1} s after the start; no auto start for {} min",
-                    shown.elapsed().as_secs_f64(),
-                    COOLDOWN_S / 60
+                    "Auto meeting: turned off by the user from the card {:.1} s after starting {id}; the recording goes on",
+                    shown.elapsed().as_secs_f64()
                 );
-                crate::usage::count(&handle, crate::usage::Count::AutoMeetingDiscarded);
+                crate::usage::count(&handle, crate::usage::Count::AutoMeetingTurnedOff);
             }
-            Err(e) => log::warn!("Auto meeting: discarding {id} failed: {e}"),
+            Some("close") => log::info!(
+                "Auto meeting: card closed by the user {:.1} s after starting {id}; the recording goes on",
+                shown.elapsed().as_secs_f64()
+            ),
+            _ => {}
         }
     });
 }
@@ -630,15 +611,20 @@ fn watch_ours(app: &AppHandle, id: &str) {
 }
 
 /// The meeting the listener started ended some other way (stop button,
-/// shortcut): log it once and forget it.
-fn forget_ours_if_gone() {
+/// shortcut): the user didn't want it. Log it once, forget it, and start
+/// nothing by itself for [`COOLDOWN_S`].
+fn forget_ours_if_gone(app: &AppHandle) {
     let mut ours = OURS.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(o) = ours.take() {
+        *COOLDOWN_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(Instant::now() + Duration::from_secs(COOLDOWN_S));
         log::info!(
-            "Auto meeting: {} stopped by the user after {:.0} s",
+            "Auto meeting: {} stopped by the user after {:.0} s; no auto start for {} min",
             o.id,
-            o.started.elapsed().as_secs_f64()
+            o.started.elapsed().as_secs_f64(),
+            COOLDOWN_S / 60
         );
+        crate::usage::count(app, crate::usage::Count::AutoMeetingStoppedByUser);
     }
 }
 

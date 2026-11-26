@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Monitor, Users } from "lucide-react";
 import "@/i18n";
 import { commands } from "@/bindings";
+import { SokkiMark } from "@/components/icons/SokkiLogo";
 import "./prompt.css";
 
 const params = new URLSearchParams(window.location.search);
@@ -13,27 +14,80 @@ const kind =
 const app = params.get("app") ?? "";
 const offerScreen = params.get("screen") === "1";
 
+const answer = (value: string) => void commands.meetingPromptAnswer(value);
+
+/**
+ * A meeting started by itself (canvas M2.2): one line like a macOS
+ * notification, with an Auto-Start switch and an X over the corner that
+ * shows with the mouse. The pill shows the recording, so nothing here says
+ * it goes on. The switch flips at once and answers "off" a moment later,
+ * so the user sees it go off; the X answers "close".
+ */
+const AutoCard: React.FC = () => {
+  const { t } = useTranslation();
+  const [on, setOn] = useState(true);
+  const turnOff = () => {
+    if (!on) return;
+    setOn(false);
+    window.setTimeout(() => answer("off"), 700);
+  };
+  return (
+    <div className="auto-stage">
+      <div className="auto-card" role="dialog" aria-labelledby="prompt-title">
+        <button
+          type="button"
+          className="auto-close"
+          aria-label={t("meetings.prompt.close")}
+          onClick={() => answer("close")}
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden>
+            <path
+              d="M6 6l12 12M18 6 6 18"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        <span className="auto-icon" aria-hidden>
+          <SokkiMark size={18} />
+        </span>
+        <span className="auto-title" id="prompt-title">
+          {t("meetings.prompt.autoTitle")}
+        </span>
+        <button
+          type="button"
+          className="auto-switch"
+          role="switch"
+          aria-checked={on}
+          onClick={turnOff}
+        >
+          {t("meetings.prompt.autoSwitch")}
+          <span className="track" aria-hidden>
+            <span className="knob" />
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /**
  * Asks when a call starts (Not now / Record, optionally with the screen) or
- * ends (Keep recording / Stop), or says a meeting started by itself
- * (Turn off auto start / Discard / Keep). The answer goes back to meeting/prompt.rs.
+ * ends (Keep recording / Stop). The answer goes back to meeting/prompt.rs.
  */
 const Prompt: React.FC = () => {
   const { t } = useTranslation();
   const [screen, setScreen] = useState(false);
-  const answer = (value: string) => void commands.meetingPromptAnswer(value);
 
   const started = kind === "started";
-  const auto = kind === "auto";
-  const title = auto
-    ? t("meetings.prompt.autoTitle")
-    : t(
-        started ? "meetings.prompt.startedTitle" : "meetings.prompt.endedTitle",
-        { app },
-      );
-  const hint = auto
-    ? t("meetings.prompt.autoHint")
-    : t(started ? "meetings.prompt.startedHint" : "meetings.prompt.endedHint");
+  const title = t(
+    started ? "meetings.prompt.startedTitle" : "meetings.prompt.endedTitle",
+    { app },
+  );
+  const hint = t(
+    started ? "meetings.prompt.startedHint" : "meetings.prompt.endedHint",
+  );
   return (
     <div className="prompt" role="dialog" aria-labelledby="prompt-title">
       <div className="head">
@@ -66,32 +120,7 @@ const Prompt: React.FC = () => {
         </div>
       )}
       <div className="actions">
-        {auto ? (
-          <>
-            <button
-              type="button"
-              className="button quiet"
-              onClick={() => answer("off")}
-            >
-              {t("meetings.prompt.turnOff")}
-            </button>
-            <span className="spacer" />
-            <button
-              type="button"
-              className="button"
-              onClick={() => answer("discard")}
-            >
-              {t("meetings.prompt.discard")}
-            </button>
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => answer("keep")}
-            >
-              {t("meetings.prompt.keepAuto")}
-            </button>
-          </>
-        ) : started ? (
+        {started ? (
           <>
             <button
               type="button"
@@ -135,6 +164,6 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <Prompt />
+    {kind === "auto" ? <AutoCard /> : <Prompt />}
   </React.StrictMode>,
 );

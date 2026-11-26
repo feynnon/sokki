@@ -15,7 +15,9 @@
 // P(word | previous word): the pair table, else 0.4 x P(word) from the word
 // table. P(typed | word): per-letter slip rates measured on typing37k. The typed
 // word, when it is no word: log10 P = OOV. The best word replaces the typed one
-// when its share of all scores is at least TAU. Known words (common, compounds,
+// when its share of all scores is at least TAU. When no word is one slip away, common words two
+// slips away compete the same way (assets/sokki/common.txt). Neighbouring keys come from the
+// keyboard on screen (useKeyboard). Known words (common, compounds,
 // personal) are never changed, nor the first letter of a word typed with a
 // capital in mid-sentence (a name: Qwen, Ollama). tools/typo_model.py is the
 // Python twin (keep the two equal); tools/score_context.py and
@@ -35,6 +37,7 @@ package dev.verbatim.sokki
 
 import android.content.Context
 import android.util.Log
+import helium314.keyboard.keyboard.Keyboard
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.Locale
@@ -78,6 +81,7 @@ object Typos {
     private val SWAP_BONUS = Math.log10(5.0) // half of Robin's typos are two swapped letters
     private const val UMLAUT = -0.2 // log10 P of the plain vowel for an umlaut (a missed long-press)
     private val TRANSLIT = Regex("ae|oe|ue")
+    private val WORD = Regex("[A-Za-zÄÖÜäöüß]+")
     private val DIPHTHONG_SZ = Regex("(ei|ai|au|eu|äu|ie)ß")
     private const val SWITCH = -1.0 // log10 P(an English-only word in a German sentence)
     private const val COMPOUND_MIN = 9 // a typed non-word this long may be a compound with a slip
@@ -97,7 +101,23 @@ object Typos {
         "zum zur im am beim vom ins ans aufs für mit von zu bei nach aus über unter auf in an um durch ohne gegen " +
         "pro per via vor hinter neben zwischen ne nen nem ner").split(" ").toSet()
 
+    // British -ise spellings of a common US -ize word are words (optimised; Robin's Mac, 26.11.2026)
+    private val BRITISH = listOf("isations" to "izations", "isation" to "ization", "ising" to "izing", "isers" to "izers",
+        "ised" to "ized", "ises" to "izes", "iser" to "izer", "ise" to "ize", "ysed" to "yzed", "yse" to "yze")
+    // Earlier words of the text that also count for its language (typo_model.LANG_CONTEXT) and their weight. Off:
+    // on Robin's writing (26.11.2026) 10, 20 or 40 words fixed 0.3 points fewer typos, no more nouns capitalised.
+    private const val LANG_CONTEXT = 0
+    private const val CONTEXT_WEIGHT = 1.0
+
+    /** Text before the cursor (LatinIME's cached copy), for the text's language. */
+    @JvmField var textBefore: (() -> CharSequence?)? = null
+
     private val io = Executors.newSingleThreadExecutor()
+    // common.txt: (first letter, length) -> those words run together; the words a typo may be two slips from
+    @Volatile private var near: Map<Int, String>? = null
+    // The keyboard on screen: letter -> (centre x, centre y, width, height); null: the QWERTZ rows
+    @Volatile private var keys: Map<Char, DoubleArray>? = null
+    @Volatile private var keysOf: Any? = null
     @Volatile private var bloom: Bloom? = null
     @Volatile private var bigrams: Bloom? = null
     private val personal = HashSet<String>()
@@ -114,14 +134,50 @@ object Typos {
                     personalFile = file
                     personal.addAll(words.map { fold(it) })
                 }
-                bloom = Bloom.load(data)
                 val pairs = app.assets.open("sokki/bigrams.bin").use { it.readBytes() }
-                bigrams = Bloom.load(pairs)
+                val common = app.assets.open("sokki/common.txt").use { it.readBytes() }.toString(Charsets.UTF_8)
+                load(data, pairs, common)
                 Log.i(TAG, "word table ${data.size} bytes, pairs ${pairs.size} bytes, ${words.size} personal words")
             } catch (e: Exception) {
                 Log.w(TAG, "no word table, autocorrect stays off", e)
             }
         }
+    }
+
+    /** The tables from assets/sokki (words.bin, bigrams.bin, common.txt); JVM tests call it directly. */
+    internal fun load(words: ByteArray, pairs: ByteArray, common: String) {
+        val runs = HashMap<Int, StringBuilder>()
+        for (w in common.split('\n')) if (w.isNotEmpty() && w.length < 64) runs.getOrPut(nearKey(w[0], w.length)) { StringBuilder() }.append(w)
+        near = runs.mapValues { it.value.toString() }
+        bigrams = Bloom.load(pairs)
+        bloom = Bloom.load(words)
+    }
+
+    /** Neighbouring keys from these key positions (letter -> centre x, centre y, width, height); null: QWERTZ rows. */
+    internal fun setKeys(k: Map<Char, DoubleArray>?) {
+        keys = k
+    }
+
+    private fun nearKey(first: Char, length: Int) = first.code * 64 + length
+
+    /**
+     * Use the letter keys of [keyboard] (the one on screen) for neighbouring keys, so a slip is
+     * judged on the layout the user types on (QWERTY, QWERTZ, AZERTY, with or without umlaut keys).
+     */
+    @JvmStatic fun useKeyboard(keyboard: Keyboard?) {
+        if (keyboard == null || keyboard === keysOf || !keyboard.mId.element.isAlphabet) return
+        val found = HashMap<Char, DoubleArray>()
+        for (k in keyboard.sortedKeys) {
+            val code = k.code
+            if (code <= 0 || Character.isSupplementaryCodePoint(code) || !Character.isLetter(code)) continue
+            val c = code.toChar().lowercaseChar()
+            if (c !in found) found[c] = doubleArrayOf(k.x + k.width / 2.0, k.y + k.height / 2.0, k.width.toDouble(), k.height.toDouble())
+        }
+        keysOf = keyboard
+        if (found.size < 20) return // no letter layout Typos knows: keep the last one
+        if (keys?.let { old -> old.size == found.size && found.all { (c, v) -> old[c]?.contentEquals(v) == true } } == true) return
+        keys = found
+        Log.i(TAG, "keyboard keys set (${found.size} letters, ${found.keys.sorted().joinToString("")})")
     }
 
     /**
@@ -140,6 +196,7 @@ object Typos {
         val valid = HashSet(typedLangs)
         if (synchronized(personal) { t in personal }) valid.add("user")
         val last = prevWords.lastOrNull()
+        val context by lazy { contextWords() }
         // The same word spelled as the dictionary has it: a capital (montag -> Montag) or ß. A capital
         // only from German (allen stays, not "Allen" from an English name list).
         var capPair = candidates.firstOrNull { (c, lang) ->
@@ -194,7 +251,7 @@ object Typos {
             if (typed.all { it.isLowerCase() } && last != null && fold(last) in setOf("zum", "beim", "vom") && infinitive(table, t))
                 return typed.replaceFirstChar { it.uppercaseChar() }
             if (!typed.all { it.isLowerCase() } || last == null || last == BOS || !table.noun(t)) return null
-            if (fold(last) in PRONOUNS || sentenceLang(table, prevWords, next) != "de") return null
+            if (fold(last) in PRONOUNS || sentenceLang(table, prevWords, next, context) != "de") return null
             // an English word only after a German article, preposition or inflected adjective (den Link,
             // kleines Update), with no English word after
             if (table.commonIn('e', t) && (!(fold(last) in DETERMINERS || adjective(table, last)) || lean(table, next) == 'e'))
@@ -204,7 +261,7 @@ object Typos {
         }
         // A word only English (or the user's history) has, whose umlaut twin is 100x more common German,
         // is that twin in a German sentence: fur -> für, uber -> über (a missed long-press)
-        if (valid.isNotEmpty() && valid.all { it == "en" || it == "user" } && sentenceLang(table, prevWords, next) == "de" &&
+        if (valid.isNotEmpty() && valid.all { it == "en" || it == "user" } && sentenceLang(table, prevWords, next, context) == "de" &&
             lean(table, typed) != 'd') {
             val twin = umlautForm(table, t)
             if (twin != null && table.zipf(twin) >= table.zipf(t) + 2) {
@@ -215,7 +272,7 @@ object Typos {
         // In a German sentence an English-only word one slip from a German word competes with it on the
         // pair table, paying a language switch as in bilingual decoders: mir bite die -> mir bitte die
         if (valid == setOf("en") && lean(table, typed) == 'e' && last != null && last != BOS &&
-            sentenceLang(table, prevWords, next) == "de") {
+            sentenceLang(table, prevWords, next, context) == "de") {
             englishInGerman(table, t, fold(last))?.let { word ->
                 val spelled = candidates.firstOrNull { fold(it.first) == word }?.first ?: word
                 return if (typed[0].isUpperCase()) spelled.replaceFirstChar { it.uppercaseChar() } else spelled
@@ -225,7 +282,7 @@ object Typos {
             // Words the keyboard knows are never changed, only capitalised; in German a noun gets its
             // capital even if English has the lower-case word (den Link).
             truecase()?.let { return it }
-            if (cap != null && valid == setOf("en") && cap[0] != typed[0] && sentenceLang(table, prevWords, next) == "de" &&
+            if (cap != null && valid == setOf("en") && cap[0] != typed[0] && sentenceLang(table, prevWords, next, context) == "de" &&
                 last != null && last != BOS && fold(last) in DETERMINERS && lean(table, next) != 'e') return cap
             return null
         }
@@ -280,20 +337,57 @@ object Typos {
                 bestWord = c
             }
         }
+        // No word one slip away: common words two slips away compete (funtkionirt -> funktioniert).
+        // Robin's Mac typing, 26.11.2026: long words with a swap and a second slip were left as typed.
+        var two: HashSet<String>? = null
+        val runs = near
+        if (scores.size == 1 && runs != null) {
+            val bag = IntArray(31)
+            for (ch in t) bag[slot(ch)]++
+            var slips: Set<String>? = null
+            for (n in maxOf(1, t.length - 2)..t.length + 2) {
+                val run = runs[nearKey(t[0], n)] ?: continue
+                var i = 0
+                while (i < run.length) {
+                    val at = i
+                    i += n
+                    if (bagDistance(bag, run, at, n) > 2) continue
+                    val c = run.substring(at, at + n)
+                    if ((keepFirst && (BASE[c[0]] ?: c[0]) != t[0]) || !table.candidate(c)) continue
+                    if (slips == null) slips = oneSlip(t)
+                    val bytes = c.toByteArray(Charsets.UTF_8)
+                    val zc = table.zipf(bytes)
+                    if (c in slips || zc < COMMON) continue
+                    val score = lm(bytes, zc) + channel(t, c)
+                    (two ?: HashSet<String>().also { two = it }).add(c)
+                    scores.add(score)
+                    if (score > best || (score == best && c > bestWord)) {
+                        best = score
+                        bestWord = c
+                    }
+                }
+            }
+        }
         val sure = 1.0 / scores.sumOf { Math.pow(10.0, it - best) } >= TAU
         if (bestWord != t && sure) {
-            val spelled = candidates.firstOrNull { fold(it.first) == bestWord }?.first ?: bestWord
+            var spelled = candidates.firstOrNull { fold(it.first) == bestWord }?.first ?: bestWord
+            if (two?.contains(bestWord) == true) {
+                // the spelling of the sentence's language: million in English, Million in German
+                val lang = sentenceLang(table, prevWords, next, context)
+                spelled = candidates.firstOrNull { fold(it.first) == bestWord && it.second == lang }?.first ?: spelled
+                if (spelled == bestWord && lang == "de" && table.noun(bestWord)) spelled = bestWord.replaceFirstChar { it.uppercaseChar() }
+            }
             return if (typed[0].isUpperCase()) spelled.replaceFirstChar { it.uppercaseChar() } else spelled
         }
         // a long non-word one slip from a German compound gets it (Rchnungsthema -> Rechnungsthema)
-        if (bestWord == t && zt == 0.0 && t.length >= COMPOUND_MIN && sentenceLang(table, prevWords, next) != "en") {
+        if (bestWord == t && zt == 0.0 && t.length >= COMPOUND_MIN && sentenceLang(table, prevWords, next, context) != "en") {
             compoundFix(table, t)?.let { fix ->
                 return if (typed[0].isUpperCase()) fix.replaceFirstChar { it.uppercaseChar() } else fix
             }
         }
         truecase()?.let { return it }
         if (cap == null) return null
-        if (cap[0] != typed[0] && (sentenceLang(table, prevWords, next) == "en" ||
+        if (cap[0] != typed[0] && (sentenceLang(table, prevWords, next, context) == "en" ||
                 (last != null && last != BOS && fold(last) in PRONOUNS))) return null
         return cap
     }
@@ -312,7 +406,7 @@ object Typos {
      * English -1 for a word only common in that language), the next word 1/2. German wins ties:
      * it is the user's first language.
      */
-    private fun sentenceLang(table: Bloom, prevWords: List<String>, next: String?): String {
+    private fun sentenceLang(table: Bloom, prevWords: List<String>, next: String?, context: List<String>): String {
         var score = 0.0
         var weight = 1.0
         for (w in prevWords.takeLast(3).asReversed()) {
@@ -320,6 +414,10 @@ object Typos {
             weight /= 2
         }
         score += 0.5 * when (lean(table, next)) { 'd' -> 1; 'e' -> -1; else -> 0 }
+        if (LANG_CONTEXT > 0 && context.isNotEmpty()) {
+            val ws = context.takeLast(LANG_CONTEXT)
+            score += CONTEXT_WEIGHT * ws.sumOf { when (lean(table, it)) { 'd' -> 1.0; 'e' -> -1.0; else -> 0.0 } } / ws.size
+        }
         return if (score < 0) "en" else "de"
     }
 
@@ -543,8 +641,22 @@ object Typos {
         val t = fold(w)
         val z = table.zipf(t)
         if (umlautTwin(table, t, z)) return false // konnen, uberlegt: web forms of umlaut words
-        if (z >= COMMON) return true
+        if (z >= COMMON || british(table, t)) return true
         return builtWord(table, t) || verbStem(table, t) || inflected(table, t)
+    }
+
+    /** Folded [t] is the British spelling of a common English -ize/-yze word (optimised, analysed). */
+    private fun british(table: Bloom, t: String): Boolean =
+        BRITISH.any { (gb, us) -> t.endsWith(gb) && t.length - gb.length >= 3 && table.commonIn('e', t.dropLast(gb.length) + us) }
+
+    /** The text's words before the one being typed, nearest last (the current message: after the last line break). */
+    private fun contextWords(): List<String> {
+        if (LANG_CONTEXT == 0) return emptyList()
+        val text = try { textBefore?.invoke()?.toString() } catch (e: Exception) { null } ?: return emptyList()
+        val line = text.substring(text.lastIndexOf('\n') + 1)
+        val words = WORD.findAll(line).map { it.value }.toMutableList()
+        if (words.isNotEmpty() && line.last().isLetter()) words.removeAt(words.size - 1) // the word being typed
+        return words.takeLast(LANG_CONTEXT)
     }
 
     /** Both tables are loaded (debug: SokkiBench waits for it). */
@@ -568,10 +680,47 @@ object Typos {
     private fun fold(w: String) = w.lowercase(Locale.ROOT).replace("ß", "ss")
 
     private fun neighbours(a: Char, b: Char): Boolean {
-        if ((a == 'y' && b == 'z') || (a == 'z' && b == 'y')) return true // QWERTY habit on QWERTZ
-        val (r1, c1) = POS[a] ?: return false
-        val (r2, c2) = POS[b] ?: return false
-        return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1.0
+        val k = keys
+        if (k == null) {
+            if ((a == 'y' && b == 'z') || (a == 'z' && b == 'y')) return true // QWERTY habit on QWERTZ
+            val (r1, c1) = POS[a] ?: return false
+            val (r2, c2) = POS[b] ?: return false
+            return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1.0
+        }
+        val p = k[a] ?: return false
+        val q = k[b] ?: return false
+        if ((a == 'y' && b == 'z') || (a == 'z' && b == 'y')) {
+            val z = k['z']
+            val y = k['y']
+            if (z != null && y != null && z[1] < y[1]) return true // QWERTY habit on QWERTZ (z in the top row)
+        }
+        val dx = Math.abs(p[0] - q[0])
+        val dy = Math.abs(p[1] - q[1])
+        val w = (p[2] + q[2]) / 2
+        val h = (p[3] + q[3]) / 2
+        if (dy < minOf(p[3], q[3]) / 2) return dx <= w * 1.05 // the same row: the key beside it
+        // the row above or below: keys that overlap it sideways (not one diagonally past its corner)
+        return dy <= h * 1.05 && dx < w * 0.95
+    }
+
+    /** a-z, ä ö ü ß; anything else shares one slot. */
+    private fun slot(c: Char) = when (c) {
+        in 'a'..'z' -> c - 'a'
+        'ä' -> 26
+        'ö' -> 27
+        'ü' -> 28
+        'ß' -> 29
+        else -> 30
+    }
+
+    /** A lower bound on the slips between [bag]'s word and run[at, at + n): the letters one has more of. */
+    private fun bagDistance(bag: IntArray, run: String, at: Int, n: Int): Int {
+        val d = bag.copyOf()
+        for (i in at until at + n) d[slot(run[i])]--
+        var more = 0
+        var fewer = 0
+        for (x in d) if (x > 0) more += x else fewer -= x
+        return maxOf(more, fewer)
     }
 
     /** A German compound of two common words, or an English stem with a German ending. */

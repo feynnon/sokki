@@ -13,7 +13,7 @@ serde_json = "1"
 # n0's DNS, connects directly (hole punching), falls back to n0's public
 # relays. Everything is encrypted end to end; a relay only forwards bytes.
 iroh = "1.4.1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "io-util"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

@@ -109,12 +109,135 @@
   border-color: #3567cc;
   color: #ffffff;
 }
-.button.quiet {
-  border-color: transparent;
-  padding: 0 4px;
-  color: #a5a6a9;
-  font-weight: 400;
+
+/* Buttons show the hand: Robin, 2026-11-26, "with cursor showing". */
+.button,
+.switch,
+.auto-switch,
+.auto-close {
+  cursor: pointer;
 }
-.spacer {
+
+/* A meeting started by itself (canvas M2.2): its own glass card in a clear
+   window, with room for the X over the top left corner and the shadow. */
+.auto-stage {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 9px 26px 31px 9px;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.auto-card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 10px 0 12px;
+  border-radius: 14px;
+  background: rgba(58, 59, 64, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #f5f5f7;
+  font:
+    400 13px/1.3 -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    sans-serif;
+}
+.auto-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #0e1420;
+  color: #8ab4ff;
+  --color-logo-primary: #ffffff;
+}
+.auto-title {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.auto-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #b8bac0;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  flex: none;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
+}
+.auto-switch:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f5f5f7;
+}
+.auto-switch .track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background-color 0.15s;
+}
+.auto-switch[aria-checked="true"] .track {
+  background: #8ab4ff;
+}
+.auto-switch[aria-checked="true"]:hover .track {
+  background: #a9c7ff;
+}
+.auto-switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: left 0.15s;
+}
+.auto-switch[aria-checked="true"] .knob {
+  left: 14px;
+}
+.auto-close {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  display: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #4a4b50;
+  color: #e6e7ea;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.auto-card:hover .auto-close {
+  display: grid;
+}
+.auto-close:hover {
+  background: #5a5b61;
 }

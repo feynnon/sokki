@@ -127,6 +127,7 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         else {
             val typedLangs = suggestionResults.filter { it.mWord == capitalizedTypedWord }.mapTo(HashSet()) { sokkiLanguage(it) ?: "user" }
             if (SokkiBench.on) SokkiBench.typedLangs = typedLangs
+            Typos.useKeyboard(keyboard)
             Typos.correction(typedWordString, suggestionsContainer.map { it.mWord to sokkiLanguage(it) }, typedLangs,
                 previousWords(ngramContext), null)
         }

@@ -301,6 +301,12 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     for d in &result.details {
         log::warn!("{d}");
     }
+    if result.voices_merged > 0 {
+        log::info!(
+            "Speakers: joined {} speaker(s) with the same voice on one track",
+            result.voices_merged
+        );
+    }
     if no_speech(&result) {
         // Nothing was said on any track: no note (Robin, 2026-11-25: empty
         // meetings only fill the list). The host removes the meeting.

@@ -16,7 +16,8 @@
 //!
 //! Requests (see `sokki_link::Request`): `Pair`, `Ping` → `{name, version}`,
 //! `Upload` (audio as body) → `{id}`, `Status` → `{id, status, stage,
-//! progress, error, title, summary, transcript}`.
+//! progress, error, title, summary, transcript}`, `Dictate` (a live
+//! stream: the phone keyboard dictates through this Mac, `dictate_for_phone`).
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,10 +25,11 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sokki_link::{Handler, Request, Ticket};
+use sokki_link::{DictationText, Handler, Request, Ticket};
 use tauri::{AppHandle, Manager};
 
 use super::store::{MeetingRecord, MeetingStatus, MeetingStore};
+use crate::managers::transcription::TranscriptionManager;
 
 const STATE_FILE: &str = "phone_link.json";
 const PHONE_TRACK: &str = "mic.phone";
@@ -268,7 +270,13 @@ impl Handler for MacHandler {
     fn handle(&self, _peer: &str, request: Request, body: Vec<u8>) -> Result<Value, String> {
         match request {
             Request::Pair { .. } => Err("Already handled.".into()),
-            Request::Ping => Ok(hello()),
+            Request::Ping => {
+                // The phone keyboard pings when it opens: be ready to dictate.
+                if let Some(tm) = self.app.try_state::<Arc<TranscriptionManager>>() {
+                    tm.initiate_model_load(false);
+                }
+                Ok(hello())
+            }
             Request::Upload { started_at, .. } => accept_upload(&self.app, &started_at, &body)
                 .map(|id| json!({ "id": id }))
                 .map_err(|e| format!("{e:#}")),
@@ -278,8 +286,121 @@ impl Handler for MacHandler {
             Request::Journal { file } => save_phone_journal(&self.app, &file, &body)
                 .map(|saved| json!({ "saved": saved }))
                 .map_err(|e| format!("{e:#}")),
+            Request::Dictate => Err("Dictation is a stream.".into()),
         }
     }
+
+    fn dictate(
+        &self,
+        peer: &str,
+        audio: std::sync::mpsc::Receiver<Vec<f32>>,
+        text: &dyn Fn(DictationText),
+    ) -> Result<(), String> {
+        let tm = self
+            .app
+            .try_state::<Arc<TranscriptionManager>>()
+            .ok_or("Sokki on the Mac is still starting.")?
+            .inner()
+            .clone();
+        dictate_for_phone(&tm, peer, audio, text)
+    }
+}
+
+/// The answer while the model loads; the phone keeps the link and
+/// dictates by itself this once.
+const LOADING: &str = "The Mac is loading its speech model.";
+const BUSY: &str = "The Mac is busy transcribing.";
+
+/// How often the phone gets the text so far, as Mac dictation's live text.
+const DICTATE_PREVIEW_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+/// Live text re-reads the piece still growing; past this, the piece's text
+/// stays and a new one starts (the final text is read whole anyway).
+const DICTATE_PIECE: usize = 15 * 16_000;
+
+/// The phone keyboard dictates through this Mac: the same model and
+/// settings as dictating here. Live text every 0.5 s (the growing piece read
+/// again, as the Mac's own live text with Parakeet does), then the whole
+/// dictation read once at the stop, as for a dictation here. Nothing is
+/// stored or added to the history. Measured with the phone's 13 test clips:
+/// first words 0.66 s, done 0.16 s after the stop (`docs/research/
+/// phone-dictation-latency-2026-11.md`).
+fn dictate_for_phone(
+    tm: &TranscriptionManager,
+    peer: &str,
+    audio: std::sync::mpsc::Receiver<Vec<f32>>,
+    text: &dyn Fn(DictationText),
+) -> Result<(), String> {
+    use std::sync::mpsc::RecvTimeoutError;
+    let started = std::time::Instant::now();
+    // Loading takes seconds; the phone dictates by itself meanwhile rather
+    // than wait (its keyboard asked for the model when it opened).
+    if !tm.is_model_loaded() {
+        tm.initiate_model_load(false);
+        return Err(LOADING.into());
+    }
+    // A dictation here or a meeting being transcribed holds the model; the
+    // phone would wait behind it.
+    if tm.is_streaming() || tm.job_active() {
+        return Err(BUSY.into());
+    }
+    let mut heard: Vec<f32> = Vec::new();
+    let (mut piece_start, mut done_text) = (0usize, String::new());
+    let mut last_read = 0usize;
+    let mut ended = false;
+    let mut previews = 0usize;
+    while !ended {
+        match audio.recv_timeout(DICTATE_PREVIEW_EVERY) {
+            Ok(a) => heard.extend(a),
+            Err(RecvTimeoutError::Disconnected) => ended = true,
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+        loop {
+            match audio.try_recv() {
+                Ok(a) => heard.extend(a),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    ended = true;
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+            }
+        }
+        if ended || heard.len() < last_read + DICTATE_PREVIEW_EVERY.as_millis() as usize * 16 {
+            continue;
+        }
+        last_read = heard.len();
+        let piece = heard[piece_start..].to_vec();
+        let piece_len = piece.len();
+        let read = tm.transcribe(piece).map_err(|e| format!("{e:#}"))?;
+        previews += 1;
+        let shown = format!("{done_text} {}", read.trim()).trim().to_string();
+        text(DictationText {
+            is_final: false,
+            heard: heard.len() as u64,
+            text: shown.clone(),
+        });
+        if piece_len >= DICTATE_PIECE {
+            done_text = shown;
+            piece_start = heard.len();
+        }
+    }
+    let t = std::time::Instant::now();
+    let final_text = if heard.is_empty() {
+        String::new()
+    } else {
+        tm.transcribe(heard.clone()).map_err(|e| format!("{e:#}"))?
+    };
+    text(DictationText {
+        is_final: true,
+        heard: heard.len() as u64,
+        text: final_text.trim().to_string(),
+    });
+    log::info!(
+        "Phone link: dictation for {peer}: {:.1} s of audio, {previews} live updates, final read in {} ms, {:.1} s in all",
+        heard.len() as f64 / 16_000.0,
+        t.elapsed().as_millis(),
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
 }
 
 fn hello() -> Value {

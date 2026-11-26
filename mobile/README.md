@@ -75,6 +75,17 @@ HeliBoard are marked "Sokki" in the code:
   the open field about every half second, the word still being heard
   underlined. Tap again to stop; the mic is red while listening. Numbers:
   `asr-bench/README.md`, "Streaming".
+- Through the Mac first: when the phone is paired with a Mac running Sokki
+  (phone link on), the keyboard opens the link when it opens and dictates
+  through it. The Mac reads the audio with its own model and settings
+  (Parakeet on the GPU, `meeting/phone_link.rs` `dictate_for_phone`): live
+  text every 0.5 s, underlined because it may still change, and the whole
+  dictation read once at the stop. Your own voice: 10 % of words differ
+  from the references against Nemotron's 17 %
+  (`docs/research/phone-dictation-latency-2026-11.md`). If the Mac is
+  loading or busy it says so and the phone dictates by itself; if it stops
+  answering (2.5 s without text, or 5 s after the stop) the phone takes
+  over with the audio so far.
 - Typing is plain, like Gboard without its extras (defaults in
   `latin/settings/Defaults.kt`): no word suggestions (the strip holds only
   the mic and the dictation status), no double-space period, no symbol
@@ -85,7 +96,10 @@ HeliBoard are marked "Sokki" in the code:
   included), compounds, Denglish and your own words are never changed. Any other word is compared with every word one slip away
   (a letter extra, missing or changed, two letters swapped) on one score:
   how well the word fits after the previous word, plus how likely that slip
-  is. It is replaced only when one word clearly wins. On the real keyboard
+  is. It is replaced only when one word clearly wins; with no word one slip
+  away, common words two slips away compete the same way. Which keys are
+  neighbours comes from the layout on screen, and British -ise spellings
+  count as words. On the real keyboard
   this fixes about 30% of typos with 0.6% of them wrong, and no correct word
   changed. Backspace right after a fix undoes it, and that word is kept from
   then on. Score, numbers and a replay tool: `tools/typo_model.py`;

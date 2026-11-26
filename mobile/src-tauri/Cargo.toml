@@ -29,7 +29,7 @@ base64 = "0.22"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 # Link to Sokki on the Mac: direct, end-to-end encrypted (iroh).
 sokki-link = { path = "../../crates/sokki-link" }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "rt-multi-thread", "time"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The Sokki keyboard calls dictation over JNI (keyboard_voice.rs).

@@ -209,7 +209,11 @@ impl Autocorrect {
         let app = field.app().to_string();
         // Keys were pressed, but the field looks exactly as at the last read: the app hasn't
         // caught up yet. Keep everything as it was and look again, or the typed run is lost.
-        self.stale = matches!(&self.last, Some(p) if p.app == app && p.text == text
+        // The same when a key landed while Sokki read the field (Electron apps take a few ms
+        // per read): the text may hold a character the key count doesn't, or the cursor one
+        // the text doesn't. Such a read lost the typed run of a word (T3 Code, 26 Nov 2026).
+        self.stale = keys() != keys_at_read
+            || matches!(&self.last, Some(p) if p.app == app && p.text == text
             && p.cursor == cursor && keys_at_read != p.keys);
         if self.stale {
             return Outcome::Nothing;

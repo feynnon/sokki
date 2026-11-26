@@ -47,9 +47,7 @@ pub const MODEL_BYTES: u64 = 5_600_000_000;
 /// A 32 GB Mac needs 13.6 GB free, a 16 GB Mac 9.6 GB. A Mac with less than
 /// twice the model's memory (an 8 GB Mac) never loads it during a meeting.
 pub fn may_load(free_bytes: u64, total_bytes: u64, pressure: i64) -> bool {
-    pressure <= 1
-        && total_bytes >= 2 * MODEL_BYTES
-        && free_bytes >= MODEL_BYTES + total_bytes / 4
+    pressure <= 1 && total_bytes >= 2 * MODEL_BYTES && free_bytes >= MODEL_BYTES + total_bytes / 4
 }
 
 /// The waiting model is stopped at critical memory pressure, when less than
@@ -102,7 +100,10 @@ fn why_not(app: &AppHandle) -> Option<String> {
     if llm::local_job_running() {
         return Some("a summary model is running".into());
     }
-    match (memguard::pressure_and_free_percent(), memguard::total_bytes()) {
+    match (
+        memguard::pressure_and_free_percent(),
+        memguard::total_bytes(),
+    ) {
         (Some((pressure, free)), Some(total)) => {
             let free_bytes = total / 100 * free.max(0) as u64;
             if !may_load(free_bytes, total, pressure) {
@@ -135,8 +136,7 @@ pub fn spawn(app: AppHandle, id: String) {
 }
 
 fn run(app: &AppHandle, id: &str, due: Instant) {
-    let recording =
-        || app.state::<Arc<MeetingManager>>().active_id().as_deref() == Some(id);
+    let recording = || app.state::<Arc<MeetingManager>>().active_id().as_deref() == Some(id);
     while Instant::now() < due {
         if !recording() {
             return;
@@ -185,7 +185,9 @@ fn run(app: &AppHandle, id: &str, due: Instant) {
         }
         if let Some((pressure, free)) = memguard::pressure_and_free_percent() {
             if pressure > 1 && warned_since.is_none() {
-                log::info!("Meeting {id}: memory warning ({free} % free) while the summary model waits");
+                log::info!(
+                    "Meeting {id}: memory warning ({free} % free) while the summary model waits"
+                );
                 warned_since = Some(Instant::now());
             } else if pressure <= 1 {
                 if let Some(t) = warned_since.take() {

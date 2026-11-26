@@ -24,7 +24,8 @@ function day(iso: string, locale: string): string {
 }
 
 /** Settings › Developer mode: "Keep what I write" (sokki-journal), with
- * what it keeps and never keeps, its size, and its files. Mac only. */
+ * what it keeps and never keeps (behind "What is stored?"), its size, and
+ * its files. Mac only. */
 export const DeveloperGroup: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
@@ -58,17 +59,22 @@ export const DeveloperGroup: React.FC = () => {
         description={t("sokki.developer.keepDescription")}
         descriptionMode="inline"
         grouped
+        details={{
+          label: t("sokki.developer.keepDetails"),
+          content: (
+            <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-[19px]">
+              <dt className="text-ink-3">{t("sokki.developer.kept")}</dt>
+              <dd className="text-ink-2">{t("sokki.developer.keptText")}</dd>
+              <dt className="text-ink-3">{t("sokki.developer.never")}</dt>
+              <dd className="text-ink-2">{t("sokki.developer.neverText")}</dd>
+              <dt className="text-ink-3">{t("sokki.developer.where")}</dt>
+              <dd className="text-ink-2">{t("sokki.developer.whereText")}</dd>
+            </dl>
+          ),
+        }}
       />
       {on && (
         <>
-          <dl className="px-4 pb-3 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-[19px]">
-            <dt className="text-ink-3">{t("sokki.developer.kept")}</dt>
-            <dd className="text-ink-2">{t("sokki.developer.keptText")}</dd>
-            <dt className="text-ink-3">{t("sokki.developer.never")}</dt>
-            <dd className="text-ink-2">{t("sokki.developer.neverText")}</dd>
-            <dt className="text-ink-3">{t("sokki.developer.where")}</dt>
-            <dd className="text-ink-2">{t("sokki.developer.whereText")}</dd>
-          </dl>
           <ToggleSwitch
             checked={getSetting("learn_words") ?? true}
             onChange={(enabled) => updateSetting("learn_words", enabled)}

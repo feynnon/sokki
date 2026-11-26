@@ -10,8 +10,8 @@
 #   PLAYING=Safari scripts/test-auto-meeting.sh …  # pretend an app plays sound (a video on the speakers)
 #   KNOWN=me.wav scripts/test-auto-meeting.sh …    # that voice is the one known voice (else none:
 #                                                  # nothing may start)
-#   DISCARD=1 scripts/test-auto-meeting.sh …       # click Discard on the card 3 s after a start
-#   DISCARD=off scripts/test-auto-meeting.sh …     # click "Turn off auto start" instead
+#   DISCARD=off scripts/test-auto-meeting.sh …     # flip the card's Auto-Start switch 3 s after a start
+#   DISCARD=close scripts/test-auto-meeting.sh …   # click the card's X instead
 #   UNTIL_STOP=1 scripts/test-auto-meeting.sh …    # wait for the auto stop and processing (+3 min)
 #
 # Exit code 0 always; read the output: "Auto meeting: started" is a start.
@@ -40,7 +40,9 @@ quit_test_app() {
 
 [[ -d "$TESTAPP" ]] || { echo "No test app; run: scripts/test-dictation.sh --build" >&2; exit 1; }
 # Test builds share one data folder; never run next to another one.
-if pgrep -f "/Applications/$NAME[^/]*\.app/Contents/MacOS/" | grep -v -x -f <(pgrep -f "^$TESTAPP/Contents/MacOS/" || true) >/dev/null; then
+# (ps, not pgrep: a pgrep's own command line holds the pattern and matched.)
+if ps -axo command= | grep -E "^/.*/Applications/$NAME[^/]*\.app/Contents/MacOS/" \
+    | grep -v -F "$TESTAPP/Contents/MacOS/" >/dev/null; then
   echo "Another $NAME build is running (another session's test); try again later." >&2
   exit 1
 fi
@@ -87,7 +89,9 @@ sleep 1
 rm -rf "$DATA/meetings"
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
-trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null; quit_test_app; rm -rf "$WORK"' EXIT
+# `|| true`: under set -e, the killed tail's status ended this trap before
+# quit_test_app, which left the test app running.
+trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null || true; quit_test_app; rm -rf "$WORK"' EXIT
 sleep 1
 echo "Playing $(basename "$MIC") (${LENGTH}s) into the test microphone, waiting ${WAIT}s…"
 open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_AUTO=1 --env SOKKI_TEST_MIC_CONTINUE=1 \
@@ -97,8 +101,8 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_AUTO=1 --env SOKKI_TEST_MIC
 END=$(( $(date +%s) + ${WAIT%.*} ))
 while (( $(date +%s) < END )); do
   sleep 5
-  if [[ -n "${UNTIL_STOP:-}" ]] && grep -qE "Auto meeting: (stopped|.* discarded)" "$WORK/log.txt" \
-     && { grep -qE "discarded" "$WORK/log.txt" || jq -e '[(if type == "array" then . else (.meetings // []) end)[]
+  if [[ -n "${UNTIL_STOP:-}" ]] && grep -qE "Auto meeting: stopped" "$WORK/log.txt" \
+     && { jq -e '[(if type == "array" then . else (.meetings // []) end)[]
             | select(.status.kind == "recording" or .status.kind == "processing")] | length == 0' \
             "$DATA/meetings/index.json" >/dev/null 2>&1; }; then
     sleep 5

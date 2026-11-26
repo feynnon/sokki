@@ -1,6 +1,7 @@
 """Sokki: writes assets/sokki/words.bin, the word table for Typos (typos-only autocorrect).
 
-Every word of wordfreq's large German and English lists (about 820,000,
+Also writes assets/sokki/common.txt, the common words a typo may be two slips
+from. Every word of wordfreq's large German and English lists (about 820,000,
 colloquial ones like "geil" included) with its frequency in half-zipf steps,
 which language has it commonly, whether it may be an autocorrect candidate, and
 whether German writes it capitalised, stored as a Bloom filter (1 in 100,000 false
@@ -49,6 +50,14 @@ keys += [f"w:{w}" for w in set(freq["de"]) | set(freq["en"])
 # counts from gen_case_counts.py over Wikipedia + Tatoeba German, path in CASE_COUNTS).
 cc = os.environ.get("CASE_COUNTS", os.path.expanduser("~/sokki-typing-data/corpora/case-de.json"))
 keys += [f"C:{w}" for w, (up, low) in json.load(open(cc)).items() if up + low >= 10 and up >= 0.9 * (up + low)]
+
+# common.txt: the words a typed word may be two slips from (typo_model.near_words), one per line,
+# sorted: zipf 3+ in German or English, letters only.
+common = sorted(w for w in set(freq["de"]) | set(freq["en"])
+                if w.isalpha() and zipf(max(freq["de"].get(w, 0), freq["en"].get(w, 0))) >= tm.COMMON)
+with open(tm.COMMON_WORDS, "w", encoding="utf-8") as f:
+    f.write("\n".join(common) + "\n")
+print(tm.COMMON_WORDS, len(common), "words")
 
 bloom = tm.Bloom(len(keys), FALSE_HITS)
 for k in keys:

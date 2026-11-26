@@ -48,9 +48,10 @@ pub enum Count {
     FileTranscribed,
     /// Started by itself because people talked (`meeting/auto.rs`).
     AutoMeetingStarted,
-    /// An auto-started meeting the user discarded: a false start.
-    AutoMeetingDiscarded,
-    /// "Turn off auto start" on the card.
+    /// An auto-started meeting the user stopped before it stopped by itself:
+    /// likely a false start.
+    AutoMeetingStoppedByUser,
+    /// The Auto-Start switch on the card turned off.
     AutoMeetingTurnedOff,
 }
 
@@ -71,7 +72,7 @@ impl Count {
             Count::SummaryFailed => "summary_failed",
             Count::FileTranscribed => "file_transcribed",
             Count::AutoMeetingStarted => "auto_meeting_started",
-            Count::AutoMeetingDiscarded => "auto_meeting_discarded",
+            Count::AutoMeetingStoppedByUser => "auto_meeting_stopped_by_user",
             Count::AutoMeetingTurnedOff => "auto_meeting_turned_off",
         }
     }

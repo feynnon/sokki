@@ -726,8 +726,8 @@ pub struct MeetingSettings {
     pub silence_hint_enabled: bool,
     /// Start a meeting by itself when a known voice (the user's own, or a
     /// person who agreed) talks near the Mac and no call app runs; stop it
-    /// after two minutes without speech. A card offers "Discard" and "Turn
-    /// off auto start" (`meeting/auto.rs`). Off for everyone and no switch in the
+    /// after two minutes without speech. A one-line card has an Auto-Start
+    /// switch that turns this off (`meeting/auto.rs`). Off for everyone and no switch in the
     /// window: on only where set by hand in the settings file, until it is
     /// proven (Robin, 2026-11-26). While on, the microphone stays open.
     pub auto_start_enabled: bool,

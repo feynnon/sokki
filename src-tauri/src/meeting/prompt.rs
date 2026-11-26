@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "meeting_prompt";
 const WIDTH: f64 = 360.0;
+const AUTO_WIDTH: f64 = 380.0;
 
 struct Pending {
     /// Bumped for every question, so a late click can't answer the next one.
@@ -32,7 +33,9 @@ pub enum Kind {
     Started { screen: bool },
     /// The call ended: "keep" or "stop".
     Ended,
-    /// A meeting started by itself (`super::auto`): "discard" or "keep".
+    /// A meeting started by itself (`super::auto`): one line with the
+    /// Auto-Start switch ("off") and an X ("close"). Drawn as its own glass
+    /// card with the X outside the corner, like a macOS notification.
     AutoStarted,
 }
 
@@ -45,19 +48,21 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         p.answer = None;
         p.round
     };
-    let (query, height) = match kind {
+    let (query, width, height) = match kind {
         Kind::Started { screen } => (
             format!("kind=started&screen={}", screen as u8),
+            WIDTH,
             if screen { 168.0 } else { 124.0 },
         ),
-        Kind::Ended => ("kind=ended".to_string(), 124.0),
-        Kind::AutoStarted => ("kind=auto".to_string(), 124.0),
+        Kind::Ended => ("kind=ended".to_string(), WIDTH, 124.0),
+        // A 345 x 52 card with room for the X over its corner and its shadow.
+        Kind::AutoStarted => ("kind=auto".to_string(), AUTO_WIDTH, 92.0),
     };
     let url = format!(
         "src/meeting-prompt/index.html?{query}&app={}",
         encode(meeting_app)
     );
-    show(app, url, height);
+    show(app, url, width, height, kind != Kind::AutoStarted);
 
     let deadline = Instant::now() + timeout;
     let mut p = PENDING.lock().unwrap_or_else(|e| e.into_inner());
@@ -88,27 +93,32 @@ pub fn answer(value: String) {
     ANSWERED.notify_all();
 }
 
-fn show(app: &AppHandle, url: String, height: f64) {
+/// `glass`: macOS's frosted glass behind the whole window. Off for a page
+/// that draws its own card inside a clear window.
+fn show(app: &AppHandle, url: String, width: f64, height: f64, glass: bool) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(w) = handle.get_webview_window(LABEL) {
             let _ = w.close();
         }
-        let (x, y) = position(&handle);
-        let built = WebviewWindowBuilder::new(&handle, LABEL, WebviewUrl::App(url.into()))
+        let (x, y) = position(&handle, width);
+        let mut builder = WebviewWindowBuilder::new(&handle, LABEL, WebviewUrl::App(url.into()))
             .title(crate::brand::app_name())
-            .inner_size(WIDTH, height)
+            .inner_size(width, height)
             .position(x, y)
             .decorations(false)
             .transparent(true)
-            .effects(
+            .shadow(glass);
+        if glass {
+            builder = builder.effects(
                 EffectsBuilder::new()
                     .effect(Effect::HudWindow)
                     .state(EffectState::Active)
                     .radius(16.0)
                     .build(),
-            )
-            .shadow(true)
+            );
+        }
+        let built = builder
             .resizable(false)
             .always_on_top(true)
             .visible_on_all_workspaces(true)
@@ -132,7 +142,7 @@ fn hide(app: &AppHandle) {
 }
 
 /// Top right of the monitor with the cursor, below the menu bar.
-fn position(app: &AppHandle) -> (f64, f64) {
+fn position(app: &AppHandle, width: f64) -> (f64, f64) {
     let monitor = app
         .cursor_position()
         .ok()
@@ -143,7 +153,7 @@ fn position(app: &AppHandle) -> (f64, f64) {
             let scale = m.scale_factor();
             let pos = m.position().to_logical::<f64>(scale);
             let size = m.size().to_logical::<f64>(scale);
-            (pos.x + size.width - WIDTH - 16.0, pos.y + 40.0)
+            (pos.x + size.width - width - 16.0, pos.y + 40.0)
         }
         None => (1000.0, 40.0),
     }

@@ -54,6 +54,12 @@ pub struct PipelineConfig {
     /// one speaker (see [`Hooks::pieces`]). Off: such pieces are
     /// transcribed again turn by turn.
     pub pieces_any_speaker: bool,
+    /// Speakers of one track whose voices have at least this cosine
+    /// similarity are one person and get joined
+    /// ([`crate::stitch::merge_same_voice`]); `None` turns it off. 0.75:
+    /// split voices scored 0.76-0.98, different people at most 0.59
+    /// (38 meetings, `docs/research/speaker-count-2026-11.md`).
+    pub same_voice: Option<f32>,
 }
 
 impl Default for PipelineConfig {
@@ -75,6 +81,7 @@ impl Default for PipelineConfig {
             window_s: None,
             window_max_gap_s: 2.0,
             pieces_any_speaker: false,
+            same_voice: Some(0.75),
         }
     }
 }
@@ -152,6 +159,9 @@ pub struct PipelineResult {
     pub dedup: DedupReport,
     /// Mic turns dropped before transcription as acoustic echo of the system track.
     pub echo_turns_dropped: usize,
+    /// Speakers joined because their voices were the same (see
+    /// [`PipelineConfig::same_voice`]), all tracks.
+    pub voices_merged: usize,
     /// Seconds spent finding speakers (all tracks, with the acoustic echo
     /// check of mic turns), for the log.
     pub speakers_s: f64,
@@ -456,6 +466,7 @@ pub fn run_with(
     let mut embeddings: HashMap<(usize, String), Vec<f32>> = HashMap::new();
     let mut jobs: Vec<Job> = Vec::new();
     let mut echo_dropped = 0usize;
+    let mut voices_merged = 0usize;
     let started = std::time::Instant::now();
 
     for (ti, track) in tracks.iter().enumerate() {
@@ -468,7 +479,17 @@ pub fn run_with(
             .and_then(|all| all.iter().find(|(k, _)| *k == track.kind))
             .map(|(_, t)| Ok(t.clone()));
         let turns = match found.unwrap_or_else(|| diarizer.diarize(&track.samples)) {
-            Ok(t) => sanitize_turns(t, dur),
+            Ok(t) => {
+                let t = sanitize_turns(t, dur);
+                match cfg.same_voice {
+                    Some(min) => {
+                        let (t, n) = crate::stitch::merge_same_voice(t, min);
+                        voices_merged += n;
+                        t
+                    }
+                    None => t,
+                }
+            }
             Err(e) => {
                 details.push(format!(
                     "Diarization failed for the {} track ({e:#}); treating the whole track as one speaker.",
@@ -572,7 +593,27 @@ pub fn run_with(
         }
         *speech.entry(s.speaker.clone()).or_default() += (s.end_s - s.start_s).max(0.0);
     }
-    let user_key = pick_user(&order, &speech, &key_to_cluster, tracks);
+    // Known voices first: the one recognised as the user is the user.
+    let mut hook_names: HashMap<String, String> = HashMap::new();
+    for key in &order {
+        let (ti, cluster) = &key_to_cluster[key];
+        let emb = embeddings.get(&(*ti, cluster.clone()));
+        if let Some(n) = hooks
+            .namer
+            .and_then(|n| n.name(tracks[*ti].kind, cluster, emb.map(Vec::as_slice)))
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty() && !is_generic_label(n))
+        {
+            hook_names.insert(key.clone(), n);
+        }
+    }
+    let recognised_user = order.iter().find(|k| {
+        tracks[key_to_cluster[*k].0].kind == TrackKind::Mic
+            && hook_names.get(*k) == Some(&cfg.user_name)
+    });
+    let user_key = recognised_user
+        .cloned()
+        .or_else(|| pick_user(&order, &speech, &key_to_cluster, tracks));
 
     let mut names: HashMap<String, String> = HashMap::new();
     let mut speakers = Vec::new();
@@ -582,11 +623,7 @@ pub fn run_with(
         let (ti, cluster) = key_to_cluster[key].clone();
         let kind = tracks[ti].kind;
         let emb = embeddings.get(&(ti, cluster.clone())).cloned();
-        let hook_name = hooks
-            .namer
-            .and_then(|n| n.name(kind, &cluster, emb.as_deref()))
-            .map(|n| n.trim().to_string())
-            .filter(|n| !n.is_empty() && !is_generic_label(n));
+        let hook_name = hook_names.get(key).cloned();
         let is_user = user_key.as_deref() == Some(key.as_str());
         let named_by_hook = hook_name.is_some();
         let name = match hook_name {
@@ -625,6 +662,7 @@ pub fn run_with(
         details,
         dedup: dedup_report,
         echo_turns_dropped: echo_dropped,
+        voices_merged,
         speakers_s,
         transcribe_s,
     })
@@ -1130,6 +1168,61 @@ mod tests {
         assert!(r.warnings.is_empty());
         let user = r.speakers.iter().find(|s| s.is_user).unwrap();
         assert_eq!((user.track, user.cluster.as_str()), (TrackKind::Mic, "S1"));
+    }
+
+    #[test]
+    fn the_voice_recognised_as_the_user_is_the_user() {
+        // In a room: a guest talks more than the user on the mic, and a
+        // video plays on the system track. The user's voice is known.
+        let tracks = vec![
+            timed_track(TrackKind::Mic, 60.0),
+            timed_track(TrackKind::System, 60.0),
+        ];
+        let emb = |x: f32| Some(vec![x, 1.0 - x]);
+        let d = FakeDiarizer::new(vec![
+            Ok(vec![
+                SpeakerTurn {
+                    embedding: emb(1.0),
+                    ..turn(1.0, 4.0, "S1")
+                },
+                SpeakerTurn {
+                    embedding: emb(0.0),
+                    ..turn(5.0, 15.0, "S2")
+                },
+            ]),
+            Ok(vec![turn(20.0, 25.0, "S1")]),
+        ]);
+        let t = FakeTranscriber::new(vec![
+            (1.0, 4.5, "Kurz von mir."),
+            (5.0, 15.5, "Und ich rede lange."),
+            (19.0, 26.0, "Werbung."),
+        ]);
+        let namer = |track: TrackKind, _: &str, e: Option<&[f32]>| -> Option<String> {
+            (track == TrackKind::Mic && e?[0] > 0.5).then(|| "Robin".to_string())
+        };
+        let cfg = PipelineConfig {
+            user_name: "Robin".into(),
+            ..no_dedup()
+        };
+        let r = run_with(
+            &tracks,
+            &d,
+            &t,
+            &cfg,
+            Hooks {
+                namer: Some(&namer),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Before: the guest (most mic speech) was the user, named "Robin"
+        // too.
+        assert_eq!(
+            r.transcript.speakers(),
+            vec!["Robin", "Speaker 2", "Speaker 3"]
+        );
+        let user = r.speakers.iter().find(|s| s.is_user).unwrap();
+        assert_eq!(user.cluster, "S1");
     }
 
     #[test]

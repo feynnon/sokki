@@ -133,15 +133,19 @@ def case_truth():
 
 
 def tokens(text):
-    """(word, previous word or BOS, next word) for every word, sentence by sentence. Words with an
-    apostrophe (wasn't, geht's) are left out: the keyboard sees them whole."""
+    """(word, previous word or BOS, next word, the sentence's last words, the message's words before)
+    for every word, sentence by sentence; a message is a line. Words with an apostrophe (wasn't,
+    geht's) are left out: the keyboard sees them whole."""
     out = []
-    for sent in re.split(r"[.!?\n:;]+", text):
-        ws = re.findall(r"[A-Za-zÄÖÜäöüß]+(?:'[A-Za-z]+)?", sent)
-        for i, w in enumerate(ws):
-            if "'" not in w:
-                out.append((w, ws[i - 1] if i else tm.BOS, ws[i + 1] if i + 1 < len(ws) else "",
-                            ([tm.BOS] + ws[:i])[-3:]))
+    for line in text.split("\n"):
+        before = []
+        for sent in re.split(r"[.!?:;]+", line):
+            ws = re.findall(r"[A-Za-zÄÖÜäöüß]+(?:'[A-Za-z]+)?", sent)
+            for i, w in enumerate(ws):
+                if "'" not in w:
+                    out.append((w, ws[i - 1] if i else tm.BOS, ws[i + 1] if i + 1 < len(ws) else "",
+                                ([tm.BOS] + ws[:i])[-3:], before[-40:]))
+                before.append(w)
     return out
 
 
@@ -189,11 +193,11 @@ def run(lex, table, bigrams, toks, labels, umlaut_words, lower, upper, timings, 
     (caps_truth.py; None outside German sentences)."""
     n = collections.Counter()
     ex = collections.defaultdict(list)
-    for k, (w, prev, nxt, prevs) in enumerate(toks):
+    for k, (w, prev, nxt, prevs, ctx) in enumerate(toks):
         lab = labels.get(w)
         t0 = time.perf_counter()
         p = tm.correction(table, bigrams, set(), w, lex.candidates(w) if len(w) >= tm.MIN_LEN else (),
-                          lex.langs(w), prevs, nxt=None if NO_NEXT else nxt)
+                          lex.langs(w), prevs, nxt=None if NO_NEXT else nxt, context=ctx)
         timings.append(time.perf_counter() - t0)
         out = p or w
         if lab and lab["label"] == "typo" and lab.get("kind") != "space":
@@ -225,9 +229,10 @@ def run(lex, table, bigrams, toks, labels, umlaut_words, lower, upper, timings, 
             elif out[:1].isupper():
                 n["caps wrong"] += 1
                 ex["caps wrong"].append(f"{prev} [{w}->{out}] {nxt}")
-    for w, prev, nxt, prevs in umlaut_words:
+    for w, prev, nxt, prevs, ctx in umlaut_words:
         s = w.translate(UML)
-        p = tm.correction(table, bigrams, set(), s, lex.candidates(s), lex.langs(s), prevs, nxt=None if NO_NEXT else nxt)
+        p = tm.correction(table, bigrams, set(), s, lex.candidates(s), lex.langs(s), prevs, nxt=None if NO_NEXT else nxt,
+                          context=ctx)
         n["umlauts"] += 1
         if p == w or (p and p.lower() == w.lower()):
             n["umlauts restored"] += 1
@@ -246,7 +251,7 @@ def public(table, bigrams, lex, name, path):
         prev = x["prev"][-1] if x["prev"] else tm.BOS
         prevs = ([tm.BOS] + x["prev"])[-3:] if len(x["prev"]) < 8 else x["prev"][-3:]
         p = tm.correction(table, bigrams, set(), typed, lex.candidates(typed) if len(typed) >= tm.MIN_LEN else (),
-                          lex.langs(typed), prevs, nxt=None if NO_NEXT else x.get("next", ""))
+                          lex.langs(typed), prevs, nxt=None if NO_NEXT else x.get("next", ""), context=x["prev"])
         out = p or typed
         if typed == meant:
             n["ok"] += 1
@@ -279,7 +284,28 @@ VARIANTS = {"before the loop (German+English)": OLD, "before, phone in English o
             "+ inflections, longer 0.5": {"INFLECTIONS": True, "OOV_PER_LETTER": 0.5},
             "+ inflections, longer 0.25, front guard": {"INFLECTIONS": True, "OOV_PER_LETTER": 0.25, "FRONT_GUARD": True},
             "+ inflections, longer 0.35, front guard": {"INFLECTIONS": True, "OOV_PER_LETTER": 0.35, "FRONT_GUARD": True},
-            "+ umlaut twins in German": {"UMLAUT_IN_GERMAN": True}}
+            "+ umlaut twins in German": {"UMLAUT_IN_GERMAN": True},
+            "now, no British": {"BRITISH": False}, "now, one slip only": {"TWO_SLIPS": False},
+            "now, QWERTZ rows": {"keys": False},
+            "before 26.11 (QWERTZ rows, no British, one slip)": {"keys": False, "BRITISH": False, "TWO_SLIPS": False},
+            "+ text language 10": {"LANG_CONTEXT": 10}, "+ text language 20": {"LANG_CONTEXT": 20},
+            "+ text language 40": {"LANG_CONTEXT": 40},
+            "+ text language 20 x0.5": {"LANG_CONTEXT": 20, "CONTEXT_WEIGHT": 0.5},
+            "+ text language 20 x2": {"LANG_CONTEXT": 20, "CONTEXT_WEIGHT": 2.0}}
+SPECIAL = ("langs", "protect", "keys")
+
+
+def phone_keys():
+    """The letter keys of the phone's last German layout in the tap log (taps-*.jsonl): centre, size."""
+    keys = None
+    for f in sorted(os.listdir(D + "phone")):
+        if f.startswith("taps-"):
+            for line in open(D + "phone/" + f):
+                x = json.loads(line)
+                if x.get("t") == "layout" and x.get("element") == "ALPHABET" and x.get("lang", "").startswith("de"):
+                    keys = {k["l"]: (k["x"] + k["w"] / 2, k["y"] + k["h"] / 2, k["w"], k["h"]) for k in x["keys"]
+                            if len(k.get("l", "")) == 1 and k["l"].isalpha()}
+    return keys
 
 
 def main(names):
@@ -294,10 +320,11 @@ def main(names):
     Lexicon.english = staticmethod(lambda w: table.common_in("e", tm.fold(w)))
     for name in names:
         flags = VARIANTS[name]
-        saved = {k: getattr(tm, k) for k in flags if k not in ("langs", "protect")}
+        saved = {k: getattr(tm, k) for k in flags if k not in SPECIAL}
         for k, v in flags.items():
-            if k not in ("langs", "protect"):
+            if k not in SPECIAL:
                 setattr(tm, k, v)
+        tm.set_keys(phone_keys() if flags.get("keys", True) else None)  # the phone uses the keys on screen
         lex = Lexicon(flags.get("langs", ("de", "en")), personal, flags.get("protect", False))
         timings = []
         truth = json.load(open(D + "caps-truth.json")) if os.path.exists(D + "caps-truth.json") else {}

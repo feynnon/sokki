@@ -11,12 +11,56 @@
 | Mac reads it: Parakeet Ultra, phone's audio over the link, direct | 0.66 s | 0.12 s median, 0.30 s worst | 0.16 s median, 0.52 s worst | 19 | 41 |
 | same, through n0's relay (away from home) | 0.72 s | 0.16 s / 0.29 s | 0.20 s / 0.58 s | 19 | 41 |
 
-- **Via the Mac is fastest and most accurate.** It is Parakeet Ultra on the GPU: live text re-read every 0.5 s, the whole dictation read once at the stop.
+- **Via the Mac is fastest and most accurate**, and on Robin's own voice the gap is much bigger than on the test clips: 10.3 % against 17.0 % of words (next section). It is Parakeet Ultra on the GPU: live text re-read every 0.5 s, the whole dictation read once at the stop.
 - **Its limit:** it needs the Mac awake with Sokki running. Otherwise the phone has to fall back to Nemotron.
 - **Not yet measured:** the "via the Mac" rows ran with the Mac as the phone (loopback for direct; the relay row went through the internet for real). The Pixel was off on 26 Nov.
   - Phone to Mac over home Wi-Fi added 65 ms median and 372 ms worst per request (18 Nov), so expect about +0.1 s on Wi-Fi.
 - **Parakeet Ultra can't stream** (`stream begin` refuses it). On the phone, re-reading the growing audio costs 0.8 s for 3 s of speech, 2.3 s for 10 s and 7.3 s for 30 s, so live text with Ultra on the phone stays choppy.
 - **German is equal across models** (3 vs 3 errors). Nemotron loses on English (7 vs 5) and on German with English words (19 vs 14).
+
+## On Robin's own voice (26 Nov, 34 Mac dictations)
+
+- **Data:** 34 Mac dictations, 16 min, 2,570 words (the set from `live-vs-final-2026-11.md`).
+  - All German with English terms; none English-only.
+  - Recordings and texts stay in the private archive (`Sokki eval data/phone-nemotron-vs-parakeet`).
+- **References:** Whisper large-v3 and Canary 1B v2, each on the whole recording. They differ from each other in 11.6 % of words.
+- **Counting:** fillers removed. Formatting is evened out: spelled-out letters are joined, and number words and digits are left out.
+
+| Words different from | Parakeet Ultra (via the Mac) | Nemotron, lookahead 6 (phone) | Nemotron, lookahead 13 |
+|---|---|---|---|
+| Whisper large-v3 | 10.3 % | 17.0 % | 16.8 % |
+| Canary 1B v2 | 10.9 % | 17.9 % | 18.3 % |
+| Whisper, formatting not evened out | 10.2 % | 17.9 % | 17.3 % |
+
+- **Per dictation:** Parakeet is closer to Whisper in 30 of 34 dictations; Nemotron in 1; 3 are the same.
+- **Where the two models differ (297 places):** both references side with Parakeet in 183 and with Nemotron in 14.
+- **What Nemotron misses most:** English terms in German sentences, and short German words (ein/eine, das/dass).
+- **Speed through the Mac on these dictations** (Mac as the phone, loopback):
+  - first words 0.64 s (median);
+  - text 0.12 s behind the speech;
+  - done 0.36 s after the stop (median), 4.2 s at most. That maximum is one 64 s dictation read in one go; the app reads it in 30 s pieces.
+- **Decision (Robin, 26 Nov):** dictate through the Mac when it is reachable, Nemotron on the phone otherwise.
+- **Report:** https://claude.ai/artifact/SCNqgpXwnNGHXZJQZ7DQWD
+
+## In the apps (26 Nov, Sokki Test Phone on the Mac)
+
+The Mac app serves the dictation (`meeting/phone_link.rs`), and `crates/sokki-link/examples/dictate` plays the phone on the same Mac, so no emulator competes for the CPU and GPU.
+
+| Clip | First words | Behind speech (median / worst) | Done after stop |
+|---|---|---|---|
+| English 15 s | 1.27 s | 0.19 / 0.32 s | 0.30–1.53 s |
+| German 28 s | 0.69 s | 0.17 / 0.34 s | 0.79 s |
+| Mixed 9 s / switch 12 s | 0.66 s | 0.16 / 0.28–0.44 s | 0.35–0.45 s |
+| Robin, 65 s / 30 s | 1.28 / 0.66 s | 0.15–0.16 / 0.27 s | 1.54 / 0.53 s |
+
+- **The Mac's reads:** live text every 0.5 s (the growing piece read again); the final read takes 0.16–1.5 s.
+- **First words** come when the first ½ s of speech has been read; clips that start with a pause take longer.
+- **On the emulator (4 cores):**
+  - Through the Mac: first words 0.5–1.7 s.
+  - The Mac frozen mid-dictation: the phone took over 2.0 s later and finished the text from the audio so far.
+  - The Mac quit: the link was gone; the phone dictated by itself.
+  - Relay only: first words 0.7–1.3 s.
+  - First dictation on a brand-new link: see `KNOWN_ISSUES.md` K12.
 
 ## Newer phones (CPU, Geekbench 6 multi-core, rough; numbers vary by source)
 

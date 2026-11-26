@@ -9,6 +9,16 @@
 //! never change, so the keyboard types them for good right away. At the stop
 //! only the last half second is left.
 //!
+//! Through the Mac, when it's reachable: the keyboard keeps a link to the
+//! paired Mac open (`sokki-link`, opened when the keyboard opens) and
+//! dictates through it. The Mac reads the audio with its Parakeet on the GPU:
+//! live text every 0.5 s ("\0live:", may still change), the whole dictation
+//! read once at the stop. Faster and more accurate than the phone (13 test
+//! clips: first words 0.66 s vs 1.8 s, 19 vs 29 word errors;
+//! `docs/research/phone-dictation-latency-2026-11.md`). When the Mac stops
+//! answering (2.5 s without text, or an error), the phone takes over with
+//! the audio so far; nothing is lost.
+//!
 //! Before (two passes on Parakeet Ultra, 1–1.5 s snippets read without
 //! context plus 6–15 s pieces read again at pauses), measured on Robin's
 //! Pixel 7 on 2026-11-24: first words 2.9 s after the tap, live text frozen
@@ -35,6 +45,9 @@ const ERROR: &str = "\u{0}error:";
 const TEXT: &str = "\u{0}text:";
 /// "\0final:<text>": the whole dictation, final.
 const FINAL: &str = "\u{0}final:";
+/// "\0live:<text>": everything heard so far, through the Mac; any of it
+/// may still change until the final text.
+const LIVE: &str = "\u{0}live:";
 
 const RATE: usize = 16_000;
 enum Msg {
@@ -143,6 +156,7 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeWarmUp(
     let Ok(path) = env.get_string(&model_path).map(String::from) else {
         return;
     };
+    mac::up(&path);
     let loaded = SESSION.lock().unwrap().clone();
     match loaded {
         Some(s) => {
@@ -265,7 +279,348 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeStart(
         let _ = old.send(Msg::End);
     }
     let started = Instant::now();
-    std::thread::spawn(move || transcribe(mine, &path, rx, started));
+    match mac::current() {
+        Some(link) => {
+            std::thread::spawn(move || mac::dictate(mine, path, rx, started, link));
+        }
+        None => {
+            mac::up(&path);
+            std::thread::spawn(move || transcribe(mine, &path, rx, started));
+        }
+    }
+}
+
+/// The keyboard opened: open the link to the paired Mac in the background,
+/// if it isn't open, so the next dictation can go through the Mac.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeLinkUp(
+    mut env: JNIEnv,
+    _class: JClass,
+    model_path: JString,
+) {
+    if let Ok(path) = env.get_string(&model_path).map(String::from) {
+        mac::up(&path);
+    }
+}
+
+/// The phone takes over a dictation the Mac didn't finish: the audio so far,
+/// then the rest as it comes.
+fn take_over(
+    mine: usize,
+    path: String,
+    kept: Vec<Vec<f32>>,
+    rest: Option<Receiver<Msg>>,
+    started: Instant,
+) {
+    let (tx, rx) = channel::<Msg>();
+    for a in kept {
+        let _ = tx.send(Msg::Audio(a));
+    }
+    let worker = std::thread::spawn(move || transcribe(mine, &path, rx, started));
+    match rest {
+        Some(rest) => {
+            for m in rest.iter() {
+                let end = matches!(m, Msg::End);
+                let _ = tx.send(m);
+                if end {
+                    break;
+                }
+            }
+        }
+        None => {
+            let _ = tx.send(Msg::End);
+        }
+    }
+    let _ = worker.join();
+}
+
+/// Dictation through the paired Mac.
+mod mac {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicU8};
+    use std::sync::OnceLock;
+    use std::time::Duration;
+
+    use sokki_link::iroh::endpoint::Connection;
+    use sokki_link::iroh::{Endpoint, EndpointId};
+
+    /// The Mac didn't answer this long while audio was flowing: the phone
+    /// takes over. The Mac sends text every 0.5 s.
+    const SILENT: Duration = Duration::from_millis(2_500);
+    /// After a refusal (not paired, an old Sokki), don't ask again so soon.
+    const REFUSED_PAUSE: Duration = Duration::from_secs(600);
+
+    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    static ENDPOINT: Mutex<Option<Endpoint>> = Mutex::new(None);
+    static LINK: Mutex<Option<Connection>> = Mutex::new(None);
+    static CONNECTING: AtomicBool = AtomicBool::new(false);
+    static REFUSED: Mutex<Option<Instant>> = Mutex::new(None);
+
+    fn rt() -> &'static tokio::runtime::Runtime {
+        RT.get_or_init(|| {
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("runtime")
+        })
+    }
+
+    /// The app's data folder (where `link.rs` keeps the pairing), from the
+    /// model's path `<data>/models/<file>`.
+    fn data_dir(model_path: &str) -> Option<std::path::PathBuf> {
+        Path::new(model_path)
+            .parent()?
+            .parent()
+            .map(Path::to_path_buf)
+    }
+
+    /// This phone's key and the paired Mac, if any (`link.rs`).
+    fn pairing(model_path: &str) -> Option<(sokki_link::iroh::SecretKey, EndpointId)> {
+        let dir = data_dir(model_path)?;
+        let key = std::fs::read_to_string(dir.join("link_key.txt")).ok()?;
+        let key = sokki_link::secret_from_hex(key.trim()).ok()?;
+        let p: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("pairing.json")).ok()?).ok()?;
+        let mac = p["mac"].as_str()?.parse().ok()?;
+        Some((key, mac))
+    }
+
+    /// The open link, if the Mac is reachable.
+    pub(super) fn current() -> Option<Connection> {
+        let mut link = LINK.lock().unwrap();
+        if link.as_ref().is_some_and(|c| c.close_reason().is_some()) {
+            *link = None;
+        }
+        link.clone()
+    }
+
+    /// The path the link uses now: direct or through a relay, and its round trip.
+    fn path(conn: &Connection) -> String {
+        conn.paths()
+            .iter()
+            .find(|p| p.is_selected())
+            .map(|p| {
+                format!(
+                    "{}, {} ms",
+                    if p.is_ip() { "direct" } else { "relay" },
+                    p.rtt().as_millis()
+                )
+            })
+            .unwrap_or_else(|| "no path".into())
+    }
+
+    fn drop_link() {
+        *LINK.lock().unwrap() = None;
+    }
+
+    /// Opens the link in the background unless it's open or being opened.
+    /// When it is open, pings the Mac so it loads its speech model.
+    pub(super) fn up(model_path: &str) {
+        if REFUSED
+            .lock()
+            .unwrap()
+            .is_some_and(|t| t.elapsed() < REFUSED_PAUSE)
+        {
+            return;
+        }
+        if let Some(conn) = current() {
+            rt().spawn(async move {
+                let _ = sokki_link::call_on(&conn, &sokki_link::Request::Ping, &[]).await;
+            });
+            return;
+        }
+        let Some((key, mac)) = pairing(model_path) else {
+            return;
+        };
+        if CONNECTING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        // Debug builds: `<data>/debug_relay_only` keeps the link on n0's relay
+        // (tests the path a phone away from home takes).
+        let relay_only = cfg!(debug_assertions)
+            && data_dir(model_path).is_some_and(|d| d.join("debug_relay_only").exists());
+        rt().spawn(async move {
+            let t = Instant::now();
+            let ep = ENDPOINT.lock().unwrap().clone();
+            let ep = match ep {
+                Some(ep) => Ok(ep),
+                None => {
+                    let ep = if relay_only {
+                        Endpoint::builder(sokki_link::iroh::endpoint::presets::N0)
+                            .secret_key(key)
+                            .alpns(vec![sokki_link::ALPN.to_vec()])
+                            .clear_ip_transports()
+                            .bind()
+                            .await
+                            .map_err(|e| e.to_string())
+                    } else {
+                        sokki_link::bind(key).await.map_err(|e| format!("{e:#}"))
+                    };
+                    ep.inspect(|ep| {
+                        *ENDPOINT.lock().unwrap() = Some(ep.clone());
+                    })
+                }
+            };
+            match ep {
+                Ok(ep) => match sokki_link::connect(&ep, mac.into()).await {
+                    Ok(conn) => {
+                        log(&format!(
+                            "Mac link open in {} ms ({})",
+                            t.elapsed().as_millis(),
+                            path(&conn)
+                        ));
+                        let _ = sokki_link::call_on(&conn, &sokki_link::Request::Ping, &[]).await;
+                        *LINK.lock().unwrap() = Some(conn);
+                    }
+                    Err(e) => log(&format!(
+                        "Mac not reachable ({} ms): {e:#}",
+                        t.elapsed().as_millis()
+                    )),
+                },
+                Err(e) => log(&format!("Mac link failed: {e}")),
+            }
+            CONNECTING.store(false, Ordering::SeqCst);
+        });
+    }
+
+    const RUNNING: u8 = 0;
+    const FINISHED: u8 = 1;
+    const FAILED: u8 = 2;
+
+    /// One dictation through the Mac; the phone takes over if the Mac
+    /// stops answering.
+    pub(super) fn dictate(
+        mine: usize,
+        model: String,
+        rx: Receiver<Msg>,
+        started: Instant,
+        conn: Connection,
+    ) {
+        let conn_for_log = conn.clone();
+        log(&format!("Mac: dictating ({})", path(&conn)));
+        let (atx, arx) = tokio::sync::mpsc::unbounded_channel::<Vec<i16>>();
+        let state = Arc::new(AtomicU8::new(RUNNING));
+        let last = Arc::new(Mutex::new(Instant::now()));
+        let abandoned = Arc::new(AtomicBool::new(false));
+        let keep = Arc::new(AtomicBool::new(false));
+        let stopped: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+        {
+            let (state, last, abandoned, stopped, keep) = (
+                state.clone(),
+                last.clone(),
+                abandoned.clone(),
+                stopped.clone(),
+                keep.clone(),
+            );
+            rt().spawn(async move {
+                let mut first = true;
+                let r = sokki_link::dictate(&conn, arx, |t| {
+                    *last.lock().unwrap() = Instant::now();
+                    if abandoned.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    let heard = t.heard as f64 / RATE as f64;
+                    if t.is_final {
+                        // Before FINISHED, so the take-over can't start after it.
+                        if abandoned.load(Ordering::SeqCst) {
+                            return;
+                        }
+                        state.store(FINISHED, Ordering::SeqCst);
+                        send(mine, format!("{FINAL}{}", t.text));
+                        send(mine, DONE.to_string());
+                        log(&format!(
+                            "Mac: done {} ms after stop: {heard:.1} s heard, {} chars",
+                            stopped
+                                .lock()
+                                .unwrap()
+                                .map_or(0, |s| s.elapsed().as_millis()),
+                            t.text.chars().count()
+                        ));
+                    } else {
+                        if first && !t.text.is_empty() {
+                            first = false;
+                            log(&format!(
+                                "Mac: first words {} ms after start ({heard:.1} s heard)",
+                                started.elapsed().as_millis()
+                            ));
+                        }
+                        send(mine, format!("{LIVE}{}", t.text));
+                    }
+                })
+                .await;
+                if let Err(e) = r {
+                    let e = format!("{e:#}");
+                    log(&format!("Mac: dictation failed: {e}"));
+                    if e.contains("paired")
+                        || e.contains("can't take")
+                        || e.contains("unknown request")
+                    {
+                        *REFUSED.lock().unwrap() = Some(Instant::now());
+                    }
+                    // Reachable, only not ready: keep the link for the next one.
+                    keep.store(
+                        e.contains("loading") || e.contains("busy"),
+                        Ordering::SeqCst,
+                    );
+                    state.store(FAILED, Ordering::SeqCst);
+                }
+            });
+        }
+        let mut kept: Vec<Vec<f32>> = Vec::new();
+        let audio_started = Instant::now();
+        let take_over_now = |why: &str, kept: Vec<Vec<f32>>, rest: Option<Receiver<Msg>>| {
+            abandoned.store(true, Ordering::SeqCst);
+            if !keep.load(Ordering::SeqCst) {
+                drop_link();
+            }
+            log(&format!(
+                "Mac: {why}; the phone takes over ({:.1} s of audio so far)",
+                kept.iter().map(Vec::len).sum::<usize>() as f64 / RATE as f64
+            ));
+            log(&format!("Mac: link path then: {}", path(&conn_for_log)));
+            take_over(mine, model.clone(), kept, rest, started);
+        };
+        // While listening: send each block, keep a copy.
+        loop {
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(Msg::Audio(a)) => {
+                    let pcm = a
+                        .iter()
+                        .map(|s| (s * 32768.0).clamp(-32768.0, 32767.0) as i16)
+                        .collect();
+                    let _ = atx.send(pcm);
+                    kept.push(a);
+                }
+                Ok(Msg::End) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            if state.load(Ordering::SeqCst) == FAILED {
+                return take_over_now("failed", kept, Some(rx));
+            }
+            if audio_started.elapsed() > SILENT && last.lock().unwrap().elapsed() > SILENT {
+                return take_over_now("no answer", kept, Some(rx));
+            }
+        }
+        *stopped.lock().unwrap() = Some(Instant::now());
+        drop(atx);
+        // Stopped: the Mac reads the whole dictation (0.3 s at the median,
+        // ~3 s for 3 minutes); give it more before taking over.
+        let audio_s = kept.iter().map(Vec::len).sum::<usize>() as f64 / RATE as f64;
+        // Reading it all again here takes longer than the Mac ever does.
+        let deadline = Duration::from_secs_f64(5.0 + audio_s * 0.05);
+        let since = Instant::now();
+        loop {
+            match state.load(Ordering::SeqCst) {
+                FINISHED => return,
+                FAILED => return take_over_now("failed at the stop", kept, None),
+                _ if since.elapsed() > deadline => {
+                    return take_over_now("no final text in time", kept, None)
+                }
+                _ => std::thread::sleep(Duration::from_millis(20)),
+            }
+        }
+    }
 }
 
 /// Microphone audio: 16 kHz mono, 16-bit.
@@ -297,7 +652,7 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeStop(_env: JNIEn
     }
 }
 
-/// The next message: "\0text:<text>", "\0final:<text>", "\0done",
+/// The next message: "\0text:<text>", "\0live:<text>", "\0final:<text>", "\0done",
 /// "\0error:<message>", or null. Of several "\0text:" in a row only the
 /// newest counts, so the older ones are skipped.
 #[unsafe(no_mangle)]
@@ -309,7 +664,10 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativePoll(
     if out.is_empty() {
         return std::ptr::null_mut();
     }
-    while out.len() > 1 && out[0].starts_with(TEXT) && out[1].starts_with(TEXT) {
+    while out.len() > 1
+        && ((out[0].starts_with(TEXT) && out[1].starts_with(TEXT))
+            || (out[0].starts_with(LIVE) && out[1].starts_with(LIVE)))
+    {
         out.remove(0);
     }
     let s = out.remove(0);

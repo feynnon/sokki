@@ -110,12 +110,10 @@ pub struct DiarizeConfig {
     /// this cosine similarity are one voice and get merged. Needs
     /// embeddings; `None` turns it off.
     ///
-    /// NOT USED (default `None`): no real recording has needed it yet. A
-    /// split voice only appeared once, with a different echo canceller
-    /// (cosine 0.93); with the app's echo cancellation every recording came
-    /// out right without it. Turn it on (`Some(0.75)`) once a real case
-    /// shows up. Different people scored at most 0.40 (three calls, an
-    /// in-person meeting, the synthetic fixtures).
+    /// NOT USED (default `None`): the app finds speakers window by window,
+    /// and a voice split across windows can't be joined here. Since
+    /// 26 Nov 2026 the meeting pipeline joins same voices on the whole track
+    /// instead (`meeting_core::pipeline::PipelineConfig::same_voice`, 0.75).
     pub merge_similarity: Option<f32>,
     /// CPU threads for the ONNX models.
     pub num_threads: usize,

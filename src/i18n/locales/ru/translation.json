@@ -1292,6 +1292,7 @@
       "title": "Developer mode",
       "keep": "Keep what I write",
       "keepDescription": "Saves what you type and dictate, with the app and time, on this Mac only. Never passwords. For improving Sokki on your own data.",
+      "keepDetails": "What is stored?",
       "kept": "Kept",
       "keptText": "The text of a field when you send it or leave it. The app's name. The time.",
       "never": "Never kept",

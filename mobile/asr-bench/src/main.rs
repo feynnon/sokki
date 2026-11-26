@@ -153,7 +153,8 @@ fn main() {
             let next = (fed + block).min(samples.len());
             let due = next as f64 / 16_000.0;
             let t = now();
-            if t < due {
+            // VB_NOWAIT=1: as fast as it goes (text only; timings meaningless).
+            if t < due && std::env::var("VB_NOWAIT").is_err() {
                 std::thread::sleep(std::time::Duration::from_secs_f64(due - t));
             }
             let t0 = now();

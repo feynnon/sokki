@@ -39,9 +39,10 @@ No desktop app we found starts recording because people talk. They start on the 
 - **Not during a dictation.**
 - **Nothing lost at the start:** the last 35 s are kept in memory only and become the meeting's first seconds.
 - **Stop by itself** after 2 minutes without speech on either track (Granola: 15 min; ours is shorter because there's no call to end it).
-- **False start cheap:** a card (canvas version 1, Robin's pick) shows for 20 s: Discard (deletes audio and record, nothing is learned from it, then 15 minutes without auto start), Keep, and "Turn off auto start" (switches the setting off; the recording goes on).
+- **The card (since 2026-11-26 evening, canvas M2.2):** one line like a macOS notification, shown for 20 s: Sokki's mark, "Von selbst aufgenommen", an Auto-Start switch (switches the setting off; the recording goes on) and a round X over the top left corner that shows with the mouse and only closes the card. Buttons show the hand cursor. The pill shows that it records. First built with three buttons (Discard, Keep, "Turn off auto start"); after the first real start Robin found that too much and the text button didn't look like one, and picked M2.2 from 17 drafts.
+- **False start cheap:** stopping an auto-started meeting in the pill means it wasn't wanted: no auto start for 15 minutes, so the same conversation doesn't start it again.
 - **No Bluetooth mic:** the listener uses the built-in microphone, so AirPods keep their sound quality.
-- **Logged for measuring:** every start, stop, discard and rejected candidate in `sokki.log` with reason and timing ("Auto meeting: …"), never what was said. Counts `auto_meeting_started` / `auto_meeting_discarded` / `auto_meeting_turned_off` in the daily usage report.
+- **Logged for measuring:** every start, stop, discard and rejected candidate in `sokki.log` with reason and timing ("Auto meeting: …"), never what was said. Counts `auto_meeting_started` / `auto_meeting_stopped_by_user` / `auto_meeting_turned_off` in the daily usage report.
 - Known cost: while on and idle, the microphone is open (macOS shows the orange dot all the time).
 
 Not built (ideas for later, unverified): comparing system output with the mic (echo correlation) to tell a TV in the room from people; Now Playing (closed to third-party apps since macOS 15.4).
@@ -69,6 +70,32 @@ Findings:
 - Earshot (the voice detector) calls synthesised music speech almost all the time, so speech length alone would have started on music. The known-voice check is what holds.
 - Known vs. strange voices are far apart on these voices (0.91–0.92 vs. at most 0.29), so the 0.5 bar has room both ways. Not yet measured: the user's real voice on the built-in mic against a profile enrolled from a meeting. Robin's Mac has one stored sample of his voice; the log line "best similarity" on his Mac answers this.
 - Not covered by the test: a real Bluetooth headset, a real app playing sound (the test pretends with `PLAYING`), a TV in the room with a known voice in it.
+
+## Headless test of the one-line card (2026-11-26 evening, Sokki Test Auto)
+
+Same made-up audio as above. The card itself was checked in headless Chromium (`tests/main-window.spec.ts`, "started by itself"): fits its 380 × 92 window in German and English, X hidden until the mouse is on the card, hand cursor on switch and X, the switch goes off at once and answers 0.7 s later.
+
+| Case | Expected | Result |
+|---|---|---|
+| Known talk, then the Auto-Start switch | start, off | started (2 of 3 pieces known, 0.92, check 914 ms, recording 88 ms later); off 3 s later, recording went on |
+| Known talk, then the X | start, card closed | started (0.92); card closed 3 s later, recording went on |
+| Video with two strangers | no start | no start, best similarity 0.16–0.30 |
+
+Not tested headless: stopping an auto-started meeting in the pill (then 15 minutes without auto start), and how the card looks in the real window over the desktop.
+
+## First real use (2026-11-26, Robin's Mac, 0.2.17)
+
+Auto start on from 11:50 UTC, built-in mic, 2 stored voice samples (the user's and one person who agreed), no app playing sound.
+
+- 11:54–12:01: 21 checks with 12–21 s of speech each, all refused. Best similarity 0.23–0.47 in 19 of them; twice 0.67–0.70, but only 1 piece of 3–5 matched (2 needed).
+- 12:01:56: started on 13.4 s of speech, 2 of 4 pieces known, best similarity 0.64, check 579 ms, pill 220 ms later, 35 s from before kept (listening for 663 s).
+- The meeting's speakers: the user 14.8 s, one unknown person 5.1 s, both on the mic (a conversation in the room).
+- 11.8 s after the start the user pressed "Turn off auto start", then stopped the recording at 15 s. The 49 s note (35 s pre-roll + 14 s) was kept, not discarded. The user's reason isn't known yet.
+
+Findings:
+- The trigger did what it was built for (a known voice in a conversation in the room), and the user still didn't want the recording. The rule is: a known voice talking is not the same as a conversation worth recording.
+- The user's real voice on the built-in mic scores 0.64–0.70 against one stored sample, against 0.91–0.92 for the synthesised test voices. Unknown speech scored at most 0.47. The 0.5 bar sits close to both.
+- The user turned auto start off. It stays off on that Mac until the user decides otherwise.
 
 ## Sources
 

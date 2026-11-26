@@ -27,6 +27,11 @@ struct Fake {
     deaf: bool,
     /// a key the user presses right after the fix was typed
     after_fix: RefCell<Option<char>>,
+    /// a key that lands while Sokki reads the field: after it counted the keys, before it
+    /// reads the text
+    in_value_read: RefCell<Option<char>>,
+    /// a key that lands after Sokki read the text, before it reads the cursor
+    in_selection_read: RefCell<Option<char>>,
 }
 
 impl Fake {
@@ -40,6 +45,8 @@ impl Fake {
             keys: Cell::new(0),
             deaf: false,
             after_fix: RefCell::new(None),
+            in_value_read: RefCell::new(None),
+            in_selection_read: RefCell::new(None),
         }
     }
 
@@ -72,9 +79,15 @@ impl Field for Fake {
         &self.app
     }
     fn value(&self) -> Option<String> {
+        if let Some(c) = self.in_value_read.borrow_mut().take() {
+            self.key(c);
+        }
         Some(self.text.borrow().clone())
     }
     fn selection(&self) -> Option<(usize, usize)> {
+        if let Some(c) = self.in_selection_read.borrow_mut().take() {
+            self.key(c);
+        }
         Some(self.sel.get())
     }
     fn replaceable(&self) -> bool {
@@ -353,4 +366,56 @@ fn a_backspace_and_a_letter_between_two_looks_keep_the_word_typed() {
     let got = type_in(&mut ac, &f, "t ");
     assert_eq!(got.len(), 1, "{got:?}");
     assert_eq!(f.text.borrow().as_str(), "Das ist nicht ");
+}
+
+/// Types `before`, then the first letter of `rest` with `race` set to the next one, then the
+/// rest: a fast key landing while Sokki reads the field.
+fn type_with_race(
+    ac: &mut Autocorrect,
+    f: &Fake,
+    before: &str,
+    rest: &str,
+    race: &RefCell<Option<char>>,
+) -> Vec<Outcome> {
+    let mut out = type_in(ac, f, before);
+    let mut cs = rest.chars();
+    let (a, b) = (cs.next().unwrap(), cs.next().unwrap());
+    f.key(a);
+    *race.borrow_mut() = Some(b);
+    let o = ac.on_key(f, &|| f.keys.get());
+    if o != Outcome::Nothing {
+        out.push(o);
+    }
+    out.extend(type_in(ac, f, cs.as_str()));
+    out
+}
+
+#[test]
+fn a_key_landing_while_the_text_is_read_keeps_the_word_typed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.t3tools.t3code");
+    let got = type_with_race(
+        &mut ac,
+        &f,
+        "Ich habe das n",
+        "ihct gesehen",
+        &f.in_value_read,
+    );
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Ich habe das nicht gesehen");
+}
+
+#[test]
+fn a_key_landing_between_text_and_cursor_reads_keeps_the_word_typed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.t3tools.t3code");
+    let got = type_with_race(
+        &mut ac,
+        &f,
+        "Ich habe das n",
+        "ihct gesehen",
+        &f.in_selection_read,
+    );
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Ich habe das nicht gesehen");
 }

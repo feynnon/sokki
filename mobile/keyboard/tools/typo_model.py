@@ -1,6 +1,6 @@
 """Sokki: the "typos only" autocorrect, as dev.verbatim.sokki.Typos runs it.
 
-Keep equal to Typos.kt (bench_device.py checks: 0 of 8,000 decisions differed).
+Keep equal to Typos.kt (typos_parity.py compares the two on the JVM, bench_device.py on a phone).
 gen_known_words.py writes the word table, gen_bigrams.py the word-pair table;
 `python typo_model.py <text file>` replays a text and prints every word the
 keyboard would change.
@@ -17,6 +17,11 @@ rules that fixed fewer typos and got five times as many wrong):
   P(word | previous word) comes from the pair table, else 0.4 x P(word) from
   the word table; P(typed | word) from per-letter slip rates measured on
   typing37k (SLIP). The typed word, when it is no word: log10 P = OOV.
+- When no word is one slip away, common words two slips away compete the same
+  way (common.txt, written by gen_known_words.py).
+- Neighbouring keys are those of the keyboard on screen (set_keys; the phone
+  reads them from its layout), else the QWERTZ rows.
+- British -ise spellings of a common US -ize word are words (optimised).
 - The best word replaces the typed one when its share of all the scores is at
   least TAU. A lowercase noun the keyboard only knows capitalised competes the
   same way and is capitalised when it clearly wins ("am montag", not "I gott").
@@ -33,6 +38,7 @@ Checking it:
 SPDX-License-Identifier: GPL-3.0-only
 """
 
+import collections
 import math
 import os
 import re
@@ -56,13 +62,35 @@ def fold(w):
     return w.lower().replace("ß", "ss")
 
 
+# The keyboard in use, as the phone reads it from its layout (Typos.useKeyboard): letter -> (centre x,
+# centre y, width, height) in any unit. None: the QWERTZ rows above.
+_KEYS = None
+
+
+def set_keys(keys):
+    """Use this keyboard's key positions for neighbouring keys ({letter: (x, y, w, h)}); None: QWERTZ."""
+    global _KEYS
+    _KEYS = dict(keys) if keys else None
+
+
 def neighbours(a, b):
-    if {a, b} == {"y", "z"}:  # QWERTY habit on QWERTZ
-        return True
-    if a not in _POS or b not in _POS:
+    if _KEYS is None:
+        if {a, b} == {"y", "z"}:  # QWERTY habit on QWERTZ
+            return True
+        if a not in _POS or b not in _POS:
+            return False
+        (r1, c1), (r2, c2) = _POS[a], _POS[b]
+        return abs(r1 - r2) <= 1 and abs(c1 - c2) <= 1.0
+    if a not in _KEYS or b not in _KEYS:
         return False
-    (r1, c1), (r2, c2) = _POS[a], _POS[b]
-    return abs(r1 - r2) <= 1 and abs(c1 - c2) <= 1.0
+    if {a, b} == {"y", "z"} and "z" in _KEYS and "y" in _KEYS and _KEYS["z"][1] < _KEYS["y"][1]:
+        return True  # QWERTY habit on QWERTZ (z in the top row)
+    (x1, y1, w1, h1), (x2, y2, w2, h2) = _KEYS[a], _KEYS[b]
+    dx, dy, w, h = abs(x1 - x2), abs(y1 - y2), (w1 + w2) / 2, (h1 + h2) / 2
+    if dy < min(h1, h2) / 2:  # the same row: the key beside it
+        return dx <= w * 1.05
+    # the row above or below: keys that overlap it sideways (not one diagonally past its corner)
+    return dy <= h * 1.05 and dx < w * 0.95
 
 
 def _hashes(key, k, m):
@@ -189,6 +217,17 @@ def umlaut_form(table, t):
     return best
 
 
+BRITISH = True  # British -ise spellings of a common US -ize word are words (optimised; Mac, 26.11.2026)
+BRITISH_ENDINGS = (("isations", "izations"), ("isation", "ization"), ("ising", "izing"), ("isers", "izers"),
+                   ("ised", "ized"), ("ises", "izes"), ("iser", "izer"), ("ise", "ize"), ("ysed", "yzed"), ("yse", "yze"))
+
+
+def british(table, t):
+    """Folded `t` is the British spelling of a common English -ize/-yze word (optimised, analysed)."""
+    return any(t.endswith(gb) and len(t) - len(gb) >= 3 and table.common_in("e", t[:-len(gb)] + us)
+               for gb, us in BRITISH_ENDINGS)
+
+
 def known(table, personal, w):
     t = fold(w)
     if t in personal:
@@ -196,7 +235,7 @@ def known(table, personal, w):
     z = table.zipf(t)
     if CURATED_KNOWN and umlaut_twin(table, t, z):  # konnen, uberlegt, personlich: web forms of umlaut words
         return False
-    if z >= COMMON:
+    if z >= COMMON or (BRITISH and british(table, t)):
         return True
     return built_word(table, t) or (VERB_STEMS and verb_stem(table, t)) or (INFLECTIONS and inflected(table, t))
 
@@ -301,10 +340,17 @@ def verb_stem(table, t):
     return False
 
 
-def sentence_lang(table, prev, nxt=None):
+# Earlier words of the text that also count for its language (0: the sentence's last three only). Off: on
+# Robin's writing (26.11.2026) 10, 20 or 40 words fixed 0.3 points fewer typos and capitalised no more nouns.
+LANG_CONTEXT = 0
+CONTEXT_WEIGHT = 1.0  # their weight: their share German minus English, times this
+
+
+def sentence_lang(table, prev, nxt=None, context=None):
     """'de' or 'en' for the sentence so far: the last three words count 1, 1/2, 1/4 (German +1,
     English -1 for a word only common in that language), the next word 1/2. German wins ties: it
-    is the user's first language."""
+    is the user's first language. With LANG_CONTEXT, the text's last words before (`context`,
+    nearest last) add CONTEXT_WEIGHT x their share German minus English."""
     ws = [prev] if isinstance(prev, str) or prev is None else list(prev)
     score, weight = 0.0, 1.0
     for w in reversed(ws[-3:]):
@@ -313,6 +359,9 @@ def sentence_lang(table, prev, nxt=None):
         weight /= 2
     lang = lean(table, nxt)
     score += 0.5 * (1 if lang == "d" else -1 if lang == "e" else 0)
+    if LANG_CONTEXT and context:
+        ls = [lean(table, w) for w in list(context)[-LANG_CONTEXT:]]
+        score += CONTEXT_WEIGHT * sum(1 if x == "d" else -1 if x == "e" else 0 for x in ls) / len(ls)
     return "en" if score < 0 else "de"
 
 
@@ -473,6 +522,30 @@ def one_slip(t):
     return sorted(out)
 
 
+TWO_SLIPS = True  # common words two slips away compete when none is one slip away (see correction)
+COMMON_WORDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "main", "assets", "sokki",
+                            "common.txt")
+_NEAR = None
+
+
+def near_words(t, d):
+    """Words of common.txt (zipf 3+ in German or English, folded) with t's first letter and at most d
+    letters more or fewer."""
+    global _NEAR
+    if _NEAR is None:
+        _NEAR = collections.defaultdict(list)
+        for w in open(COMMON_WORDS, encoding="utf-8").read().split():
+            _NEAR[(w[0], len(w))].append(w)
+    return [w for n in range(max(1, len(t) - d), len(t) + d + 1) for w in _NEAR.get((t[0], n), ())]
+
+
+def bag_distance(bag, w):
+    """A lower bound on the slips between two words: the letters one has more of than the other."""
+    d = collections.Counter(bag)
+    d.subtract(w)
+    return max(sum(x for x in d.values() if x > 0), -sum(x for x in d.values() if x < 0))
+
+
 def lm_score(table, bigrams, w, zw, prev):
     """log10 P(w | prev): the pair's bucket middle, else 0.4 x P(w); P(w) from zipf `zw`."""
     if prev and bigrams is not None:
@@ -484,7 +557,7 @@ def lm_score(table, bigrams, w, zw, prev):
 
 
 def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictionary=False, prev=None, vocab=None,
-               nxt=None):
+               nxt=None, context=None):
     """The word autocorrect puts in place of `typed`, or None. `candidates`: the keyboard's
     suggestions, as words or (word, language) pairs (their spelling wins: Straße, Montag; a
     capital only comes from a German one). `typed_in_dictionary`: the keyboard knows the typed
@@ -541,7 +614,7 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
             return typed[0].upper() + typed[1:]
         if not (TRUECASE and typed.islower() and last not in (None, BOS) and table.noun(t)):
             return None
-        if fold(last) in PRONOUNS or sentence_lang(table, prevs, nxt) != "de":
+        if fold(last) in PRONOUNS or sentence_lang(table, prevs, nxt, context) != "de":
             return None
         # an English word only after a German article or preposition, with no English word after
         # (den Link; not "image processing", "ist easy", "best practices")
@@ -552,14 +625,14 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
             return None
         return cap if cap and cap[:1].isupper() else typed[0].upper() + typed[1:]
 
-    if (UMLAUT_IN_GERMAN and valid and valid <= {"en", "user"} and sentence_lang(table, prevs, nxt) == "de"
+    if (UMLAUT_IN_GERMAN and valid and valid <= {"en", "user"} and sentence_lang(table, prevs, nxt, context) == "de"
             and lean(table, typed) != "d"):
         twin = umlaut_form(table, t)
         if twin and table.zipf(twin) >= table.zipf(t) + 2:  # 100x more common: für vs fur, not regulär vs regular
             spelled = next((c for c, _ in cands if fold(c) == twin), twin)
             return spelled[0].upper() + spelled[1:] if typed[0].isupper() else spelled
     if (EN_IN_GERMAN and valid == {"en"} and lean(table, typed) == "e" and last not in (None, BOS)
-            and sentence_lang(table, prevs, nxt) == "de"):
+            and sentence_lang(table, prevs, nxt, context) == "de"):
         p0 = fold(last)
         zt = table.zipf(t)
         scored = [(lm_score(table, bigrams, t, zt, p0) + len(t) * MATCH + SWITCH, t)]
@@ -576,7 +649,7 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
         tc = truecase()
         if tc:
             return tc
-        if (LANG_CAPS and cap and valid == {"en"} and cap[:1] != typed[:1] and sentence_lang(table, prevs, nxt) == "de"
+        if (LANG_CAPS and cap and valid == {"en"} and cap[:1] != typed[:1] and sentence_lang(table, prevs, nxt, context) == "de"
                 and last not in (None, BOS) and fold(last) in DETERMINERS and lean(table, nxt) != "e"):
             return cap
         return None
@@ -615,6 +688,20 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
             slips = slips if slips is not None else set(one_slip(t))
             if fc in slips:
                 scored.append((lm_score(table, bigrams, fc, PERSONAL_ZIPF, p) + channel(t, fc), fc))
+    # No word one slip away: common words two slips away compete (funtkionirt -> funktioniert).
+    # Robin's Mac typing, 26.11.2026: long words with a swap and a second slip were left as typed.
+    two = set()
+    if TWO_SLIPS and len(scored) == 1:
+        slips = None
+        bag = collections.Counter(t)
+        for c in near_words(t, 2):
+            if bag_distance(bag, c) > 2 or (keep_first and BASE.get(c[0], c[0]) != t[0]) or not table.candidate(c):
+                continue
+            slips = slips if slips is not None else set(one_slip(t))
+            zc = table.zipf(c)
+            if c not in slips and zc >= COMMON:
+                two.add(c)
+                scored.append((lm_score(table, bigrams, c, zc, p) + channel(t, c), c))
     top, word = max(scored)
     total = sum(10 ** (s - top) for s, _ in scored)
     sure = 1.0 / total >= TAU
@@ -623,8 +710,13 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
         sure = not rest or top - rest[0] >= math.log10(RUNNER_UP)
     if word != t and sure:
         spelled = next((c for c, _ in cands if fold(c) == word), word)
+        if word in two:  # the spelling of the sentence's language: million in English, Million in German
+            lang = sentence_lang(table, prevs, nxt, context)
+            spelled = next((c for c, cl in cands if fold(c) == word and cl == lang), spelled)
+            if spelled == word and lang == "de" and table.noun(word):
+                spelled = word[0].upper() + word[1:]
         return spelled[0].upper() + spelled[1:] if typed[0].isupper() else spelled
-    if COMPOUND_FIX and word == t and zt == 0 and len(t) >= COMPOUND_MIN and sentence_lang(table, prevs, nxt) != "en":
+    if COMPOUND_FIX and word == t and zt == 0 and len(t) >= COMPOUND_MIN and sentence_lang(table, prevs, nxt, context) != "en":
         fix = compound_fix(table, t)
         if fix:
             return fix[0].upper() + fix[1:] if typed[0].isupper() else fix
@@ -634,7 +726,7 @@ def correction(table, bigrams, personal, typed, candidates=(), typed_in_dictiona
     if cap is None:
         return None
     if LANG_CAPS:
-        if cap[:1] != typed[:1] and (sentence_lang(table, prevs, nxt) == "en" or
+        if cap[:1] != typed[:1] and (sentence_lang(table, prevs, nxt, context) == "en" or
                                      (last not in (None, BOS) and fold(last) in PRONOUNS)):
             return None
         return cap

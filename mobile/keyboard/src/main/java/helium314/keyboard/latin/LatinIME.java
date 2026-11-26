@@ -560,6 +560,8 @@ public class LatinIME extends InputMethodService implements
         });
         dev.verbatim.sokki.Typos.init(this);
         dev.verbatim.sokki.KeyTargeting.textBefore = () -> mInputLogic.mConnection.getTextBeforeCursor(2, 0);
+        // Sokki: autocorrect judges the text's language from its last words (Typos.LANG_CONTEXT)
+        dev.verbatim.sokki.Typos.textBefore = () -> mInputLogic.mConnection.getTextBeforeCursor(400, 0);
         KeyboardIconsSet.Companion.getInstance().loadIcons(this);
         mRichImm = RichInputMethodManager.getInstance();
         AudioAndHapticFeedbackManager.init(this);

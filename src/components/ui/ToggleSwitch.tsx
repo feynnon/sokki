@@ -1,5 +1,5 @@
 import React from "react";
-import { SettingContainer } from "./SettingContainer";
+import { SettingContainer, type SettingDetails } from "./SettingContainer";
 import { Switch } from "./Switch";
 
 interface ToggleSwitchProps {
@@ -12,6 +12,8 @@ interface ToggleSwitchProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   tooltipPosition?: "top" | "bottom";
+  /** More than a sentence to explain: a question that opens it in the card. */
+  details?: SettingDetails;
 }
 
 export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
@@ -24,6 +26,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
   tooltipPosition = "top",
+  details,
 }) => {
   return (
     <SettingContainer
@@ -33,6 +36,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
       grouped={grouped}
       disabled={disabled}
       tooltipPosition={tooltipPosition}
+      details={details}
     >
       <Switch
         checked={checked}

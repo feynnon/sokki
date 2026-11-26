@@ -658,4 +658,55 @@ test.describe("call window", () => {
     await page.getByRole("button", { name: "Stop" }).click();
     await expect.poll(() => answers(page)).toEqual(["keep", "stop"]);
   });
+
+  for (const lang of ["en", "de"] as const)
+    test(`started by itself: one line, X with the mouse, switch off (${lang})`, async ({
+      page,
+    }) => {
+      await open(page, {
+        lang,
+        theme: "dark",
+        path: "/src/meeting-prompt/index.html?kind=auto&app=",
+      });
+      // The clear window Rust opens for it (380 × 92).
+      await page.setViewportSize({ width: 380, height: 92 });
+      const card = page.getByRole("dialog");
+      await expect(card).toHaveText(
+        lang === "en"
+          ? /Recording on its own.*Auto start/
+          : /Von selbst aufgenommen.*Auto-Start/,
+      );
+      const size = await page.evaluate(() => ({
+        w: document.documentElement.scrollWidth,
+        h: document.documentElement.scrollHeight,
+      }));
+      expect(size.w).toBeLessThanOrEqual(380);
+      expect(size.h).toBeLessThanOrEqual(92);
+      const cut = await page.evaluate(() => {
+        const t = document.querySelector(".auto-title") as HTMLElement;
+        return t.scrollWidth > t.clientWidth;
+      });
+      expect(cut).toBe(false);
+      const close = page.getByRole("button", {
+        name: lang === "en" ? "Close" : "Schließen",
+      });
+      // Like a macOS notification: the X only with the mouse on the card.
+      await expect(close).toBeHidden();
+      await shot(page, `prompt-auto-${lang}`);
+      const sw = page.getByRole("switch");
+      await sw.hover();
+      await expect(close).toBeVisible();
+      for (const el of [sw, close])
+        expect(await el.evaluate((e) => getComputedStyle(e).cursor)).toBe(
+          "pointer",
+        );
+      await shot(page, `prompt-auto-hover-${lang}`);
+      await sw.click();
+      await expect(sw).toHaveAttribute("aria-checked", "false");
+      await shot(page, `prompt-auto-off-${lang}`);
+      // The answer comes a moment later, so the switch is seen going off.
+      await expect.poll(() => answers(page)).toEqual(["off"]);
+      await close.click();
+      await expect.poll(() => answers(page)).toEqual(["off", "close"]);
+    });
 });

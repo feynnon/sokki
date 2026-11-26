@@ -269,6 +269,73 @@ impl Stitcher {
     }
 }
 
+/// Joins speakers of one track whose voices are the same: while two
+/// speakers' embeddings have at least `min` cosine similarity, the one with
+/// less speech takes the other's label, and the joined speaker gets the
+/// speech-weighted mean of both embeddings. Returns the turns and how many
+/// speakers were joined.
+///
+/// Needed because windows split one voice: on 26 Nov 2026 an in-person
+/// meeting of two came out with one person as two speakers (cosine 0.93).
+/// The first window had him as one speaker, a later one matched his voice
+/// to another speaker through the overlap. 7 of 37 other meetings had such
+/// pairs (8 pairs, 0.76-0.98); different people scored at most 0.59
+/// (`docs/research/speaker-count-2026-11.md`).
+pub fn merge_same_voice(mut turns: Vec<SpeakerTurn>, min: f32) -> (Vec<SpeakerTurn>, usize) {
+    // Per speaker: speech time and (normalised) embedding.
+    let mut voices: Vec<(String, f64, Vec<f32>)> = Vec::new();
+    for t in &turns {
+        let Some(e) = &t.embedding else { continue };
+        match voices.iter_mut().find(|v| v.0 == t.speaker) {
+            Some(v) => v.1 += t.end_s - t.start_s,
+            None => voices.push((t.speaker.clone(), t.end_s - t.start_s, normalized(e))),
+        }
+    }
+    let mut merged = 0;
+    loop {
+        let mut best: Option<(usize, usize, f32)> = None;
+        for i in 0..voices.len() {
+            for j in i + 1..voices.len() {
+                let c = cosine(&voices[i].2, &voices[j].2);
+                if c >= min && best.is_none_or(|b| c > b.2) {
+                    best = Some((i, j, c));
+                }
+            }
+        }
+        let Some((i, j, _)) = best else { break };
+        // The speaker with more speech keeps its label.
+        let (keep, gone) = if voices[i].1 >= voices[j].1 {
+            (i, j)
+        } else {
+            (j, i)
+        };
+        let (ks, gs) = (voices[keep].1, voices[gone].1);
+        let mean: Vec<f32> = voices[keep]
+            .2
+            .iter()
+            .zip(&voices[gone].2)
+            .map(|(a, b)| a * ks as f32 + b * gs as f32)
+            .collect();
+        let gone_id = voices[gone].0.clone();
+        let keep_id = voices[keep].0.clone();
+        voices[keep].1 += gs;
+        voices[keep].2 = normalized(&mean);
+        voices.remove(gone);
+        for t in turns.iter_mut().filter(|t| t.speaker == gone_id) {
+            t.speaker = keep_id.clone();
+        }
+        merged += 1;
+    }
+    if merged > 0 {
+        for t in &mut turns {
+            if let Some(v) = voices.iter().find(|v| v.0 == t.speaker) {
+                t.embedding = Some(v.2.clone());
+            }
+        }
+    }
+    (turns, merged)
+}
+
 fn cosine(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -363,6 +430,47 @@ mod tests {
         let s = st.last_end_s().map_or(0.0, |e| (e - cfg.overlap_s).max(0.0));
         st.add_window(s, total_s, diarize(s, total_s), true);
         st.turns()
+    }
+
+    #[test]
+    fn one_voice_split_in_two_is_joined() {
+        let turns = vec![
+            t(0.0, 10.0, "S1", Some(vec![1.0, 0.0, 0.0])),
+            t(10.0, 12.0, "S2", Some(vec![0.0, 1.0, 0.0])),
+            t(
+                12.0,
+                15.0,
+                "S3",
+                Some(vec![0.93, 0.0, (1.0f32 - 0.93 * 0.93).sqrt()]),
+            ),
+            t(15.0, 30.0, "S1", Some(vec![1.0, 0.0, 0.0])),
+        ];
+        let (out, n) = merge_same_voice(turns, 0.75);
+        assert_eq!(n, 1);
+        let names: Vec<&str> = out.iter().map(|t| t.speaker.as_str()).collect();
+        assert_eq!(names, vec!["S1", "S2", "S1", "S1"]);
+        // The joined voice leans to the one with more speech.
+        let e = out[2].embedding.as_ref().unwrap();
+        assert!(e[0] > 0.99 && e[2] > 0.0 && e[2] < 0.1, "{e:?}");
+        assert_eq!(out[0].embedding, out[2].embedding);
+    }
+
+    #[test]
+    fn different_voices_stay_apart() {
+        let turns = vec![
+            t(0.0, 10.0, "S1", Some(vec![1.0, 0.0])),
+            // cosine 0.59, the most two different people scored
+            t(
+                10.0,
+                20.0,
+                "S2",
+                Some(vec![0.59, (1.0f32 - 0.59 * 0.59).sqrt()]),
+            ),
+            t(20.0, 21.0, "S3", None),
+        ];
+        let (out, n) = merge_same_voice(turns.clone(), 0.75);
+        assert_eq!(n, 0);
+        assert_eq!(out, turns);
     }
 
     #[test]

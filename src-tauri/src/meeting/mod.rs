@@ -33,10 +33,10 @@ pub mod mic;
 #[cfg(target_os = "macos")]
 pub(crate) mod notify_macos;
 pub mod phone_link;
+pub mod preload;
 pub mod priority;
 pub mod process;
 pub mod prompt;
-pub mod preload;
 pub mod pull;
 pub mod rate;
 pub mod sample;

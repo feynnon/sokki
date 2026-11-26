@@ -3,7 +3,10 @@
 // open while you speak, as on the Mac: a streaming model adds words about
 // every half second, and words it has moved past never change, so they are
 // typed for good at once; only the word still being heard is underlined.
-// All on the phone. The speech engine is Rust
+// Through the paired Mac when it's reachable (faster, more accurate: its
+// Parakeet on the GPU); then the whole text stays underlined, as it may still
+// change, and is typed for good at the stop. Otherwise, or when the Mac stops
+// answering, all on the phone. The speech engine is Rust
 // (mobile/src-tauri/src/keyboard_voice.rs); the model is the app's download.
 //
 // Feels instant: recording starts on the tap, even while the engine is
@@ -39,6 +42,7 @@ object SokkiVoice {
     private const val ERROR = "\u0000error:"
     private const val TEXT = "\u0000text:"
     private const val FINAL = "\u0000final:"
+    private const val LIVE = "\u0000live:"
     const val MODEL_FILE = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"
     /** The model before 2026-11-25; the app replaces it by itself. */
     private const val OLD_MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
@@ -85,6 +89,7 @@ object SokkiVoice {
     @JvmStatic private external fun nativePush(pcm: ShortArray)
     @JvmStatic private external fun nativeStop()
     @JvmStatic private external fun nativePoll(): String?
+    @JvmStatic private external fun nativeLinkUp(modelPath: String)
 
     /** Where the Sokki app keeps the speech model (its Dictate tab downloads it). */
     fun modelFile(context: Context) =
@@ -112,9 +117,11 @@ object SokkiVoice {
      * the first words took 2 s longer). */
     fun prepare(context: Context) {
         val now = android.os.SystemClock.elapsedRealtime()
-        if (state != State.IDLE || (lastWarm != 0L && now - lastWarm < REWARM_AFTER_MS)) return
         val model = modelFile(context)
         if (!model.exists()) return
+        // The link to the Mac, every time (cheap when it's open).
+        if (libraryLoaded) Thread { nativeLinkUp(model.path) }.start()
+        if (state != State.IDLE || (lastWarm != 0L && now - lastWarm < REWARM_AFTER_MS)) return
         lastWarm = now
         Thread {
             if (loadLibrary()) nativeWarmUp(model.path)
@@ -288,6 +295,7 @@ object SokkiVoice {
                     text.startsWith(ERROR) -> return done(mine, text.removePrefix(ERROR))
                     text.startsWith(TEXT) -> show(text.removePrefix(TEXT), false)
                     text.startsWith(FINAL) -> show(text.removePrefix(FINAL), true)
+                    text.startsWith(LIVE) -> showLive(text.removePrefix(LIVE))
                 }
             }
         }
@@ -329,6 +337,21 @@ object SokkiVoice {
             val before = ic.getTextBeforeCursor(1, 0)
             (if (!before.isNullOrEmpty() && !before.last().isWhitespace()) " " else "").also { lead = it }
         }
+    }
+
+    /** Through the Mac: the text so far, all of it still changeable, so all
+     * underlined; the final text replaces it. */
+    private fun showLive(text: String) {
+        if (typed > 0) return show(text, false) // never: the Mac's text is all-or-final
+        val ic = connection?.invoke() ?: return
+        if (text.isNotBlank()) {
+            ic.setComposingText(space(ic) + text, 1)
+            composing = true
+        } else if (composing) {
+            ic.setComposingText("", 1)
+            composing = false
+        }
+        lastText = text
     }
 
     /** The dictation's text so far ([final]: all of it). Words the model

@@ -26,6 +26,8 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `monetisation-2026-11.md` | How comparable dictation and meeting apps and solo open-source makers earn money, grants, and ranked options for Sokki. |
 | `income-ai-era-2026-11.md` | Second round: how Handy got sponsors, Porzio perks, Obsidian, VoiceInk, team features without a cloud, new ranking. |
 | `mac-autocorrect-2026-11.md` | Mac autocorrect in Chrome and Electron apps: how Sokki reaches and writes their text fields, the lab test with Chrome in front, CPU and memory with autocorrect on and off, and the fix for German capitals in English sentences. |
+| `speaker-count-2026-11.md` | Speaker count: a meeting of two with five speakers. One voice split across speaker windows (joined at cosine ≥ 0.75), the video sound from the Mac as speakers, why a colleague wasn't recognised, short lines in the wrong language. |
+| `phone-autocorrect-2026-11.md` | Phone autocorrect: neighbouring keys from the layout on screen, British spellings, words two slips away, and the text's language from more words (tried, left off). |
 | `speaker-names-call-apps-2026-11.md` | Speaker names: voice grouping across 46 meetings, what Zoom and Meet show through Accessibility, why Meet needs captions on, the law on stored voices. |
 | `cloudflare-kv-usage-2026-11.md` | Cloudflare's free plan: which KV operations the counter and website use per day, why 26.11. neared the delete cap (the move to R2), launch-day estimate, Workers Paid or not. |
 | `second-brain-2026-11.md` | A built-in second brain (Karpathy's LLM wiki): the tools, why people quit, a local Mac stack (FTS5 + sqlite-vec, EmbeddingGemma), small-model limits, a phased plan. Research only, nothing built. |
@@ -33,7 +35,8 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 
 ## Decisions these measurements support (Nov 2026)
 
-- **Dictation cleanup:** Gemma 4 E4B (Q4_K_M) with prompt v4, cleaned live in 60-word pieces with the last paragraph left open, in Sokki's llama-server with MTP speculative decoding. Robin approved the target (fix words and layout, keep meaning) and the setup on 24 Nov 2026.
+- **Dictation cleanup:** Gemma 4 E4B (Q4_K_M) with prompt v4, cleaned live in pieces (see "Live pieces") with the last paragraph left open, in Sokki's llama-server with MTP speculative decoding. Robin approved the target (fix words and layout, keep meaning) and the setup on 24 Nov 2026. On by default since 26 Nov 2026, turned on once for existing installs; 8 GB Macs get no model and paste the raw transcript as before (Robin: "Cleanup standardmäßig an, 8-GB-Macs erstmal nicht").
+- **Instant paste:** the text goes into the field 0.40 s after the stop, and its raw end is cleaned in place at about 2.3 s. Raw words in the live panel are dimmed, and a small pill shows during the wait. These are Robin's picks of four designs (26 Nov 2026, `instant-paste-2026-11.md`).
 - **Meeting summaries:** Gemma 4 E4B replaces Qwen3.5 9B. Robin approved this on 25 Nov 2026 after two blind rounds.
 - **Live pieces:** 30 words while speaking, 60 at the stop (26 Nov 2026): twice as many dictations show cleaned text live, a shorter wait, the same result (`live-pieces-and-summary-preload-2026-11.md`).
 - **Summary model:** loaded a minute into a meeting when a quarter of memory stays free after it (26 Nov 2026).

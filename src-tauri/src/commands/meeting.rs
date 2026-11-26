@@ -19,6 +19,9 @@ use tauri::AppHandle;
 pub struct MeetingNoteParts {
     pub summary: String,
     pub transcript: String,
+    /// The person's own lines with Sokki's additions under them (the
+    /// note's "Meine Notizen" section, Markdown), empty without notes.
+    pub combined: String,
 }
 
 /// A QR code (SVG) for a link the app hands out, e.g. sokki.org/get.
@@ -191,7 +194,29 @@ pub fn get_meeting_note(
     Ok(MeetingNoteParts {
         summary: p.summary,
         transcript: p.transcript,
+        combined: p.own_notes,
     })
+}
+
+/// What the person typed into the meeting's notes, as typed.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting_notes(store: State<'_, Arc<MeetingStore>>, id: String) -> String {
+    crate::meeting::own_notes::text(&store, &id)
+}
+
+/// Saves the meeting's notes; called as the person types.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_notes(
+    store: State<'_, Arc<MeetingStore>>,
+    id: String,
+    text: String,
+) -> Result<(), String> {
+    let record = store.get(&id).ok_or("Meeting not found")?;
+    crate::meeting::own_notes::save(&store, &record, &text).map_err(|e| format!("{e:#}"))
 }
 
 /// Saves the meeting's note as one web page (title, date, summary; no
@@ -955,6 +980,20 @@ pub fn remove_paired_phone(_id: String) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_meeting_note(_id: String) -> Result<MeetingNoteParts, String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting_notes(_id: String) -> String {
+    String::new()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_notes(_id: String, _text: String) -> Result<(), String> {
     Err(UNAVAILABLE.to_string())
 }
 

@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "आपके नोट्स",
+      "placeholder": "नोट्स लिखें। जो कहा गया, Sokki जोड़ता है।",
+      "live": "लाइव टेक्स्ट",
+      "listening": "सुन रहा है …",
+      "combinedHint": "आपकी पंक्तियाँ जैसी आपने लिखीं। स्लेटी: बातचीत से Sokki ने जो जोड़ा।",
+      "views": "दृश्य",
+      "view": {
+        "notes": "नोट्स",
+        "combined": "संयुक्त",
+        "summary": "AI सारांश",
+        "transcript": "ट्रांसक्रिप्ट"
+      }
+    }
   },
   "sokki": {
     "nav": {

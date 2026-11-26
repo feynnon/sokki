@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Dina anteckningar",
+      "placeholder": "Skriv dina anteckningar. Sokki fyller i det som sades.",
+      "live": "Live-text",
+      "listening": "Lyssnar …",
+      "combinedHint": "Dina rader som du skrev dem. Grått: det Sokki lägger till från samtalet.",
+      "views": "Vyer",
+      "view": {
+        "notes": "Anteckningar",
+        "combined": "Kombinerat",
+        "summary": "AI-sammanfattning",
+        "transcript": "Transkript"
+      }
+    }
   },
   "sokki": {
     "nav": {

@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Twoje notatki",
+      "placeholder": "Pisz notatki. Sokki doda, co zostało powiedziane.",
+      "live": "Tekst na żywo",
+      "listening": "Słucha …",
+      "combinedHint": "Twoje linie tak, jak je wpisałeś. Szare: co Sokki dodaje z rozmowy.",
+      "views": "Widoki",
+      "view": {
+        "notes": "Notatki",
+        "combined": "Połączone",
+        "summary": "Podsumowanie AI",
+        "transcript": "Transkrypcja"
+      }
+    }
   },
   "sokki": {
     "nav": {

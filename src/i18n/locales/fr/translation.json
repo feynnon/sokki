@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Tes notes",
+      "placeholder": "Tape tes notes. Sokki ajoute ce qui a été dit.",
+      "live": "Texte en direct",
+      "listening": "À l’écoute …",
+      "combinedHint": "Tes lignes telles que tu les as tapées. En gris : ce que Sokki ajoute de la conversation.",
+      "views": "Vues",
+      "view": {
+        "notes": "Notes",
+        "combined": "Combiné",
+        "summary": "Résumé IA",
+        "transcript": "Transcription"
+      }
+    }
   },
   "sokki": {
     "nav": {

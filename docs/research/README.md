@@ -29,6 +29,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `speaker-count-2026-11.md` | Speaker count: a meeting of two with five speakers. One voice split across speaker windows (joined at cosine ≥ 0.75), the video sound from the Mac as speakers, why a colleague wasn't recognised, short lines in the wrong language. |
 | `phone-autocorrect-2026-11.md` | Phone autocorrect: neighbouring keys from the layout on screen, British spellings, words two slips away, and the text's language from more words (tried, left off). |
 | `speaker-names-call-apps-2026-11.md` | Speaker names: voice grouping across 46 meetings, what Zoom and Meet show through Accessibility, why Meet needs captions on, the law on stored voices. |
+| `own-notes-2026-11.md` | Typing your own notes during a meeting: how Granola, Notion, Apple Notes, Otter, Fathom and tl;dv merge them with the transcript, what users love and hate. |
 | `cloudflare-kv-usage-2026-11.md` | Cloudflare's free plan: which KV operations the counter and website use per day, why 26.11. neared the delete cap (the move to R2), launch-day estimate, Workers Paid or not. |
 | `second-brain-2026-11.md` | A built-in second brain (Karpathy's LLM wiki): the tools, why people quit, a local Mac stack (FTS5 + sqlite-vec, EmbeddingGemma), small-model limits, a phased plan. Research only, nothing built. |
 | `ios-keyboard-dictation-2026-11.md` | What a dev podcast says about dictation on iOS: the keyboard microphone workaround (getUserMedia web view), who copied it, and what users still miss. |

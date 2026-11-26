@@ -244,6 +244,73 @@ fn second_meeting() -> Option<(f64, f64)> {
     Some((length, secs("SOKKI_TEST_GAP_S").unwrap_or(2.0)))
 }
 
+/// `SOKKI_TEST_OWN_NOTES="12=Budget?|40=Druckerei bis Fr"`: types these
+/// lines into the meeting's notes, each at its second into the recording,
+/// the way the notes field saves them.
+fn type_own_notes(app: &tauri::AppHandle, id: &str) {
+    use crate::meeting::store::MeetingStore;
+    use tauri::Manager;
+    let Ok(spec) = std::env::var("SOKKI_TEST_OWN_NOTES") else {
+        return;
+    };
+    let lines: Vec<(f64, String)> = spec
+        .split('|')
+        .filter_map(|p| {
+            let (t, text) = p.split_once('=')?;
+            Some((t.trim().parse().ok()?, text.to_string()))
+        })
+        .collect();
+    let store = app.state::<std::sync::Arc<MeetingStore>>().inner().clone();
+    let id = id.to_string();
+    std::thread::spawn(move || {
+        let started = Instant::now();
+        let mut text = String::new();
+        for (at, line) in lines {
+            let wait = at - started.elapsed().as_secs_f64();
+            if wait > 0.0 {
+                std::thread::sleep(Duration::from_secs_f64(wait));
+            }
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            text.push_str(&line);
+            let Some(record) = store.get(&id) else { return };
+            match crate::meeting::own_notes::save(&store, &record, &text) {
+                Ok(()) => info!("Test mode: own note typed at {at:.0}s"),
+                Err(e) => warn!("Test mode: own note not saved: {e:#}"),
+            }
+        }
+    });
+}
+
+/// Logs the finished note's "Meine Notizen" section (made-up test lines).
+fn log_own_notes(store: &crate::meeting::store::MeetingStore, id: &str) {
+    if std::env::var_os("SOKKI_TEST_OWN_NOTES").is_none() {
+        return;
+    }
+    let raw = crate::meeting::own_notes::read(store, id);
+    info!(
+        "Test mode: own notes file: {}",
+        raw.iter()
+            .map(|l| format!("{:?}@{:?}", l.text, l.t))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let Some(path) = store.get(id).and_then(|r| r.note_path) else {
+        warn!("Test mode: own notes: no note");
+        return;
+    };
+    let md = std::fs::read_to_string(&path).unwrap_or_default();
+    let section = meeting_core::own_notes::section_of(&md);
+    let added = section.lines().filter(|l| l.starts_with("  - ")).count();
+    info!(
+        "Test mode: own notes section: {} lines, {added} additions, front matter id {}: {}",
+        section.lines().filter(|l| l.starts_with("- ")).count(),
+        md.contains(&format!("\nid: {id}\n")),
+        section.replace('\n', " ⏎ ")
+    );
+}
+
 /// Starts a meeting the way the window's button does and logs how long
 /// until it is recording (what the window and the pill show) and until the
 /// microphone's first audio arrived.
@@ -344,6 +411,7 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
     let Some(id) = start_timed(app, "first") else {
         return;
     };
+    type_own_notes(app, &id);
     std::thread::sleep(Duration::from_secs_f64(hold));
     log_title(app, &id, "before the stop");
     let stopped = Instant::now();
@@ -373,6 +441,7 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         match store.get(&id).map(|r| r.status) {
             Some(MeetingStatus::Done) => {
                 log_title(app, &id, "when done");
+                log_own_notes(&store, &id);
                 #[cfg(target_os = "macos")]
                 test_voices(app, &id);
                 info!(

@@ -1257,6 +1257,23 @@ async getMeetingNote(id: string) : Promise<Result<MeetingNoteParts, string>> {
 }
 },
 /**
+ * What the person typed into the meeting's notes, as typed.
+ */
+async getMeetingNotes(id: string) : Promise<string> {
+    return await TAURI_INVOKE("get_meeting_notes", { id });
+},
+/**
+ * Saves the meeting's notes; called as the person types.
+ */
+async setMeetingNotes(id: string, text: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_notes", { id, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Saves the meeting's note as one web page (title, date, summary; no
  * transcript) that opens in any browser, then shows it in Finder.
  */
@@ -2774,7 +2791,12 @@ voices: VoiceInfo[];
  * Voices without a name heard in one meeting only (named there).
  */
 once: number }
-export type MeetingNoteParts = { summary: string; transcript: string }
+export type MeetingNoteParts = { summary: string; transcript: string; 
+/**
+ * The person's own lines with Sokki's additions under them (the
+ * note's "Meine Notizen" section, Markdown), empty without notes.
+ */
+combined: string }
 /**
  * What the settings page shows for pairing.
  */

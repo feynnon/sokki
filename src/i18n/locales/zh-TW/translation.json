@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "我的筆記",
+      "placeholder": "輸入筆記，Sokki 會補上說過的內容。",
+      "live": "即時文字",
+      "listening": "正在聆聽 …",
+      "combinedHint": "你輸入的原文。灰色：Sokki 依對話補上的內容。",
+      "views": "檢視",
+      "view": {
+        "notes": "筆記",
+        "combined": "合併",
+        "summary": "AI 摘要",
+        "transcript": "逐字稿"
+      }
+    }
   },
   "sokki": {
     "nav": {

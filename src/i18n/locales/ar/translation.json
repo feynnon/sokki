@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "ملاحظاتك",
+      "placeholder": "اكتب ملاحظاتك. يضيف Sokki ما قيل.",
+      "live": "نص مباشر",
+      "listening": "يستمع …",
+      "combinedHint": "سطورك كما كتبتها. بالرمادي: ما يضيفه Sokki من المحادثة.",
+      "views": "طرق العرض",
+      "view": {
+        "notes": "ملاحظات",
+        "combined": "مدمج",
+        "summary": "ملخص بالذكاء الاصطناعي",
+        "transcript": "النص"
+      }
+    }
   },
   "sokki": {
     "nav": {

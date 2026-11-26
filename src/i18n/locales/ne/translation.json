@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "तपाईंका नोटहरू",
+      "placeholder": "नोट लेख्नुहोस्। भनिएको कुरा Sokki थप्छ।",
+      "live": "प्रत्यक्ष पाठ",
+      "listening": "सुन्दै …",
+      "combinedHint": "तपाईंले लेखेजस्तै तपाईंका पङ्क्तिहरू। खैरो: कुराकानीबाट Sokki ले थपेको।",
+      "views": "दृश्यहरू",
+      "view": {
+        "notes": "नोटहरू",
+        "combined": "संयुक्त",
+        "summary": "AI सारांश",
+        "transcript": "ट्रान्सक्रिप्ट"
+      }
+    }
   },
   "sokki": {
     "nav": {

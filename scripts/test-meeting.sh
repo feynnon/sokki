@@ -37,6 +37,11 @@
 #                                                      # for Sokki Test. Add OWN_TEST_CALL=1 when
 #                                                      # Robin's Sokki records that test call.
 #   CALENDAR=events.json scripts/test-meeting.sh ...  # a made-up calendar (SOKKI_TEST_CALENDAR)
+#   OWN_NOTES="12=Budget?|40=Druckerei bis Fr" TITLE_AFTER=600 scripts/test-meeting.sh ...
+#                                                     # type own notes during the call (at 12 s,
+#                                                     # 40 s); logs the note's "Meine Notizen"
+#                                                     # section. TITLE_AFTER turns the language
+#                                                     # model on, for Sokki's additions.
 #   KEEP_MEETINGS=1 scripts/test-meeting.sh ...       # keep the test app's earlier meetings
 #                                                     # (voices across meetings)
 #   CALL_SPEAKERS=spans.json scripts/test-meeting.sh ... # who spoke when, as Meet's captions
@@ -179,7 +184,7 @@ sleep 1
 [[ -n "${KEEP_MEETINGS:-}" ]] || rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
+PATTERN="own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
@@ -195,7 +200,7 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
-  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} -a "$TESTAPP"
+  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} ${OWN_NOTES:+--env SOKKI_TEST_OWN_NOTES="$OWN_NOTES"} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"

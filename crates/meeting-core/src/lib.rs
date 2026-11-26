@@ -27,6 +27,7 @@ pub mod echo;
 pub mod lang;
 pub mod live;
 pub mod note;
+pub mod own_notes;
 pub mod pipeline;
 pub mod share;
 pub mod stitch;

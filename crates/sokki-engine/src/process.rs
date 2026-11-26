@@ -138,6 +138,17 @@ pub struct Input {
     pub warnings: Vec<String>,
     /// What was transcribed during the recording ([`crate::live`]).
     pub live: Option<crate::live::Live>,
+    /// What the person typed during the meeting, for the note's
+    /// "Meine Notizen" section ([`meeting_core::own_notes`]).
+    pub own_notes: Option<OwnNotes>,
+}
+
+/// The person's own notes of one meeting.
+#[derive(Debug, Clone, Default)]
+pub struct OwnNotes {
+    /// The meeting's id (its folder name), written into the note.
+    pub id: String,
+    pub lines: Vec<meeting_core::own_notes::NoteLine>,
 }
 
 /// The platform parts.
@@ -222,7 +233,12 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         previous_note,
         mut warnings,
         live,
+        own_notes,
     } = input;
+    let own_lines = own_notes
+        .as_ref()
+        .map(|o| meeting_core::own_notes::content_lines(&o.lines))
+        .unwrap_or_default();
     tracks.retain(|t| !t.samples.is_empty());
     if tracks.is_empty() {
         bail!("The recording has no audio.");
@@ -348,16 +364,23 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
 
     // Summary.
     let mut summary_missing = None;
+    let mut added: Vec<Vec<String>> = Vec::new();
     let summary = if settings.summary && !transcript.segments.is_empty() {
         if llm_ready {
             (deps.progress)(Stage::Summarizing, None);
             // The built-in model loads here (part of the "summary" step)
             // and is freed when `model` is dropped, right after it.
             let result = llm::open(&settings.llm, &settings.user_name).and_then(|model| {
-                summarize_logged(
+                let summary = summarize_logged(
                     &LlmSummarizer::new(summary_config(settings, &model)),
                     &transcript,
-                )
+                )?;
+                // With the model still loaded: what the transcript adds to
+                // the person's own lines.
+                if !own_lines.is_empty() {
+                    added = combine_logged(&own_lines, &transcript, settings, &model);
+                }
+                Ok(summary)
             });
             clock.step("summary");
             match result {
@@ -395,11 +418,11 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
             let _ = std::fs::remove_file(&old);
         }
     }
-    let note_path = meeting_core::note::write_note(
-        &settings.notes_dir,
-        &note,
-        &settings.note_options(),
-    )?;
+    let note_path =
+        meeting_core::note::write_note(&settings.notes_dir, &note, &settings.note_options())?;
+    if let Some(o) = own_notes.as_ref().filter(|_| !own_lines.is_empty()) {
+        write_own_notes(&note_path, &o.id, &own_lines, &added)?;
+    }
     let title = meeting_core::note::note_title(&note);
     clock.step("writing the note");
     clock.finish();
@@ -436,7 +459,11 @@ pub struct Summarized {
 /// not ready then), from the note's own transcript, so it works after the
 /// audio is deleted and keeps the person's edits. Fails when the note has
 /// no transcript or has a summary already.
-pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarized> {
+pub fn summarize_note(
+    note_path: &Path,
+    settings: &Settings,
+    own_notes: Option<&OwnNotes>,
+) -> Result<Summarized> {
     use anyhow::Context;
     let md = std::fs::read_to_string(note_path)
         .with_context(|| format!("reading {}", note_path.display()))?;
@@ -445,11 +472,24 @@ pub fn summarize_note(note_path: &Path, settings: &Settings) -> Result<Summarize
         bail!("the note has no transcript to summarize");
     }
     let model = llm::open(&settings.llm, &settings.user_name)?;
-    let summary =
-        summarize_logged(&LlmSummarizer::new(summary_config(settings, &model)), &transcript)?;
+    let summary = summarize_logged(
+        &LlmSummarizer::new(summary_config(settings, &model)),
+        &transcript,
+    )?;
+    let own_lines = own_notes
+        .map(|o| meeting_core::own_notes::content_lines(&o.lines))
+        .unwrap_or_default();
+    let added = if own_lines.is_empty() {
+        Vec::new()
+    } else {
+        combine_logged(&own_lines, &transcript, settings, &model)
+    };
     drop(model);
-    let new_md =
-        meeting_core::note::add_summary(&md, &summary, &settings.note_options()).context("the note has a summary already")?;
+    let mut new_md = meeting_core::note::add_summary(&md, &summary, &settings.note_options())
+        .context("the note has a summary already")?;
+    if let Some(o) = own_notes.filter(|_| !own_lines.is_empty()) {
+        new_md = meeting_core::own_notes::set_section(&new_md, &o.id, &blocks(&own_lines, &added));
+    }
     let title = Some(summary.title.trim().to_string()).filter(|t| !t.is_empty());
     let new_stem = note_path
         .file_stem()
@@ -513,6 +553,60 @@ fn summary_config(settings: &Settings, model: &llm::Llm) -> LlmConfig {
     LlmConfig {
         glossary: settings.glossary.clone(),
         ..model.config()
+    }
+}
+
+/// The person's lines with Sokki's additions (none where `added` has none).
+fn blocks(lines: &[String], added: &[Vec<String>]) -> Vec<meeting_core::own_notes::NoteBlock> {
+    lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| meeting_core::own_notes::NoteBlock {
+            line: l.clone(),
+            added: added.get(i).cloned().unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// Puts the "Meine Notizen" section into a written note.
+fn write_own_notes(
+    note_path: &Path,
+    id: &str,
+    lines: &[String],
+    added: &[Vec<String>],
+) -> Result<()> {
+    use anyhow::Context;
+    let md = std::fs::read_to_string(note_path)
+        .with_context(|| format!("reading {}", note_path.display()))?;
+    let new_md = meeting_core::own_notes::set_section(&md, id, &blocks(lines, added));
+    std::fs::write(note_path, new_md).with_context(|| format!("writing {}", note_path.display()))
+}
+
+/// What the transcript adds to each own note line; nothing (logged) when
+/// the model fails, so the note keeps the person's lines either way.
+fn combine_logged(
+    lines: &[String],
+    transcript: &Transcript,
+    settings: &Settings,
+    model: &llm::Llm,
+) -> Vec<Vec<String>> {
+    let started = Instant::now();
+    // Its own client: plain replies, not the summary's JSON schema.
+    let llm = LlmSummarizer::new(summary_config(settings, model));
+    match llm.combine_notes(lines, transcript) {
+        Ok(added) => {
+            log::info!(
+                "Own notes: {} lines, {} with additions, {:.1} s",
+                lines.len(),
+                added.iter().filter(|a| !a.is_empty()).count(),
+                started.elapsed().as_secs_f64()
+            );
+            added
+        }
+        Err(e) => {
+            log::warn!("Own notes: no additions: {e:#}");
+            Vec::new()
+        }
     }
 }
 
@@ -690,6 +784,7 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                own_notes: None,
             },
             Deps {
                 transcriber: &Parrot,
@@ -725,6 +820,7 @@ mod tests {
             previous_note: None,
             warnings: vec![],
             live: None,
+            own_notes: None,
         }
     }
 
@@ -753,8 +849,15 @@ mod tests {
                     "decisions": [],
                     "action_items": []
                 });
+                // The own-notes request gets its own answer.
+                let content = if String::from_utf8_lossy(&body).contains("My notes:") {
+                    serde_json::json!({"notes": [{"n": 1, "added": ["Im Test geklärt"]}]})
+                        .to_string()
+                } else {
+                    summary.to_string()
+                };
                 let reply = serde_json::json!({
-                    "choices": [{"message": {"content": summary.to_string()}}],
+                    "choices": [{"message": {"content": content}}],
                     "data": []
                 })
                 .to_string();
@@ -812,7 +915,7 @@ mod tests {
         // Later the model is there: the same note gets its summary and the
         // title's name.
         let settings = llm_settings(&fake_llm(), &dir);
-        let done = summarize_note(&out.note_path, &settings).unwrap();
+        let done = summarize_note(&out.note_path, &settings, None).unwrap();
         assert_eq!(done.title.as_deref(), Some("Test plan"));
         assert_eq!(
             done.note_path.file_name().unwrap().to_str().unwrap(),
@@ -829,7 +932,73 @@ mod tests {
         assert!(md.ends_with(&format!("\n\n{line}\n")), "{md}");
         assert!(meeting_core::note::split_note(&md).summary.ends_with(line));
         // Only once.
-        assert!(summarize_note(&done.note_path, &settings).is_err());
+        assert!(summarize_note(&done.note_path, &settings, None).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Own notes: the lines go into the note word for word, also while the
+    /// summary waits; with the model, Sokki's additions go under them.
+    #[test]
+    fn own_notes_go_into_the_note() {
+        let dir = std::env::temp_dir().join(format!("sokki-engine-own-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let own = OwnNotes {
+            id: "2026-11-19_10-00-00".into(),
+            lines: vec![
+                meeting_core::own_notes::NoteLine {
+                    text: "Testplan?".into(),
+                    t: Some(1),
+                },
+                meeting_core::own_notes::NoteLine {
+                    text: String::new(),
+                    t: None,
+                },
+                meeting_core::own_notes::NoteLine {
+                    text: "- offen".into(),
+                    t: Some(2),
+                },
+            ],
+        };
+        let progress = |_s: Stage, _p: Option<f32>| {};
+        let deps = || Deps {
+            transcriber: &Parrot,
+            diarizer: Box::new(WholeTrack),
+            diarizer_notes: None,
+            namer: None,
+            progress: &progress,
+            hold_summary: None,
+        };
+        // No model: the lines alone.
+        let waiting = llm_settings("http://127.0.0.1:9/v1", &dir);
+        let mut input = mic_input(3.0);
+        input.own_notes = Some(own.clone());
+        let out = run(input, deps(), &waiting).unwrap();
+        let md = std::fs::read_to_string(&out.note_path).unwrap();
+        assert!(
+            md.contains("## Meine Notizen\n\n- Testplan?\n- offen\n"),
+            "{md}"
+        );
+        assert!(
+            md.contains("id: 2026-11-19_10-00-00\nown_notes: true\n---"),
+            "{md}"
+        );
+        // The summary comes later, and the additions with it.
+        let settings = llm_settings(&fake_llm(), &dir);
+        let done = summarize_note(&out.note_path, &settings, Some(&own)).unwrap();
+        let md = std::fs::read_to_string(&done.note_path).unwrap();
+        let parts = meeting_core::note::split_note(&md);
+        assert_eq!(parts.own_notes, "- Testplan?\n  - Im Test geklärt\n- offen");
+        assert!(parts.summary.contains("We talked about the test."), "{md}");
+        assert!(!parts.summary.contains("Testplan?"));
+        // With the model ready at once: the same in one run.
+        let mut input = mic_input(3.0);
+        input.own_notes = Some(own);
+        let out = run(input, deps(), &settings).unwrap();
+        let md = std::fs::read_to_string(&out.note_path).unwrap();
+        assert_eq!(
+            meeting_core::note::split_note(&md).own_notes,
+            "- Testplan?\n  - Im Test geklärt\n- offen"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -956,6 +1125,7 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                own_notes: None,
             },
             Deps {
                 transcriber: &Parrot,
@@ -1014,6 +1184,7 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                own_notes: None,
             },
             Deps {
                 transcriber,

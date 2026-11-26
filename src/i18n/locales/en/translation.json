@@ -1311,6 +1311,20 @@
       "gmailDisconnect": "Disconnect",
       "gmailContinue": "Continue to Google",
       "cancel": "Cancel"
+    },
+    "notes": {
+      "label": "Your notes",
+      "placeholder": "Type your notes. Sokki adds what was said.",
+      "live": "Live text",
+      "listening": "Listening …",
+      "combinedHint": "Your lines as you typed them. Grey: what Sokki adds from the conversation.",
+      "views": "Views",
+      "view": {
+        "notes": "Notes",
+        "combined": "Combined",
+        "summary": "AI summary",
+        "transcript": "Transcript"
+      }
     }
   },
   "sokki": {

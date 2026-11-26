@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Твої нотатки",
+      "placeholder": "Пиши нотатки. Sokki додасть те, що було сказано.",
+      "live": "Текст наживо",
+      "listening": "Слухає …",
+      "combinedHint": "Твої рядки, як ти їх написав. Сірим: що Sokki додає з розмови.",
+      "views": "Вигляди",
+      "view": {
+        "notes": "Нотатки",
+        "combined": "Разом",
+        "summary": "ШІ-підсумок",
+        "transcript": "Транскрипт"
+      }
+    }
   },
   "sokki": {
     "nav": {

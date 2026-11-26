@@ -39,12 +39,22 @@ import { PhoneLink } from "./PhoneLink";
 import { MailSettings } from "./MailSettings";
 import { SpeakerChips } from "./SpeakerChips";
 import { LiveTranscript, SampleCard, SampleTag } from "./SampleMeeting";
+import {
+  CombinedView,
+  LiveColumn,
+  NotesEditor,
+  rememberView,
+  rememberedView,
+  ViewSwitch,
+  type NoteView,
+} from "./OwnNotes";
 import { SlackHuddles } from "./SlackHuddles";
 import { RecordingStart } from "./RecordingStart";
 import {
   commands,
   events,
   type LlmStatus,
+  type MeetingNoteParts,
   type MeetingRecord,
   type MeetingSettings as MeetingSettingsType,
 } from "@/bindings";
@@ -666,43 +676,85 @@ const Reader: React.FC<{
           onError={setError}
         />
       )}
-      <div className="flex-1 min-h-0 overflow-y-auto px-12 pt-1 pb-6">
-        <div className="max-w-[720px] flex flex-col gap-3">
-          {hints}
-          <div>
-            {record.sample && (
-              <div className="mb-2 flex">
-                <SampleTag />
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0 overflow-y-auto px-12 pt-1 pb-6">
+          <div className="max-w-[720px] flex flex-col gap-3">
+            {hints}
+            <div>
+              {record.sample && (
+                <div className="mb-2 flex">
+                  <SampleTag />
+                </div>
+              )}
+              <Title record={record} title={title} onError={setError} />
+              <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
+            </div>
+            {rec && record.sample && <LiveTranscript record={record} />}
+            <SpeakerChips record={record} onDone={onChanged} />
+            {!rec && <StatusLine record={record} />}
+            <Warnings record={record} />
+            {shown && (
+              <p className="text-xs text-red-500 select-text">{shown}</p>
+            )}
+            {rec && !record.sample && (
+              <div className="mt-3">
+                <NotesEditor record={record} autoFocus />
               </div>
             )}
-            <Title record={record} title={title} onError={setError} />
-            <div className="mt-1 text-[13px] text-ink-3">{meta}</div>
+            {parts && <NoteViews record={record} parts={parts} />}
           </div>
-          {rec && record.sample && <LiveTranscript record={record} />}
-          <SpeakerChips record={record} onDone={onChanged} />
-          {!rec && <StatusLine record={record} />}
-          <Warnings record={record} />
-          {shown && <p className="text-xs text-red-500 select-text">{shown}</p>}
-          {parts && (
-            <>
-              <h2 className="mt-3 text-[13px] font-semibold text-text">
-                {t("meetings.details.summary")}
-              </h2>
-              {parts.summary ? (
-                <SummaryView markdown={parts.summary} />
-              ) : (
-                <p className="text-[13px] text-ink-3">
-                  {t("meetings.details.noSummary")}
-                </p>
-              )}
-              <h2 className="mt-3 text-[13px] font-semibold text-text">
-                {t("meetings.details.transcript")}
-              </h2>
-              <TranscriptView text={parts.transcript} />
-            </>
-          )}
         </div>
+        {rec && !record.sample && (
+          <div className="w-[300px] shrink-0 border-s border-line px-6 pt-1 pb-6 flex flex-col min-h-0">
+            <LiveColumn record={record} />
+          </div>
+        )}
       </div>
+    </div>
+  );
+};
+
+/** A finished meeting: Notizen | Kombiniert | AI-Zusammenfassung |
+ * Transkript. Opens what the person chose last; "Kombiniert" when they
+ * typed notes and haven't chosen yet. */
+const NoteViews: React.FC<{
+  record: MeetingRecord;
+  parts: MeetingNoteParts;
+}> = ({ record, parts }) => {
+  const { t } = useTranslation();
+  const combined = parts.combined ?? "";
+  const hasNotes = combined.trim() !== "";
+  const views: NoteView[] = hasNotes
+    ? ["notes", "combined", "summary", "transcript"]
+    : ["notes", "summary", "transcript"];
+  const pick = (): NoteView => {
+    const r = rememberedView();
+    if (r && views.includes(r) && (hasNotes || r !== "notes")) return r;
+    return hasNotes ? "combined" : "summary";
+  };
+  const [view, setView] = useState<NoteView>(pick);
+  useEffect(() => setView(pick()), [record.id, hasNotes]);
+  return (
+    <div className="mt-3 flex flex-col gap-4">
+      <ViewSwitch
+        value={view}
+        views={views}
+        onChange={(v) => {
+          setView(v);
+          rememberView(v);
+        }}
+      />
+      {view === "notes" && <NotesEditor record={record} minRows={4} />}
+      {view === "combined" && <CombinedView markdown={combined} />}
+      {view === "summary" &&
+        (parts.summary ? (
+          <SummaryView markdown={parts.summary} />
+        ) : (
+          <p className="text-[13px] text-ink-3">
+            {t("meetings.details.noSummary")}
+          </p>
+        ))}
+      {view === "transcript" && <TranscriptView text={parts.transcript} />}
     </div>
   );
 };

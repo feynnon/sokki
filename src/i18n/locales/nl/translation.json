@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Jouw notities",
+      "placeholder": "Typ je notities. Sokki vult aan wat er gezegd is.",
+      "live": "Live tekst",
+      "listening": "Luistert …",
+      "combinedHint": "Jouw regels zoals je ze typte. Grijs: wat Sokki uit het gesprek aanvult.",
+      "views": "Weergaven",
+      "view": {
+        "notes": "Notities",
+        "combined": "Gecombineerd",
+        "summary": "AI-samenvatting",
+        "transcript": "Transcript"
+      }
+    }
   },
   "sokki": {
     "nav": {

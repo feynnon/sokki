@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Notların",
+      "placeholder": "Notlarını yaz. Sokki söyleneni ekler.",
+      "live": "Canlı metin",
+      "listening": "Dinliyor …",
+      "combinedHint": "Satırların yazdığın gibi. Gri: Sokki'nin konuşmadan eklediği.",
+      "views": "Görünümler",
+      "view": {
+        "notes": "Notlar",
+        "combined": "Birleşik",
+        "summary": "Yapay zekâ özeti",
+        "transcript": "Döküm"
+      }
+    }
   },
   "sokki": {
     "nav": {

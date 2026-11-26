@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Les teves notes",
+      "placeholder": "Escriu les teves notes. Sokki hi afegeix el que s'ha dit.",
+      "live": "Text en directe",
+      "listening": "Escoltant …",
+      "combinedHint": "Les teves línies tal com les vas escriure. En gris: el que Sokki afegeix de la conversa.",
+      "views": "Vistes",
+      "view": {
+        "notes": "Notes",
+        "combined": "Combinat",
+        "summary": "Resum IA",
+        "transcript": "Transcripció"
+      }
+    }
   },
   "sokki": {
     "nav": {

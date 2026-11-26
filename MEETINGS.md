@@ -433,6 +433,40 @@ The Videos page (camera, recording bar, looks) was removed on 2026-11-23
 (Robin: "Videos raus, Bildschirm bleibt"); its last state is on branch
 `video` (commit 71e0eea6).
 
+## Own notes (Robin's picks, 2026-11-26)
+
+While a meeting records, the reader is two columns: a notes field on the
+left (focused, saved as you type) and the live transcript on the right
+("1 · Nebeneinander" on the canvas). The notes are kept word for word in
+`meetings/<id>/notes.md`, each line with `<!-- t=hh:mm:ss -->`, its time
+into the recording (`meeting-core/src/own_notes.rs`, host
+`src-tauri/src/meeting/own_notes.rs`). Deleting the audio keeps them.
+
+After the stop, processing hands the lines to the engine
+(`sokki_engine::OwnNotes`). With the summary model loaded, a second request
+asks what the transcript says about each line (`combine_notes`, at most
+three facts per line, plain JSON `{"notes":[{"n":1,"added":[...]}]}`; the
+model never writes the lines themselves, code copies them). The note gets
+a `## Meine Notizen` / `## My notes` section after its title (top-level
+item: the person's line; nested: Sokki's) and `id:` and `own_notes: true`
+in its front matter. Without the model the section has the lines alone;
+the additions come with the later summary (`summarize_note`). The summary
+itself is unchanged, and the section is not part of it (copy, mail).
+
+The reader then shows Notizen | Kombiniert | AI-Zusammenfassung |
+Transkript; Kombiniert first when notes were typed, else the summary, and
+the last choice is remembered. The toolbar keeps "Transkript kopieren" and
+"Zusammenfassung kopieren" (design C: grey filled with icons; "An alle
+senden" blue like "Meeting starten").
+
+Not yet: a note without a recording, and new additions after editing the
+notes of a processed meeting.
+
+Tests: `cargo test own_notes` (meeting-core, sokki-engine),
+`tests/own-notes.spec.ts`, and in the test app
+`OWN_NOTES="15=Apple Pay?|50=ship Thu" TITLE_AFTER=600
+scripts/test-meeting.sh mic.wav system.wav`.
+
 ## Layout
 
 | Path | What |

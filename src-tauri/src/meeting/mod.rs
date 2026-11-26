@@ -30,6 +30,7 @@ pub mod live;
 pub mod mail;
 pub mod memguard;
 pub mod mic;
+pub mod own_notes;
 #[cfg(target_os = "macos")]
 pub(crate) mod notify_macos;
 pub mod phone_link;

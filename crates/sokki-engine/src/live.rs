@@ -1409,6 +1409,7 @@ mod tests {
                     started_at: "2026-11-23T10:00:00+01:00".into(),
                     source_app: None,
                     previous_note: None,
+                    own_notes: None,
                     warnings: vec![],
                     live,
                 },

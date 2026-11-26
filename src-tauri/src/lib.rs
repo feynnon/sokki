@@ -920,6 +920,8 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::set_meeting_settings,
             commands::meeting::meeting_llm_status,
             commands::meeting::get_meeting_note,
+            commands::meeting::get_meeting_notes,
+            commands::meeting::set_meeting_notes,
             commands::meeting::meeting_prompt_answer,
             commands::video::start_meeting_with_screen,
             commands::video::video_list,

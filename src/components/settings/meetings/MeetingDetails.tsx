@@ -267,7 +267,7 @@ const SendToAll: React.FC<{
       aria-label={compact ? label : undefined}
       disabled={busy || blocked || !!mailed}
       onClick={() => void send()}
-      className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-line-strong text-[13px] text-text cursor-pointer hover:bg-wash disabled:cursor-default disabled:hover:bg-transparent disabled:text-ink-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${compact ? "w-7" : "px-2.5"}`}
+      className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary ${mailed || blocked ? "bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)] text-ink-2 cursor-default" : "bg-background-ui text-white hover:bg-background-ui/90 disabled:opacity-60 disabled:cursor-default"} ${compact ? "w-7" : "px-3"}`}
     >
       {busy ? (
         <Loader2 width={14} height={14} className="animate-spin" />
@@ -314,7 +314,9 @@ function useToolbarTier(deps: unknown[]) {
   return { room, row, tier };
 }
 
-/** The reader's toolbar: copy transcript (accent), copy summary, and "…". */
+/** The reader's toolbar: copy transcript, copy summary (grey, filled),
+ * send to everyone (blue, like "Meeting starten"), and "…" (design C,
+ * Robin 2026-11-26). */
 export const ReaderToolbar: React.FC<{
   record: MeetingRecord;
   title: string;
@@ -381,8 +383,7 @@ export const ReaderToolbar: React.FC<{
                 onClick={() => void copy("transcript")}
                 title={iconPrimary ? transcriptLabel : undefined}
                 aria-label={iconPrimary ? transcriptLabel : undefined}
-                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium text-logo-primary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconPrimary ? "w-7" : "px-3"}`}
-                style={{ background: "var(--vb-accent-wash)" }}
+                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium text-text bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-text)_14%,transparent)] cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconPrimary ? "w-7" : "px-3"}`}
               >
                 {copied === "transcript" ? (
                   check
@@ -396,11 +397,13 @@ export const ReaderToolbar: React.FC<{
                 onClick={() => void copy("summary")}
                 title={iconSecondary ? summaryLabel : undefined}
                 aria-label={iconSecondary ? summaryLabel : undefined}
-                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-line-strong text-[13px] text-text cursor-pointer hover:bg-wash focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconSecondary ? "w-7" : "px-2.5"}`}
+                className={`h-7 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium text-text bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-text)_14%,transparent)] cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${iconSecondary ? "w-7" : "px-3"}`}
               >
-                {copied === "summary"
-                  ? check
-                  : iconSecondary && <AlignLeft width={16} height={16} />}
+                {copied === "summary" ? (
+                  check
+                ) : (
+                  <AlignLeft width={16} height={16} />
+                )}
                 {!iconSecondary && summaryLabel}
               </button>
               <ErrorBoundary context="Send to everyone">

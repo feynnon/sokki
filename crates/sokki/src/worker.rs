@@ -124,6 +124,7 @@ fn run(id: &str) -> Result<()> {
             warnings,
             // The Linux worker is a separate process; live pieces come later.
             live: None,
+            own_notes: None,
         },
         sokki_engine::Deps {
             transcriber: &transcriber,

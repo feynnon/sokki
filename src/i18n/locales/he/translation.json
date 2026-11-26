@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "ההערות שלך",
+      "placeholder": "הקלד הערות. Sokki משלים את מה שנאמר.",
+      "live": "טקסט חי",
+      "listening": "מאזין …",
+      "combinedHint": "השורות שלך כפי שהקלדת. באפור: מה ש-Sokki מוסיף מהשיחה.",
+      "views": "תצוגות",
+      "view": {
+        "notes": "הערות",
+        "combined": "משולב",
+        "summary": "סיכום AI",
+        "transcript": "תמלול"
+      }
+    }
   },
   "sokki": {
     "nav": {

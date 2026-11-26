@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Tvoje poznámky",
+      "placeholder": "Piš poznámky. Sokki doplní, co zaznělo.",
+      "live": "Živý text",
+      "listening": "Poslouchá …",
+      "combinedHint": "Tvoje řádky, jak jsi je napsal. Šedě: co Sokki doplní z hovoru.",
+      "views": "Zobrazení",
+      "view": {
+        "notes": "Poznámky",
+        "combined": "Spojené",
+        "summary": "AI shrnutí",
+        "transcript": "Přepis"
+      }
+    }
   },
   "sokki": {
     "nav": {

@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Ghi chú của bạn",
+      "placeholder": "Gõ ghi chú. Sokki bổ sung những gì đã nói.",
+      "live": "Văn bản trực tiếp",
+      "listening": "Đang nghe …",
+      "combinedHint": "Các dòng của bạn đúng như bạn gõ. Màu xám: Sokki bổ sung từ cuộc trò chuyện.",
+      "views": "Chế độ xem",
+      "view": {
+        "notes": "Ghi chú",
+        "combined": "Kết hợp",
+        "summary": "Tóm tắt AI",
+        "transcript": "Bản ghi"
+      }
+    }
   },
   "sokki": {
     "nav": {

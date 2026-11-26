@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Твои заметки",
+      "placeholder": "Пиши заметки. Sokki добавит то, что было сказано.",
+      "live": "Текст в реальном времени",
+      "listening": "Слушает …",
+      "combinedHint": "Твои строки, как ты их написал. Серым: что Sokki добавляет из разговора.",
+      "views": "Виды",
+      "view": {
+        "notes": "Заметки",
+        "combined": "Вместе",
+        "summary": "ИИ-сводка",
+        "transcript": "Расшифровка"
+      }
+    }
   },
   "sokki": {
     "nav": {

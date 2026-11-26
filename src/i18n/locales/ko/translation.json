@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "내 메모",
+      "placeholder": "메모를 입력하세요. 말한 내용은 Sokki가 채워요.",
+      "live": "실시간 텍스트",
+      "listening": "듣는 중 …",
+      "combinedHint": "입력한 그대로의 내 줄. 회색: 대화에서 Sokki가 덧붙인 내용.",
+      "views": "보기",
+      "view": {
+        "notes": "메모",
+        "combined": "합치기",
+        "summary": "AI 요약",
+        "transcript": "녹취록"
+      }
+    }
   },
   "sokki": {
     "nav": {

@@ -410,6 +410,9 @@ fn render_transcript(t: &Transcript, l: &Labels) -> String {
 pub struct NoteParts {
     pub summary: String,
     pub transcript: String,
+    /// The "## Meine Notizen" section without its heading
+    /// ([`crate::own_notes`]), empty without one.
+    pub own_notes: String,
 }
 
 pub fn split_note(md: &str) -> NoteParts {
@@ -426,7 +429,12 @@ pub fn split_note(md: &str) -> NoteParts {
     let mut transcript = Vec::new();
     let mut in_transcript = false;
     let mut footer = None;
-    for line in body.lines() {
+    let all: Vec<&str> = body.lines().collect();
+    let own = crate::own_notes::section_ranges(&all);
+    for (i, line) in all.iter().copied().enumerate() {
+        if own.iter().any(|&(a, b)| i >= a && i < b) {
+            continue;
+        }
         if is_footer(line) {
             footer = Some(line.trim());
             continue;
@@ -466,6 +474,7 @@ pub fn split_note(md: &str) -> NoteParts {
     NoteParts {
         summary,
         transcript: transcript.join("\n"),
+        own_notes: crate::own_notes::section_of(md),
     }
 }
 

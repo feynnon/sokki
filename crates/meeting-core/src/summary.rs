@@ -197,6 +197,73 @@ struct Msg {
 /// list is joined into "- " lines in code.
 const JSON_SHAPE: &str = r#"{"title": "...", "summary": ["...", "..."], "decisions": ["..."], "action_items": [{"owner": "..." or null, "text": "..."}]}"#;
 
+/// At most this many facts under one of the person's own note lines.
+pub const MAX_ADDED: usize = 3;
+
+/// The instruction for [`LlmSummarizer::combine_notes`].
+fn combine_prompt(lang: Language) -> String {
+    format!(
+        "You complete a person's own meeting notes from the meeting transcript. \
+During the meeting they typed short lines; you get them numbered. For each line, \
+write what the transcript says about it: at most {MAX_ADDED} short facts, such as numbers, \
+dates, who does what, what was decided or left open. Each fact is one short sentence in {}. \
+Do not repeat or reword the line itself. Add nothing the transcript does not say. \
+If the transcript says nothing about a line, give an empty list. \
+Answer with JSON only: {{\"notes\": [{{\"n\": 1, \"added\": [\"...\"]}}]}}",
+        lang.name()
+    )
+}
+
+/// Reads the reply of [`LlmSummarizer::combine_notes`]: one list per line,
+/// in order. Accepts a bare list too, and ignores unknown line numbers.
+pub fn parse_combined(reply: &str, lines: usize) -> Result<Vec<Vec<String>>> {
+    let text = strip_fences(&strip_think(reply));
+    let start = text
+        .find(['{', '['])
+        .ok_or_else(|| anyhow!("no JSON in the reply"))?;
+    let v: Value = serde_json::from_str(text[start..].trim())
+        .or_else(|_| {
+            // Trailing words after the JSON.
+            let end = text.rfind(['}', ']']).unwrap_or(text.len() - 1);
+            serde_json::from_str(&text[start..=end])
+        })
+        .context("the reply is not JSON")?;
+    let items = match &v {
+        Value::Array(a) => a.clone(),
+        Value::Object(_) => get(&v, &["notes", "lines", "items"])
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(|| anyhow!("no \"notes\" list in the reply"))?,
+        _ => bail!("the reply is not a JSON object"),
+    };
+    let mut out = vec![Vec::new(); lines];
+    for (i, item) in items.iter().enumerate() {
+        let n = get(item, &["n", "line", "number", "id"])
+            .and_then(|x| {
+                x.as_u64()
+                    .or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))
+            })
+            .map(|n| n as usize)
+            .unwrap_or(i + 1);
+        if n == 0 || n > lines {
+            continue;
+        }
+        let added = list_of_strings(get(item, &["added", "facts", "additions", "notes"]));
+        out[n - 1].extend(
+            added
+                .into_iter()
+                .map(|a| {
+                    a.trim()
+                        .trim_start_matches(['-', '*', '•'])
+                        .trim()
+                        .to_string()
+                })
+                .filter(|a| !a.is_empty()),
+        );
+    }
+    Ok(out)
+}
+
 /// Prompt overhead estimate (system prompt + wrapper), in tokens.
 const PROMPT_OVERHEAD_TOKENS: usize = 900;
 /// Lines repeated at the start of the next chunk for context.
@@ -345,6 +412,85 @@ impl LlmSummarizer {
         };
         stats.elapsed = started.elapsed();
         Ok((clean_summary(summary, &speakers), stats))
+    }
+
+    /// What the transcript says about each of the person's own note lines
+    /// ([`crate::own_notes`]): up to [`MAX_ADDED`] short facts per line, in
+    /// the meeting's language. The lines themselves are never sent back by
+    /// the model; code keeps them word for word. A long transcript is read
+    /// in parts and the facts are merged. Uses plain replies (no summary
+    /// schema), so call it on its own summarizer.
+    pub fn combine_notes(
+        &self,
+        lines: &[String],
+        transcript: &Transcript,
+    ) -> Result<Vec<Vec<String>>> {
+        if lines.is_empty() {
+            return Ok(Vec::new());
+        }
+        let text = transcript.to_plain_text();
+        if text.trim().is_empty() {
+            return Ok(vec![Vec::new(); lines.len()]);
+        }
+        let lang = self
+            .cfg
+            .language
+            .unwrap_or_else(|| detect_language(&text).unwrap_or(Language::German));
+        let numbered: String = lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| format!("{}. {}\n", i + 1, l))
+            .collect();
+        let system = combine_prompt(lang);
+        let budget = self
+            .transcript_budget()
+            .saturating_sub(estimate_tokens(&numbered))
+            .max(500);
+        let tokens = estimate_tokens(&text);
+        let chunks = if tokens <= budget.min(self.cfg.single_pass_tokens) {
+            vec![text]
+        } else {
+            chunk_lines(
+                &text,
+                part_tokens(tokens, budget.min(self.cfg.map_chunk_tokens)),
+            )
+        };
+        let mut out: Vec<Vec<String>> = vec![Vec::new(); lines.len()];
+        let n = chunks.len();
+        for (i, chunk) in chunks.iter().enumerate() {
+            let part = if n == 1 {
+                "Transcript".to_string()
+            } else {
+                format!(
+                    "Part {} of {} of the transcript ({})",
+                    i + 1,
+                    n,
+                    span_label(chunk)
+                )
+            };
+            let user = format!("My notes:\n{numbered}\n{part}:\n\n{chunk}");
+            let mut tries = 0;
+            let got = loop {
+                tries += 1;
+                match self
+                    .chat_plain(&system, &user)
+                    .and_then(|r| parse_combined(&r, lines.len()))
+                {
+                    Ok(g) => break g,
+                    Err(_) if tries < 2 => {}
+                    Err(e) => return Err(e).context("adding to the own notes"),
+                }
+            };
+            for (k, added) in got.into_iter().enumerate() {
+                for a in added {
+                    let dup = out[k].iter().any(|x| x.eq_ignore_ascii_case(&a));
+                    if !dup && out[k].len() < MAX_ADDED && !a.eq_ignore_ascii_case(&lines[k]) {
+                        out[k].push(a);
+                    }
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Tokens available for transcript text in one request.
@@ -1320,6 +1466,34 @@ fn clean_summary(mut s: MeetingSummary, speakers: &[String]) -> MeetingSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn combined_reply_maps_back_to_lines() {
+        let r = "```json\n{\"notes\": [{\"n\": 2, \"added\": [\"- Freitag 12 Uhr\"]}, {\"n\": 1, \"added\": [\"4.000 €\", \"1.500 € Anzeigen\"]}, {\"n\": 9, \"added\": [\"x\"]}]}\n```";
+        let got = parse_combined(r, 3).unwrap();
+        assert_eq!(
+            got,
+            vec![
+                vec!["4.000 €".to_string(), "1.500 € Anzeigen".into()],
+                vec!["Freitag 12 Uhr".into()],
+                vec![]
+            ]
+        );
+        // A bare list in order, with "<think>" first.
+        let got = parse_combined(
+            "<think>hm</think>[{\"added\": [\"a\"]}, {\"added\": []}]",
+            2,
+        )
+        .unwrap();
+        assert_eq!(got, vec![vec!["a".to_string()], vec![]]);
+        assert!(parse_combined("Keine Ahnung.", 2).is_err());
+    }
+
+    #[test]
+    fn combine_prompt_keeps_lines_out_of_the_answer() {
+        let p = combine_prompt(Language::German);
+        assert!(p.contains("German") && p.contains("Do not repeat"));
+    }
 
     #[test]
     fn glossary_goes_into_every_prompt() {

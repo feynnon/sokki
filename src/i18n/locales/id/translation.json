@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Catatanmu",
+      "placeholder": "Ketik catatanmu. Sokki menambahkan yang dikatakan.",
+      "live": "Teks langsung",
+      "listening": "Mendengarkan …",
+      "combinedHint": "Barismu seperti yang kamu ketik. Abu-abu: tambahan Sokki dari percakapan.",
+      "views": "Tampilan",
+      "view": {
+        "notes": "Catatan",
+        "combined": "Gabungan",
+        "summary": "Ringkasan AI",
+        "transcript": "Transkrip"
+      }
+    }
   },
   "sokki": {
     "nav": {

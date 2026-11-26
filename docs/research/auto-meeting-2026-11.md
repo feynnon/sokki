@@ -103,7 +103,7 @@ On Robin's Mac the voice profile named like `meetings.user_name` exists with one
 | 4 min conversation | shown at 60 s, kept | shown 61 s in (76 s kept); stopped 120 s after the last speech; note done, 351 s of audio |
 | Video with two strangers | never listens in | similarity 0.16–0.29, no listening in |
 
-Seen: a conversation between about 60 s and 2 min shows the pill and then deletes the meeting. That is the trade-off of showing at 60 s while keeping only 2 min and longer.
+Seen: a conversation between about 60 s and 2 min shows the pill and then deletes the meeting. That is the trade-off of showing at 60 s while keeping only 2 min and longer. Robin decided (2026-11-26) to keep both values: shown at 60 s, kept from 2 min.
 
 ## First real use (2026-11-26, Robin's Mac, 0.2.17)
 

@@ -256,6 +256,7 @@ function fixtures(s: Scenario) {
         "- Release 1.4 geht am Donnerstag raus, ohne Export.\n- Lea klärt bis Mittwoch die Preise mit dem Vertrieb.\n- Nächste Woche testen fünf Nutzer das Onboarding.",
       transcript:
         "[00:00] Lea: Gut, dann fangen wir an. Erstes Thema ist das Release.\n[00:06] Jonas: Ich würde den Export lieber auf 1.5 schieben.\n[00:12] Du: Einverstanden. Dann geht 1.4 am Donnerstag raus.\n[00:19] Lea: Und die Preise kläre ich bis Mittwoch mit dem Vertrieb.",
+      combined: "",
     },
     stats: {
       improve: true,
@@ -377,6 +378,13 @@ export async function open(page: Page, s: Scenario) {
         is_meeting_recording: () =>
           data.meetings.some((m: any) => m.status.kind === "recording"),
         get_meeting_note: () => data.note,
+        // Own notes: what was typed, per meeting.
+        get_meeting_notes: (a) => (w.__notes ??= {})[a.id] ?? "",
+        set_meeting_notes: (a) => {
+          (w.__notes ??= {})[a.id] = a.text;
+          return null;
+        },
+        meeting_live_transcript: () => [],
         voice_data_stats: () => data.stats,
         voice_data_community: () => ({ donors: 0, notice: null }),
         usage_totals: () => data.totals,

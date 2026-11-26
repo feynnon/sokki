@@ -111,6 +111,12 @@ test.describe("main window", () => {
     await page.getByRole("navigation").getByText("Meetings").click();
     await expect(page.getByRole("heading", { name: "Heute" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Gestern" })).toBeVisible();
+    // The summary first (no own notes); the transcript is one tab away
+    // (own notes, Robin 2026-11-26).
+    await expect(
+      page.getByText("Release 1.4 geht am Donnerstag raus", { exact: false }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "Transkript" }).click();
     await expect(page.getByText("[00:06]").first()).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Transkript kopieren" }),

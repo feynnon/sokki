@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "自分のメモ",
+      "placeholder": "メモを入力。発言内容は Sokki が補います。",
+      "live": "ライブテキスト",
+      "listening": "聞いています …",
+      "combinedHint": "入力したままのあなたの行。グレー：会話から Sokki が補った内容。",
+      "views": "表示",
+      "view": {
+        "notes": "メモ",
+        "combined": "まとめ",
+        "summary": "AI 要約",
+        "transcript": "文字起こし"
+      }
+    }
   },
   "sokki": {
     "nav": {

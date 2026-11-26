@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Твоите бележки",
+      "placeholder": "Пиши бележки. Sokki добавя казаното.",
+      "live": "Текст на живо",
+      "listening": "Слуша …",
+      "combinedHint": "Твоите редове, както си ги написал. В сиво: какво добавя Sokki от разговора.",
+      "views": "Изгледи",
+      "view": {
+        "notes": "Бележки",
+        "combined": "Комбинирано",
+        "summary": "AI резюме",
+        "transcript": "Транскрипция"
+      }
+    }
   },
   "sokki": {
     "nav": {

@@ -30,6 +30,7 @@ pub mod tracks;
 pub mod voices;
 
 pub use process::{
-    provisional_title, run, summarize_note, Deps, Input, NoSpeech, Output, Settings, Stage,
+    provisional_title, run, summarize_note, Deps, Input, NoSpeech, Output, OwnNotes, Settings,
+    Stage,
     Summarized, SummaryMissing, SUMMARY_FAILED, SUMMARY_WAITING,
 };

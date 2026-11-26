@@ -243,6 +243,7 @@ fn process(
             previous_note: record.note_path.as_deref().map(PathBuf::from),
             warnings,
             live,
+            own_notes: super::own_notes::for_processing(store, &record.id),
         },
         sokki_engine::Deps {
             transcriber: &*transcriber,
@@ -471,7 +472,8 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
         return;
     }
     set_stage(app, store, id, "summarizing", None);
-    let result = sokki_engine::summarize_note(&note_path, &engine);
+    let own = super::own_notes::for_processing(store, id);
+    let result = sokki_engine::summarize_note(&note_path, &engine, own.as_ref());
     count_summary(app, &all_settings.meetings, result.is_ok());
     clear_menu_bar_status(app);
     let updated = store.update(id, |r| {

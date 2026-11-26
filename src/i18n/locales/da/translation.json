@@ -1149,7 +1149,21 @@
       "only_other": "{{count}} other people"
     },
     "placeholder": "{{place}}, {{time}}",
-    "placeholderNoPlace": "Meeting, {{time}}"
+    "placeholderNoPlace": "Meeting, {{time}}",
+    "notes": {
+      "label": "Dine noter",
+      "placeholder": "Skriv dine noter. Sokki tilføjer det, der blev sagt.",
+      "live": "Live-tekst",
+      "listening": "Lytter …",
+      "combinedHint": "Dine linjer, som du skrev dem. Gråt: det Sokki tilføjer fra samtalen.",
+      "views": "Visninger",
+      "view": {
+        "notes": "Noter",
+        "combined": "Kombineret",
+        "summary": "AI-resumé",
+        "transcript": "Transskription"
+      }
+    }
   },
   "sokki": {
     "nav": {

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Evaluates LLM correction of meeting transcripts on real calls.
 
-Data (gitignored, testdata/real/<call>/):
+Data: the private eval set real-calls, $SOKKI_EVALS/real-calls/data/<call>/ (default ~/sokki-evals;
+docs/evals.md):
   raw.json     uncorrected transcript (crates/meeting-e2e/examples/raw_transcript.rs)
   labels.json  {"fixes": [{"line": 12, "wrong": "Cloud Code", "right": "Claude Code"}],
                 "keep":  [{"line": 30, "text": "Patird"}]}
@@ -18,6 +19,7 @@ Scores per variant: fixed / total fixes, broken keeps, and every other change
 import argparse
 import difflib
 import json
+import os
 import re
 import sys
 import time
@@ -25,8 +27,10 @@ import urllib.request
 from pathlib import Path
 
 REJECTED = []
-ROOT = Path(__file__).resolve().parent.parent
-REAL = ROOT / "testdata" / "real"
+REAL = Path(os.environ.get("SOKKI_EVALS", "~/sokki-evals")).expanduser() / "real-calls" / "data"
+if not REAL.is_dir():
+    sys.exit(f"eval set 'real-calls' is missing: {REAL} not found.\n"
+             "  How to get it: docs/evals.md, section 'real-calls'. Sets elsewhere? Set SOKKI_EVALS.")
 OLLAMA = "http://127.0.0.1:11434/api/chat"
 
 

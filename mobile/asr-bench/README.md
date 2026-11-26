@@ -232,3 +232,12 @@ Results for the 13 clips are in `docs/research/phone-dictation-latency-2026-11.m
 - text 0.12 s behind the speech;
 - done 0.16 s after the stop;
 - 19 word errors, against Nemotron's 29.
+
+## Parakeet live in pieces (`--pieces`, 2026-11-26)
+
+The keyboard's way without a Mac (`src-tauri/src/pieces.rs`), simulated in real time:
+- the growing piece is read every `VB_EVERY` ms (default 500);
+- pieces end at pauses (`VB_MIN`/`VB_MAX` s, `VB_PAUSE` ms);
+- `VB_NOWAIT=1` runs as fast as it goes, for accuracy runs.
+
+Results: `docs/research/phone-dictation-latency-2026-11.md`.

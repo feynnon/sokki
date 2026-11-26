@@ -1,8 +1,9 @@
 """Sokki: autocorrect measured on Robin's own writing, as the phone runs it (typo_model.correction).
 
-Data (~/sokki-typing-data, private): robin-texts-*.txt (his messages), robin-real-typos-labels.json
-(every word the keyboard doesn't know, labelled typo -> meant or intended), phone/journal-*.jsonl (text
-sent from the phone) with phone/journal-labels.json, and the keyboard's word lists in dicts/.
+Data (eval sets, docs/evals.md): maintainer-typing (private): robin-texts-*.txt (his messages),
+robin-real-typos-labels.json (every word the keyboard doesn't know, labelled typo -> meant or intended),
+phone/journal-*.jsonl (text sent from the phone) with phone/journal-labels.json; heliboard-dicts (the
+keyboard's word lists); typing37k and 136m (public). Outputs go to $SOKKI_EVALS/runs/typing.
 
 What the phone's dictionary tells autocorrect is emulated from those word lists: the typed word is
 valid (decoder dictionaries of the active languages, or a word Robin typed before), and the
@@ -31,9 +32,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
+import evals  # noqa: E402
 import typo_model as tm  # noqa: E402
 
-D = os.path.expanduser("~/sokki-typing-data/")
+# The set of one person's typing; a contributor points SOKKI_TYPING_SET at their own (docs/evals.md).
+ROBIN = os.environ.get("SOKKI_TYPING_SET", "maintainer-typing")
 WORD = re.compile(r"[A-Za-zÄÖÜäöüß]+")
 NO_NEXT = os.environ.get("NO_NEXT") == "1"  # as the phone decides: before the next word is typed
 UML = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "Ä": "A", "Ö": "O", "Ü": "U"})
@@ -41,7 +44,7 @@ UML = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "Ä": "A", "Ö": "O", "Ü"
 
 def wordlist(name, freqs=False):
     out = {} if freqs else set()
-    for line in open(D + "dicts/" + name, encoding="utf-8"):
+    for line in open(evals.path("heliboard-dicts", name), encoding="utf-8"):
         if line.startswith(" word="):
             w = line[6:line.index(",")]
             if freqs:
@@ -150,13 +153,20 @@ def tokens(text):
 
 
 def load_robin():
-    text = open(D + "robin-texts-2026-11-19.txt").read()
-    labels = {e["word"]: e for e in json.load(open(D + "robin-real-typos-labels.json"))}
+    d = evals.path(ROBIN)
+    texts = sorted(f for f in os.listdir(d) if f.endswith(".txt") and "texts-" in f)
+    if not texts:
+        evals.missing(ROBIN, os.path.join(d, "texts-*.txt"))
+    text = "\n".join(open(os.path.join(d, f), encoding="utf-8").read() for f in texts)
+    lf = next((f for f in ("robin-real-typos-labels.json", "typo-labels.json")
+               if os.path.exists(os.path.join(d, f))), "typo-labels.json")
+    labels = {e["word"]: e for e in json.load(open(evals.path(ROBIN, lf)))}
     journal = []
-    for f in sorted(os.listdir(D + "phone")):
+    phone = evals.path(ROBIN, "phone", optional=True)
+    for f in sorted(os.listdir(phone)) if os.path.isdir(phone) else []:
         if f.startswith("journal-") and f.endswith(".jsonl"):
-            journal += [json.loads(x).get("text", "") for x in open(D + "phone/" + f)]
-    jl = D + "phone/journal-labels.json"
+            journal += [json.loads(x).get("text", "") for x in open(evals.path(ROBIN, "phone", f))]
+    jl = evals.path(ROBIN, "phone", "journal-labels.json", optional=True)
     jlabels = json.load(open(jl)) if os.path.exists(jl) else {}
     return tokens(text), labels, tokens("\n".join(journal)), jlabels
 
@@ -298,9 +308,10 @@ SPECIAL = ("langs", "protect", "keys")
 def phone_keys():
     """The letter keys of the phone's last German layout in the tap log (taps-*.jsonl): centre, size."""
     keys = None
-    for f in sorted(os.listdir(D + "phone")):
+    phone = evals.path(ROBIN, "phone", optional=True)
+    for f in sorted(os.listdir(phone)) if os.path.isdir(phone) else []:
         if f.startswith("taps-"):
-            for line in open(D + "phone/" + f):
+            for line in open(os.path.join(phone, f)):
                 x = json.loads(line)
                 if x.get("t") == "layout" and x.get("element") == "ALPHABET" and x.get("lang", "").startswith("de"):
                     keys = {k["l"]: (k["x"] + k["w"] / 2, k["y"] + k["h"] / 2, k["w"], k["h"]) for k in x["keys"]
@@ -327,10 +338,11 @@ def main(names):
         tm.set_keys(phone_keys() if flags.get("keys", True) else None)  # the phone uses the keys on screen
         lex = Lexicon(flags.get("langs", ("de", "en")), personal, flags.get("protect", False))
         timings = []
-        truth = json.load(open(D + "caps-truth.json")) if os.path.exists(D + "caps-truth.json") else {}
+        ct = evals.path(ROBIN, "caps-truth.json", optional=True)
+        truth = json.load(open(ct)) if os.path.exists(ct) else {}
         n, ex = run(lex, table, bigrams, toks, labels, umlaut_words, lower, upper, timings, truth.get("text"))
         nj, exj = run(lex, table, bigrams, jtoks, jlabels, [], lower, upper, timings, truth.get("journal"))
-        pub = {k: public(table, bigrams, Lexicon(("de", "en")), k, D + f"public/{k}-ctx.jsonl")
+        pub = {k: public(table, bigrams, Lexicon(("de", "en")), k, evals.path(k, f"{k}-ctx.jsonl"))
                for k in ("typing37k", "136m")}
         for k, v in saved.items():
             setattr(tm, k, v)
@@ -347,10 +359,10 @@ def main(names):
                 + f" | {1000 * statistics.median(ts):.2f}/{1000 * ts[int(.95 * len(ts))]:.2f} ms")
         line = ("[no next word] " if NO_NEXT else "") + line
         print(line, flush=True)
-        with open(D + "loop-log.md", "a") as f:
+        with open(evals.runs("typing", "loop-log.md"), "a") as f:
             f.write(f"- {time.strftime('%m-%d %H:%M')} {line}\n")
         json.dump({k: v[:60] for k, v in list(ex.items()) + [("journal " + k, v) for k, v in exj.items()]},
-                  open(D + f"eval-examples-{name}.json", "w"), ensure_ascii=False, indent=0)
+                  open(evals.runs("typing", f"eval-examples-{name}.json"), "w"), ensure_ascii=False, indent=0)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,7 @@
 //! On-device dictation. The page sends microphone audio (16 kHz, 16-bit,
-//! base64) every ~200 ms; a worker thread feeds it into the streaming
-//! model, as the keyboard does (`keyboard_voice.rs`), and emits the text
-//! whenever it grows. When the person stops, only the last half second is
-//! left.
+//! base64) every ~200 ms; a worker thread reads it with Parakeet in pieces
+//! (`pieces.rs`), as the keyboard does without a Mac, and emits the text
+//! whenever it changes.
 //!
 //! Events: "dictation-piece" {index: 0, text: all so far, audio_s, ms},
 //! "dictation-done" {after_stop_ms}, "dictation-download" {done, total}.
@@ -16,15 +15,17 @@ use base64::Engine as _;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-/// Nemotron Streaming 3.5 (32 languages, German included): the keyboard
-/// streams into it as the Mac does (`keyboard_voice.rs`); the Dictate tab
-/// reads its pieces whole.
-pub const MODEL_FILE: &str = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf";
-const MODEL_URL: &str = "https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf";
-/// The model before 2026-11-25 (Parakeet Ultra, not a streaming model):
-/// deleted once the new one is in, and a reason to fetch the new one by
-/// itself (the person chose on-device dictation already).
-pub const OLD_MODEL_FILE: &str = "parakeet-ultra-Q8_0.gguf";
+/// Parakeet Ultra (25 European languages): what the Mac dictates with.
+/// From 25 to 26 Nov 2026 the phone used Nemotron Streaming 3.5 (it can
+/// stream, Parakeet can't), but on Robin's own dictations it got 17 % of
+/// words different from the references against Parakeet's 10–12 %; Robin:
+/// "I'd rather have high quality than a bit faster latency."
+pub const MODEL_FILE: &str = "parakeet-ultra-Q8_0.gguf";
+const MODEL_URL: &str = "https://huggingface.co/handy-computer/parakeet-ultra-gguf/resolve/39eeb55181f0d354fd934f06e92fd8d5037fed8e/parakeet-ultra-Q8_0.gguf";
+/// The model before (Nemotron Streaming): deleted once Parakeet is in, and
+/// a reason to fetch Parakeet by itself (the person chose on-device
+/// dictation already).
+pub const OLD_MODEL_FILE: &str = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf";
 
 /// CPU threads for the model: all cores but two, at most 4. The engine's
 /// threads wait for each other, so when one is pushed aside (the screen,
@@ -36,32 +37,13 @@ pub fn threads() -> i32 {
     std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(2).clamp(1, 4) as i32)
 }
 
-/// How far the model listens ahead before it writes a word, in 80 ms
-/// frames: 6 adds words every ~0.56 s, as accurate as 13 (~1.1 s) on our
-/// clips and 0.5 s sooner; 0 can't keep up on a Pixel 7 (asr-bench
-/// `--stream`).
-pub const LOOKAHEAD: i32 = 6;
-
-pub fn stream_options() -> transcribe_cpp::StreamOptions {
-    transcribe_cpp::StreamOptions {
-        family: Some(transcribe_cpp::StreamExtension::ParakeetStream(
-            transcribe_cpp::ParakeetStreamOptions {
-                att_context_right: Some(LOOKAHEAD),
-            },
-        )),
-        ..Default::default()
-    }
-}
-
-/// Runs half a second of silence through a stream: touches the model and
-/// the session's buffers, so the next dictation finds them in memory.
+/// Reads half a second of silence: touches the model and the session's
+/// buffers, so the next dictation finds them in memory.
 pub fn warm(session: &mut transcribe_cpp::Session) {
-    let Ok(mut st) = session.stream(&transcribe_cpp::RunOptions::default(), &stream_options())
-    else {
-        return;
-    };
-    let _ = st.feed(&vec![0.0f32; 16_000 / 2]);
-    let _ = st.finalize();
+    let _ = session.run(
+        &vec![0.0f32; 16_000 / 2],
+        &transcribe_cpp::RunOptions::default(),
+    );
 }
 
 pub struct Engine {
@@ -166,7 +148,7 @@ pub fn dictation_model(app: AppHandle) -> Result<ModelInfo, String> {
 /// One download at a time: a second caller waits for the first and is done.
 static DOWNLOADING: Mutex<()> = Mutex::new(());
 
-/// Downloads the speech model (750 MB) into the app's storage, then
+/// Downloads the speech model (740 MB) into the app's storage, then
 /// deletes the previous one.
 fn download(app: &AppHandle, path: &Path) -> Result<(), String> {
     use std::io::{Read, Write};
@@ -256,7 +238,7 @@ pub async fn dictation_load(app: AppHandle) -> Result<u64, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Starts a dictation: a worker streams the audio into the model.
+/// Starts a dictation: a worker reads the audio in pieces (`pieces.rs`).
 #[tauri::command]
 pub async fn dictation_start(app: AppHandle) -> Result<(), String> {
     let e = {
@@ -284,35 +266,54 @@ pub async fn dictation_start(app: AppHandle) -> Result<(), String> {
             );
         };
         let result = e.with_session(|s| {
-            let mut st = match s.stream(&transcribe_cpp::RunOptions::default(), &stream_options()) {
-                Ok(st) => st,
-                Err(_) => return None,
-            };
-            let (mut shown, mut heard) = (String::new(), 0usize);
-            // Block by block, as they come (one big feed is much slower).
-            for msg in rx.iter() {
-                match msg {
-                    Msg::Audio(audio) => {
-                        heard += audio.len();
-                        let t = Instant::now();
-                        if st.feed(&audio).is_err() {
-                            continue;
+            let mut live = crate::pieces::Live::default();
+            let mut shown = String::new();
+            loop {
+                // Everything that has come in, then one read if one is due.
+                let mut stopped = None;
+                loop {
+                    match rx.try_recv() {
+                        Ok(Msg::Audio(audio)) => live.push(&audio),
+                        Ok(Msg::End(at)) => {
+                            stopped = Some(at);
+                            break;
                         }
-                        let text = st.text().display().trim().to_string();
+                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                            stopped = Some(Instant::now());
+                            break;
+                        }
+                        Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    }
+                }
+                if let Some(at) = stopped {
+                    let t = Instant::now();
+                    let heard = live.heard;
+                    let text = live.finish(s);
+                    piece(&text, heard, t.elapsed().as_millis());
+                    return Some(at);
+                }
+                let t = Instant::now();
+                match live.step(s) {
+                    Some(update) => {
+                        let text = update.text();
                         if text != shown {
-                            piece(&text, heard, t.elapsed().as_millis());
+                            piece(&text, live.heard, t.elapsed().as_millis());
                             shown = text;
                         }
                     }
-                    Msg::End(stopped) => {
-                        let t = Instant::now();
-                        let _ = st.finalize();
-                        piece(st.text().display().trim(), heard, t.elapsed().as_millis());
-                        return Some(stopped);
-                    }
+                    None => match rx.recv_timeout(std::time::Duration::from_millis(20)) {
+                        Ok(Msg::Audio(audio)) => live.push(&audio),
+                        Ok(Msg::End(at)) => {
+                            let t = Instant::now();
+                            let heard = live.heard;
+                            let text = live.finish(s);
+                            piece(&text, heard, t.elapsed().as_millis());
+                            return Some(at);
+                        }
+                        Err(_) => {}
+                    },
                 }
             }
-            None
         });
         // The page waits for "done" in every case.
         done(result.ok().flatten().unwrap_or_else(Instant::now));

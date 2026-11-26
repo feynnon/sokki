@@ -5,7 +5,7 @@ how the dictionary spells it (Montag, Straße). The Mac has no keyboard dictiona
 lists stand in for them: every word of the same dictionaries robin_eval.py emulates the phone
 with (HeliBoard's main_de legacy and main_en_US word lists), one per line, as spelled there.
 
-    python3 crates/sokki-typos/tools/gen_lexicon.py ~/sokki-typing-data/dicts crates/sokki-typos/data
+    python3 crates/sokki-typos/tools/gen_lexicon.py ~/sokki-evals/heliboard-dicts/data crates/sokki-typos/data
 
 `english-only.txt`: lower-case English words the legacy German list took in (and, is, these,
 meeting) that the newer main_de dictionary doesn't have. Only the sentence's language guess uses

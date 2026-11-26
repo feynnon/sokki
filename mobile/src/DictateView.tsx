@@ -168,7 +168,7 @@ export function DictateView() {
     return (
       <section className="dictate">
         <p className="muted">
-          Dictation on the phone needs the speech model once (750 MB). It then
+          Dictation on the phone needs the speech model once (740 MB). It then
           works without the Mac and without internet.
         </p>
         <button

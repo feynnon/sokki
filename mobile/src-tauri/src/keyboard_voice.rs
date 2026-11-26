@@ -3,13 +3,7 @@
 //! itself and calls these functions over JNI: start, push audio, stop, and
 //! poll for text.
 //!
-//! One pass, as the Mac does it: the audio goes into the streaming model
-//! (Nemotron Streaming) as it arrives, 200 ms at a time. The model keeps its
-//! context and adds words about every half second; words it has moved past
-//! never change, so the keyboard types them for good right away. At the stop
-//! only the last half second is left.
-//!
-//! Through the Mac, when it's reachable: the keyboard keeps a link to the
+//! Through the Mac first, when it's reachable: the keyboard keeps a link to the
 //! paired Mac open (`sokki-link`, opened when the keyboard opens) and
 //! dictates through it. The Mac reads the audio with its Parakeet on the GPU:
 //! live text every 0.5 s ("\0live:", may still change), the whole dictation
@@ -18,6 +12,10 @@
 //! `docs/research/phone-dictation-latency-2026-11.md`). When the Mac stops
 //! answering (2.5 s without text, or an error), the phone takes over with
 //! the audio so far; nothing is lost.
+//!
+//! On the phone (no Mac): Parakeet in pieces (`pieces.rs`): the growing
+//! piece is read every half second and stays underlined; a piece that ended
+//! at a pause is read whole and typed for good ("\0parts:"). Numbers there.
 //!
 //! Before (two passes on Parakeet Ultra, 1–1.5 s snippets read without
 //! context plus 6–15 s pieces read again at pauses), measured on Robin's
@@ -34,9 +32,10 @@ use std::time::Instant;
 use jni::objects::{JClass, JShortArray, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
-use transcribe_cpp::{RunOptions, Session};
+use transcribe_cpp::Session;
 
-use crate::dictation::{engine_at, stream_options, threads, warm};
+use crate::dictation::{engine_at, threads, warm};
+use crate::pieces::Live;
 
 /// What `poll` returns once the final text is out, or for an error.
 const DONE: &str = "\u{0}done";
@@ -48,6 +47,9 @@ const FINAL: &str = "\u{0}final:";
 /// "\0live:<text>": everything heard so far, through the Mac; any of it
 /// may still change until the final text.
 const LIVE: &str = "\u{0}live:";
+/// "\0parts:<kept>\u{1}<growing>": on the phone, the text of the pieces
+/// that ended (typed for good) and the growing piece's latest reading.
+const PARTS: &str = "\u{0}parts:";
 
 const RATE: usize = 16_000;
 enum Msg {
@@ -176,9 +178,10 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativeWarmUp(
     }
 }
 
-/// The stream of one dictation: feeds the audio as it comes and hands the
-/// keyboard the text whenever it grows.
+/// One dictation on the phone: reads the audio in pieces as it comes
+/// (`pieces.rs`) and hands the keyboard the text whenever it changes.
 fn transcribe(mine: usize, path: &str, rx: Receiver<Msg>, started: Instant) {
+    use std::sync::mpsc::{RecvTimeoutError, TryRecvError};
     let s = match session(path) {
         Ok(s) => s,
         Err(e) => {
@@ -188,67 +191,62 @@ fn transcribe(mine: usize, path: &str, rx: Receiver<Msg>, started: Instant) {
         }
     };
     let mut guard = s.lock().unwrap();
-    let mut st = match guard.stream(&RunOptions::default(), &stream_options()) {
-        Ok(st) => st,
-        Err(e) => {
-            log(&format!("stream failed: {e}"));
-            send(mine, format!("{ERROR}{e}"));
-            return;
+    let mut live = Live::default();
+    let (mut shown, mut first, mut slowest, mut reads) = (String::new(), None, 0u128, 0usize);
+    let stopped = 'listening: loop {
+        // Everything that has come in, then one read if one is due.
+        loop {
+            match rx.try_recv() {
+                Ok(Msg::Audio(a)) => live.push(&a),
+                Ok(Msg::End) | Err(TryRecvError::Disconnected) => break 'listening Instant::now(),
+                Err(TryRecvError::Empty) => break,
+            }
+        }
+        let t = Instant::now();
+        match live.step(&mut guard) {
+            Some(update) => {
+                reads += 1;
+                slowest = slowest.max(t.elapsed().as_millis());
+                let text = update.text();
+                if text == shown {
+                    continue;
+                }
+                if first.is_none() && !text.is_empty() {
+                    first = Some(());
+                    log(&format!(
+                        "first words {} ms after start ({:.1} s heard)",
+                        started.elapsed().as_millis(),
+                        live.heard as f64 / RATE as f64
+                    ));
+                }
+                log(&format!(
+                    "text {} chars at {} ms, {:.2} s heard, read {} ms",
+                    text.chars().count(),
+                    started.elapsed().as_millis(),
+                    live.heard as f64 / RATE as f64,
+                    t.elapsed().as_millis()
+                ));
+                send(
+                    mine,
+                    format!("{PARTS}{}\u{1}{}", update.committed, update.live),
+                );
+                shown = text;
+            }
+            None => match rx.recv_timeout(std::time::Duration::from_millis(20)) {
+                Ok(Msg::Audio(a)) => live.push(&a),
+                Ok(Msg::End) | Err(RecvTimeoutError::Disconnected) => break Instant::now(),
+                Err(RecvTimeoutError::Timeout) => {}
+            },
         }
     };
-    let (mut shown, mut heard, mut slowest, mut first) = (String::new(), 0usize, 0u128, None);
-    let mut stopped = None;
-    // Block by block (200 ms each, as the keyboard sends them), also when a
-    // backlog waits (audio recorded while the model loaded): one big feed is
-    // much slower than small ones (2 s at once: 3.9 s; asr-bench
-    // VB_BLOCK_MS), so it would only fall further behind.
-    for msg in rx.iter() {
-        let audio = match msg {
-            Msg::Audio(a) => a,
-            Msg::End => {
-                stopped = Some(Instant::now());
-                break;
-            }
-        };
-        heard += audio.len();
-        let t = Instant::now();
-        if let Err(e) = st.feed(&audio) {
-            log(&format!("feed failed: {e}"));
-            send(mine, format!("{ERROR}{e}"));
-            return;
-        }
-        slowest = slowest.max(t.elapsed().as_millis());
-        let text = st.text().display().trim().to_string();
-        if text != shown {
-            if first.is_none() {
-                first = Some(started.elapsed().as_millis());
-                log(&format!(
-                    "first words {} ms after start ({:.1} s heard)",
-                    started.elapsed().as_millis(),
-                    heard as f64 / RATE as f64
-                ));
-            }
-            log(&format!(
-                "text {} chars at {} ms, {:.2} s heard, feed {} ms",
-                text.chars().count(),
-                started.elapsed().as_millis(),
-                heard as f64 / RATE as f64,
-                t.elapsed().as_millis()
-            ));
-            send(mine, format!("{TEXT}{text}"));
-            shown = text;
-        }
-    }
     let t = Instant::now();
-    if let Err(e) = st.finalize() {
-        log(&format!("finalize failed: {e}"));
-    }
-    let text = st.text().display().trim().to_string();
+    let heard = live.heard;
+    let text = live.finish(&mut guard);
     send(mine, format!("{FINAL}{text}"));
     send(mine, DONE.to_string());
     log(&format!(
-        "done {} ms after stop (finalize {} ms): {:.1} s heard, {} chars, slowest feed {slowest} ms",
-        stopped.map_or(0, |s| s.elapsed().as_millis()),
+        "done {} ms after stop (last piece {} ms): {:.1} s heard, {} chars, {reads} reads, slowest {slowest} ms",
+        stopped.elapsed().as_millis(),
         t.elapsed().as_millis(),
         heard as f64 / RATE as f64,
         text.chars().count()
@@ -666,7 +664,8 @@ pub extern "system" fn Java_dev_verbatim_sokki_SokkiVoice_nativePoll(
     }
     while out.len() > 1
         && ((out[0].starts_with(TEXT) && out[1].starts_with(TEXT))
-            || (out[0].starts_with(LIVE) && out[1].starts_with(LIVE)))
+            || (out[0].starts_with(LIVE) && out[1].starts_with(LIVE))
+            || (out[0].starts_with(PARTS) && out[1].starts_with(PARTS)))
     {
         out.remove(0);
     }

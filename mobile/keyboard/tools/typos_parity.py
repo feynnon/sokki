@@ -29,7 +29,7 @@ def cases():
             yield w, prevs, nxt, lex.langs(w), lex.candidates(w), ctx
     plain = ev.Lexicon(("de", "en"))
     for name in ("typing37k", "136m"):
-        for x in ev.sample(ev.D + f"public/{name}-ctx.jsonl", 1500, 2500):
+        for x in ev.sample(ev.evals.path(name, f"{name}-ctx.jsonl"), 1500, 2500):
             typed = x["typed"]
             if len(typed) >= tm.MIN_LEN:
                 prevs = ([tm.BOS] + x["prev"])[-3:] if len(x["prev"]) < 8 else x["prev"][-3:]

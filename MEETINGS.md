@@ -445,8 +445,8 @@ The Videos page (camera, recording bar, looks) was removed on 2026-11-23
 | `crates/meeting-chat` | Posting one line into a meeting's chat and watching it for "stop" (macOS Accessibility); `cargo run --example chat -- dump zoom` prints an app's tree |
 | `crates/meeting-e2e` | Headless end-to-end harness: real models on synthetic fixtures, scored against ground truth; examples for real-call evals (`raw_transcript`, `summary_eval`, `diarize_once`; `live_eval`: transcript during the call vs after it, time and word difference) |
 | `testdata/generate.py` | Builds the synthetic fixtures (macOS voices + ffmpeg) into `testdata/audio/` (gitignored) |
-| `testdata/real/` | Real-call eval data (gitignored, private): uncorrected transcripts, hand labels (34 misheard words, 37 words that must stay), dictionary |
-| `scripts/correction_eval.py` | Scores speech models' transcripts (and, from the removed correction step, correction outputs) against `testdata/real` labels |
+| `~/sokki-evals/real-calls/` | Real-call eval data (outside the repo, private; `docs/evals.md`): uncorrected transcripts, hand labels (34 misheard words, 37 words that must stay), dictionary |
+| `scripts/correction_eval.py` | Scores speech models' transcripts (and, from the removed correction step, correction outputs) against the real-calls labels |
 | `src-tauri/src/meeting/` | App side: capture (`mic.rs`, `system_tap.rs`, `flac.rs`), `process.rs`, `store.rs` (meeting index), `detect.rs` |
 | `src-tauri/src/commands/meeting.rs` | Tauri commands and the `MeetingChanged` event |
 | `src/components/settings/meetings/` | Meetings page |
@@ -488,7 +488,7 @@ folder under `testdata/audio/`, and add its name to the scenario lists in
 
 ```sh
 # transcript of a recording (same pipeline as the app)
-(cd crates/meeting-e2e && cargo run --release --example raw_transcript -- mic.wav system.wav ../../testdata/real/<call>/raw.json)
+(cd crates/meeting-e2e && cargo run --release --example raw_transcript -- mic.wav system.wav ~/sokki-evals/real-calls/data/<call>/raw.json)
 ```
 
 Count only first runs for timing: Ollama reuses cached prompt parts on repeats.

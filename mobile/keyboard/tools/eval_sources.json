@@ -1,0 +1,135 @@
+{
+ "_about": "Public eval sets: where each file comes from and its SHA-256 as Sokki's results used it. fetch_evals.py downloads them into $SOKKI_EVALS/<set>/data/. live: the source changes (no checksum check). Index: docs/evals.md.",
+ "files": [
+  {
+   "set": "typing37k",
+   "file": "typing37k_processed.zip",
+   "url": "https://userinterfaces.aalto.fi/typing37k/data/processed_typing_data.zip",
+   "sha256": "1187a500b83b915e1469878d25c32ddcee0e466a4f9b011b45a1d66653c142ae"
+  },
+  {
+   "set": "typing37k",
+   "file": "typing37k_sentences.sql",
+   "url": "https://userinterfaces.aalto.fi/typing37k/resources/sentences_content.sql",
+   "sha256": "8c111657a49b82f6e677deb49a917ee0a0399b9fd45091cfccb2c6d78a7ec30b"
+  },
+  {
+   "set": "136m",
+   "file": "136m_keystrokes.zip",
+   "url": "https://userinterfaces.aalto.fi/136Mkeystrokes/data/Keystrokes.zip",
+   "sha256": "5fb217e0e1273017a6789c5c7ebcc00eed624f2f6426c284da2077a88e270420"
+  },
+  {
+   "set": "text-corpora",
+   "file": "deu_news_2023_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/deu_news_2023_1M.tar.gz",
+   "sha256": "392065f34be70e3612d6ef6b3edc6687b026524e57e00eef47f0528456deb1ba",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "deu-de_web_2021_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/deu-de_web_2021_1M.tar.gz",
+   "sha256": "d04ad49440131fa9b8cf96d097513142f44f3cc3c4b4fef5b69841827bb63324",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "deu_wikipedia_2021_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/deu_wikipedia_2021_1M.tar.gz",
+   "sha256": "d5eb95fe71010a88d69ba408a4016f67a3a219e1a63cade652593abf33010aba",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "eng_news_2023_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/eng_news_2023_1M.tar.gz",
+   "sha256": "c8a5a5e72897aa5e367b0319c1884831c02aaf29bf81342de31ca1b1cc8f3e4c",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "eng-com_web-public_2018_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/eng-com_web-public_2018_1M.tar.gz",
+   "sha256": "de8849fe30c7d5bf3502f620093232f4dceca10a6ac19a9ad49f474b62df0a5f",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "eng_wikipedia_2016_1M.tar.gz",
+   "url": "https://downloads.wortschatz-leipzig.de/corpora/eng_wikipedia_2016_1M.tar.gz",
+   "sha256": "42cc4e689b93a320151fa4378572db9d6c5a5eee6e13c966fdefe77954d6596d",
+   "unpack": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "tatoeba_deu.tsv.bz2",
+   "url": "https://downloads.tatoeba.org/exports/per_language/deu/deu_sentences.tsv.bz2",
+   "sha256": "798c9f3d31a0ba58be45347d0441e46c8c838093a112586319da94f046096a06",
+   "live": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "tatoeba_eng.tsv.bz2",
+   "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2",
+   "sha256": "3b5b3ecfcac5037b09f81ef048fa16fedc4d24838db5b6fbeedca1dfab374cbf",
+   "live": true
+  },
+  {
+   "set": "text-corpora",
+   "file": "wikidumps/dewiki-20261101-pages-articles1.xml-p1p297012.bz2",
+   "url": "https://dumps.wikimedia.org/dewiki/20261101/dewiki-20261101-pages-articles1.xml-p1p297012.bz2",
+   "sha256": "49a5679620ac89c51dfbfbff5818d28508bdc9ffa1b92ba4ac86011bc77e0f3c",
+   "note": "Wikimedia keeps a dump a few months; later use a newer date (results shift a little)."
+  },
+  {
+   "set": "text-corpora",
+   "file": "wikidumps/enwiki-20261101-pages-articles1.xml-p1p41242.bz2",
+   "url": "https://dumps.wikimedia.org/enwiki/20261101/enwiki-20261101-pages-articles1.xml-p1p41242.bz2",
+   "sha256": "e3fd5a837f2a6b3a26c3596d0667600073a86c9fc29dc60ef0b2de605c754387",
+   "note": "Wikimedia keeps a dump a few months; later use a newer date (results shift a little)."
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_de.dict",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/dictionaries/main_de.dict",
+   "sha256": "14e94e229ba51fce0f40cab8a7dcfec4085c183712898f8a14d2016478ff6d1b"
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_de.combined",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/wordlists/main_de.combined",
+   "sha256": "873f0c90e104c574609d8da6a938e4a7c951d53e20cddc1b66301d4d37752b6d"
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_de__legacy.combined",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/wordlists/main_de__legacy.combined",
+   "sha256": "07e9234700ce971b9fa37ad1e1eb1fda2f1eb9ce9ef514dc071485b538f5f97b"
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_en_US.combined",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/wordlists/main_en_US.combined",
+   "sha256": "73308519ff089c73baa35e08f25087bb62ed4a6bf2f96af3efb402187f7c9edb"
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_en_US__experimental.combined",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/wordlists/main_en_US__experimental.combined",
+   "sha256": "466c2eb4737fa1a9453e5f4a33337db8dd703f75012b70c2534490fd189c9487"
+  },
+  {
+   "set": "heliboard-dicts",
+   "file": "main_en_GB__experimental.combined",
+   "url": "https://codeberg.org/Helium314/aosp-dictionaries/raw/commit/ff0cd52be8d9530200fefe8b296c53d4f662091e/wordlists/main_en_GB__experimental.combined",
+   "sha256": "2c724db60d54a67f25d401b5b5ac264484ded1be4338ea2ab2ed10434f5abb30"
+  },
+  {
+   "set": "de-clean-10k",
+   "file": "de-clean-10k.jsonl",
+   "url": "https://huggingface.co/datasets/Shannonigan/de-clean-10k/resolve/main/de-clean-10k.jsonl",
+   "sha256": "034ee67c64aa0e4a87a73e59dc71910bb4ec696ebf998c61163452ea835d5e99"
+  }
+ ]
+}

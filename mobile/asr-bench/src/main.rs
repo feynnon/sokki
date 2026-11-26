@@ -77,6 +77,135 @@ fn main() {
         }
     };
 
+    // Parakeet on the phone, live: the growing piece is read again every
+    // VB_EVERY ms (default 500) for live text; pieces end at pauses
+    // (VB_MIN s, VB_MAX s, VB_PAUSE ms; dictation-core) and are read once
+    // more when they end, then kept; at the stop only the last piece is
+    // left. One engine, one read at a time, in real time (VB_NOWAIT=1: as
+    // fast as it goes, for the text). VB_THREADS, VB_SHOW, VB_SCRIPT.
+    if args.get(3).map(String::as_str) == Some("--pieces") {
+        use dictation_core::{Mode, Params, Segmenter};
+        let env_f = |k: &str, d: f32| {
+            std::env::var(k)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(d)
+        };
+        if let Some(n) = std::env::var("VB_THREADS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+        {
+            session = model
+                .session_with(&transcribe_cpp::SessionOptions {
+                    n_threads: n,
+                    ..Default::default()
+                })
+                .expect("session");
+        }
+        let params = Params {
+            min_s: env_f("VB_MIN", 6.0),
+            max_s: env_f("VB_MAX", 15.0),
+            pause_ms: env_f("VB_PAUSE", 300.0) as u32,
+            ..Default::default()
+        };
+        let every = (env_f("VB_EVERY", 500.0) * 16.0) as usize;
+        let nowait = std::env::var("VB_NOWAIT").is_ok();
+        let show = std::env::var("VB_SHOW").is_ok();
+        let mut samples = samples.clone();
+        samples.extend(
+            (0..(0.8 * 16_000.0) as usize).map(|i| 0.0005 * ((i * 7919 % 13) as f32 - 6.0)),
+        );
+        let len = samples.len();
+        let audio_s = len as f64 / 16_000.0;
+        let _ = session.run(&vec![0.0f32; 16_000], &opts); // warm-up, as on keyboard open
+        let mut read = |a: &[f32]| {
+            session
+                .run(a, &opts)
+                .map(|r| r.text.trim().to_string())
+                .unwrap_or_default()
+        };
+        let mut seg = Segmenter::new(Mode::Pauses(params));
+        let mut queue: std::collections::VecDeque<Vec<f32>> = Default::default();
+        let (mut fed, mut committed, mut last_len) = (0usize, String::new(), 0usize);
+        let (mut first, mut lags, mut reads, mut busy) =
+            (None::<f64>, Vec::<f64>::new(), 0usize, 0.0f64);
+        let join = |a: &str, b: &str| format!("{a} {b}").trim().to_string();
+        let start = Instant::now();
+        let now = || start.elapsed().as_secs_f64();
+        loop {
+            let target = if nowait {
+                (fed + 3_200).min(len)
+            } else {
+                ((now() * 16_000.0) as usize).min(len)
+            };
+            if target > fed {
+                queue.extend(seg.push(&samples[fed..target]));
+                fed = target;
+            }
+            let covered = fed;
+            let t0 = now();
+            let shown = if let Some(p) = queue.pop_front() {
+                let t = read(&p);
+                committed = join(&committed, &t);
+                last_len = 0;
+                committed.clone()
+            } else if fed == len {
+                break;
+            } else {
+                let pend = seg.pending();
+                if pend.len() < last_len {
+                    last_len = 0;
+                }
+                if pend.len() >= last_len + every && seg.quiet_from() > 0 {
+                    last_len = pend.len();
+                    let live = read(pend);
+                    join(&committed, &live)
+                } else {
+                    if !nowait {
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
+                    continue;
+                }
+            };
+            reads += 1;
+            busy += now() - t0;
+            if !shown.is_empty() {
+                let t = now();
+                first.get_or_insert(t);
+                lags.push(t - covered as f64 / 16_000.0);
+                if show {
+                    println!("{t:6.2} s  {} words", shown.split_whitespace().count());
+                }
+            }
+        }
+        // Stopped (the person stopped at audio_s): the pieces still
+        // waiting, then the last one.
+        while let Some(p) = queue.pop_front() {
+            committed = join(&committed, &read(&p));
+        }
+        if let Some(p) = seg.finish() {
+            let end = seg.speech_end(&p).max(1).min(p.len());
+            committed = join(&committed, &read(&p[..end]));
+        }
+        println!("after stop: {:.2} s", now() - audio_s);
+        if show {
+            println!("final: {committed}");
+        }
+        if let Ok(p) = std::env::var("VB_SCRIPT") {
+            let script = std::fs::read_to_string(p).unwrap_or_default();
+            println!("vs script: {:.1} % off", wer(&script, &committed) * 100.0);
+        }
+        lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!(
+            "first words at {:.2} s; text lags speech by median {:.2} s, worst {:.2} s; {reads} reads, engine busy {:.0} %",
+            first.unwrap_or(f64::NAN),
+            lags.get(lags.len() / 2).copied().unwrap_or(f64::NAN),
+            lags.last().copied().unwrap_or(f64::NAN),
+            busy / audio_s * 100.0
+        );
+        return;
+    }
+
     // Streaming, as the Mac does it with a streaming model: 200 ms blocks
     // in real time into the model's own stream, which keeps its context.
     // Prints when the text changes and how far it lags behind the speech.
@@ -675,8 +804,20 @@ fn main() {
     // Dictation: how long after you stop speaking is the text there? The model
     // stays loaded, so only the transcription counts. Median of 3 runs.
     if args.get(3).map(String::as_str) == Some("--dictation") {
+        // VB_THREADS: CPU threads (default: the engine's choice).
+        if let Some(n) = std::env::var("VB_THREADS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+        {
+            session = model
+                .session_with(&transcribe_cpp::SessionOptions {
+                    n_threads: n,
+                    ..Default::default()
+                })
+                .expect("session");
+        }
         let _ = session.run(&samples[..16_000 * 2], &opts); // warm-up
-        for secs in [3usize, 5, 10, 30] {
+        for secs in [1usize, 2, 3, 5, 10, 30] {
             let clip = &samples[..(16_000 * secs).min(samples.len())];
             let mut times: Vec<f64> = (0..3)
                 .map(|_| {

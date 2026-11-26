@@ -13,7 +13,7 @@ words kept" (never changes a word typo_model.known() accepts: strict mode).
     python score_jamspell.py score MODEL set.jsonl ...
 
 JamSpell's Python module is imported from JAMSPELL_PATH (default
-~/sokki-typing-data/jamspell/pymod): the 0.0.12 sdist, swig 4 wrapper, compiled with
+$SOKKI_EVALS/jamspell/data/pymod): the 0.0.12 sdist, swig 4 wrapper, compiled with
     clang++ -std=c++11 -O2 -fPIC -bundle -undefined dynamic_lookup -I. -Ijamspell -I<python include>
         jamspell_wrap.cpp jamspell/*.cpp contrib/cityhash/city.cc contrib/phf/phf.cc
 (the setup.py build, with Python's own flags, crashes in TrainLangModel on arm64).
@@ -27,10 +27,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.environ.get("JAMSPELL_PATH", os.path.expanduser("~/sokki-typing-data/jamspell/pymod")))
+import evals  # noqa: E402
+sys.path.insert(0, os.environ.get("JAMSPELL_PATH") or evals.path("jamspell", "pymod"))
 import jamspell  # noqa: E402
 
-CORPORA = os.path.expanduser("~/sokki-typing-data/corpora")
+CORPORA = evals.path("text-corpora")
 SOURCES = ["deu-de_web_2021_1M", "deu_news_2023_1M", "eng-com_web-public_2018_1M", "eng_news_2023_1M"]
 # ngram_lm.py's letters (a-z, äöüß, éèêàâçñ, the apostrophe inside "don't"), both cases
 ALPHABET = "abcdefghijklmnopqrstuvwxyzäöüßéèêàâçñ'"

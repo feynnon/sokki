@@ -40,15 +40,15 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
+import evals  # noqa: E402
 import score_context as sc  # noqa: E402
 
-DATA = os.path.expanduser("~/sokki-typing-data")
-OUT = os.path.join(DATA, "small-lm")
-SETS = {
-    "typing37k": f"{DATA}/public/typing37k-ctx.jsonl.hyps.json",
-    "136m": f"{DATA}/public/136m-ctx.jsonl.hyps.json",
-    "robin-typos": f"{DATA}/synthetic/robin-typos-ctx.jsonl.hyps.json",
-    "robin-words": f"{DATA}/synthetic/robin-words-ctx.jsonl.hyps.json",
+OUT = evals.runs("typing", "small-lm")
+SETS = {  # checked when used: evals.path exits if a set is missing
+    "typing37k": ("typing37k", "typing37k-ctx.jsonl.hyps.json"),
+    "136m": ("136m", "136m-ctx.jsonl.hyps.json"),
+    "robin-typos": ("maintainer-typing-synthetic", "robin-typos-ctx.jsonl.hyps.json"),
+    "robin-words": ("maintainer-typing-synthetic", "robin-words-ctx.jsonl.hyps.json"),
 }
 MODELS = ["HuggingFaceTB/SmolLM2-135M", "HuggingFaceTB/SmolLM2-360M", "Qwen/Qwen2.5-0.5B"]
 TOP = 10
@@ -104,9 +104,9 @@ def prep_item(h):
 
 def prep():
     os.makedirs(OUT, exist_ok=True)
-    for name, path in SETS.items():
+    for name, where in SETS.items():
         t = time.time()
-        recs = [prep_item(h) for h in stream(path)]
+        recs = [prep_item(h) for h in stream(evals.path(*where))]
         pickle.dump(recs, open(f"{OUT}/{name}.prep.pkl", "wb"), protocol=5)
         el = sum(r["elig"] for r in recs)
         print(f"{name}: {len(recs)} items, {el} eligible "
@@ -132,14 +132,15 @@ def sample(recs, cap):
 
 # --- neural LM scores ------------------------------------------------------------------
 
-LEIPZIG_WORDS = [f"{DATA}/corpora/{c}/{c}-words.txt" for c in ("deu-de_web_2021_1M", "deu_news_2023_1M")]
+LEIPZIG_WORDS = [(c, f"{c}-words.txt") for c in ("deu-de_web_2021_1M", "deu_news_2023_1M")]  # in text-corpora
 
 
 def unfold_map(min_count=5):
     """Folded word -> its likeliest ß spelling ("strasse" -> "straße"). wordfreq folds ß
     away, so the spellings come from the German Leipzig word lists."""
     count = collections.Counter()
-    for path in LEIPZIG_WORDS:
+    for c, f in LEIPZIG_WORDS:
+        path = evals.path("text-corpora", c, f, optional=True)
         if os.path.exists(path):
             for x in open(path, encoding="utf-8"):
                 p = x.rstrip("\n").split("\t")

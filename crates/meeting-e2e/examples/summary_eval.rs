@@ -1,15 +1,26 @@
 //! Summarises the real-call eval transcripts with the app's summariser:
 //!   cargo run --release --example summary_eval -- [model] [file in each call folder]
+//! The calls are the private eval set real-calls: `$SOKKI_EVALS/real-calls/data`
+//! (default `~/sokki-evals`; see docs/evals.md).
 use meeting_core::summary::{LlmConfig, LlmSummarizer};
 use meeting_core::{Summarizer, Transcript};
-use std::path::Path;
+use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
     let model = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "qwen3.5:9b".into());
     let file = std::env::args().nth(2).unwrap_or_else(|| "raw.json".into());
-    let real = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/real");
+    let evals = std::env::var("SOKKI_EVALS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("sokki-evals"));
+    let real = evals.join("real-calls/data");
+    if !real.is_dir() {
+        anyhow::bail!(
+            "eval set 'real-calls' is missing: {} not found. How to get it: docs/evals.md; sets elsewhere? set SOKKI_EVALS",
+            real.display()
+        );
+    }
     let mut cfg = LlmConfig {
         user_name: Some("Robin".into()),
         ..LlmConfig::ollama(&model)

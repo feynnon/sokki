@@ -1,9 +1,10 @@
 //! Meetings that start and stop by themselves when people talk in the room
-//! (board card `auto-meeting`). Off by default for everyone
-//! (`meetings.auto_start_enabled`, no switch in the window yet): Robin
-//! uninstalled Wispr Flow over a bad auto start, so this one is measured on
-//! his Mac first. Research and the reasoning behind each number:
-//! `docs/research/auto-meeting-2026-11.md`.
+//! (board card `auto-meeting`). On by default for everyone since
+//! 2026-11-26 (`meetings.auto_start_enabled`; Robin, after a day on his
+//! Mac), but only once Sokki knows the user's own voice: until then the
+//! microphone stays closed and nothing starts. Robin uninstalled Wispr Flow
+//! over bad auto starts, hence the care. Research and the reasoning behind
+//! each number: `docs/research/auto-meeting-2026-11.md`.
 //!
 //! While the setting is on and nothing records, a listener keeps the
 //! microphone open (macOS shows its orange dot) and runs the voice detector
@@ -13,12 +14,13 @@
 //!
 //! A meeting starts when all of these hold:
 //! - at least [`MIN_SPEECH_S`] of speech in the last [`WINDOW_S`],
-//! - a known voice in it: at least [`MIN_KNOWN_PIECES`] speech pieces match
-//!   a voice Sokki knows (the user's own or a person who agreed, from
-//!   `voice-profiles.json`; speaker embeddings, the model meetings use). The
-//!   user alone counts too (Robin, 2026-11-26: "It should also record when
-//!   only I am speaking"); a video, a podcast or a TV with strangers' voices
-//!   doesn't. No known voice yet: nothing starts by itself.
+//! - the user is in it: at least [`MIN_KNOWN_PIECES`] speech pieces match
+//!   the user's own voice (the profile in `voice-profiles.json` named
+//!   `meetings.user_name`; speaker embeddings, the model meetings use).
+//!   Other people's voices, even ones Sokki knows, don't count (Robin,
+//!   2026-11-26: "Only activate it if the owner is present"). The user
+//!   alone is enough ("It should also record when only I am speaking"); a
+//!   video, a podcast or a TV doesn't start it.
 //! - no call app on the microphone (call detection asks for those, as
 //!   before), no dictation running, and no app playing sound (a video or
 //!   music on the speakers reaches the microphone; with headphones it
@@ -56,15 +58,15 @@ pub const WINDOW_S: f64 = 30.0;
 pub const MIN_SPEECH_S: f64 = 12.0;
 /// Audio kept in memory, which becomes the start of a started meeting.
 pub const PREROLL_S: f64 = 35.0;
-/// Speech pieces compared with the known voices.
+/// Speech pieces compared with the user's voice.
 const PIECE_S: f64 = 3.0;
-/// A piece is a known voice at this cosine similarity to one of its
+/// A piece is the user's voice at this cosine similarity to one of its
 /// embeddings. Voice profiles use 0.6 on long audio; a 3 s piece scatters
 /// more. Tuned on made-up voices (research doc), to be checked on Robin's.
 pub const KNOWN_VOICE: f32 = 0.5;
-/// Pieces that must match a known voice (one could be chance).
+/// Pieces that must match the user's voice (one could be chance).
 pub const MIN_KNOWN_PIECES: usize = 2;
-/// After a rejected candidate (no known voice, sound playing, call), wait this
+/// After a rejected candidate (not the user, sound playing, call), wait this
 /// long before checking again, so the embedder doesn't run every second.
 const RECHECK_S: f64 = 15.0;
 /// An auto-started meeting stops after this long without speech.
@@ -211,10 +213,11 @@ pub fn known_matches(pieces: &[Vec<f32>], known: &[Vec<f32>], threshold: f32) ->
     (matched, best)
 }
 
-/// Embeddings of every known voice: the user's own and those of people
-/// who agreed (only those have embeddings). Test mode:
-/// `SOKKI_TEST_AUTO_KNOWN=<WAV>` is the only known voice.
-fn known_voices(app: &AppHandle, embedder: &diarize::SpeakerEmbedder) -> Vec<Vec<f32>> {
+/// The user's own voice: the embeddings of the voice profile named
+/// `meetings.user_name`, the name meetings give the user. Empty until the
+/// user has named themself in a meeting and kept their voice. Test mode:
+/// the voice in `SOKKI_TEST_AUTO_KNOWN`.
+fn owner_voice(app: &AppHandle, embedder: &diarize::SpeakerEmbedder) -> Vec<Vec<f32>> {
     if crate::test_mic::active() {
         return std::env::var_os("SOKKI_TEST_AUTO_KNOWN")
             .and_then(|p| crate::test_mic::load_wav(std::path::Path::new(&p)))
@@ -222,14 +225,28 @@ fn known_voices(app: &AppHandle, embedder: &diarize::SpeakerEmbedder) -> Vec<Vec
             .into_iter()
             .collect();
     }
+    owner_profile_embeddings(app)
+}
+
+fn owner_profile_embeddings(app: &AppHandle) -> Vec<Vec<f32>> {
+    let user = crate::settings::get_settings(app).meetings.user_name;
+    let user = user.trim();
     super::process::voice_profiles(app)
-        .map(|p| {
+        .and_then(|p| {
             p.profiles()
                 .iter()
-                .flat_map(|v| v.embeddings.iter().cloned())
-                .collect()
+                .find(|v| v.name.trim() == user)
+                .map(|v| v.embeddings.clone())
         })
         .unwrap_or_default()
+}
+
+/// Whether the user's own voice is known, without loading the speaker model.
+fn owner_voice_known(app: &AppHandle) -> bool {
+    if crate::test_mic::active() {
+        return std::env::var_os("SOKKI_TEST_AUTO_KNOWN").is_some();
+    }
+    !owner_profile_embeddings(app).is_empty()
 }
 
 /// Why a candidate did not start (logged).
@@ -333,6 +350,7 @@ fn run(app: &AppHandle) {
     let mut embedder: Option<diarize::SpeakerEmbedder> = None;
     let mut embedder_failed = false;
     let mut was_enabled = false;
+    let mut waiting_for_voice = false;
     loop {
         let on = enabled(app);
         if on != was_enabled {
@@ -361,6 +379,17 @@ fn run(app: &AppHandle) {
             continue;
         }
         if listening.is_none() {
+            // No microphone (and no orange dot) before the user's own voice
+            // is known: nothing could start anyway.
+            if !owner_voice_known(app) {
+                if !waiting_for_voice {
+                    log::info!("Auto meeting: waiting for the user's own voice; not listening");
+                    waiting_for_voice = true;
+                }
+                std::thread::sleep(Duration::from_secs(30));
+                continue;
+            }
+            waiting_for_voice = false;
             match open_listener() {
                 Ok(l) => {
                     log::info!("Auto meeting: listening");
@@ -436,7 +465,7 @@ fn run(app: &AppHandle) {
         let pieces = window.speech_pieces();
         let (known, matched, best) = match embedder.as_ref() {
             Some(emb) => {
-                let known = known_voices(app, emb);
+                let known = owner_voice(app, emb);
                 let embeddings: Vec<Vec<f32>> =
                     pieces.iter().filter_map(|p| emb.embed(p).ok()).collect();
                 let (matched, best) = known_matches(&embeddings, &known, KNOWN_VOICE);
@@ -447,7 +476,7 @@ fn run(app: &AppHandle) {
         let check_ms = candidate_at.elapsed().as_millis();
         if matched < MIN_KNOWN_PIECES {
             log::info!(
-                "Auto meeting: not started, no known voice (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces known, best similarity {best:.2}, {known} known voice samples, checked in {check_ms} ms)",
+                "Auto meeting: not started, the user's voice not in it (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces the user's, best similarity {best:.2}, {known} samples of the user's voice, checked in {check_ms} ms)",
                 pieces.len()
             );
             next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
@@ -465,7 +494,7 @@ fn run(app: &AppHandle) {
         match super::start_meeting(app, None) {
             Ok(id) => {
                 log::info!(
-                    "Auto meeting: started {id} (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces a known voice, best similarity {best:.2}, checked in {check_ms} ms, recording {} ms later, {preroll_s:.1} s from before the start kept, listening for {listened_s:.0} s)",
+                    "Auto meeting: started {id} (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces the user's voice, best similarity {best:.2}, checked in {check_ms} ms, recording {} ms later, {preroll_s:.1} s from before the start kept, listening for {listened_s:.0} s)",
                     pieces.len(),
                     begun.elapsed().as_millis()
                 );
@@ -566,6 +595,7 @@ fn offer_card(app: &AppHandle, id: String) {
             Some("off") => {
                 let mut settings = crate::settings::get_settings(&handle);
                 settings.meetings.auto_start_enabled = false;
+                settings.meetings.auto_start_set = true;
                 crate::settings::write_settings(&handle, settings);
                 log::info!(
                     "Auto meeting: turned off by the user from the card {:.1} s after starting {id}; the recording goes on",

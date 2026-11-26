@@ -1,13 +1,13 @@
 // Sokki: voice typing in the keyboard. Tap the mic (top right of the
 // suggestion strip), speak, tap again. The text goes into whatever field is
-// open while you speak, as on the Mac: a streaming model adds words about
-// every half second, and words it has moved past never change, so they are
-// typed for good at once; only the word still being heard is underlined.
-// Through the paired Mac when it's reachable (faster, more accurate: its
-// Parakeet on the GPU); then the whole text stays underlined, as it may still
-// change, and is typed for good at the stop. Otherwise, or when the Mac stops
-// answering, all on the phone. The speech engine is Rust
-// (mobile/src-tauri/src/keyboard_voice.rs); the model is the app's download.
+// open while you speak. Through the paired Mac when it's reachable (its
+// Parakeet on the GPU, fastest and most accurate); the whole text stays
+// underlined, as it may still change, and is typed for good at the stop.
+// Otherwise, or when the Mac stops answering, Parakeet on the phone in
+// pieces: a piece that ended at a pause is typed for good, the growing one
+// stays underlined. The speech engine is Rust
+// (mobile/src-tauri/src/keyboard_voice.rs, pieces.rs); the model is the
+// app's download.
 //
 // Feels instant: recording starts on the tap, even while the engine is
 // still loading (the audio waits and is transcribed once it's ready), and
@@ -43,9 +43,11 @@ object SokkiVoice {
     private const val TEXT = "\u0000text:"
     private const val FINAL = "\u0000final:"
     private const val LIVE = "\u0000live:"
-    const val MODEL_FILE = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"
-    /** The model before 2026-11-25; the app replaces it by itself. */
-    private const val OLD_MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
+    private const val PARTS = "\u0000parts:"
+    const val MODEL_FILE = "parakeet-ultra-Q8_0.gguf"
+    /** The model from 25 to 26 Nov 2026 (Nemotron Streaming); the app
+     * replaces it by itself. */
+    private const val OLD_MODEL_FILE = "nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"
     /** Re-warm on keyboard open when the engine was last used this long ago:
      * Android pushes an idle keyboard's model out of memory. */
     private const val REWARM_AFTER_MS = 30_000L
@@ -157,7 +159,7 @@ object SokkiVoice {
             val updating = File(model.parentFile, OLD_MODEL_FILE).exists()
             openApp(
                 context,
-                if (updating) "Sokki is getting its faster speech model (750 MB). Try again in a few minutes."
+                if (updating) "Sokki is getting its more accurate speech model (740 MB). Try again in a few minutes."
                 else "Download the speech model in Sokki (Dictate tab) first.",
             )
             return
@@ -293,8 +295,13 @@ object SokkiVoice {
                 when {
                     text == DONE -> return done(mine, null)
                     text.startsWith(ERROR) -> return done(mine, text.removePrefix(ERROR))
-                    text.startsWith(TEXT) -> show(text.removePrefix(TEXT), false)
-                    text.startsWith(FINAL) -> show(text.removePrefix(FINAL), true)
+                    text.startsWith(TEXT) -> text.removePrefix(TEXT).let { show(it, maxOf(0, it.lastIndexOf(' '))) }
+                    text.startsWith(FINAL) -> text.removePrefix(FINAL).let { show(it, it.length) }
+                    text.startsWith(PARTS) -> text.removePrefix(PARTS).split('\u0001', limit = 2).let { p ->
+                        val kept = p[0]
+                        val growing = p.getOrElse(1) { "" }
+                        show(if (growing.isEmpty()) kept else "$kept $growing".trim(), kept.length)
+                    }
                     text.startsWith(LIVE) -> showLive(text.removePrefix(LIVE))
                 }
             }
@@ -342,7 +349,7 @@ object SokkiVoice {
     /** Through the Mac: the text so far, all of it still changeable, so all
      * underlined; the final text replaces it. */
     private fun showLive(text: String) {
-        if (typed > 0) return show(text, false) // never: the Mac's text is all-or-final
+        if (typed > 0) return show(text, maxOf(0, text.lastIndexOf(' '))) // never: the Mac's text is all-or-final
         val ic = connection?.invoke() ?: return
         if (text.isNotBlank()) {
             ic.setComposingText(space(ic) + text, 1)
@@ -354,12 +361,11 @@ object SokkiVoice {
         lastText = text
     }
 
-    /** The dictation's text so far ([final]: all of it). Words the model
-     * has moved past don't change: they're typed for good; the last word may
-     * still grow, so it stays underlined until the next text. */
-    private fun show(text: String, final: Boolean) {
+    /** The dictation's text so far: its first [stable] characters are
+     * typed for good (the final text: all of it), the rest stays underlined
+     * until the next text, as it may still change. */
+    private fun show(text: String, stable: Int) {
         val ic = connection?.invoke() ?: return
-        val stable = if (final) text.length else maxOf(0, text.lastIndexOf(' '))
         ic.beginBatchEdit()
         if (stable > typed) {
             if (!text.startsWith(lastText.substring(0, typed))) {

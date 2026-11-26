@@ -1,6 +1,6 @@
 """Sokki: check the Mac's Rust typo model gives the same answer as the phone's Python twin.
 
-Runs both on every word of Robin's own writing (~/sokki-typing-data, private: nothing from it is
+Runs both on every word of Robin's own writing (eval set maintainer-typing, private: nothing from it is
 written outside a temp dir) and on samples of the public typing sets, each word with the three
 words before it in its sentence, the next word unknown (as when a word is committed).
 
@@ -29,9 +29,8 @@ ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 TOOLS = os.path.join(ROOT, "mobile", "keyboard", "tools")
 sys.path.insert(0, TOOLS)
 import typo_model as tm  # noqa: E402
+import evals  # noqa: E402
 import robin_eval as re_  # noqa: E402
-
-D = re_.D
 
 
 def samples():
@@ -39,7 +38,7 @@ def samples():
     for w, _, _, prevs in toks + jtoks:
         yield "robin", w, prevs
     for name in ("typing37k", "136m"):
-        for x in re_.sample(D + f"public/{name}-ctx.jsonl", 1500, 2500):
+        for x in re_.sample(evals.path(name, f"{name}-ctx.jsonl"), 1500, 2500):
             prevs = ([tm.BOS] + x["prev"])[-3:] if len(x["prev"]) < 8 else x["prev"][-3:]
             yield name, x["typed"], prevs
 

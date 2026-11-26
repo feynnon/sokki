@@ -32,8 +32,8 @@ No desktop app we found starts recording because people talk. They start on the 
 
 ## What this means for Sokki (the design built)
 
-- **Off for everyone**, no switch in the window: `meetings.auto_start_enabled` set by hand, on Robin's Mac only.
-- **Start only on a known voice:** at least 12 s of speech in the last 30 s, and at least 2 of its 3 s speech pieces match a voice Sokki knows (cosine ≥ 0.5 to an embedding in `voice-profiles.json`: the user's own, or a person who agreed). The user alone counts (Robin, 2026-11-26: record "when only I am speaking"). Strangers' voices (a video, a podcast, a TV in the room) don't start it. First built as "two different voices"; Robin changed it the same day.
+- **On for everyone, but only with the user's own voice known** (since 2026-11-26 evening; first off for everyone and on only on Robin's Mac). Until a voice profile named like the user (`meetings.user_name`) has a voice, the microphone stays closed and nothing starts.
+- **Start only when the user is in it:** at least 12 s of speech in the last 30 s, and at least 2 of its 3 s speech pieces match the user's own voice (cosine ≥ 0.5 to an embedding of that profile). Other people's voices, even known ones, don't count (Robin, 2026-11-26: "Only activate it if the owner is present"). The user alone is enough ("when only I am speaking"). First built as "two different voices", then "any known voice"; both changed the same day.
 - **Not on media:** no start while any app plays sound (Core Audio `kAudioProcessPropertyIsRunningOutput`, per app, Sokki left out). Sound plus speech on the mic is most likely a video, music or podcast. With headphones nothing reaches the mic, and the check doesn't matter.
 - **Not on calls:** a call app on the microphone keeps the existing click-to-start prompt; the listener stays out.
 - **Not during a dictation.**
@@ -82,6 +82,16 @@ Same made-up audio as above. The card itself was checked in headless Chromium (`
 | Video with two strangers | no start | no start, best similarity 0.16–0.30 |
 
 Not tested headless: stopping an auto-started meeting in the pill (then 15 minutes without auto start), and how the card looks in the real window over the desktop.
+
+## Headless test: only the user's own voice, on by default (2026-11-26, 20:38)
+
+| Case | Expected | Result |
+|---|---|---|
+| The user talks (the test's own voice) | start | started, 2 of 3 pieces the user's, 0.92 |
+| No own voice known | no microphone | "waiting for the user's own voice; not listening" |
+| Video with two strangers | no start | no start, best similarity 0.16–0.30 |
+
+On Robin's Mac the voice profile named like `meetings.user_name` exists with one sample, so it keeps working there.
 
 ## First real use (2026-11-26, Robin's Mac, 0.2.17)
 

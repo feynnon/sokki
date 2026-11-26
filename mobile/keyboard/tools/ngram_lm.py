@@ -10,7 +10,7 @@ their weight. One model holds both languages: the context picks the language.
     python ngram_lm.py build lm.npz corpus.txt ...   # "id<TAB>sentence" (Leipzig) or "id<TAB>lang<TAB>sentence" (Tatoeba)
     python ngram_lm.py size lm.npz                   # n-gram counts and bytes in a phone-sized table
 
-Corpora used for the 2026-11 experiments (~/sokki-typing-data/corpora/): Leipzig
+Corpora used for the 2026-11 experiments (eval set text-corpora, docs/evals.md): Leipzig
 deu-de_web_2021_1M, deu_news_2023_1M, eng-com_web-public_2018_1M,
 eng_news_2023_1M, deu_wikipedia_2021_1M, eng_wikipedia_2016_1M, and Tatoeba's
 German and English sentences (CC BY 2.0 FR). The shipped pair table uses only

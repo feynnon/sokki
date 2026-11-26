@@ -70,7 +70,7 @@ def main():
         out[name] = tags
         print(name, len(ts), "words,", sum(t is not None for t in tags), "in German sentences,",
               sum(bool(t) for t in tags), "nouns/names")
-    json.dump(out, open(ev.D + "caps-truth.json", "w"))
+    json.dump(out, open(ev.evals.path(ev.ROBIN, "caps-truth.json", optional=True), "w"))
 
 
 if __name__ == "__main__":

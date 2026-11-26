@@ -48,7 +48,8 @@ __pycache__/
 
 # Meeting test fixtures (regenerate with testdata/generate.py)
 testdata/audio/
-testdata/real/
+# private real-call evals live in ~/sokki-evals/real-calls (docs/evals.md); old link kept here
+testdata/real
 
 # Files shared with the Omarchy test VM
 vm-share/

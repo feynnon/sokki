@@ -724,13 +724,16 @@ pub struct MeetingSettings {
     /// (muted, wrong device) or a detected call brings no sound, once per
     /// recording (`meeting/silence.rs`).
     pub silence_hint_enabled: bool,
-    /// Start a meeting by itself when a known voice (the user's own, or a
-    /// person who agreed) talks near the Mac and no call app runs; stop it
-    /// after two minutes without speech. A one-line card has an Auto-Start
-    /// switch that turns this off (`meeting/auto.rs`). Off for everyone and no switch in the
-    /// window: on only where set by hand in the settings file, until it is
-    /// proven (Robin, 2026-11-26). While on, the microphone stays open.
+    /// Start a meeting by itself when the user's own voice talks near the
+    /// Mac and no call app runs; stop it after two minutes without speech.
+    /// On by default (Robin, 2026-11-26), but it only listens once the
+    /// user's own voice is known (a voice profile named `user_name`). A
+    /// one-line card has an Auto-Start switch that turns this off
+    /// (`meeting/auto.rs`). While it listens, the microphone stays open.
     pub auto_start_enabled: bool,
+    /// The person set `auto_start_enabled` themselves (the card's switch).
+    /// Until then the default may change under them; after, never.
+    pub auto_start_set: bool,
 }
 
 impl Default for MeetingSettings {
@@ -758,7 +761,8 @@ impl Default for MeetingSettings {
             slack_post_huddles: false,
             phone_link_enabled: false,
             silence_hint_enabled: true,
-            auto_start_enabled: false,
+            auto_start_enabled: true,
+            auto_start_set: false,
         }
     }
 }
@@ -805,7 +809,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 11;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 12;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -818,6 +822,17 @@ fn default_custom_words() -> Vec<String> {
 fn notes_mail_on_by_default(m: &mut MeetingSettings) {
     if !m.mail_notes_auto_set {
         m.mail_notes_auto = true;
+    }
+}
+
+/// Auto start became on by default (schema 12, Robin, 2026-11-26: "Activate
+/// it by default for all users"). 0.2.17–0.2.19 stored the old default
+/// (off) for everyone and never recorded who set it; the card could only
+/// turn it off where it was on, which was Robin's Mac alone. So it turns on
+/// for everyone once; from now on a switch the person sets stays as set.
+fn auto_start_on_by_default(m: &mut MeetingSettings) {
+    if !m.auto_start_set {
+        m.auto_start_enabled = true;
     }
 }
 
@@ -1777,6 +1792,11 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 12 {
+        auto_start_on_by_default(&mut settings.meetings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -2044,6 +2064,27 @@ mod tests {
         assert!(!off.mail_notes_auto, "a switch the person set stays off");
         assert!(
             MeetingSettings::default().mail_notes_auto,
+            "new installs: on"
+        );
+    }
+
+    #[test]
+    fn auto_start_turns_on_once_unless_the_person_set_it() {
+        let mut m = MeetingSettings {
+            auto_start_enabled: false,
+            ..MeetingSettings::default()
+        };
+        auto_start_on_by_default(&mut m);
+        assert!(m.auto_start_enabled, "the old stored default turns on");
+        let mut off = MeetingSettings {
+            auto_start_enabled: false,
+            auto_start_set: true,
+            ..MeetingSettings::default()
+        };
+        auto_start_on_by_default(&mut off);
+        assert!(!off.auto_start_enabled, "a switch the person set stays off");
+        assert!(
+            MeetingSettings::default().auto_start_enabled,
             "new installs: on"
         );
     }

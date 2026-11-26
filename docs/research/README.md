@@ -1,6 +1,6 @@
 # Research: models, prompts and measurements
 
-These are the measurements behind Sokki's choices of language model, prompt, live mode and runtime. Read them before you change any of those, and add to them when you measure something new. Decisions were reverted or questioned later when the reasons were not written down (for example, why the paste uses a second transcription: see "Open questions").
+These are the measurements behind Sokki's choices of language model, prompt, live mode and runtime. The data they were measured on is listed in `docs/evals.md` (eval sets, outside the repo). Read them before you change any of those, and add to them when you measure something new. Decisions were reverted or questioned later when the reasons were not written down (for example, why the paste uses a second transcription: see "Open questions").
 
 ## Files
 

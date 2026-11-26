@@ -21,6 +21,7 @@ import sys
 from wordfreq import get_frequency_dict
 
 sys.path.insert(0, os.path.dirname(__file__))
+import evals  # noqa: E402
 import typo_model as tm  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "src", "main", "assets", "sokki", "words.bin")
@@ -48,7 +49,7 @@ keys += [f"w:{w}" for w in set(freq["de"]) | set(freq["en"])
 
 # "C:<word>": German text writes it with a capital, 90%+ of its 10+ uses mid-sentence (truecasing;
 # counts from gen_case_counts.py over Wikipedia + Tatoeba German, path in CASE_COUNTS).
-cc = os.environ.get("CASE_COUNTS", os.path.expanduser("~/sokki-typing-data/corpora/case-de.json"))
+cc = os.environ.get("CASE_COUNTS") or evals.path("text-corpora", "case-de.json")
 keys += [f"C:{w}" for w, (up, low) in json.load(open(cc)).items() if up + low >= 10 and up >= 0.9 * (up + low)]
 
 # common.txt: the words a typed word may be two slips from (typo_model.near_words), one per line,

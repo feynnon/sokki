@@ -70,11 +70,12 @@ HeliBoard are marked "Sokki" in the code:
 
 - The mic is pinned at the top right of the suggestion strip. Tapping it
   starts `dev.verbatim.sokki.SokkiVoice`: microphone → Rust
-  (`src-tauri/src/keyboard_voice.rs`) → the streaming model (Nemotron
-  Streaming 3.5, as on the Mac with a streaming model) → words typed into
-  the open field about every half second, the word still being heard
-  underlined. Tap again to stop; the mic is red while listening. Numbers:
-  `asr-bench/README.md`, "Streaming".
+  (`src-tauri/src/keyboard_voice.rs`) → through the Mac (below), or on the
+  phone Parakeet Ultra in pieces (`src-tauri/src/pieces.rs`): the growing
+  piece is read every half second and stays underlined, a piece that ends
+  at a pause (6–15 s) is read whole and typed for good, at the stop only
+  the last piece is left. Tap again to stop; the mic is red while
+  listening. Numbers: `docs/research/phone-dictation-latency-2026-11.md`.
 - Through the Mac first: when the phone is paired with a Mac running Sokki
   (phone link on), the keyboard opens the link when it opens and dictates
   through it. The Mac reads the audio with its own model and settings

@@ -3,7 +3,7 @@ Every word. Yours.
 Sokki turns speech into text on your phone. No account. No cloud.
 
 <b>Dictation</b>
-Speak, and the words appear while you talk. Copy them anywhere. Offline after a one-time 750 MB download. 28 languages.
+Speak, and the words appear while you talk. Copy them anywhere. Offline after a one-time 740 MB download. 25 languages.
 
 <b>Keyboard</b>
 The Sokki keyboard dictates into any app: tap the mic, speak, tap again. Autocorrect fixes typos only. German and English side by side, no switching.

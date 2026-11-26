@@ -62,6 +62,44 @@ The Mac app serves the dictation (`meeting/phone_link.rs`), and `crates/sokki-li
   - Relay only: first words 0.7–1.3 s.
   - First dictation on a brand-new link: see `KNOWN_ISSUES.md` K12.
 
+## Parakeet on the phone, faster (26 Nov, the fallback without a Mac)
+
+Robin (26 Nov): without the Mac, "using the local parakeet, and looking to making that as fast as possible", especially the first words.
+
+**Speed by model and threads** (Pixel 7, `asr-bench --dictation`, reading the first N s, median of 3):
+
+| Model | Threads | 1 s | 3 s | 10 s | 30 s |
+|---|---|---|---|---|---|
+| Q8_0 | 4 | 0.31 | 0.64 | 2.09 | 6.71 |
+| Q8_0 | 6 | 0.28 | 0.82 | 2.82 | 9.09 |
+| Q5_K_M | 4 | 0.40 | 0.90 | 3.00 | 9.45 |
+| Q4_K_M | 4 | 0.34 | 0.75 | 2.45 | 7.73 |
+| Q4_K_M | 6 / 8 | 0.39 | 1.05 / 1.00 | 3.19 / 3.16 | 9.80 / 9.58 |
+
+- Q8 with 4 threads is fastest: the phone's CPU has fast paths for 8-bit, and more threads only wait for each other.
+- Accuracy of the smaller models on Robin's 34 dictations (20 s pieces) is the same:
+
+| | Q8_0 | Q5_K_M | Q4_K_M |
+|---|---|---|---|
+| Whisper | 11.2 % | 11.1 % | 11.1 % |
+| Canary | 11.7 % | 12.0 % | 11.9 % |
+
+**Live in pieces** (`asr-bench --pieces`, `mobile/src-tauri/src/pieces.rs`): the growing piece is read every 0.5 s, and a piece ends at a pause after min s (at most max s) and is kept.
+
+| Pieces (min–max) | Words different, Robin's 34 (Whisper / Canary) | First words | Text behind speech (median, worst at the median clip) | Done after stop (median / worst) |
+|---|---|---|---|---|
+| 4–10 s | 12.0 / 12.2 % | | | |
+| 6–15 s (shipped) | 12.0 / 12.2 % | 1.38 s | 0.97 s, 2.4 s | 2.4 / 4.5 s |
+| 8–20 s | 10.5 / 11.6 % | 1.43 s | 1.19 s, 3.5 s | 3.5 / 7.3 s |
+| 10–25 s | 11.0 / 12.2 % | | | |
+| whole dictation (Mac) | 10.3 / 10.9 % | | | |
+| Nemotron, lookahead 6 | 17.0 / 17.9 % | 1.45 s | 0.24 s, 0.5 s | 0.29 / 0.44 s |
+
+- Speed: 13 test clips on the Pixel 7, Q8, 4 threads.
+- Test clips against their scripts: Parakeet 6.7 % of words, Nemotron 9.0 %.
+- **Decision (Robin's rule, quality before a bit of speed):** Parakeet Ultra Q8 in 6–15 s pieces replaces Nemotron on the phone.
+- **Emulator check (4 cores, 2 threads; much slower than the Pixel):** first words 1.5–1.9 s, done 5.5–7 s after the stop. The text came out complete, and no word typed for good changed afterwards.
+
 ## Newer phones (CPU, Geekbench 6 multi-core, rough; numbers vary by source)
 
 | Chip (phone) | Multi-core | vs Pixel 7 |

@@ -40,6 +40,7 @@ import { MailSettings } from "./MailSettings";
 import { SpeakerChips } from "./SpeakerChips";
 import { LiveTranscript, SampleCard, SampleTag } from "./SampleMeeting";
 import { SlackHuddles } from "./SlackHuddles";
+import { RecordingStart } from "./RecordingStart";
 import {
   commands,
   events,
@@ -343,6 +344,8 @@ const MeetingSettingsView: React.FC<{
           {t("meetings.back")}
         </Button>
 
+        <RecordingStart meetingSettings={meetingSettings} save={save} />
+
         <SettingsGroup title={t("meetings.settings.notesTitle")}>
           <SettingContainer
             title={t("meetings.settings.notesDir")}
@@ -378,13 +381,6 @@ const MeetingSettingsView: React.FC<{
               onSave={(v) => void save({ user_name: v.trim() || "Ich" })}
             />
           </SettingContainer>
-          <ToggleSwitch
-            checked={meetingSettings.detection_enabled}
-            onChange={(v) => void save({ detection_enabled: v })}
-            label={t("meetings.settings.detection")}
-            description={t("meetings.settings.detectionDescription")}
-            grouped
-          />
           <ToggleSwitch
             checked={meetingSettings.chat_notice_enabled}
             onChange={(v) => void save({ chat_notice_enabled: v })}

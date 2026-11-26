@@ -241,6 +241,11 @@ function fixtures(s: Scenario) {
         mail_notes_auto: true,
         mail_notes_auto_set: false,
         silence_hint_enabled: true,
+        // On by default since 2026-11-26 (meeting/auto.rs).
+        auto_start_enabled: true,
+        auto_start_set: false,
+        auto_start_show_after_s: 60,
+        auto_start_min_talk_s: 120,
       },
       videos: { enabled: true, display: null },
       custom_words: ["Sokki", "Parakeet", "Obsidian", "Tauri"],

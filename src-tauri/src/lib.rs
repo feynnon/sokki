@@ -906,6 +906,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::meeting_mail_send,
             commands::meeting::mail_setup,
             commands::meeting::mail_objections,
+            commands::meeting::auto_meeting_recent,
             commands::meeting::gmail_status,
             commands::meeting::gmail_connect,
             commands::meeting::gmail_disconnect,

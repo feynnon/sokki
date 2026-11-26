@@ -152,6 +152,26 @@ pub fn list_meetings(store: State<'_, Arc<MeetingStore>>) -> Result<Vec<MeetingR
     Ok(store.list())
 }
 
+/// The last meetings that started by themselves (at most 3), newest first,
+/// with their titles, for Settings › Meetings.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn auto_meeting_recent(
+    app: AppHandle,
+    store: State<'_, Arc<MeetingStore>>,
+) -> Vec<crate::meeting::auto::AutoStart> {
+    let records = store.list();
+    let mut list = crate::meeting::auto::recent(&app);
+    for e in &mut list {
+        e.title = records
+            .iter()
+            .find(|r| r.id == e.meeting_id)
+            .and_then(|r| r.title.clone());
+    }
+    list
+}
+
 /// Opens the meeting's note: in Obsidian when the notes folder is inside a
 /// vault, otherwise with the default app for Markdown.
 /// Summary and transcript of a meeting, read from its note (so edits made

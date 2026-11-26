@@ -90,7 +90,9 @@ export const PhoneLink: React.FC<{
                   onClick={() => void copy()}
                 >
                   <Copy width={13} height={13} />
-                  {copied ? t("meetings.phone.copied") : t("meetings.phone.copy")}
+                  {copied
+                    ? t("meetings.phone.copied")
+                    : t("meetings.phone.copy")}
                 </Button>
                 <span className="text-xs text-mid-gray">
                   {t("meetings.phone.code")}:{" "}
@@ -121,7 +123,10 @@ export const PhoneLink: React.FC<{
           >
             <div className="flex flex-col gap-1.5">
               {info.phones.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-3">
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3"
+                >
                   <span className="text-sm">
                     {p.name || t("meetings.phone.phone")}
                     <span className="text-xs text-mid-gray ms-2">

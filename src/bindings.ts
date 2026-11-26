@@ -919,6 +919,13 @@ async listMeetings() : Promise<Result<MeetingRecord[], string>> {
 }
 },
 /**
+ * The last meetings that started by themselves (at most 3), newest first,
+ * with their titles, for Settings › Meetings.
+ */
+async autoMeetingRecent() : Promise<AutoStart[]> {
+    return await TAURI_INVOKE("auto_meeting_recent");
+},
+/**
  * The milestone card to show now, if any.
  */
 async getMilestone() : Promise<Result<Milestone | null, string>> {
@@ -2381,6 +2388,39 @@ export type MessageView = { id: number; title: string; text: string;
  * The main button; none: just "OK".
  */
 action_label: string | null; action_url: string | null; action_update: boolean }
+export type AutoOutcome = 
+/**
+ * Still recording.
+ */
+"recording" | 
+/**
+ * Stopped by itself and kept.
+ */
+"kept" | 
+/**
+ * Stopped by itself and deleted: the conversation was too short.
+ */
+"deleted" | 
+/**
+ * The user stopped it (kept as a meeting).
+ */
+"stopped"
+/**
+ * One meeting that started by itself.
+ */
+export type AutoStart = { meeting_id: string; 
+/**
+ * Local time, RFC 3339.
+ */
+started_at: string; outcome: AutoOutcome; 
+/**
+ * Seconds of conversation, once it stopped by itself.
+ */
+talk_s: number | null; 
+/**
+ * The meeting's title, filled in when read (not stored).
+ */
+title?: string | null }
 export type MeetingRecord = { id: string; 
 /**
  * Local start time, RFC 3339.
@@ -2565,7 +2605,35 @@ phone_link_enabled: boolean;
  * (muted, wrong device) or a detected call brings no sound, once per
  * recording (`meeting/silence.rs`).
  */
-silence_hint_enabled: boolean }
+silence_hint_enabled: boolean; 
+/**
+ * Start a meeting by itself when the user's own voice talks near the
+ * Mac and no call app runs; stop it after two minutes without speech.
+ * On by default (Robin, 2026-11-26), but it only listens once the
+ * user's own voice is known (a voice profile named `user_name`). A
+ * one-line card has an Auto-Start switch that turns this off
+ * (`meeting/auto.rs`). While it listens, the microphone stays open.
+ */
+auto_start_enabled: boolean; 
+/**
+ * The person set `auto_start_enabled` themselves (the card's switch).
+ * Until then the default may change under them; after, never.
+ */
+auto_start_set: boolean; 
+/**
+ * Seconds Sokki listens in on a conversation, in memory only, before it
+ * shows it as a meeting (Robin, 2026-11-26: "Show at 60 s"). A
+ * conversation that ends sooner is dropped and nothing is kept. At most
+ * 240.
+ */
+auto_start_show_after_s: number; 
+/**
+ * A meeting that started by itself is deleted when its conversation
+ * lasted less than this many seconds, counted from when Sokki began
+ * listening in (Robin: "Conversation keeps going for more than 2 mins
+ * (else drop)").
+ */
+auto_start_min_talk_s: number }
 /**
  * Where a meeting is in its life.
  */

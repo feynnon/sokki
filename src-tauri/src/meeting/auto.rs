@@ -51,7 +51,9 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use serde::{Deserialize, Serialize};
 use sokki_recorder::{AudioChunk, Recorder, RecorderConfig, Sink};
+use specta::Type;
 use tauri::{AppHandle, Manager};
 
 use crate::audio_toolkit::vad::EARSHOT_FRAME_SAMPLES;
@@ -573,6 +575,87 @@ fn run(app: &AppHandle) {
     }
 }
 
+// ---------------------------------------------------------------- recent
+
+/// The last auto starts, for Settings › Meetings (Robin, 2026-11-26: "the
+/// stats are interesting too, but at most 3"). Conversations dropped while
+/// listening in never show here.
+const RECENT_FILE: &str = "auto-meetings.json";
+const RECENT_MAX: usize = 3;
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoOutcome {
+    /// Still recording.
+    Recording,
+    /// Stopped by itself and kept.
+    Kept,
+    /// Stopped by itself and deleted: the conversation was too short.
+    Deleted,
+    /// The user stopped it (kept as a meeting).
+    Stopped,
+}
+
+/// One meeting that started by itself.
+#[derive(Serialize, Deserialize, Clone, Debug, Type)]
+pub struct AutoStart {
+    pub meeting_id: String,
+    /// Local time, RFC 3339.
+    pub started_at: String,
+    pub outcome: AutoOutcome,
+    /// Seconds of conversation, once it stopped by itself.
+    pub talk_s: Option<f64>,
+    /// The meeting's title, filled in when read (not stored).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+fn recent_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join(RECENT_FILE))
+}
+
+/// The last auto starts, newest first, at most [`RECENT_MAX`].
+pub fn recent(app: &AppHandle) -> Vec<AutoStart> {
+    recent_path(app)
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+/// Records what became of auto-started meeting `id` (new ones go first).
+fn remember(app: &AppHandle, id: &str, outcome: AutoOutcome, talk_s: Option<f64>) {
+    let Some(path) = recent_path(app) else { return };
+    let mut list = recent(app);
+    match list.iter_mut().find(|e| e.meeting_id == id) {
+        Some(e) => {
+            e.outcome = outcome;
+            e.talk_s = talk_s.or(e.talk_s);
+        }
+        None => list.insert(
+            0,
+            AutoStart {
+                meeting_id: id.to_string(),
+                started_at: chrono::Local::now().to_rfc3339(),
+                outcome,
+                talk_s,
+                title: None,
+            },
+        ),
+    }
+    list.truncate(RECENT_MAX);
+    for e in &mut list {
+        e.title = None;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let written = serde_json::to_vec_pretty(&list)
+        .map_err(std::io::Error::other)
+        .and_then(|b| std::fs::write(&tmp, b))
+        .and_then(|_| std::fs::rename(&tmp, &path));
+    if let Err(e) = written {
+        log::warn!("Auto meeting: could not save the recent starts: {e}");
+    }
+}
+
 /// A conversation the listener records into memory only, before it is
 /// shown as a meeting. Nothing of it touches the disk unless it becomes one.
 struct Trial {
@@ -672,6 +755,7 @@ fn start_ours(app: &AppHandle, t: Trial, speech_s: f64, c: &OwnerCheck) {
                 began_mono_us: t.began_mono_us,
             });
             crate::usage::count(app, crate::usage::Count::AutoMeetingStarted);
+            remember(app, &id, AutoOutcome::Recording, None);
             offer_card(app, id);
         }
         Err(e) => log::warn!("Auto meeting: starting failed: {e}"),
@@ -802,17 +886,23 @@ fn watch_ours(app: &AppHandle, id: &str) {
     *OURS.lock().unwrap_or_else(|e| e.into_inner()) = None;
     if talk_s < min_talk_s {
         match super::discard_meeting(app) {
-            Ok(_) => log::info!(
-                "Auto meeting: deleted {id}: the conversation lasted {talk_s:.0} s, less than {min_talk_s:.0} s"
-            ),
+            Ok(_) => {
+                log::info!(
+                    "Auto meeting: deleted {id}: the conversation lasted {talk_s:.0} s, less than {min_talk_s:.0} s"
+                );
+                remember(app, id, AutoOutcome::Deleted, Some(talk_s));
+            }
             Err(e) => log::warn!("Auto meeting: deleting the short {id} failed: {e}"),
         }
         return;
     }
     match super::stop_meeting(app) {
-        Ok(_) => log::info!(
-            "Auto meeting: stopped {id} after {quiet_s:.0} s without speech ({length_s:.0} s recorded, {talk_s:.0} s of conversation)"
-        ),
+        Ok(_) => {
+            log::info!(
+                "Auto meeting: stopped {id} after {quiet_s:.0} s without speech ({length_s:.0} s recorded, {talk_s:.0} s of conversation)"
+            );
+            remember(app, id, AutoOutcome::Kept, Some(talk_s));
+        }
         Err(e) => log::warn!("Auto meeting: stopping {id} failed: {e}"),
     }
 }
@@ -832,6 +922,7 @@ fn forget_ours_if_gone(app: &AppHandle) {
             COOLDOWN_S / 60
         );
         crate::usage::count(app, crate::usage::Count::AutoMeetingStoppedByUser);
+        remember(app, &o.id, AutoOutcome::Stopped, None);
     }
 }
 

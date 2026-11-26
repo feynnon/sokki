@@ -94,6 +94,10 @@ Measured with the Mac test app and `examples/dictate`; first words are unchanged
 - **How the pieces end matters for the cleanup.**
   - First version, fixed 15 s pieces with the final text read again whole: the cleanup redid all 132 live-cleaned words at the stop, and the 65 s dictation was done only 8.6 s after the stop.
   - Now: pieces cut at pauses (15–30 s, `dictation-core`), and the final text is those pieces plus the last one.
+- **On Robin's Pixel through his Mac** (Sokki 0.2.23, 26 Nov, 22:15):
+  - German 27 s: first words 0.69 s, done 4.0 s after the stop (cleanup 1.3 s, 43 words at the stop).
+  - English 14 s: first words 1.16 s, done 1.7 s after the stop.
+  - The text arrived formatted in the field: paragraphs, a bullet list, a colon.
 - **Formatting of a German test letter:** greeting on its own line, paragraphs, and in one run a shopping list as bullet points.
 
 ## Parakeet on the phone, faster (26 Nov, the fallback without a Mac)

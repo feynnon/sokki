@@ -35,6 +35,8 @@ pub fn recording_started(app: &AppHandle, meeting_id: &str) {
         .clone()
         .or_else(crate::test_mic::call);
     if let Some(call) = call {
+        #[cfg(target_os = "macos")]
+        super::call_speakers::recording_started(app, meeting_id, &call);
         super::chat_notice::recording_started(app, meeting_id, &call);
         super::slack::recording_started(app, meeting_id, &call);
     }
@@ -76,6 +78,8 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             if let Some(recording) = app.state::<Arc<MeetingManager>>().active_id() {
                 // Recording already runs (started before the call): the
                 // call still gets its line.
+                #[cfg(target_os = "macos")]
+                super::call_speakers::recording_started(app, &recording, meeting.id);
                 super::chat_notice::recording_started(app, &recording, meeting.id);
                 return;
             }

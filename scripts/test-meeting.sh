@@ -39,6 +39,9 @@
 #   CALENDAR=events.json scripts/test-meeting.sh ...  # a made-up calendar (SOKKI_TEST_CALENDAR)
 #   KEEP_MEETINGS=1 scripts/test-meeting.sh ...       # keep the test app's earlier meetings
 #                                                     # (voices across meetings)
+#   CALL_SPEAKERS=spans.json scripts/test-meeting.sh ... # who spoke when, as Meet's captions
+#                                                     # would show it (speaker-names), for a
+#                                                     # made-up call in Chrome
 #   NAME_SPEAKER="Speaker 2=Lena Vogt" CONSENT=1 scripts/test-meeting.sh ...
 #                                                     # name a speaker after processing, as a
 #                                                     # click would (speaker-names)
@@ -111,11 +114,14 @@ if [[ -n "${SLACK:-}" ]]; then
   SLACK_ID="$(sed -n 's/^Client ID: `\(.*\)`$/\1/p' "$(dirname "$0")/../crates/sokki-slack/SLACK_APP.md")"
 fi
 if [[ -n "${TITLE_AFTER:-}" || -n "${MAIL_TO:-}" ]]; then
-  # Sokki's downloaded language model, linked, not copied.
-  MODEL="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
-  [[ -f "$MODEL" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
-  mkdir -p "$DATA/meeting-models/llm"
-  [[ -f "$DATA/meeting-models/llm/$(basename "$MODEL")" ]] || ln "$MODEL" "$DATA/meeting-models/llm/"
+  # Sokki's downloaded language model (Gemma 4 E4B and its draft model),
+  # linked, not copied.
+  REAL_LLM="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm"
+  for f in gemma-4-E4B-it-Q4_K_M.gguf mtp-gemma-4-E4B-it.gguf; do
+    [[ -f "$REAL_LLM/$f" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+    mkdir -p "$DATA/meeting-models/llm"
+    [[ -f "$DATA/meeting-models/llm/$f" ]] || ln "$REAL_LLM/$f" "$DATA/meeting-models/llm/"
+  done
 fi
 
 if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
@@ -176,6 +182,7 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} ${TITLE_AFTER:+--env SOKKI_TEST_TITLE_AFTER_S="$TITLE_AFTER"} \
   ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
+  ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
   ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.

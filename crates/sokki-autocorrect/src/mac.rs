@@ -39,6 +39,14 @@ extern "C" {
     fn AXIsProcessTrusted() -> u8;
 }
 
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGEventCreateKeyboardEvent(source: CFTypeRef, key: u16, down: bool) -> CFTypeRef;
+    fn CGEventKeyboardSetUnicodeString(e: CFTypeRef, n: usize, s: *const u16);
+    fn CGEventSetFlags(e: CFTypeRef, flags: u64);
+    fn CGEventPostToPid(pid: i32, e: CFTypeRef);
+}
+
 #[link(name = "Carbon", kind = "framework")]
 extern "C" {
     fn IsSecureEventInputEnabled() -> u8;
@@ -143,7 +151,12 @@ impl El {
 pub struct AxField {
     el: El,
     app: String,
+    pid: i32,
 }
+
+/// How long Sokki waits for an app to show a change it asked for: Chrome applies
+/// Accessibility changes a few ms later, in its page process.
+const SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Apps (pids) Sokki has asked to show their text fields, and (app, role) pairs of focused
 /// elements that weren't text fields, logged once each.
@@ -157,16 +170,36 @@ fn first<T: std::hash::Hash + Eq>(set: &Mutex<Option<HashSet<T>>>, x: T) -> bool
         .unwrap_or(false)
 }
 
-/// Electron apps (Slack, Claude, Notion, VS Code …) show their text fields to Accessibility
-/// only once an app asks for it with `AXManualAccessibility`; without it, the focused element
-/// is a bare group and Sokki would fix nothing there. Asked once per running app, and only
-/// while autocorrect is on. Other apps don't know the attribute and ignore it. Not
-/// `AXEnhancedUserInterface`, which Chrome also answers to: it slows window animations and
-/// upsets window managers (KNOWN_ISSUES M1).
-fn ask_for_fields(app_el: &El, pid: i32) {
+/// Chromium browsers: they show web page text fields to Accessibility only in their
+/// screen-reader mode (`AXEnhancedUserInterface`); they don't know `AXManualAccessibility`.
+/// Measured in Chrome 2026-11-25 with the lab (`scripts/autocorrect-lab.sh`): without it the
+/// app has no focused element; about 2 s after setting it, the page's field is there.
+const CHROMIUM: &[&str] = &[
+    "com.google.Chrome",
+    "com.google.Chrome.beta",
+    "com.google.Chrome.canary",
+    "org.chromium.Chromium",
+    "com.brave.Browser",
+    "com.microsoft.edgemac",
+    "company.thebrowser.Browser",
+    "com.vivaldi.Vivaldi",
+    "com.operasoftware.Opera",
+];
+
+/// Asks an app once (per running process) to show its text fields to Accessibility, only
+/// while autocorrect is on. Electron apps (Slack, Claude, Notion …) do it on
+/// `AXManualAccessibility`; Chromium browsers on `AXEnhancedUserInterface`, which also makes
+/// the browser animate window moves by window managers (KNOWN_ISSUES M1). Other apps don't
+/// know either attribute and ignore it.
+fn ask_for_fields(app_el: &El, pid: i32, app: &str) {
     if first(&ASKED, pid) {
-        let ok = app_el.set("AXManualAccessibility", unsafe { kCFBooleanTrue });
-        log::debug!("autocorrect: asked pid {pid} to show its text fields: {ok}");
+        let attr = if CHROMIUM.contains(&app) {
+            "AXEnhancedUserInterface"
+        } else {
+            "AXManualAccessibility"
+        };
+        let ok = app_el.set(attr, unsafe { kCFBooleanTrue });
+        log::debug!("autocorrect: asked {app} to show its text fields ({attr}): {ok}");
     }
 }
 
@@ -176,6 +209,57 @@ fn log_no_field(app: &str, role: &str) {
     if first(&LOGGED, format!("{app} {role}")) {
         log::info!("autocorrect: {app}: focused element is {role:?}, not a text field");
     }
+}
+
+/// Makes the app the active one (for the lab's tests only).
+#[doc(hidden)]
+pub fn bring_to_front(pid: i32) -> bool {
+    let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
+    app_el.set("AXFrontmost", unsafe { kCFBooleanTrue })
+}
+
+/// Whether the app is the active one (for the lab's tests only).
+#[doc(hidden)]
+pub fn is_front(pid: i32) -> bool {
+    let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
+    app_el.bool("AXFrontmost") == Some(true)
+}
+
+/// Asks the app in front to show its text fields, ahead of the first key: Chrome takes about
+/// 2 s to wake up its screen-reader mode, and the first words typed would be missed.
+pub fn prepare(front: Option<(i32, String)>, excluded: &[String]) {
+    let Some((pid, app)) = front else { return };
+    if secure_input() || !crate::allowed(&app, excluded) {
+        return;
+    }
+    let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
+    unsafe { AXUIElementSetMessagingTimeout(app_el.0 .0, TIMEOUT_S) };
+    ask_for_fields(&app_el, pid, &app);
+}
+
+/// What Sokki sees of an app's focused element, without its text: for the log and tests.
+pub fn describe(pid: i32) -> String {
+    let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
+    unsafe { AXUIElementSetMessagingTimeout(app_el.0 .0, TIMEOUT_S) };
+    let Some(el) = app_el.element("AXFocusedUIElement") else {
+        return "no focused element".into();
+    };
+    unsafe { AXUIElementSetMessagingTimeout(el.0 .0, TIMEOUT_S) };
+    let f = AxField {
+        el,
+        app: String::new(),
+        pid,
+    };
+    format!(
+        "role {:?} subrole {:?} value {} selection {:?} replaceable {}",
+        f.el.string("AXRole"),
+        f.el.string("AXSubrole"),
+        f.value()
+            .map(|v| format!("{} chars", v.chars().count()))
+            .unwrap_or("none".into()),
+        f.selection(),
+        f.replaceable()
+    )
 }
 
 /// The focused field of the app in front, or None: no text field, a password or protected
@@ -191,7 +275,7 @@ pub fn focused(front: Option<(i32, String)>, excluded: &[String]) -> Option<AxFi
     }
     let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
     unsafe { AXUIElementSetMessagingTimeout(app_el.0 .0, TIMEOUT_S) };
-    ask_for_fields(&app_el, pid);
+    ask_for_fields(&app_el, pid, &app);
     let Some(el) = app_el.element("AXFocusedUIElement") else {
         log_no_field(&app, "nothing");
         return None;
@@ -207,7 +291,7 @@ pub fn focused(front: Option<(i32, String)>, excluded: &[String]) -> Option<AxFi
     {
         return None;
     }
-    Some(AxField { el, app })
+    Some(AxField { el, app, pid })
 }
 
 impl Field for AxField {
@@ -233,7 +317,8 @@ impl Field for AxField {
     }
 
     fn replaceable(&self) -> bool {
-        self.el.settable("AXSelectedTextRange") && self.el.settable("AXSelectedText")
+        // the fix is typed as keys, so only the selection has to be settable
+        self.el.settable("AXSelectedTextRange")
     }
 
     fn select(&self, start: usize, len: usize) -> bool {
@@ -243,12 +328,55 @@ impl Field for AxField {
         };
         let v =
             Cf(unsafe { AXValueCreate(AX_VALUE_CF_RANGE, &r as *const CFRange as *const c_void) });
-        !v.0.is_null() && self.el.set("AXSelectedTextRange", v.0)
+        if v.0.is_null() || !self.el.set("AXSelectedTextRange", v.0) {
+            return false;
+        }
+        // wait until the app shows the selection, so the fix lands on the word
+        let until = std::time::Instant::now() + SETTLE;
+        loop {
+            if self.selection() == Some((start, len)) {
+                return true;
+            }
+            if std::time::Instant::now() > until {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(3));
+        }
     }
 
+    /// Types `text` over the selection as key presses sent to the app only (never to another
+    /// app). Chrome ignores `AXSelectedText` (it answers success and changes nothing), and
+    /// typed keys work the same in every editor and keep the app's own undo.
     fn insert(&self, text: &str) -> bool {
-        let s = cfstr(text);
-        self.el.set("AXSelectedText", s.0)
+        let units: Vec<u16> = text.encode_utf16().collect();
+        // macOS takes at most 20 UTF-16 units per key event
+        for chunk in units.chunks(20) {
+            for down in [true, false] {
+                let e = Cf(unsafe { CGEventCreateKeyboardEvent(ptr::null(), 0, down) });
+                if e.0.is_null() {
+                    return false;
+                }
+                unsafe {
+                    CGEventSetFlags(e.0, 0);
+                    CGEventKeyboardSetUnicodeString(e.0, chunk.len(), chunk.as_ptr());
+                    CGEventPostToPid(self.pid, e.0);
+                }
+            }
+        }
+        true
+    }
+
+    fn settle(&self, ok: &dyn Fn(&str) -> bool) -> bool {
+        let until = std::time::Instant::now() + SETTLE;
+        loop {
+            if self.value().is_some_and(|v| ok(&v)) {
+                return true;
+            }
+            if std::time::Instant::now() > until {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(3));
+        }
     }
 }
 

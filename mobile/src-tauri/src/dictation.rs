@@ -1,10 +1,11 @@
 //! On-device dictation. The page sends microphone audio (16 kHz, 16-bit,
-//! base64) every ~200 ms; `dictation-core` cuts it at pauses; a worker
-//! thread transcribes each piece with Parakeet as soon as it is cut and
-//! emits it. When the person stops, only the last piece is left.
+//! base64) every ~200 ms; a worker thread feeds it into the streaming
+//! model, as the keyboard does (`keyboard_voice.rs`), and emits the text
+//! whenever it grows. When the person stops, only the last half second is
+//! left.
 //!
-//! Events: "dictation-piece" {index, text, audio_s, ms}, "dictation-done"
-//! {after_stop_ms}, "dictation-download" {done, total}.
+//! Events: "dictation-piece" {index: 0, text: all so far, audio_s, ms},
+//! "dictation-done" {after_stop_ms}, "dictation-download" {done, total}.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
@@ -12,7 +13,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use base64::Engine as _;
-use dictation_core::{Mode, Params, Segmenter};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -36,6 +36,34 @@ pub fn threads() -> i32 {
     std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(2).clamp(1, 4) as i32)
 }
 
+/// How far the model listens ahead before it writes a word, in 80 ms
+/// frames: 6 adds words every ~0.56 s, as accurate as 13 (~1.1 s) on our
+/// clips and 0.5 s sooner; 0 can't keep up on a Pixel 7 (asr-bench
+/// `--stream`).
+pub const LOOKAHEAD: i32 = 6;
+
+pub fn stream_options() -> transcribe_cpp::StreamOptions {
+    transcribe_cpp::StreamOptions {
+        family: Some(transcribe_cpp::StreamExtension::ParakeetStream(
+            transcribe_cpp::ParakeetStreamOptions {
+                att_context_right: Some(LOOKAHEAD),
+            },
+        )),
+        ..Default::default()
+    }
+}
+
+/// Runs half a second of silence through a stream: touches the model and
+/// the session's buffers, so the next dictation finds them in memory.
+pub fn warm(session: &mut transcribe_cpp::Session) {
+    let Ok(mut st) = session.stream(&transcribe_cpp::RunOptions::default(), &stream_options())
+    else {
+        return;
+    };
+    let _ = st.feed(&vec![0.0f32; 16_000 / 2]);
+    let _ = st.finalize();
+}
+
 pub struct Engine {
     /// The Dictate tab's session, made on its first use (the keyboard's
     /// process makes its own and shouldn't carry a second one).
@@ -54,17 +82,16 @@ impl Engine {
         self.model.session_with(&options).map_err(|e| e.to_string())
     }
 
-    /// Transcribes one piece of 16 kHz mono audio.
-    pub fn run(&self, audio: &[f32]) -> String {
-        let opts = transcribe_cpp::RunOptions::default();
+    /// Runs `f` with the Dictate tab's session (made on first use).
+    fn with_session<T>(
+        &self,
+        f: impl FnOnce(&mut transcribe_cpp::Session) -> T,
+    ) -> Result<T, String> {
         let mut slot = self.session.lock().unwrap();
         if slot.is_none() {
-            *slot = self.new_session(threads()).ok();
+            *slot = Some(self.new_session(threads())?);
         }
-        slot.as_mut()
-            .and_then(|s| s.run(audio, &opts).ok())
-            .map(|r| r.text.trim().to_string())
-            .unwrap_or_default()
+        Ok(f(slot.as_mut().unwrap()))
     }
 }
 
@@ -96,20 +123,14 @@ pub fn engine_loaded() -> bool {
     ENGINE.lock().unwrap().is_some()
 }
 
-enum Job {
-    Piece(usize, Vec<f32>),
+enum Msg {
+    Audio(Vec<f32>),
     End(Instant),
-}
-
-struct Live {
-    segmenter: Segmenter,
-    tx: Sender<Job>,
-    next: usize,
 }
 
 #[derive(Default)]
 pub struct Dictation {
-    live: Mutex<Option<Live>>,
+    feed: Mutex<Option<Sender<Msg>>>,
 }
 
 fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -226,66 +247,75 @@ fn engine(app: &AppHandle) -> Result<Arc<Engine>, String> {
 pub async fn dictation_load(app: AppHandle) -> Result<u64, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let t = Instant::now();
-        engine(&app).map(|_| t.elapsed().as_millis() as u64)
+        // Warm, so the first dictation doesn't build the session.
+        let e = engine(&app)?;
+        e.with_session(warm)?;
+        Ok(t.elapsed().as_millis() as u64)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// `min_s` / `max_s` override the piece lengths (for tests).
+/// Starts a dictation: a worker streams the audio into the model.
 #[tauri::command]
-pub async fn dictation_start(
-    app: AppHandle,
-    min_s: Option<f32>,
-    max_s: Option<f32>,
-) -> Result<(), String> {
+pub async fn dictation_start(app: AppHandle) -> Result<(), String> {
     let e = {
         let app = app.clone();
         tauri::async_runtime::spawn_blocking(move || engine(&app))
             .await
             .map_err(|e| e.to_string())??
     };
-    let (tx, rx) = channel::<Job>();
+    let (tx, rx) = channel::<Msg>();
+    if let Some(old) = app.state::<Dictation>().feed.lock().unwrap().replace(tx) {
+        let _ = old.send(Msg::End(Instant::now()));
+    }
     let emitter = app.clone();
     std::thread::spawn(move || {
-        for job in rx {
-            match job {
-                Job::Piece(index, audio) => {
-                    let t = Instant::now();
-                    // Every piece is transcribed: cutting is only for speed,
-                    // no audio is ever skipped.
-                    let text = e.run(&audio);
-                    let _ = emitter.emit(
-                        "dictation-piece",
-                        json!({
-                            "index": index,
-                            "text": text,
-                            "audio_s": audio.len() as f64 / 16_000.0,
-                            "ms": t.elapsed().as_millis() as u64,
-                        }),
-                    );
-                }
-                Job::End(stopped) => {
-                    let _ = emitter.emit(
-                        "dictation-done",
-                        json!({ "after_stop_ms": stopped.elapsed().as_millis() as u64 }),
-                    );
-                    break;
+        let piece = |text: &str, heard: usize, ms: u128| {
+            let _ = emitter.emit(
+                "dictation-piece",
+                json!({ "index": 0, "text": text, "audio_s": heard as f64 / 16_000.0, "ms": ms as u64 }),
+            );
+        };
+        let done = |stopped: Instant| {
+            let _ = emitter.emit(
+                "dictation-done",
+                json!({ "after_stop_ms": stopped.elapsed().as_millis() as u64 }),
+            );
+        };
+        let result = e.with_session(|s| {
+            let mut st = match s.stream(&transcribe_cpp::RunOptions::default(), &stream_options()) {
+                Ok(st) => st,
+                Err(_) => return None,
+            };
+            let (mut shown, mut heard) = (String::new(), 0usize);
+            // Block by block, as they come (one big feed is much slower).
+            for msg in rx.iter() {
+                match msg {
+                    Msg::Audio(audio) => {
+                        heard += audio.len();
+                        let t = Instant::now();
+                        if st.feed(&audio).is_err() {
+                            continue;
+                        }
+                        let text = st.text().display().trim().to_string();
+                        if text != shown {
+                            piece(&text, heard, t.elapsed().as_millis());
+                            shown = text;
+                        }
+                    }
+                    Msg::End(stopped) => {
+                        let t = Instant::now();
+                        let _ = st.finalize();
+                        piece(st.text().display().trim(), heard, t.elapsed().as_millis());
+                        return Some(stopped);
+                    }
                 }
             }
-        }
-    });
-    *app.state::<Dictation>().live.lock().unwrap() = Some(Live {
-        segmenter: Segmenter::new(Mode::Pauses({
-            let d = Params::default();
-            Params {
-                min_s: min_s.unwrap_or(d.min_s),
-                max_s: max_s.unwrap_or(d.max_s),
-                ..d
-            }
-        })),
-        tx,
-        next: 0,
+            None
+        });
+        // The page waits for "done" in every case.
+        done(result.ok().flatten().unwrap_or_else(Instant::now));
     });
     Ok(())
 }
@@ -300,22 +330,15 @@ pub fn dictation_push(state: State<'_, Dictation>, pcm: String) -> Result<(), St
         .chunks_exact(2)
         .map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0)
         .collect();
-    let mut guard = state.live.lock().unwrap();
-    let live = guard.as_mut().ok_or("Not dictating.")?;
-    for piece in live.segmenter.push(&samples) {
-        let _ = live.tx.send(Job::Piece(live.next, piece));
-        live.next += 1;
-    }
+    let feed = state.feed.lock().unwrap();
+    let tx = feed.as_ref().ok_or("Not dictating.")?;
+    let _ = tx.send(Msg::Audio(samples));
     Ok(())
 }
 
 #[tauri::command]
 pub fn dictation_stop(state: State<'_, Dictation>) -> Result<(), String> {
-    let stopped = Instant::now();
-    let mut live = state.live.lock().unwrap().take().ok_or("Not dictating.")?;
-    if let Some(rest) = live.segmenter.finish() {
-        let _ = live.tx.send(Job::Piece(live.next, rest));
-    }
-    let _ = live.tx.send(Job::End(stopped));
+    let tx = state.feed.lock().unwrap().take().ok_or("Not dictating.")?;
+    let _ = tx.send(Msg::End(Instant::now()));
     Ok(())
 }

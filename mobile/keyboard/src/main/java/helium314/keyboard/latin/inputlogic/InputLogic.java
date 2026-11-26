@@ -2364,6 +2364,7 @@ public final class InputLogic {
         while (same < token.length() && token.charAt(same) == fixed.charAt(same)) same++;
         mConnection.deleteTextBeforeCursor(token.length() - same);
         mConnection.commitText(fixed.substring(same), 1);
+        dev.verbatim.sokki.Journal.otherInput(); // the space (and capital) weren't typed
         // A backspace now deletes a letter; undoing an autocorrection of the moved word would cut wrongly.
         mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD;
     }

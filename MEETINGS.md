@@ -186,9 +186,10 @@ Icons are drawn as SVG in
    5. text dedup, merge ghost speakers, names: on an online call the mic
       voice is you; on a single mic nobody is named; remembered voices by
       their embedding;
-   6. summary, decisions, tasks with the local LLM (Qwen 3.5 9B built in:
-      llama.cpp's `llama-server` on the GPU, ~70–90 s for a 41-min meeting
-      on an M1 Pro; started for the summary, stopped right after); the
+   6. summary, decisions, tasks with the local LLM (Gemma 4 E4B built in
+      since 25.11.2026: llama.cpp's `llama-server` on the GPU, 12–33 s per
+      summary on an M1 Pro, 22 s median, without the draft model; started
+      for the summary, stopped right after); the
       dictionary is in its prompt, so names come out spelled right. The
       transcript stays as recognised: a separate correction pass cost a
       whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
@@ -213,9 +214,10 @@ Icons are drawn as SVG in
 7. **Speakers** – rename "Speaker 2" in the app; with *Remember voice* the
    voice is recognised in later meetings (sherpa-onnx embeddings).
 8. **Language model** – summary (5.6) and the provisional title (6). Chosen under
-   Models → *Language model*, a list like the speech models: Qwen 3.5 9B on
-   this Mac, built in (the page downloads the model, 5.7 GB, checksum
-   verified) or through Ollama (started only by hand), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
+   Models → *Language model*, a list like the speech models: Gemma 4 E4B on
+   this Mac, built in (the page downloads the model and its draft model,
+   5.1 GB, checksum verified; dictation cleanup uses the same files) or
+   through Ollama (started only by hand), or Claude / GPT through Anthropic, OpenAI or OpenRouter with
    an API key (the transcript then goes to that provider; the key is shared
    with dictation post-processing). No temperature is sent: every model runs
    at its own default. Other models can be set in the config file
@@ -252,8 +254,8 @@ Language model:
 
 - **Setup** (`src/components/onboarding/screens/Summary.tsx`): when Meetings
   is picked, a screen after the speech model offers the built-in summary
-  model with its size, the memory it needs (6.4 GB, measured with Sokki's
-  own 9B) against the Mac's (`summary_model_setup`), and when notes arrive
+  model with its size, the memory it needs (5.6 GB resident, measured with
+  Gemma 4 E4B and its draft model in Sokki's llama-server) against the Mac's (`summary_model_setup`), and when notes arrive
   (about 3 minutes after hanging up). It downloads in the background while
   setup goes on; one download at a time (`meeting/pull.rs`), which the
   Models page joins. A Mac under 12 GB (8 GB in practice) is told it's too
@@ -367,8 +369,17 @@ Goal (Robin): every speaker named in transcripts and summaries.
   voice is kept only with consent; nothing of this leaves the Mac or goes
   into "Help improve Sokki". Legal research and sources: side-session notes
   `speaker-names.md`.
-- **Not yet**: who is speaking in Zoom, Teams, Meet (Accessibility; needs a
-  test call per app), names said in the meeting, Slack huddle members. See
+- **From the call app** (`meeting/call_speakers.rs`, `meeting_chat::SpeakerWatch`):
+  while a call is recorded, Sokki reads who is speaking twice a second:
+  Meet's captions (Sokki turns them on once with their own button; each
+  line starts with the name, "Ich"/"You" for the user) and Zoom's video
+  tile ("Name, …, Active speaker"; Zoom marks nobody while only one person
+  is in the call). Spans go to `call_speakers.json`; after processing,
+  `voices::names_from_call` gives an unnamed speaker the name that covers
+  more than half of its time (at least 3 s), first of all naming steps.
+  No voice is kept for these names. Live in a two-person call: not yet
+  checked (KNOWN_ISSUES P6).
+- **Not yet**: Teams, names said in the meeting, Slack huddle members. See
   KNOWN_ISSUES P6–P8.
 - Tests: `cargo test voices` (sokki-engine), `cargo test --lib profiles`
   (diarize), `tests/speakers.spec.ts` (Playwright), and a Sokki Test run

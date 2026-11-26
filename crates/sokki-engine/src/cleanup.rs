@@ -149,6 +149,24 @@ fn ends_sentence(s: &str) -> bool {
     s.trim_end().ends_with(['.', '!', '?', '…'])
 }
 
+/// The whole sentences at the start of the live text's still-changing part
+/// that the last two previews (`before`, `now`) agree on, not counting
+/// either preview's last sentence: settled enough to clean. On 33 of Robin's
+/// dictations (26.11.2026) this let 9 of them start cleaning while he spoke
+/// instead of 2, with no redo at the stop (docs/research/live-vs-final-2026-11.md).
+pub fn settled(before: &str, now: &str) -> String {
+    let (a, b) = (sentences(before), sentences(now));
+    let mut out: Vec<&str> = Vec::new();
+    for (i, s) in b.iter().enumerate() {
+        let agreed = i + 1 < b.len() && i + 1 < a.len() && a[i] == *s && ends_sentence(s);
+        if !agreed {
+            break;
+        }
+        out.push(s);
+    }
+    out.join(" ")
+}
+
 /// `text` in pieces: sentences are added to a piece until it has at least
 /// `words` words. The last piece may be shorter.
 pub fn pieces(text: &str, words: usize) -> Vec<String> {
@@ -233,6 +251,70 @@ fn after_prefix(text: &str, prefix: &[String]) -> Option<usize> {
     None
 }
 
+/// What is cleaned so far, for the live panel: the cleaned paragraphs (the
+/// open one last), and the transcript's words they stand for.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct View {
+    /// Cleaned paragraphs, separated by blank lines; empty before the first
+    /// step.
+    pub cleaned: String,
+    consumed: Vec<String>,
+}
+
+impl View {
+    /// The part of `text` (the transcript as final as it is so far) that is
+    /// not cleaned yet; `None` when `text` no longer starts with the cleaned
+    /// words.
+    pub fn rest<'a>(&self, text: &'a str) -> Option<&'a str> {
+        after_prefix_close(text, &self.consumed).map(|(at, _)| text[at..].trim_start())
+    }
+}
+
+/// Like [`after_prefix`], but `text` may differ from `prefix` in a few
+/// words: the live text and the final transcript differ in about 1 % of
+/// words (26.11.2026), and one changed word in a piece already cleaned is
+/// not worth cleaning that piece and everything after it again. Allows
+/// `max(3, 3 %)` changed, added or missing words. Returns where in `text`
+/// the prefix ends and how many words differ.
+fn after_prefix_close(text: &str, prefix: &[String]) -> Option<(usize, usize)> {
+    if let Some(at) = after_prefix(text, prefix) {
+        return Some((at, 0));
+    }
+    let n = prefix.len();
+    let allowed = (n * 3 / 100).max(3);
+    // The words of `text` with where each one ends.
+    let mut words: Vec<(String, usize)> = Vec::new();
+    for w in text.split_whitespace() {
+        let k = key(w);
+        if k.is_empty() {
+            continue;
+        }
+        let end = w.as_ptr() as usize - text.as_ptr() as usize + w.len();
+        words.push((k, end));
+        if words.len() >= n + allowed {
+            break;
+        }
+    }
+    // Edit distance between `prefix` and each prefix of `words`.
+    let m = words.len();
+    let mut prev: Vec<usize> = (0..=m).collect();
+    for i in 1..=n {
+        let mut cur = vec![i; m + 1];
+        for j in 1..=m {
+            let same = prefix[i - 1] == words[j - 1].0;
+            cur[j] = (prev[j - 1] + usize::from(!same))
+                .min(prev[j] + 1)
+                .min(cur[j - 1] + 1);
+        }
+        prev = cur;
+    }
+    // The closest prefix of `text`; the longer one when two are as close.
+    let (j, d) = (1..=m)
+        .map(|j| (j, prev[j]))
+        .min_by_key(|&(j, d)| (d, usize::MAX - j))?;
+    (d <= allowed).then(|| (words[j - 1].1, d))
+}
+
 /// The model one step talks to.
 pub trait Model {
     /// The model's reply to `user` under `system`.
@@ -249,9 +331,19 @@ pub struct Live {
     open: String,
     /// The transcript's words that went into pieces so far.
     consumed: Vec<String>,
-    /// The live text stopped matching itself; the rest waits for the end.
-    diverged: bool,
     steps: usize,
+    /// The transcript's words in finished steps (a prefix of `consumed`).
+    cleaned_keys: Vec<String>,
+    /// The state before each step, to go back to when the transcript
+    /// changes under a piece already cleaned.
+    snaps: Vec<Snap>,
+}
+
+/// What [`Live`] looked like before one step.
+struct Snap {
+    words: usize,
+    committed: usize,
+    open: String,
 }
 
 impl Live {
@@ -261,8 +353,9 @@ impl Live {
             committed: Vec::new(),
             open: String::new(),
             consumed: Vec::new(),
-            diverged: false,
             steps: 0,
+            cleaned_keys: Vec::new(),
+            snaps: Vec::new(),
         }
     }
 
@@ -271,17 +364,32 @@ impl Live {
         self.steps
     }
 
+    /// What is cleaned so far. Pieces handed out by [`ready`](Self::ready)
+    /// but not cleaned yet are not in it.
+    pub fn view(&self) -> View {
+        let mut cleaned = self.committed.join("\n\n");
+        if !self.open.is_empty() {
+            if !cleaned.is_empty() {
+                cleaned.push_str("\n\n");
+            }
+            cleaned.push_str(&self.open);
+        }
+        View {
+            cleaned,
+            consumed: self.cleaned_keys.clone(),
+        }
+    }
+
     /// The pieces ready to clean in `text`, the transcript as final as it is
     /// so far: whole sentences after what earlier pieces took, in pieces of
     /// [`PIECE_WORDS`] words. A rest that is shorter, or a sentence not yet
     /// ended, waits. The pieces returned count as taken.
     pub fn ready(&mut self, text: &str) -> Vec<String> {
-        if self.diverged {
-            return Vec::new();
+        if after_prefix_close(text, &self.consumed).is_none() {
+            let again = self.roll_back(text);
+            log::info!("Dictation cleanup: the live text changed; {again} words are cleaned again");
         }
-        let Some(at) = after_prefix(text, &self.consumed) else {
-            log::warn!("Dictation cleanup: the live text changed; the rest waits for the end");
-            self.diverged = true;
+        let Some((at, _)) = after_prefix_close(text, &self.consumed) else {
             return Vec::new();
         };
         let mut out = Vec::new();
@@ -308,6 +416,11 @@ impl Live {
     /// Cleans the open paragraph plus `piece`. `last`: everything is final
     /// afterwards.
     pub fn step(&mut self, model: &dyn Model, piece: &str, last: bool) -> Result<()> {
+        self.snaps.push(Snap {
+            words: self.cleaned_keys.len(),
+            committed: self.committed.len(),
+            open: self.open.clone(),
+        });
         let text = if self.open.is_empty() {
             piece.to_string()
         } else {
@@ -334,7 +447,38 @@ impl Live {
         let open = bl.split_off(bl.len() - keep);
         self.committed.extend(bl);
         self.open = open.join("\n\n");
+        self.cleaned_keys.extend(keys(piece));
         Ok(())
+    }
+
+    /// Goes back to the last step before the first word where `text` differs
+    /// from the words cleaned so far, so only the pieces from there are
+    /// cleaned again. Returns how many cleaned words that undoes.
+    fn roll_back(&mut self, text: &str) -> usize {
+        let now = keys(text);
+        let same = now
+            .iter()
+            .zip(&self.cleaned_keys)
+            .take_while(|(a, b)| a == b)
+            .count();
+        let before = self.cleaned_keys.len();
+        match self.snaps.iter().rposition(|s| s.words <= same) {
+            Some(i) => {
+                let snap = self.snaps.swap_remove(i);
+                self.snaps.truncate(i);
+                self.committed.truncate(snap.committed);
+                self.open = snap.open;
+                self.cleaned_keys.truncate(snap.words);
+            }
+            None => {
+                self.committed.clear();
+                self.open.clear();
+                self.cleaned_keys.clear();
+                self.snaps.clear();
+            }
+        }
+        self.consumed = self.cleaned_keys.clone();
+        before - self.cleaned_keys.len()
     }
 
     /// The cleaned dictation, given its final transcript: the rest after the
@@ -344,21 +488,36 @@ impl Live {
     pub fn finish(&mut self, model: &dyn Model, text: &str) -> Result<String> {
         // Even when the live text wobbled, the final one may still start
         // with what was cleaned.
-        let rest = match after_prefix(text, &self.consumed) {
-            Some(at) => text[at..].trim().to_string(),
-            None => {
-                if !self.consumed.is_empty() {
-                    log::warn!(
-                        "Dictation cleanup: the final transcript differs from the live one; cleaning it again"
-                    );
-                }
-                self.committed.clear();
-                self.open.clear();
-                self.consumed.clear();
-                text.trim().to_string()
-            }
+        let live_steps = self.steps;
+        let live_words = self.cleaned_keys.len();
+        // Where the final transcript differs from what was cleaned live, go
+        // back to the step before the first difference.
+        let mut again = 0;
+        if after_prefix_close(text, &self.consumed).is_none() {
+            again = self.roll_back(text);
+        }
+        let (rest, differ) = match after_prefix_close(text, &self.consumed) {
+            Some((at, d)) => (text[at..].trim().to_string(), d),
+            None => (text.trim().to_string(), 0),
         };
+        if differ > 0 {
+            log::info!(
+                "Dictation cleanup: {differ} words of the cleaned part differ in the final transcript; kept as cleaned"
+            );
+        }
         let ps = pieces(&rest, PIECE_WORDS);
+        log::info!(
+            "Dictation cleanup at the stop: {} words left in {} steps, after {} live steps ({} words){}",
+            rest.split_whitespace().count(),
+            ps.len(),
+            live_steps,
+            live_words,
+            if again > 0 {
+                format!(", {again} cleaned words again")
+            } else {
+                String::new()
+            }
+        );
         if ps.is_empty() {
             if !self.open.is_empty() {
                 self.committed.push(std::mem::take(&mut self.open));
@@ -619,10 +778,16 @@ impl Engine {
     }
 
     /// Begins one dictation's cleanup: starts the server if needed and
-    /// cleans pieces as [`Session::text`] hands them in.
-    pub fn begin(self: &Arc<Self>, words: &[String]) -> Session {
+    /// cleans pieces as [`Session::text`] hands them in. `on_change` runs
+    /// (on the session's thread) after each live step, when
+    /// [`Session::view`] has more cleaned text.
+    pub fn begin(
+        self: &Arc<Self>,
+        words: &[String],
+        on_change: impl Fn() + Send + 'static,
+    ) -> Session {
         self.warm();
-        Session::start(Arc::clone(self), Live::new(words))
+        Session::start(Arc::clone(self), Live::new(words), Box::new(on_change))
     }
 }
 
@@ -635,14 +800,17 @@ enum Msg {
 /// [`finish`](Self::finish) cancels it.
 pub struct Session {
     tx: Option<mpsc::Sender<Msg>>,
+    view: Arc<Mutex<View>>,
 }
 
 /// How long a step waits for the model to load.
 const LOAD_WAIT: Duration = Duration::from_secs(60);
 
 impl Session {
-    fn start(engine: Arc<Engine>, mut live: Live) -> Self {
+    fn start(engine: Arc<Engine>, mut live: Live, on_change: Box<dyn Fn() + Send>) -> Self {
         let (tx, rx) = mpsc::channel::<Msg>();
+        let view = Arc::new(Mutex::new(View::default()));
+        let shared = Arc::clone(&view);
         engine.hold();
         let spawned = std::thread::Builder::new()
             .name("dictation-cleanup".into())
@@ -655,7 +823,9 @@ impl Session {
                             if failed.is_some() {
                                 continue;
                             }
-                            for piece in live.ready(&text) {
+                            let pieces = live.ready(&text);
+                            *shared.lock().unwrap_or_else(|e| e.into_inner()) = live.view();
+                            for piece in pieces {
                                 let r = Self::model(&engine, &mut model)
                                     .and_then(|m| live.step(m, &piece, false));
                                 if let Err(e) = r {
@@ -663,6 +833,8 @@ impl Session {
                                     failed = Some(e);
                                     break;
                                 }
+                                *shared.lock().unwrap_or_else(|e| e.into_inner()) = live.view();
+                                on_change();
                             }
                         }
                         Msg::Finish(text, reply) => {
@@ -679,10 +851,10 @@ impl Session {
                 engine.release();
             });
         match spawned {
-            Ok(_) => Self { tx: Some(tx) },
+            Ok(_) => Self { tx: Some(tx), view },
             Err(e) => {
                 log::error!("Dictation cleanup: no thread: {e}");
-                Self { tx: None }
+                Self { tx: None, view }
             }
         }
     }
@@ -692,6 +864,11 @@ impl Session {
             *model = Some(engine.connect(LOAD_WAIT)?);
         }
         Ok(model.as_ref().expect("set above"))
+    }
+
+    /// What is cleaned so far ([`Live::view`]), for the live panel.
+    pub fn view(&self) -> View {
+        self.view.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// The transcript as final as it is so far (the whole of it, each time).
@@ -807,6 +984,18 @@ mod tests {
     }
 
     #[test]
+    fn settled_sentences_are_the_ones_two_previews_agree_on() {
+        let before = "Erster Satz. Zweiter Satz. Dritter Sa";
+        let now = "Erster Satz. Zweiter Satz. Dritter Satz kommt. Vier";
+        assert_eq!(settled(before, now), "Erster Satz. Zweiter Satz.");
+        // A changed sentence stops it there.
+        assert_eq!(settled("Erster Satz. Zweiter. Drei", now), "Erster Satz.");
+        // The last sentence of either preview may still change.
+        assert_eq!(settled("Erster Satz.", now), "");
+        assert_eq!(settled("", now), "");
+    }
+
+    #[test]
     fn a_short_dictation_is_cleaned_once_at_the_end() {
         let model = Fake::new(|u| format!("CLEAN[{}]", part(u)));
         let mut live = Live::new(&[]);
@@ -871,6 +1060,23 @@ mod tests {
     }
 
     #[test]
+    fn the_view_shows_cleaned_paragraphs_and_the_raw_rest() {
+        let model = Fake::new(|u| format!("<{}>", part(u)));
+        let mut live = Live::new(&[]);
+        assert_eq!(live.view(), View::default());
+        let s1 = sentence("a", 60);
+        let ps = live.ready(&s1);
+        // Handed out but not cleaned yet: still raw.
+        let so_far = format!("{s1} Noch roh.");
+        assert_eq!(live.view().rest(&so_far), Some(so_far.as_str()));
+        live.step(&model, &ps[0], false).unwrap();
+        let v = live.view();
+        assert_eq!(v.cleaned, format!("<{s1}>"));
+        assert_eq!(v.rest(&so_far), Some("Noch roh."));
+        assert_eq!(v.rest("Etwas ganz anderes."), None);
+    }
+
+    #[test]
     fn a_repeated_heading_where_pieces_meet_is_dropped() {
         // First step: heading + list; the list stays open. Second step:
         // the model writes the heading again before the list.
@@ -891,6 +1097,57 @@ mod tests {
             out,
             "Wir brauchen:\n\n- Grill\n- Bier\n- Musik\n\nDas war's."
         );
+    }
+
+    #[test]
+    fn a_changed_piece_is_cleaned_again_from_that_piece_only() {
+        let model = Fake::new(|u| format!("<{}>", part(u).replace("\n\n", " ")));
+        let mut live = Live::new(&[]);
+        let (s1, s2, s3) = (sentence("a", 60), sentence("b", 60), sentence("c", 10));
+        for p in live.ready(&format!("{s1} {s2} Weiter.")) {
+            live.step(&model, &p, false).unwrap();
+        }
+        assert_eq!(model.calls.borrow().len(), 2);
+        // The transcript changed inside the second piece, more than a few
+        // words.
+        let mut s2b = s2.replace("b30q", "B-dreissig");
+        for i in 40..45 {
+            s2b = s2b.replace(&format!("b{i}q"), "anders");
+        }
+        let out = live.finish(&model, &format!("{s1} {s2b} {s3}")).unwrap();
+        // From the second piece on: two more steps (60 + 10 words), the first
+        // piece is not cleaned again.
+        let calls = model.calls.borrow().clone();
+        assert_eq!(calls.len(), 4);
+        assert!(part(&calls[2]).contains("B-dreissig"));
+        assert!(part(&calls[3]).contains("c0q"));
+        // The first piece goes in only as cleaned text (its open paragraph,
+        // "<…"), never raw again.
+        assert!(
+            calls[2..].iter().all(|c| !part(c).starts_with("a0q")),
+            "the first piece stays as cleaned"
+        );
+        assert!(out.contains("B-dreissig"));
+    }
+
+    #[test]
+    fn a_live_text_that_changes_is_followed_not_given_up() {
+        let model = Fake::new(|u| format!("<{}>", part(u)));
+        let mut live = Live::new(&[]);
+        let s1 = sentence("a", 60);
+        for p in live.ready(&s1) {
+            live.step(&model, &p, false).unwrap();
+        }
+        // The live text revises the first piece (more than a few words),
+        // then grows by another one.
+        let mut s1b = s1.replace("a5q", "A-fuenf");
+        for i in 10..15 {
+            s1b = s1b.replace(&format!("a{i}q"), "anders");
+        }
+        let s2 = sentence("b", 60);
+        let ps = live.ready(&format!("{s1b} {s2}"));
+        assert_eq!(ps.len(), 2, "both pieces again, while speaking");
+        assert!(ps[0].contains("A-fuenf"));
     }
 
     #[test]
@@ -923,6 +1180,25 @@ mod tests {
     }
 
     #[test]
+    fn a_few_changed_words_keep_what_is_cleaned() {
+        let pre = keys(&sentence("a", 100));
+        // One word changed, one missing: within 3.
+        let text = format!(
+            "{} Weiter so.",
+            sentence("a", 100).replace("a7q", "x").replace("a50q ", "")
+        );
+        let (at, d) = after_prefix_close(&text, &pre).unwrap();
+        assert_eq!(d, 2);
+        assert_eq!(text[at..].trim(), "Weiter so.");
+        // Ten changed words are too many: cleaned again.
+        let mut t = sentence("a", 100);
+        for i in 0..10 {
+            t = t.replace(&format!("a{i}q"), "anders");
+        }
+        assert!(after_prefix_close(&t, &pre).is_none());
+    }
+
+    #[test]
     fn words_are_matched_ignoring_punctuation_only_tokens() {
         let pre = keys("Hallo, du – da.");
         assert_eq!(pre, vec!["hallo", "du", "da"]);
@@ -949,7 +1225,7 @@ mod tests {
     fn a_session_without_a_model_reports_an_error_in_time() {
         // No server or model in tests: the engine cannot start one.
         let engine = Engine::new(llm::CLEANUP_MODEL, Duration::from_secs(1));
-        let session = engine.begin(&[]);
+        let session = engine.begin(&[], || {});
         session.text("Hallo.");
         let t0 = Instant::now();
         let r = session.finish("Hallo.", Duration::from_secs(5));

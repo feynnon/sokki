@@ -19,13 +19,12 @@
 //! cost that call its audio.
 
 use crate::commands::meeting::LlmDownload;
-use crate::meeting::pull::Flight;
 use crate::settings::get_settings;
 use log::{info, warn};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use sokki_engine::cleanup::{Engine, Session};
-use sokki_engine::llm::{self, PullProgress, CLEANUP_MODEL};
+use sokki_engine::llm::{self, CLEANUP_MODEL};
 use specta::Type;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -46,8 +45,38 @@ static ENGINE: Lazy<Arc<Engine>> = Lazy::new(|| Engine::new(CLEANUP_MODEL, IDLE)
 
 struct Current {
     session: Session,
-    /// The last live text handed in, so a repeat is not sent again.
+    /// The last text handed to the cleanup, so a repeat is not sent again.
     last: String,
+    /// The live text's final part, as last emitted.
+    committed: String,
+    /// Its tentative part, for redrawing the panel after a step, and the
+    /// one before it, to tell which sentences in it have settled.
+    tentative: String,
+    previous_tentative: String,
+    app: AppHandle,
+}
+
+impl Current {
+    /// What the live panel shows: the cleaned paragraphs, then the part of
+    /// the transcript not cleaned yet, split into its final and its
+    /// still-changing part. Before the first step, or when the live text no
+    /// longer starts with what was cleaned, all of it raw.
+    fn panel(&self, committed: &str) -> (String, String, String) {
+        let raw = (String::new(), committed.to_string(), self.tentative.clone());
+        let view = self.session.view();
+        if view.cleaned.is_empty() {
+            return raw;
+        }
+        if let Some(rest) = view.rest(committed) {
+            return (view.cleaned, rest.to_string(), self.tentative.clone());
+        }
+        // Settled sentences of the changing part were cleaned too.
+        let all = format!("{committed} {}", self.tentative);
+        match view.rest(all.trim()) {
+            Some(rest) => (view.cleaned, String::new(), rest.to_string()),
+            None => raw,
+        }
+    }
 }
 
 static CURRENT: Mutex<Option<Current>> = Mutex::new(None);
@@ -55,9 +84,6 @@ static CURRENT: Mutex<Option<Current>> = Mutex::new(None);
 fn current() -> std::sync::MutexGuard<'static, Option<Current>> {
     CURRENT.lock().unwrap_or_else(|e| e.into_inner())
 }
-
-/// One download of the model at a time (`meeting::pull`).
-static DOWNLOAD: Flight = Flight::new();
 
 /// Why the cleanup must not run now, if it must not.
 fn blocked(
@@ -94,22 +120,61 @@ pub fn begin(app: &AppHandle) {
         info!("Dictation cleanup is on, but its model is not downloaded");
         return;
     }
-    let session = ENGINE.begin(&settings.custom_words);
+    let session = ENGINE.begin(&settings.custom_words, redraw);
     // A session left from an earlier dictation is dropped, which cancels it.
     *current() = Some(Current {
         session,
         last: String::new(),
+        committed: String::new(),
+        tentative: String::new(),
+        previous_tentative: String::new(),
+        app: app.clone(),
     });
 }
 
-/// The transcript's final part so far (the whole of it, each time).
-pub fn live_text(committed: &str) {
+/// The live text: `committed` is the transcript's final part so far (the
+/// whole of it, each time), `tentative` what may still change. The cleanup
+/// gets the final part plus the sentences of the changing part that have
+/// settled ([`cleanup::settled`]). Returns what the panel shows: the cleaned
+/// paragraphs, and the rest as final and changing text.
+pub fn live_text(committed: &str, tentative: &str) -> (String, String, String) {
     let mut cur = current();
-    if let Some(c) = cur.as_mut() {
-        if c.last != committed && !committed.trim().is_empty() {
-            c.last = committed.to_string();
-            c.session.text(committed);
+    let Some(c) = cur.as_mut() else {
+        return (String::new(), committed.to_string(), tentative.to_string());
+    };
+    c.previous_tentative = std::mem::replace(&mut c.tentative, tentative.to_string());
+    c.committed = committed.to_string();
+    let settled = sokki_engine::cleanup::settled(&c.previous_tentative, tentative);
+    let text = format!("{committed} {settled}").trim().to_string();
+    if c.last != text && !text.is_empty() {
+        c.last = text.clone();
+        c.session.text(&text);
+    }
+    c.panel(committed)
+}
+
+/// A live step finished: the panel shows its cleaned paragraphs at once.
+fn redraw() {
+    let shown = current().as_ref().map(|c| {
+        let (cleaned, committed, tentative) = c.panel(&c.committed);
+        (
+            c.app.clone(),
+            crate::managers::transcription::StreamTextEvent {
+                cleaned,
+                committed,
+                tentative,
+            },
+        )
+    });
+    if let Some((app, event)) = shown {
+        if crate::test_mic::active() {
+            info!(
+                "Test mode, live cleaned: {} ‖ {} | {}",
+                event.cleaned, event.committed, event.tentative
+            );
         }
+        use tauri_specta::Event;
+        let _ = event.emit(&app);
     }
 }
 
@@ -197,7 +262,7 @@ pub fn dictation_cleanup_model() -> CleanupModel {
         }
         .into(),
         size: CLEANUP_MODEL.download_size(),
-        download: DOWNLOAD.progress().map(|p| LlmDownload {
+        download: crate::meeting::pull::LLM.progress().map(|p| LlmDownload {
             status: p.status,
             completed: p.completed,
             total: p.total,
@@ -205,23 +270,15 @@ pub fn dictation_cleanup_model() -> CleanupModel {
     }
 }
 
-/// Downloads the cleanup model. Progress arrives as
-/// "dictation-cleanup-pull" events ({status, completed, total}).
+/// Downloads the cleanup model: the built-in model, which summaries use
+/// too. Progress arrives as "dictation-cleanup-pull" events ({status,
+/// completed, total}).
 #[tauri::command]
 #[specta::specta]
 pub async fn download_dictation_cleanup_model(app: AppHandle) -> Result<(), String> {
-    use tauri::Emitter;
-    tauri::async_runtime::spawn_blocking(move || {
-        DOWNLOAD.run(|note| {
-            llm::download_model(&CLEANUP_MODEL, |p: PullProgress| {
-                note(p.clone());
-                let _ = app.emit("dictation-cleanup-pull", p);
-            })
-            .map_err(|e| format!("{e:#}"))
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || crate::meeting::process::download_builtin(&app))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

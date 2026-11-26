@@ -751,6 +751,45 @@ pub fn set_builtin_llm_paths(app: &AppHandle) {
     });
 }
 
+/// Downloads the built-in model (Gemma 4 E4B: summaries and dictation
+/// cleanup use the same files), one download at a time (`pull::LLM`).
+/// Progress goes to both screens that offer it ("meeting-llm-pull" and
+/// "dictation-cleanup-pull"). Afterwards the model it replaced is deleted.
+pub fn download_builtin(app: &AppHandle) -> std::result::Result<(), String> {
+    use tauri::Emitter;
+    let result = super::pull::LLM.run(|note| {
+        sokki_engine::llm::download_model(&sokki_engine::llm::BUILTIN_MODEL, |p| {
+            note(p.clone());
+            let _ = app.emit("meeting-llm-pull", p.clone());
+            let _ = app.emit("dictation-cleanup-pull", p);
+        })
+        .map_err(|e| format!("{e:#}"))
+    });
+    sokki_engine::llm::remove_replaced_models();
+    result
+}
+
+/// Gemma 4 E4B replaced Qwen 3.5 9B as the built-in model (25.11.2026).
+/// Whoever had the 9B gets Gemma downloaded in the background, and the 9B's
+/// 5.7 GB are freed once Gemma is complete. Until then a summary waits and
+/// is retried (`retry_summaries`).
+pub fn move_to_gemma(app: &AppHandle) {
+    let app = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("move-to-gemma".into())
+        .spawn(move || {
+            if sokki_engine::llm::replaced_model_waiting() {
+                log::info!("The built-in model is now Gemma 4 E4B; downloading it");
+                match download_builtin(&app) {
+                    Ok(()) => log::info!("Gemma 4 E4B downloaded; the 9B is deleted"),
+                    Err(e) => log::warn!("Downloading Gemma 4 E4B failed: {e}"),
+                }
+            } else {
+                sokki_engine::llm::remove_replaced_models();
+            }
+        });
+}
+
 fn models_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()

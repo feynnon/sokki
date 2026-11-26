@@ -10,7 +10,10 @@
 // (left out of backups). Off by default; on while <app files>/typing_log/journal_on
 // exists, so the Sokki app's developer page (another process) can switch it.
 // A dictation adds what the speech engine wrote ("dictated"), so the entry shows
-// raw transcript next to the text that was finally sent.
+// raw transcript next to the text that was finally sent. "typed" lists the
+// parts of the text typed key by key ([start, end) in code points): not
+// dictation, pastes, suggestion picks, autocorrections, swipes or the prefill.
+// The Mac's word learning reads only those (same field on the Mac).
 // SPDX-License-Identifier: GPL-3.0-only
 
 package dev.verbatim.sokki
@@ -52,6 +55,23 @@ object Journal {
     private var lastChange = 0L
     private var lastRead = 0L
     private var pending = false
+    /** Which parts of the field's text were typed key by key. */
+    private val typed = TypedSpans()
+    /** Since the last snapshot: a key was tapped / text came from elsewhere. */
+    private var keyTapped = false
+    private var fromElsewhere = false
+    private var corrected = false
+
+    /** A key was tapped (LatinIME.onEvent). */
+    @JvmStatic fun keyTyped() { keyTapped = true }
+
+    /** Autocorrect changed the word just typed: typed if only its case changed. */
+    @JvmStatic fun autocorrected() { corrected = true }
+
+    /** Text that wasn't typed key by key: a suggestion,
+     * a swipe, a paste from the keyboard's clipboard, Sokki's spacing fix. */
+    @JvmStatic fun otherInput() { fromElsewhere = true }
+
     /** Dictations into this field: what the speech engine wrote, before any change. */
     private val dictations = org.json.JSONArray()
 
@@ -106,6 +126,10 @@ object Journal {
         last = prefill
         lastChange = 0L
         clearDictations()
+        typed.reset()
+        keyTapped = false
+        fromElsewhere = false
+        corrected = false
     }
 
     /** A dictation into this field ended (SokkiVoice); [raw] is the engine's text. */
@@ -120,7 +144,9 @@ object Journal {
 
     /** The field's text or selection changed (LatinIME.onUpdateSelection). */
     @JvmStatic fun onChange() {
-        if (!on || pending) return
+        if (!on) return
+        if (SokkiVoice.busy) fromElsewhere = true // dictation writes into the field
+        if (pending) return
         pending = true
         val wait = (lastRead + THROTTLE_MS - System.currentTimeMillis()).coerceAtLeast(0)
         main.postDelayed({ pending = false; snapshot() }, wait)
@@ -138,11 +164,17 @@ object Journal {
         if (!on) return
         lastRead = System.currentTimeMillis()
         val now = read()
+        val wasTyped = keyTapped && !fromElsewhere && (!corrected || TypedSpans.caseOnly(last, now))
+        keyTapped = false
+        fromElsewhere = false
+        corrected = false
         if (now == last) return
         if (now.isBlank() && last.isNotBlank()) {
             flush() // emptied: the message was sent
             prefill = ""
+            typed.reset()
         } else {
+            typed.apply(last, now, wasTyped)
             lastChange = lastRead
         }
         last = now
@@ -172,6 +204,9 @@ object Journal {
             .put("prefill", prefill)
             .put("text", text)
         if (dictations.length() > 0) entry.put("dictated", org.json.JSONArray(dictations.toString()))
+        entry.put("typed", org.json.JSONArray().apply {
+            for (r in typed.codePoints(text)) put(org.json.JSONArray().put(r[0]).put(r[1]))
+        })
         clearDictations()
         last = ""
         prefill = ""

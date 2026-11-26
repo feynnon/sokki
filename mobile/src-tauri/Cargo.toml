@@ -22,9 +22,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# On-device dictation: Parakeet via transcribe-cpp (CPU), cut at pauses.
+# On-device dictation: Nemotron Streaming via transcribe-cpp (CPU).
 transcribe-cpp = { version = "0.4.2", default-features = false }
-dictation-core = { path = "../dictation-core" }
 base64 = "0.22"
 # Model download (TLS without system certificates, works on Android).
 ureq = { version = "3", default-features = false, features = ["rustls"] }

@@ -1131,7 +1131,9 @@
       "aiDescription": "Schreibt Zusammenfassung, Entscheidungen und Aufgaben.",
       "model": "Sprachmodell",
       "modelDescription": "",
-      "change": "Ändern"
+      "change": "Ändern",
+      "callNames": "Namen aus dem Call",
+      "callNamesDescription": "Sokki benennt die Sprecher so, wie Zoom und Google Meet sie zeigen. In Google Meet schaltet Sokki dafür die Untertitel ein; nur du siehst sie."
     },
     "lm": {
       "tabSpeech": "Sprache",
@@ -1141,7 +1143,7 @@
       "cloud": "In der Cloud · braucht einen API-Schlüssel",
       "other": "Sonstiges",
       "recommended": "Empfohlen",
-      "qwen": "Privat und kostenlos. Auf diesem Mac, etwa eine Minute pro Meeting.",
+      "builtin": "Privat und kostenlos. Auf diesem Mac, etwa eine halbe Minute pro Meeting.",
       "ollama": "Dasselbe Modell in Ollama, einer eigenen App.",
       "sonnet": "Schnell und genau. Schickt das Transkript an Anthropic.",
       "opus": "Am genauesten. Schickt das Transkript an Anthropic.",

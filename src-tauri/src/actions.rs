@@ -867,6 +867,9 @@ impl ShortcutAction for TranscribeAction {
                                 transcription_time.elapsed(),
                                 utils::redact_text(&transcription)
                             );
+                            if crate::test_mic::active() {
+                                log::info!("Test mode, transcript: {transcription}");
+                            }
 
                             let cleaning = cleanup.is_some();
                             if post_process || cleaning {

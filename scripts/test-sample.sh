@@ -79,7 +79,7 @@ for f in "$REAL"/meeting-models/*.* "$REAL"/meeting-models/llm/*.gguf; do
   rel="${f#"$REAL/meeting-models/"}"
   [[ -e "$DATA/meeting-models/$rel" ]] || ln "$f" "$DATA/meeting-models/$rel"
 done
-[[ -f "$DATA/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+[[ -f "$DATA/meeting-models/llm/gemma-4-E4B-it-Q4_K_M.gguf" && -f "$DATA/meeting-models/llm/mtp-gemma-4-E4B-it.gguf" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
 if [[ -d "$REAL/models" ]]; then
   mkdir -p "$DATA/models"
   for f in "$REAL"/models/*; do

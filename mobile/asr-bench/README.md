@@ -196,3 +196,24 @@ longest wait for new words 1.2 s (was 4.1 s), done 0.2 s after stop (was
 3.1 s), ready 1.0 s after Android closed the keyboard (Parakeet Ultra:
 17–22 s), back in memory 0.7 s after opening the keyboard following 20 hours
 unused.
+
+### Nemotron vs Parakeet Ultra, English, German and mixed (2026-11-25)
+
+13 made-up clips (macOS voices Samantha, Daniel, Anna; mixed = Anna reading
+German with English words, and one dictation switching German → English →
+German), 383 words. Ultra transcribes each clip whole (its best case);
+Nemotron live (`--stream`). Word errors, and errors counting punctuation
+and capitals too:
+
+| | English (133 words) | German (149) | Mixed (101) | All words | With punctuation |
+|---|---|---|---|---|---|
+| Parakeet Ultra, whole | 5 | 3 | 14 | 22 (5.7 %) | 44 |
+| Nemotron live, lookahead 6 | 7 | 3 | 19 | 29 (7.6 %) | 59 |
+| Nemotron live, lookahead 13 | 6 | 3 | 17 | 26 (6.8 %) | 52 |
+
+Both stumble on English words in German ("Friday" → "FreeDive" /
+"Friedai"). Ultra often joins English sentences with commas; Nemotron
+leaves out the last period (K11). Ultra can't stream (`stream begin`
+refuses it, also as buffered stream), so live text with Ultra means
+re-reading audio, which the phone's CPU can't keep up with. Kept:
+Nemotron, lookahead 6.

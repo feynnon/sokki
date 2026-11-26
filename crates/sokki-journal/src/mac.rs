@@ -165,6 +165,8 @@ impl Reader {
             .filter_map(|a| focused.string(a))
             .find(|s| !s.trim().is_empty())
             .unwrap_or_default();
+        // read-only check: autocorrect selects a word and types over it
+        let replaceable = Some(focused.settable("AXSelectedTextRange"));
         Read::Field(Observation {
             key: FieldKey {
                 pid,
@@ -173,6 +175,7 @@ impl Reader {
             app: app_id,
             hint,
             text,
+            replaceable,
         })
     }
 }

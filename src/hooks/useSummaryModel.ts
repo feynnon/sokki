@@ -4,15 +4,20 @@ import { commands, type LlmDownload, type SummarySetup } from "@/bindings";
 import { useSettings } from "./useSettings";
 
 /** What the built-in summary model needs while it writes a summary:
- * Qwen 3.5 9B Q4_K_M through llama-server, 5.7 GB model file plus 0.7 GB
- * working memory at 16k context (measured 2026-11-24, PycharmProjects
- * CLAUDE.md "Heavy jobs"). */
-export const SUMMARY_NEEDS_BYTES = 6.4e9;
-/** The model file (`BUILTIN_MODEL.size`, crates/sokki-engine/src/llm.rs). */
-export const SUMMARY_DOWNLOAD_BYTES = 5_680_522_464;
-/** Below this the Mac counts as too small. An 8 GB Mac would keep 1.6 GB
- * next to the model for macOS, Sokki itself (0.5–1.5 GB, memguard.rs) and
- * every other app; Apple sells no Mac between 8 and 16 GB. */
+ * Gemma 4 E4B Q4_K_M with its MTP draft model through llama-server at 16k
+ * context, 5.6 GB resident at its peak (5.1 GB of files plus working
+ * memory; measured 2026-11-25 on the sample meeting, counted as the 9B's
+ * 6.4 GB was). The summary test's 4.7 GB was measured without the draft
+ * model and may not count the whole mapped file. */
+export const SUMMARY_NEEDS_BYTES = 5.6e9;
+/** The model and its draft model (`BUILTIN_MODEL.download_size()`,
+ * crates/sokki-engine/src/llm.rs); dictation cleanup uses the same files. */
+export const SUMMARY_DOWNLOAD_BYTES = 4_977_171_584 + 98_653_248;
+/** Below this the Mac counts as too small. Set for the 9B (6.4 GB): an 8 GB
+ * Mac would have kept 1.6 GB next to it for macOS, Sokki itself (0.5–1.5
+ * GB, memguard.rs) and every other app; Apple sells no Mac between 8 and
+ * 16 GB. With Gemma 4 E4B (5.6 GB) it would keep 2.4 GB; whether 8 GB Macs
+ * get the built-in model is Robin's call, so this is unchanged. */
 export const SMALL_MAC_BYTES = 12 * 2 ** 30;
 
 export type SummaryState =

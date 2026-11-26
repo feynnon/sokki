@@ -17,7 +17,7 @@ import { CODE_CLASS } from "@/components/shared/modelTable/columns";
 
 /** The built-in model's value ("builtin|…"): one model, set by Sokki
  * (`BUILTIN_MODEL` in crates/sokki-engine/src/llm.rs). */
-export const BUILTIN_MODEL = "builtin|qwen3.5-9b";
+export const BUILTIN_MODEL = "builtin|gemma-4-e4b";
 
 /** The language models offered for meeting notes ("provider|model"). The
  * local ones are the model measured in KNOWN_ISSUES.md, built in or through
@@ -32,14 +32,14 @@ export const LANGUAGE_MODELS: {
 }[] = [
   {
     value: BUILTIN_MODEL,
-    name: "Qwen 3.5 9B",
-    lineKey: "meetings.lm.qwen",
-    right: "5.7 GB",
+    name: "Gemma 4 E4B",
+    lineKey: "meetings.lm.builtin",
+    right: "5.1 GB",
     tagKey: "meetings.lm.recommended",
   },
   {
-    value: "local|qwen3.5:9b",
-    name: "Qwen 3.5 9B via Ollama",
+    value: "local|gemma4:e4b",
+    name: "Gemma 4 E4B via Ollama",
     lineKey: "meetings.lm.ollama",
     right: "Ollama",
   },

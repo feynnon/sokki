@@ -4,7 +4,7 @@
 //!
 //! cargo run --release --example summary_bench -- NOTE.md builtin|local OUT.json
 //! For "builtin": SOKKI_LLAMA_SERVER=… and SOKKI_MODELS_DIR=… (the folder
-//! holding llm/Qwen3.5-9B-Q4_K_M.gguf).
+//! holding the built-in model's files under llm/, see `llm::BUILTIN_MODEL`).
 
 use std::time::Instant;
 

@@ -656,8 +656,8 @@ pub struct MeetingSettings {
     /// Supporter code: proof of at least €20 paid for Sokki, checked offline
     /// (`sokki_engine::supporter`). Empty: none.
     pub supporter_code: String,
-    /// Which language model summarises: "builtin" (Qwen 3.5
-    /// 9B run by llama.cpp inside Sokki, on Macs with Apple silicon),
+    /// Which language model summarises: "builtin" (Gemma 4
+    /// E4B run by llama.cpp inside Sokki, on Macs with Apple silicon),
     /// "local" (the server at `llm_base_url`, normally Ollama; nothing
     /// leaves the computer either way), or a cloud provider: "anthropic",
     /// "openai" or "openrouter". A cloud
@@ -683,6 +683,11 @@ pub struct MeetingSettings {
     /// and that "stop" in the chat stops and deletes the recording. Uses
     /// Accessibility (`meeting/chat_notice.rs`).
     pub chat_notice_enabled: bool,
+    /// Name the speakers of a recorded call after who the call app shows
+    /// as speaking: Zoom's active-speaker tile, Google Meet's captions
+    /// (Sokki turns Meet's captions on for this, visible to the user only).
+    /// Uses Accessibility (`meeting/call_speakers.rs`).
+    pub call_names_enabled: bool,
     /// After a meeting, send its notes (summary, decisions, action items; no
     /// transcript) to everyone invited in the calendar, from the user's own
     /// Gmail or Apple Mail and in their name. On by default (Robin,
@@ -729,10 +734,11 @@ impl Default for MeetingSettings {
             llm_provider: sokki_engine::llm::DEFAULT_PROVIDER.to_string(),
             cloud_model: String::new(),
             llm_base_url: "http://localhost:11434".to_string(),
-            llm_model: "qwen3.5:9b".to_string(),
+            llm_model: "gemma4:e4b".to_string(),
             keep_audio_days: 0,
             detection_enabled: true,
             chat_notice_enabled: false,
+            call_names_enabled: true,
             mail_notes_auto: true,
             mail_notes_auto_set: false,
             gmail_address: None,
@@ -1508,8 +1514,9 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
 }
 
 /// Sokki runs its default language model itself now. Whoever still has the
-/// old default (Qwen 3.5 9B through Ollama) moves to the same model built
-/// in; a different Ollama model or server stays as it is.
+/// old default (Qwen 3.5 9B through Ollama) moves to the built-in model
+/// (Gemma 4 E4B since 25.11.2026); a different Ollama model or server stays
+/// as it is.
 fn move_default_ollama_to_builtin(m: &mut MeetingSettings) {
     let old_default = m.llm_provider == "local"
         && m.llm_model == "qwen3.5:9b"
@@ -2227,8 +2234,10 @@ mod tests {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
     fn the_old_ollama_default_moves_to_the_built_in_model() {
+        // The old default as stored: Qwen 3.5 9B through Ollama.
         let ollama = MeetingSettings {
             llm_provider: "local".into(),
+            llm_model: "qwen3.5:9b".into(),
             ..Default::default()
         };
         let mut m = ollama.clone();

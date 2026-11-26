@@ -18,7 +18,7 @@ import {
   useSummaryModel,
 } from "@/hooks/useSummaryModel";
 
-/** "Qwen 3.5 9B", as Models → Language model names it. */
+/** "Gemma 4 E4B", as Models → Language model names it. */
 const BUILTIN_NAME =
   LANGUAGE_MODELS.find((m) => m.value === BUILTIN_MODEL)?.name ?? "";
 

@@ -120,10 +120,14 @@ fi
 
 LLM_ENV=()
 if [[ -n "${SOKKI_TEST_LLM:-}" ]]; then
-  MODEL="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
-  [[ -f "$MODEL" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
-  mkdir -p "$DATA/meeting-models/llm"
-  [[ -f "$DATA/meeting-models/llm/$(basename "$MODEL")" ]] || ln "$MODEL" "$DATA/meeting-models/llm/"
+  # Sokki's downloaded language model (Gemma 4 E4B and its draft model),
+  # linked, not copied.
+  REAL_LLM="$HOME/Library/Application Support/$REAL_ID/meeting-models/llm"
+  for f in gemma-4-E4B-it-Q4_K_M.gguf mtp-gemma-4-E4B-it.gguf; do
+    [[ -f "$REAL_LLM/$f" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+    mkdir -p "$DATA/meeting-models/llm"
+    [[ -f "$DATA/meeting-models/llm/$f" ]] || ln "$REAL_LLM/$f" "$DATA/meeting-models/llm/"
+  done
   LLM_ENV=(--env SOKKI_TEST_LLM=1)
 fi
 
@@ -143,7 +147,8 @@ FROM=$(($(stat -f %z "$LOG" 2>/dev/null || echo 0) + 1))
 # The app starts the dictation itself 3 s after launch and stops it after HOLD.
 echo "Dictating ${LENGTH}s of audio, stopping after ${HOLD}s…"
 open -g --env SOKKI_TEST_MIC="$WAV" --env SOKKI_TEST_HOLD_S="$HOLD" ${LLM_ENV[@]+"${LLM_ENV[@]}"} -a "$TESTAPP"
-for _ in $(seq 1 240); do
+# Wait for the paste: the dictation itself, then up to 60 s more.
+for _ in $(seq 1 $(( (${HOLD%.*} + 63) * 2 ))); do
   tail -c +"$FROM" "$LOG" 2>/dev/null | grep -q "Test mode, not pasted" && break
   sleep 0.5
 done

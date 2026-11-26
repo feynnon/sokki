@@ -203,6 +203,62 @@ pub fn dump(target: Target, max: usize) -> Result<String, PostError> {
     }
 }
 
+/// Who is speaking in a call, as the call app shows it: Meet's captions
+/// (each line starts with the speaker's name) and Zoom's "active speaker"
+/// on a video tile. Poll it a few times a second while recording.
+#[cfg(target_os = "macos")]
+pub use mac::SpeakerWatch;
+
+/// Names Meet and Zoom show for the person using the computer.
+pub const SELF_NAMES: &[&str] = &["Ich", "You", "Du", "Me", "Sie", "Vous", "Tú", "Tu", "Io"];
+
+/// The person a Zoom video tile marks as speaking, from the tile's
+/// accessibility text ("Lena Vogt, Computer audio unmuted, Active speaker").
+pub fn zoom_active_speaker(tile: &str) -> Option<String> {
+    let mut parts = tile.split(',').map(str::trim);
+    let name = parts.next()?.to_string();
+    let speaking = parts.any(|p| {
+        let p = p.to_lowercase();
+        p == "active speaker"
+            || p == "aktiver sprecher"
+            || p == "aktive sprecherin"
+            || p == "aktiver redner"
+    });
+    (speaking && !name.is_empty()).then_some(name)
+}
+
+/// Follows Meet's caption lines between polls: a name whose latest line
+/// grew since the last poll is speaking now.
+#[derive(Debug, Default)]
+pub struct CaptionTracker {
+    last: std::collections::HashMap<String, String>,
+}
+
+impl CaptionTracker {
+    /// `blocks`: the caption region's lines, oldest first, as (name, text).
+    /// Returns the names speaking now.
+    pub fn update(&mut self, blocks: &[(String, String)]) -> Vec<String> {
+        let mut latest: Vec<(&str, &str)> = Vec::new();
+        for (name, text) in blocks {
+            match latest.iter_mut().find(|(n, _)| *n == name.as_str()) {
+                Some(l) => l.1 = text.as_str(),
+                None => latest.push((name.as_str(), text.as_str())),
+            }
+        }
+        let mut speaking = Vec::new();
+        for (name, text) in latest {
+            if text.trim().is_empty() {
+                continue;
+            }
+            if self.last.get(name).map(String::as_str) != Some(text) {
+                speaking.push(name.to_string());
+                self.last.insert(name.to_string(), text.to_string());
+            }
+        }
+        speaking
+    }
+}
+
 /// A chat message that asks to stop: "stop" or "stopp", any case, alone,
 /// with or without quotes and punctuation ("Stopp!", "'stop'", "stop 🙏").
 pub fn is_stop(message: &str) -> bool {
@@ -251,6 +307,42 @@ mod tests {
         assert_eq!(Target::for_app("brave").map(|t| t.name()), Some("Google Meet"));
         assert_eq!(Target::for_app("slack"), None);
         assert_eq!(Target::for_app("safari"), None);
+    }
+
+    #[test]
+    fn zoom_tiles() {
+        assert_eq!(
+            zoom_active_speaker("Lena Vogt, Computer audio unmuted, Active speaker").as_deref(),
+            Some("Lena Vogt")
+        );
+        assert_eq!(
+            zoom_active_speaker("Lena Berg, Computer audio unmuted"),
+            None
+        );
+        assert_eq!(
+            zoom_active_speaker("Jonas, Aktiver Sprecher").as_deref(),
+            Some("Jonas")
+        );
+    }
+
+    #[test]
+    fn captions_that_grow_are_speaking() {
+        let mut t = CaptionTracker::default();
+        let b = |v: &[(&str, &str)]| {
+            v.iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(t.update(&b(&[("Lena", "Hallo")])), ["Lena"]);
+        assert!(
+            t.update(&b(&[("Lena", "Hallo")])).is_empty(),
+            "no change, nobody"
+        );
+        assert_eq!(t.update(&b(&[("Lena", "Hallo"), ("Ich", "Hi")])), ["Ich"]);
+        assert_eq!(
+            t.update(&b(&[("Lena", "Hallo zusammen"), ("Ich", "Hi")])),
+            ["Lena"]
+        );
     }
 
     #[test]

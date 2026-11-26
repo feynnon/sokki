@@ -24,9 +24,9 @@ use std::time::Instant;
 use jni::objects::{JClass, JShortArray, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
-use transcribe_cpp::{ParakeetStreamOptions, RunOptions, Session, StreamExtension, StreamOptions};
+use transcribe_cpp::{RunOptions, Session};
 
-use crate::dictation::{engine_at, threads};
+use crate::dictation::{engine_at, stream_options, threads, warm};
 
 /// What `poll` returns once the final text is out, or for an error.
 const DONE: &str = "\u{0}done";
@@ -37,11 +37,6 @@ const TEXT: &str = "\u{0}text:";
 const FINAL: &str = "\u{0}final:";
 
 const RATE: usize = 16_000;
-/// How far the model listens ahead before it writes a word, in 80 ms
-/// frames: 6 adds words every ~0.56 s, as accurate as 13 (~1.1 s) on our
-/// clips and 0.5 s sooner; 0 was less accurate (asr-bench `--stream`).
-const LOOKAHEAD: i32 = 6;
-
 enum Msg {
     Audio(Vec<f32>),
     End,
@@ -87,25 +82,6 @@ fn log(msg: &str) {
 #[cfg(not(target_os = "android"))]
 fn log(msg: &str) {
     eprintln!("SokkiVoice: {msg}");
-}
-
-fn stream_options() -> StreamOptions {
-    StreamOptions {
-        family: Some(StreamExtension::ParakeetStream(ParakeetStreamOptions {
-            att_context_right: Some(LOOKAHEAD),
-        })),
-        ..Default::default()
-    }
-}
-
-/// Runs half a second of silence through a stream: touches the model and
-/// the session's buffers, so the next dictation finds them in memory.
-fn warm(session: &mut Session) {
-    let Ok(mut st) = session.stream(&RunOptions::default(), &stream_options()) else {
-        return;
-    };
-    let _ = st.feed(&vec![0.0f32; RATE / 2]);
-    let _ = st.finalize();
 }
 
 /// Asks the kernel to read the model file back into memory in the

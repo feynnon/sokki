@@ -47,6 +47,11 @@ pub struct Entry {
     /// ranges. Missing: not known (older or phone entries).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub typed: Option<Vec<[usize; 2]>>,
+    /// Whether Sokki could select text in this field and type over it, as
+    /// autocorrect does: tells a report where a fix was possible. Missing: not
+    /// known (older or phone entries).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replaceable: Option<bool>,
 }
 
 /// What a read of the focused field found. `K` tells fields apart.
@@ -56,6 +61,8 @@ pub struct Observation<K> {
     pub app: String,
     pub hint: String,
     pub text: String,
+    /// Whether Sokki could select text in the field and type over it.
+    pub replaceable: Option<bool>,
 }
 
 struct Field<K> {
@@ -67,6 +74,7 @@ struct Field<K> {
     last: String,
     last_change: Option<u64>,
     dictated: Vec<Dictated>,
+    replaceable: Option<bool>,
     /// Per character of `last`: typed key by key.
     typed: Vec<bool>,
     /// Key presses not yet matched by a change: a key is counted a moment
@@ -103,6 +111,7 @@ impl<K> Field<K> {
             last: o.text,
             last_change: None,
             dictated: Vec::new(),
+            replaceable: o.replaceable,
             credit: 0,
         }
     }
@@ -123,6 +132,7 @@ impl<K> Field<K> {
             text: self.last.clone(),
             dictated: self.dictated.clone(),
             typed: Some(runs(&self.typed)),
+            replaceable: self.replaceable,
         })
     }
 
@@ -214,7 +224,14 @@ impl<K: PartialEq> Tracker<K> {
         match read {
             None => done.extend(self.leave()),
             Some(o) => match self.current.as_mut() {
-                Some(field) if field.key == o.key => done.extend(field.update(now, keys, o.text)),
+                Some(field) if field.key == o.key => {
+                    // replaceable once is enough: an app may answer one read late
+                    field.replaceable = match (field.replaceable, o.replaceable) {
+                        (Some(a), Some(b)) => Some(a || b),
+                        (a, b) => a.or(b),
+                    };
+                    done.extend(field.update(now, keys, o.text))
+                }
                 _ => {
                     done.extend(self.leave());
                     self.current = Some(Field::open(now, o));
@@ -253,6 +270,7 @@ mod tests {
             app: "com.example.chat".into(),
             hint: "Message".into(),
             text: text.into(),
+            replaceable: Some(true),
         })
     }
 
@@ -274,6 +292,25 @@ mod tests {
         let next = t.observe(6, 100, read(1, ""));
         assert_eq!(next[0].text, "Noch was");
         assert_eq!(next[0].opened, 1);
+    }
+
+    #[test]
+    fn an_entry_says_whether_autocorrect_could_replace_words_there() {
+        let mut t = Tracker::new();
+        let unknown = |text: &str| {
+            read(1, text).map(|o| Observation {
+                replaceable: None,
+                ..o
+            })
+        };
+        // the first read didn't know, a later one did: the field counts as replaceable
+        t.observe(1, 100, unknown("Hal"));
+        t.observe(2, 100, read(1, "Hallo"));
+        let sent = t.observe(3, 100, read(1, ""));
+        assert_eq!(sent[0].replaceable, Some(true));
+        assert!(serde_json::to_string(&sent[0])
+            .unwrap()
+            .contains(r#""replaceable":true"#));
     }
 
     #[test]
@@ -394,6 +431,7 @@ mod tests {
             text: "hi".into(),
             dictated: vec![],
             typed: None,
+            replaceable: None,
         };
         assert_eq!(
             serde_json::to_string(&e).unwrap(),

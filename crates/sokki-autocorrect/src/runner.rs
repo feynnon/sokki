@@ -12,6 +12,8 @@ use crate::{Autocorrect, Outcome};
 
 /// How often the thread looks at the key count.
 const TICK: Duration = Duration::from_millis(15);
+/// How long after a key the thread keeps looking while the app hasn't shown it yet.
+const CATCH_UP: Duration = Duration::from_millis(300);
 
 /// Called with every fix, skip and undo: the app, what happened, and how long it took.
 pub type Report = Box<dyn Fn(&str, &Outcome, Duration) + Send>;
@@ -69,6 +71,7 @@ fn run(h: Handle, o: Options) {
     let mut seen = (o.keys)();
     let mut on = false;
     let mut checked = Instant::now() - Duration::from_secs(10);
+    let mut key_at = Instant::now();
     loop {
         std::thread::sleep(TICK);
         if checked.elapsed() >= Duration::from_secs(1) {
@@ -109,11 +112,20 @@ fn run(h: Handle, o: Options) {
             }
         }
         let Some(ac) = ac.as_mut() else { continue };
+        if checked.elapsed() < TICK {
+            // just checked the switch: also get the app in front ready (once per app)
+            let excluded = h.excluded.lock().map(|x| x.clone()).unwrap_or_default();
+            crate::mac::prepare((o.front)(), &excluded);
+        }
         let now = (o.keys)();
-        if now == seen {
+        let catching_up = ac.stale() && key_at.elapsed() < CATCH_UP;
+        if now == seen && !catching_up {
             continue;
         }
-        seen = now;
+        if now != seen {
+            seen = now;
+            key_at = Instant::now();
+        }
         let excluded = h.excluded.lock().map(|x| x.clone()).unwrap_or_default();
         let started = Instant::now();
         let Some(field) = crate::mac::focused((o.front)(), &excluded) else {

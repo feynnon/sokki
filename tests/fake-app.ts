@@ -236,6 +236,7 @@ function fixtures(s: Scenario) {
         detection_enabled: true,
         footer_enabled: true,
         phone_link_enabled: false,
+        call_names_enabled: true,
         // On by default since 2026-11-25 (meeting/mail.rs).
         mail_notes_auto: true,
         mail_notes_auto_set: false,

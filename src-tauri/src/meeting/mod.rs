@@ -14,6 +14,8 @@
 
 #[cfg(target_os = "macos")]
 pub mod calendar;
+#[cfg(target_os = "macos")]
+pub mod call_speakers;
 pub mod chat_notice;
 pub mod detect;
 pub mod diarize_worker;

@@ -68,6 +68,10 @@ pub struct ModelStateEvent {
 /// volatile suffix the model may still rewrite.
 #[derive(Clone, Debug, Serialize, Deserialize, Type, tauri_specta::Event)]
 pub struct StreamTextEvent {
+    /// Paragraphs the dictation cleanup has finished, shown before
+    /// `committed` (`dictation_cleanup`); empty without the cleanup.
+    #[serde(default)]
+    pub cleaned: String,
     pub committed: String,
     pub tentative: String,
 }
@@ -1438,11 +1442,13 @@ fn agreed_language(transcripts: &[Transcript]) -> Option<String> {
 }
 
 fn emit_stream_text(app_handle: &AppHandle, committed: &str, tentative: &str) {
-    // The committed part is final: the dictation's cleanup starts on it.
-    crate::dictation_cleanup::live_text(committed);
+    // The committed part is final: the dictation's cleanup starts on it, and
+    // what it has cleaned already shows in its place.
+    let (cleaned, committed, tentative) = crate::dictation_cleanup::live_text(committed, tentative);
     let _ = StreamTextEvent {
-        committed: committed.to_string(),
-        tentative: tentative.to_string(),
+        cleaned,
+        committed,
+        tentative,
     }
     .emit(app_handle);
 }

@@ -60,7 +60,7 @@ A 20 min call is ready about 3 min after you hang up, on an M-series Mac.
 
 - A Mac with Apple silicon, macOS 14.2 or later.
 - 0.9 GB for the speech and speaker models, downloaded once.
-- For summaries on your Mac: 5.7 GB more, and 6.4 GB of memory while a summary runs. Sokki offers the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
+- For summaries on your Mac: 5.1 GB more, and 5.6 GB of memory while a summary runs. Sokki offers the model under **Models → Language model**. Or pick Claude or GPT there with your own key.
 
 Prefer Terminal? This installs Sokki, and updates it when run again. Settings and meetings stay.
 
@@ -81,7 +81,7 @@ brew install feynnon/sokki/sokki
 | Echo removal | WebRTC echo cancellation | — |
 | Speakers | NVIDIA Sortformer, GPU | Remembered voices |
 | Speech recognition | NVIDIA Parakeet, 25 languages | Whisper, Canary, Qwen-ASR and more |
-| Summary | Qwen 3.5 9B, built in, on your Mac | Ollama; Claude, GPT or OpenRouter with your key |
+| Summary | Gemma 4 E4B, built in, on your Mac | Ollama; Claude, GPT or OpenRouter with your key |
 
 Models download once, then run offline. Measurements behind these choices: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 

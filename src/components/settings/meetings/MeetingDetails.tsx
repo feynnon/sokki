@@ -180,7 +180,7 @@ const useScreenVideo = (meetingId: string): VideoMeta | null => {
     const load = () =>
       void commands.videoList().then((r) => {
         if (!live || r.status !== "ok") return;
-        const v = r.data.find((x) => x.meeting_id === meetingId);
+        const v = (r.data ?? []).find((x) => x.meeting_id === meetingId);
         setVideo(v?.status === "ready" ? v : null);
       });
     load();

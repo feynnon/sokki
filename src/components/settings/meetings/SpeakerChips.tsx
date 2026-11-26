@@ -38,9 +38,16 @@ export const SpeakerChips: React.FC<{
     setGiven({});
     if (record.status.kind !== "done") return;
     let live = true;
-    void commands.meetingSpeakerProposals(record.id).then((r) => {
-      if (live && r.status === "ok") setProposals(r.data);
-    });
+    // A list that can't be read is no proposals: the chips still show.
+    void commands
+      .meetingSpeakerProposals(record.id)
+      .then((r) => {
+        if (live && r?.status === "ok")
+          setProposals(Array.isArray(r.data) ? r.data : []);
+      })
+      .catch(() => {
+        if (live) setProposals([]);
+      });
     return () => {
       live = false;
     };
@@ -57,7 +64,7 @@ export const SpeakerChips: React.FC<{
         {record.speakers.map((sp) => {
           const shown = given[sp] ?? sp;
           const p = proposals.find((x) => x.speaker === sp);
-          const suggest = !given[sp] && p && p.candidates.length > 0;
+          const suggest = !given[sp] && p && (p.candidates ?? []).length > 0;
           return (
             <button
               key={sp}

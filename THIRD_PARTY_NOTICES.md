@@ -35,10 +35,10 @@ card:
 - Speech recognition: NVIDIA Parakeet and other models from Handy's catalog
   (Models page in the app)
 - Speaker detection: NVIDIA Sortformer (streaming, 4 speakers)
-- Summaries on your Mac: Qwen 3.5 9B (Apache-2.0) by Alibaba's Qwen team,
-  as a GGUF file quantized by Unsloth; optionally through [Ollama](https://ollama.com)
-- Dictation cleanup on your Mac: Gemma 4 E4B (Apache-2.0) by Google
-  DeepMind, with its MTP draft model, as GGUF files quantized by Unsloth
+- Summaries and dictation cleanup on your Mac: Gemma 4 E4B (Apache-2.0,
+  as stated on Google's model card google/gemma-4-E4B-it) by Google
+  DeepMind, with its MTP draft model, as GGUF files quantized by Unsloth;
+  optionally through [Ollama](https://ollama.com)
 
 Optional cloud summaries (Anthropic, OpenAI, OpenRouter) are subject to each
 provider's terms.

@@ -416,6 +416,77 @@ pub fn group_candidates(
     counts
 }
 
+/// When a name spoke, as the call app showed it (Meet's captions, Zoom's
+/// "active speaker"): seconds from the start of the recording.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CallSpan {
+    pub start_s: f64,
+    pub end_s: f64,
+    pub name: String,
+}
+
+/// A transcript turn: who Sokki heard, when.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Turn {
+    pub speaker: String,
+    pub start_s: f64,
+    pub end_s: f64,
+}
+
+/// Names for unnamed speakers from the call app: each "Speaker N" takes
+/// the name that spoke during most of its turns. A name is given when it
+/// covers more than half of the speaker's time the call app accounts for,
+/// and at least `min_s` seconds; each name goes to one speaker only (the
+/// one it overlaps most). `self_names` are how the call app shows the user
+/// ("Ich", "You", the user's name) and are never given.
+pub fn names_from_call(
+    turns: &[Turn],
+    spans: &[CallSpan],
+    self_names: &[String],
+    min_s: f64,
+) -> Vec<(String, String)> {
+    let is_self = |n: &str| {
+        self_names
+            .iter()
+            .any(|s| s.trim().eq_ignore_ascii_case(n.trim()))
+    };
+    // Overlap seconds per (speaker, name).
+    let mut overlap: Vec<(String, String, f64)> = Vec::new();
+    let mut accounted: HashMap<String, f64> = HashMap::new();
+    for t in turns.iter().filter(|t| is_placeholder(&t.speaker)) {
+        for s in spans {
+            let o = t.end_s.min(s.end_s) - t.start_s.max(s.start_s);
+            if o <= 0.0 {
+                continue;
+            }
+            *accounted.entry(t.speaker.clone()).or_default() += o;
+            if is_self(&s.name) {
+                continue;
+            }
+            match overlap
+                .iter_mut()
+                .find(|(sp, n, _)| *sp == t.speaker && *n == s.name)
+            {
+                Some((_, _, x)) => *x += o,
+                None => overlap.push((t.speaker.clone(), s.name.clone(), o)),
+            }
+        }
+    }
+    overlap.sort_by(|a, b| b.2.total_cmp(&a.2));
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (speaker, name, secs) in overlap {
+        let total = accounted.get(&speaker).copied().unwrap_or(0.0);
+        if secs < min_s || secs * 2.0 <= total {
+            continue;
+        }
+        if out.iter().any(|(s, n)| *s == speaker || *n == name) {
+            continue;
+        }
+        out.push((speaker, name));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -443,6 +514,70 @@ mod tests {
             email: Some(email.into()),
             is_me: false,
         }
+    }
+
+    fn turn(sp: &str, a: f64, b: f64) -> Turn {
+        Turn {
+            speaker: sp.into(),
+            start_s: a,
+            end_s: b,
+        }
+    }
+
+    fn span(name: &str, a: f64, b: f64) -> CallSpan {
+        CallSpan {
+            start_s: a,
+            end_s: b,
+            name: name.into(),
+        }
+    }
+
+    #[test]
+    fn call_names_go_to_the_voice_they_overlap() {
+        let turns = vec![
+            turn("Speaker 2", 0.0, 6.0),
+            turn("Robin", 6.5, 10.0),
+            turn("Speaker 3", 10.5, 15.0),
+            turn("Speaker 2", 15.5, 20.0),
+        ];
+        // The call app lags a little and shows the user as "Ich".
+        let spans = vec![
+            span("Lena Vogt", 0.4, 6.3),
+            span("Ich", 6.8, 10.2),
+            span("Jonas Weber", 10.9, 15.2),
+            span("Lena Vogt", 15.8, 20.1),
+        ];
+        let got = names_from_call(&turns, &spans, &["Ich".into(), "Robin".into()], 3.0);
+        assert_eq!(
+            got,
+            vec![
+                ("Speaker 2".to_string(), "Lena Vogt".to_string()),
+                ("Speaker 3".to_string(), "Jonas Weber".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn unclear_or_short_overlaps_name_nobody() {
+        // Two names share the speaker's time half and half: no name.
+        let turns = vec![turn("Speaker 2", 0.0, 10.0)];
+        let spans = vec![span("Lena", 0.0, 5.0), span("Jonas", 5.0, 10.0)];
+        assert!(names_from_call(&turns, &spans, &[], 3.0).is_empty());
+        // Too short.
+        let spans = vec![span("Lena", 0.0, 2.0)];
+        assert!(names_from_call(&turns, &spans, &[], 3.0).is_empty());
+        // Only the user spoke then.
+        let spans = vec![span("Ich", 0.0, 10.0)];
+        assert!(names_from_call(&turns, &spans, &["Ich".into()], 3.0).is_empty());
+    }
+
+    #[test]
+    fn one_name_one_speaker() {
+        // Sortformer split one person in two: the name goes to the larger part.
+        let turns = vec![turn("Speaker 2", 0.0, 8.0), turn("Speaker 3", 8.0, 12.0)];
+        let spans = vec![span("Lena", 0.0, 12.0)];
+        let got = names_from_call(&turns, &spans, &[], 3.0);
+        assert_eq!(got, vec![("Speaker 2".to_string(), "Lena".to_string())]);
     }
 
     #[test]

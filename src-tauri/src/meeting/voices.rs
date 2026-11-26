@@ -426,6 +426,10 @@ pub fn after_processing(app: &AppHandle, id: &str, recognised: &[String]) {
     let store = store(app);
     if let Some(r) = store.get(id).filter(processed) {
         let _ = invitees(&store, &r);
+        let named = name_from_call(app, &store, &r);
+        if named > 0 {
+            log::info!("Meeting {id}: {named} speaker(s) named from the call app");
+        }
         let given = name_the_rest(app, &store, id);
         if !given.is_empty() {
             log::info!(
@@ -447,6 +451,46 @@ pub fn after_processing(app: &AppHandle, id: &str, recognised: &[String]) {
         Ok(n) => log::info!("Deleted {n} voice(s) unused for a year"),
         Err(e) => log::warn!("Forgetting unused voices failed: {e:#}"),
     }
+}
+
+/// Names from the call app (`call_speakers.json`): Meet's captions or
+/// Zoom's active speaker, laid over the transcript's turns.
+fn name_from_call(app: &AppHandle, store: &MeetingStore, r: &MeetingRecord) -> usize {
+    let dir = store.audio_dir(&r.id);
+    let spans = super::call_speakers::load(&dir);
+    if spans.is_empty() {
+        return 0;
+    }
+    let Some(md) = r
+        .note_path
+        .as_deref()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+    else {
+        return 0;
+    };
+    let turns: Vec<voices::Turn> = transcript_from_note(&md)
+        .segments
+        .into_iter()
+        .map(|s| voices::Turn {
+            speaker: s.speaker,
+            start_s: s.start_s,
+            end_s: s.end_s.max(s.start_s),
+        })
+        .collect();
+    let mut self_names: Vec<String> = meeting_chat::SELF_NAMES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    self_names.push(user_name(app));
+    // At least a few seconds together, so one stray caption names nobody.
+    let pairs = voices::names_from_call(&turns, &spans, &self_names, 3.0);
+    let mut n = 0;
+    for (speaker, name) in pairs {
+        if rename_in(app, store, &r.id, &speaker, &name).is_ok() {
+            n += 1;
+        }
+    }
+    n
 }
 
 // ------------------------------------------------------------ clips

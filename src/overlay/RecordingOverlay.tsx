@@ -356,8 +356,11 @@ const RecordingOverlay: React.FC = () => {
   // ---- Live overlay: a pill that sculpts open into a panel ----
   const liveNotice = state === "live_notice" ? shownNotice : null;
   if (state === "streaming" || liveNotice) {
+    const cleaned = streamText.cleaned ?? "";
     const hasText =
-      streamText.committed.length > 0 || streamText.tentative.length > 0;
+      cleaned.length > 0 ||
+      streamText.committed.length > 0 ||
+      streamText.tentative.length > 0;
     const working = !liveNotice && phase === "working";
     // A notice keeps the transcript; with none, the panel explains the notice.
     const noticeText =
@@ -401,6 +404,16 @@ const RecordingOverlay: React.FC = () => {
                     </span>
                   )}
                   {noticeText && <span className="ndetail">{noticeText}</span>}
+                  {/* What the dictation cleanup has finished, as paragraphs
+                      and lists; the newest part follows raw. */}
+                  {cleaned && (
+                    <span className="cleaned">
+                      {cleaned +
+                        (streamText.committed || streamText.tentative
+                          ? "\n\n"
+                          : " ")}
+                    </span>
+                  )}
                   <span className="committed">
                     {streamText.committed ? streamText.committed + " " : ""}
                   </span>

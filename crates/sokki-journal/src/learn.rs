@@ -351,6 +351,7 @@ mod tests {
             text: text.into(),
             dictated: vec![],
             typed: Some(vec![[0, text.chars().count()]]),
+            replaceable: None,
         }
     }
 

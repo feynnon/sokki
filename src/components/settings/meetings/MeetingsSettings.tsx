@@ -393,6 +393,13 @@ const MeetingSettingsView: React.FC<{
             grouped
           />
           <ToggleSwitch
+            checked={meetingSettings.call_names_enabled}
+            onChange={(v) => void save({ call_names_enabled: v })}
+            label={t("meetings.settings.callNames")}
+            description={t("meetings.settings.callNamesDescription")}
+            grouped
+          />
+          <ToggleSwitch
             checked={meetingSettings.silence_hint_enabled}
             onChange={(v) => void save({ silence_hint_enabled: v })}
             label={t("meetings.settings.silenceHint")}

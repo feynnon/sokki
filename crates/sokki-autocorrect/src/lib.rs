@@ -51,6 +51,10 @@ pub trait Field {
     fn select(&self, start: usize, len: usize) -> bool;
     /// Types `text` over the selection.
     fn insert(&self, text: &str) -> bool;
+    /// Waits briefly until the field's text passes `ok` (apps may show a change a few ms late).
+    fn settle(&self, ok: &dyn Fn(&str) -> bool) -> bool {
+        self.value().is_some_and(|v| ok(&v))
+    }
 }
 
 /// Apps where Sokki never fixes: macOS already does (Apple's own apps), a typo fix would
@@ -133,9 +137,14 @@ pub struct Autocorrect {
     /// words the user undid a fix of: never changed again
     kept: HashSet<String>,
     kept_file: Option<PathBuf>,
+    /// The last read showed the field as before although keys were pressed: the app hasn't
+    /// updated what Accessibility sees yet (Chrome takes a few ms). Look again soon.
+    stale: bool,
 }
 
-const WORD_END: &[char] = &[' ', '.', ',', '!', '?', ';', ':'];
+/// Characters that end a word. U+00A0: rich editors in browsers (Slack, Claude, Gmail) show a
+/// space typed at the end of a line as a no-break space.
+const WORD_END: &[char] = &[' ', '\u{a0}', '.', ',', '!', '?', ';', ':'];
 
 impl Autocorrect {
     /// `kept_file`: one word per line, the words the user kept by undoing a fix.
@@ -157,6 +166,7 @@ impl Autocorrect {
             done: None,
             kept,
             kept_file,
+            stale: false,
         }
     }
 
@@ -164,6 +174,13 @@ impl Autocorrect {
     pub fn reset(&mut self) {
         self.last = None;
         self.done = None;
+        self.stale = false;
+    }
+
+    /// Whether the last look came too early (the field didn't show the new keys yet), so the
+    /// caller should look again shortly even without a new key.
+    pub fn stale(&self) -> bool {
+        self.stale
     }
 
     /// Look at the focused field after a key press. `keys`: reads the key-press count
@@ -176,6 +193,13 @@ impl Autocorrect {
             return Outcome::Nothing;
         };
         let app = field.app().to_string();
+        // Keys were pressed, but the field looks exactly as at the last read: the app hasn't
+        // caught up yet. Keep everything as it was and look again, or the typed run is lost.
+        self.stale = matches!(&self.last, Some(p) if p.app == app && p.text == text
+            && p.cursor == cursor && keys_at_read != p.keys);
+        if self.stale {
+            return Outcome::Nothing;
+        }
         // How much of the text before the cursor was typed key by key: it grows when the field
         // holds the last read's text plus no more characters than keys were pressed, at the
         // cursor. A paste (one key, many characters), dictation (no keys) or a move resets it.
@@ -184,7 +208,10 @@ impl Autocorrect {
             Some(p)
                 if cursor > p.cursor
                     && cursor - p.cursor <= keys_at_read.saturating_sub(p.keys) as usize
-                    && text::remove_u16(&text, p.cursor, cursor - p.cursor) == p.text =>
+                    && same_text(
+                        &text::remove_u16(&text, p.cursor, cursor - p.cursor),
+                        &p.text,
+                    ) =>
             {
                 p.run + (cursor - p.cursor)
             }
@@ -260,14 +287,24 @@ impl Autocorrect {
         if keys() != keys_at_read {
             return Outcome::Skipped("typing on");
         }
-        if !field.select(start, len) {
+        // Select the word with the character that ended it and type both: the cursor then
+        // ends up after that character by itself, so a quick next key lands in the right place.
+        let sel_len = cursor - start;
+        let ending: Vec<u16> = text
+            .encode_utf16()
+            .skip(start + len)
+            .take(sel_len - len)
+            .collect::<Vec<u16>>();
+        let ending = String::from_utf16_lossy(&ending);
+        let selected = format!("{typed}{ending}");
+        if !field.select(start, sel_len) {
             return Outcome::Skipped("can't select");
         }
         if keys() != keys_at_read {
             // A key came while the word was selected. The app may type it over the word:
             // then put the word back, and the key where the cursor was.
             field.select(cursor, 0);
-            let repaired = repair(field, text, start, len, typed, cursor);
+            let repaired = repair(field, text, start, sel_len, &selected, cursor);
             self.reset();
             return Outcome::Skipped(if repaired {
                 "typing on, word put back"
@@ -275,24 +312,43 @@ impl Autocorrect {
                 "typing on"
             });
         }
-        if !field.insert(fix) {
+        if !field.insert(&format!("{fix}{ending}")) {
             field.select(cursor, 0);
             return Outcome::Skipped("can't type the fix");
         }
         let after = cursor + u16_len(fix) - len;
-        field.select(after, 0);
         let expected = text::replace_u16(text, start, len, fix);
-        let exact = field.value().as_deref() == Some(expected.as_str());
+        // the fix is in: everything up to the cursor as expected, the rest as before (keys the
+        // user typed right after the space may already follow the fix)
+        let (head, tail) = (
+            text::prefix_u16(&expected, after),
+            text::suffix_from_u16(text, cursor),
+        );
+        let (nh, nt) = (head.chars().count(), tail.chars().count());
+        let exact = field.settle(&|v| {
+            let n = v.chars().count();
+            n >= nh + nt
+                && same_text(&v.chars().take(nh).collect::<String>(), &head)
+                && same_text(&v.chars().skip(n - nt).collect::<String>(), &tail)
+        });
         if !exact {
-            log::warn!(
-                "autocorrect: {} doesn't hold what was meant after a fix",
-                field.app()
-            );
+            // The typed fix never arrived (the app wasn't taking keys). Never leave the word
+            // selected, and if a key replaced it meanwhile, put the word back.
+            field.select(cursor, 0);
+            let left = field.value().as_deref() == Some(text) || {
+                repair(field, text, start, sel_len, &selected, cursor)
+            };
+            self.reset();
+            return Outcome::Skipped(if left {
+                "the fix didn't arrive"
+            } else {
+                "the fix didn't arrive, field changed"
+            });
         }
         self.last = Some(Last {
             app: field.app().to_string(),
             text: field.value().unwrap_or_else(|| expected.clone()),
-            cursor: after,
+            cursor: field.selection().map(|s| s.0).unwrap_or(after),
             keys: keys(),
             run: 0,
         });
@@ -324,8 +380,9 @@ impl Autocorrect {
             return Outcome::Skipped("can't undo");
         }
         let after = d.start + u16_len(&d.typed);
-        field.select(after, 0);
         let restored = text::replace_u16(text, d.start, flen, &d.typed);
+        // typing over the selection already leaves the cursor after the word
+        field.settle(&|v| v == restored);
         self.last = Some(Last {
             app: d.app.clone(),
             text: field.value().unwrap_or(restored),
@@ -362,6 +419,15 @@ impl Autocorrect {
 
 /// After a key landed on the selected word: if the field shows the word replaced by what was
 /// typed, put the word back and the typed characters at the cursor, where they were meant.
+/// Equal, counting a no-break space as a space: rich editors in browsers show a space at the
+/// end of a line as U+00A0 and turn it into a plain space once the next character comes.
+fn same_text(a: &str, b: &str) -> bool {
+    a.chars().count() == b.chars().count()
+        && a.chars()
+            .zip(b.chars())
+            .all(|(x, y)| x == y || (x.is_whitespace() && y.is_whitespace()))
+}
+
 fn repair(
     field: &dyn Field,
     text: &str,
@@ -388,18 +454,17 @@ fn repair(
         return false;
     }
     let keys_typed = String::from_utf16_lossy(s);
-    let ok = field.select(start, s.len())
-        && field.insert(typed)
-        && field.select(cursor, 0)
-        && field.insert(&keys_typed);
-    field.select(cursor + s.len(), 0);
     let mut want = t[..cursor].to_vec();
     want.extend_from_slice(s);
     want.extend_from_slice(&t[cursor..]);
-    let exact = field
-        .value()
-        .map(|x| x.encode_utf16().collect::<Vec<u16>>())
-        == Some(want);
+    let want = String::from_utf16_lossy(&want);
+    // each step waits until the app shows the one before, so no key lands in the wrong place
+    let ok = field.select(start, s.len())
+        && field.insert(typed)
+        && field.settle(&|v| v == text)
+        && field.select(cursor, 0)
+        && field.insert(&keys_typed);
+    let exact = ok && field.settle(&|v| v == want);
     log::warn!(
         "autocorrect: a key landed on the word being fixed in {}; put back: {}",
         field.app(),

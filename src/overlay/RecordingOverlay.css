@@ -259,6 +259,12 @@
 .stext-cap .tentative {
   color: inherit;
 }
+/* Cleaned paragraphs keep their blank lines and list items, and stand
+   upright: they are done, unlike the italic live text after them. */
+.stext-cap .cleaned {
+  white-space: pre-wrap;
+  font-style: normal;
+}
 .stext-cap .sloading {
   color: var(--s-muted);
 }

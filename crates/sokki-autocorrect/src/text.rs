@@ -106,6 +106,16 @@ pub fn word_before(u: &Utf16, end: usize) -> Option<(usize, String, Vec<String>)
     Some((u.chars[i].0, word, prevs))
 }
 
+/// The first `n` UTF-16 units of `s`.
+pub fn prefix_u16(s: &str, n: usize) -> String {
+    String::from_utf16_lossy(&s.encode_utf16().take(n).collect::<Vec<u16>>())
+}
+
+/// `s` from UTF-16 offset `at` on.
+pub fn suffix_from_u16(s: &str, at: usize) -> String {
+    String::from_utf16_lossy(&s.encode_utf16().skip(at).collect::<Vec<u16>>())
+}
+
 /// `s` without `n` UTF-16 units at `at`.
 pub fn remove_u16(s: &str, at: usize, n: usize) -> String {
     replace_u16(s, at, n, "")

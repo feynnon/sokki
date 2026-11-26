@@ -1031,10 +1031,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab03c107fafeb3ee9f5925686dbb7a73bc76e3932abb0d2b365cb64b169cf04c"
 
 [[package]]
-name = "dictation-core"
-version = "0.1.0"
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2905,7 +2901,6 @@ name = "mobile"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "dictation-core",
  "jni 0.21.1",
  "serde",
  "serde_json",

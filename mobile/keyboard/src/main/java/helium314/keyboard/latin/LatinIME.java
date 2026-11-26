@@ -1478,6 +1478,7 @@ public class LatinIME extends InputMethodService implements
     // This method is public for testability of LatinIME, but also in the future it should
     // completely replace #onCodeInput.
     public void onEvent(@NonNull final Event event) {
+        dev.verbatim.sokki.Journal.keyTyped(); // Sokki: the journal marks typed text (if on)
         if (KeyCode.VOICE_INPUT == event.getKeyCode()) {
             // Sokki: dictate into the open field instead of switching keyboards.
             // A half-typed word is finished first, so dictation doesn't replace it.
@@ -1488,12 +1489,14 @@ public class LatinIME extends InputMethodService implements
                 mInputLogic.onCodeInput(mSettings.getCurrent(), event,
                         mKeyboardSwitcher.getKeyboardCapsMode(),
                         mKeyboardSwitcher.getCurrentKeyboardScript(), mHandler);
+        if (completeInputTransaction.didAutoCorrect()) dev.verbatim.sokki.Journal.autocorrected();
         updateStateAfterInputTransaction(completeInputTransaction);
         mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState(), getCurrentRecapitalizeState());
     }
 
     public void onTextInput(@Nullable String rawText) {
         if (rawText == null) return;
+        dev.verbatim.sokki.Journal.otherInput(); // Sokki: pasted or multi-letter key, not typed
         // TODO: have the keyboard pass the correct key code when we need it.
         Event event = Event.createSoftwareTextEvent(rawText, KeyCode.MULTIPLE_CODE_POINTS, null);
         InputTransaction completeInputTransaction = mInputLogic.onTextInput(mSettings.getCurrent(),
@@ -1513,6 +1516,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     public void onEndBatchInput(final InputPointers batchPointers) {
+        dev.verbatim.sokki.Journal.otherInput(); // Sokki: a swipe, not typed key by key
         mInputLogic.onEndBatchInput(batchPointers);
         mGestureConsumer.onGestureCompleted(batchPointers);
     }
@@ -1606,6 +1610,7 @@ public class LatinIME extends InputMethodService implements
     // interface
     @Override
     public void pickSuggestionManually(final SuggestedWordInfo suggestionInfo) {
+        dev.verbatim.sokki.Journal.otherInput(); // Sokki: a picked suggestion, not typed
         final InputTransaction completeInputTransaction = mInputLogic.onPickSuggestionManually(
                 mSettings.getCurrent(), suggestionInfo,
                 mKeyboardSwitcher.getKeyboardCapsMode(),

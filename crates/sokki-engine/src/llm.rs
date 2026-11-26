@@ -112,49 +112,85 @@ impl BuiltinModel {
     }
 }
 
-/// Qwen 3.5 9B, Q4_K_M: the same model as Ollama's `qwen3.5:9b` (there
-/// NVFP4, also about 4.5 bits per weight). Apache-2.0.
-pub const BUILTIN_MODEL: BuiltinModel = BuiltinModel {
-    id: "qwen3.5-9b-q4_k_m",
-    file: "Qwen3.5-9B-Q4_K_M.gguf",
-    url: "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf",
-    sha256: "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8",
-    size: 5_680_522_464,
-    // Qwen's values, the same Ollama ships with qwen3.5:9b (Robin,
-    // 2026-11-20: "Nimm Qwens Werte").
-    sampling: &[
-        "--temp", "1.0", "--top-k", "20", "--top-p", "0.95", "--min-p", "0",
-        "--presence-penalty", "1.5", "--repeat-penalty", "1.0",
-    ],
-    // The same as Ollama's (`num_ctx`).
-    context: 16_384,
-    draft: None,
-};
-
-/// Gemma 4 E4B, Q4_K_M, with its MTP draft model: cleans up dictations
-/// (`crate::cleanup`). Apache-2.0. Chosen on 24.11.2026 from blind ratings
-/// against 15 of Robin's own ideal corrections (3.0 of 5, the fewest meaning
-/// errors of the models that really clean up; Qwen 3.5 4B/9B scored lower).
-/// On an M1 Pro it writes 53 tokens/s with the draft model (82 % of drafted
-/// tokens accepted; 33 tokens/s without) and holds 4.5–5 GB.
-pub const CLEANUP_MODEL: BuiltinModel = BuiltinModel {
-    id: "gemma-4-e4b-it-q4_k_m",
+/// Gemma 4 E4B (Google, Apache-2.0), Q4_K_M as quantized by Unsloth, pinned
+/// to one revision.
+const GEMMA_WEIGHTS: ModelFile = ModelFile {
     file: "gemma-4-E4B-it-Q4_K_M.gguf",
     url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf",
     sha256: "85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87",
     size: 4_977_171_584,
-    // Gemma 4's model card: temperature 1.0, top-p 0.95, top-k 64.
+};
+
+/// Gemma 4 E4B's MTP draft model, from the same repository.
+const GEMMA_DRAFT: ModelFile = ModelFile {
+    file: "mtp-gemma-4-E4B-it.gguf",
+    url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/mtp-gemma-4-E4B-it.gguf",
+    sha256: "b6a723115efa510d3b3215db1e26790dae84cd08c2134a764f3d194f1f0c3376",
+    size: 98_653_248,
+};
+
+/// The built-in model for meeting summaries and titles: Gemma 4 E4B, the
+/// same files as [`CLEANUP_MODEL`] (one download for both). It replaced
+/// Qwen 3.5 9B on 25.11.2026 (Robin: "Yes, replace it"). In two fully blind
+/// ratings of 8 summaries per model on 4 real meetings, through this summary
+/// code and llama-server, it scored 3.25 of 5 for both raters against 2.38
+/// and 2.25, with about half the wrong facts (7/12 vs 12/24) and mix-ups
+/// (3/3 vs 9/6), better in every meeting; 22 s instead of 42 s per summary.
+/// 5.6 GB resident with the draft model at 16k context (sample meeting,
+/// 25.11.), against 6.2–6.4 GB.
+pub const BUILTIN_MODEL: BuiltinModel = BuiltinModel {
+    id: "gemma-4-e4b-it-q4_k_m",
+    file: GEMMA_WEIGHTS.file,
+    url: GEMMA_WEIGHTS.url,
+    sha256: GEMMA_WEIGHTS.sha256,
+    size: GEMMA_WEIGHTS.size,
+    // Gemma 4's model card: temperature 1.0, top-p 0.95, top-k 64. The card
+    // names no min-p, and llama-server's own default is 0.05, so 0 as in the
+    // summary test; no presence or repeat penalty.
+    sampling: &[
+        "--temp",
+        "1.0",
+        "--top-p",
+        "0.95",
+        "--top-k",
+        "64",
+        "--min-p",
+        "0",
+        "--repeat-penalty",
+        "1.0",
+    ],
+    // As the 9B had (and Ollama's `num_ctx`): a meeting up to about this
+    // size goes in one request, a longer one in parts.
+    context: 16_384,
+    // Writes faster (53 instead of 33 tokens/s in the dictation tests);
+    // llama.cpp checks each drafted token against the model's own sample.
+    draft: Some(GEMMA_DRAFT),
+};
+
+/// Gemma 4 E4B with its MTP draft model, set up to clean up dictations
+/// (`crate::cleanup`). Chosen on 24.11.2026 from blind ratings against 15
+/// of Robin's own ideal corrections (3.0 of 5, the fewest meaning errors of
+/// the models that really clean up; Qwen 3.5 4B/9B scored lower). On an M1
+/// Pro it writes 53 tokens/s with the draft model (82 % of drafted tokens
+/// accepted; 33 tokens/s without) and holds 4.5–5 GB.
+pub const CLEANUP_MODEL: BuiltinModel = BuiltinModel {
+    id: "gemma-4-e4b-it-q4_k_m",
+    file: GEMMA_WEIGHTS.file,
+    url: GEMMA_WEIGHTS.url,
+    sha256: GEMMA_WEIGHTS.sha256,
+    size: GEMMA_WEIGHTS.size,
+    // Gemma 4's model card, with llama-server's other defaults, as in the
+    // dictation tests.
     sampling: &["--temp", "1.0", "--top-p", "0.95", "--top-k", "64"],
     // A dictation step is the prompt (~650 tokens), up to 800 characters
     // of context and about 60 words in and out: 8192 is plenty.
     context: 8_192,
-    draft: Some(ModelFile {
-        file: "mtp-gemma-4-E4B-it.gguf",
-        url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/mtp-gemma-4-E4B-it.gguf",
-        sha256: "b6a723115efa510d3b3215db1e26790dae84cd08c2134a764f3d194f1f0c3376",
-        size: 98_653_248,
-    }),
+    draft: Some(GEMMA_DRAFT),
 };
+
+/// Files of the built-in model Gemma replaced (Qwen 3.5 9B, 5.7 GB). They
+/// are deleted once Gemma is downloaded ([`remove_replaced_models`]).
+const REPLACED_FILES: &[&str] = &["Qwen3.5-9B-Q4_K_M.gguf", "Qwen3.5-9B-Q4_K_M.gguf.part"];
 
 /// Where the built-in engine and its model live; set once by the host.
 #[derive(Debug, Clone, Default)]
@@ -204,6 +240,42 @@ pub fn model_present(m: &BuiltinModel) -> bool {
             .and_then(|p| std::fs::metadata(p).ok())
             .is_some_and(|d| d.len() == f.size)
     })
+}
+
+/// Deletes the files of the built-in model Gemma replaced (Qwen 3.5 9B,
+/// 5.7 GB), but only once Gemma is downloaded, so summaries always have a
+/// model. Returns the bytes freed.
+pub fn remove_replaced_models() -> u64 {
+    if !model_present(&BUILTIN_MODEL) {
+        return 0;
+    }
+    let mut freed = 0;
+    for name in REPLACED_FILES {
+        let Some(path) = file_path(name) else {
+            continue;
+        };
+        let Ok(meta) = std::fs::metadata(&path) else {
+            continue;
+        };
+        match std::fs::remove_file(&path) {
+            Ok(()) => {
+                log::info!(
+                    "Deleted the replaced language model {} ({} MB)",
+                    path.display(),
+                    meta.len() / 1_000_000
+                );
+                freed += meta.len();
+            }
+            Err(e) => log::warn!("Could not delete {}: {e}", path.display()),
+        }
+    }
+    freed
+}
+
+/// Whether the model Gemma replaced is on disk and Gemma is not: the person
+/// chose the built-in model before, so Gemma is downloaded for them.
+pub fn replaced_model_waiting() -> bool {
+    !model_present(&BUILTIN_MODEL) && file_path(REPLACED_FILES[0]).is_some_and(|p| p.exists())
 }
 
 /// Whether this build ships llama-server, which runs the built-in models.
@@ -1100,7 +1172,7 @@ mod tests {
         assert_eq!(cfg.user_name.as_deref(), Some("Robin"));
         assert!(BUILTIN_MODEL.url.contains(BUILTIN_MODEL.file));
         assert_eq!(BUILTIN_MODEL.sha256.len(), 64);
-        // Qwen's own defaults, as in Ollama: temperature 1.0, top-k 20.
+        // Gemma 4's card values, and min-p 0 as in the summary test.
         let arg = |name: &str| {
             let i = BUILTIN_MODEL
                 .sampling
@@ -1110,8 +1182,18 @@ mod tests {
             BUILTIN_MODEL.sampling[i + 1]
         };
         assert_eq!(arg("--temp"), "1.0");
-        assert_eq!(arg("--top-k"), "20");
-        assert_eq!(arg("--presence-penalty"), "1.5");
+        assert_eq!(arg("--top-p"), "0.95");
+        assert_eq!(arg("--top-k"), "64");
+        assert_eq!(arg("--min-p"), "0");
+        assert!(!BUILTIN_MODEL.sampling.contains(&"--presence-penalty"));
+    }
+
+    #[test]
+    fn summaries_and_dictation_cleanup_share_one_download() {
+        assert_eq!(BUILTIN_MODEL.files(), CLEANUP_MODEL.files());
+        assert_eq!(BUILTIN_MODEL.download_size(), 4_977_171_584 + 98_653_248);
+        assert_eq!(BUILTIN_MODEL.context, 16_384);
+        assert_eq!(CLEANUP_MODEL.context, 8_192);
     }
 
     #[test]
@@ -1148,7 +1230,34 @@ mod tests {
             m.sampling,
             ["--temp", "1.0", "--top-p", "0.95", "--top-k", "64"]
         );
-        assert_eq!(BUILTIN_MODEL.files().len(), 1);
+    }
+
+    /// The only test that sets the models folder (it is set once per run).
+    #[test]
+    fn the_replaced_9b_goes_only_once_gemma_is_there() {
+        let dir = std::env::temp_dir().join(format!("sokki-replaced-{}", std::process::id()));
+        let llm = dir.join("llm");
+        std::fs::create_dir_all(&llm).unwrap();
+        set_builtin_paths(BuiltinPaths {
+            server: None,
+            models_dir: Some(dir.clone()),
+        });
+        let old = llm.join(REPLACED_FILES[0]);
+        std::fs::write(&old, b"old model").unwrap();
+        assert!(replaced_model_waiting());
+        assert_eq!(remove_replaced_models(), 0);
+        assert!(old.exists(), "kept while Gemma is missing");
+        // Gemma's files, as sparse files of the right size.
+        for f in BUILTIN_MODEL.files() {
+            std::fs::File::create(llm.join(f.file))
+                .unwrap()
+                .set_len(f.size)
+                .unwrap();
+        }
+        assert!(!replaced_model_waiting());
+        assert_eq!(remove_replaced_models(), 9);
+        assert!(!old.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[cfg(unix)]

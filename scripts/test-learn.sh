@@ -36,8 +36,11 @@ if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
   echo "The test app still contains tccutil; rebuild it from current meetings." >&2
   exit 1
 fi
-MODEL="$REAL_DATA/meeting-models/llm/Qwen3.5-9B-Q4_K_M.gguf"
-[[ -f "$MODEL" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+# The built-in model: Gemma 4 E4B and its draft model.
+LLM_FILES=(gemma-4-E4B-it-Q4_K_M.gguf mtp-gemma-4-E4B-it.gguf)
+for f in "${LLM_FILES[@]}"; do
+  [[ -f "$REAL_DATA/meeting-models/llm/$f" ]] || { echo "Sokki has not downloaded the language model yet." >&2; exit 1; }
+done
 
 # Robin's meetings come first.
 while python3 - "$REAL_DATA/meetings/index.json" <<'PY'
@@ -58,7 +61,9 @@ say -v Anna -o "$WORK/say.aiff" "Kurzer Test."
 afconvert -f WAVE -d LEI16@16000 -c 1 "$WORK/say.aiff" "$WORK/say.wav"
 
 mkdir -p "$DATA/meeting-models/llm"
-[[ -f "$DATA/meeting-models/llm/$(basename "$MODEL")" ]] || ln "$MODEL" "$DATA/meeting-models/llm/"
+for f in "${LLM_FILES[@]}"; do
+  [[ -f "$DATA/meeting-models/llm/$f" ]] || ln "$REAL_DATA/meeting-models/llm/$f" "$DATA/meeting-models/llm/"
+done
 jq '.settings.onboarding_completed = true
   | .settings.start_hidden = true
   | .settings.autostart_enabled = false

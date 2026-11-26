@@ -485,6 +485,184 @@ impl Chat {
     }
 }
 
+/// Words in the name of Meet's caption region and of its button.
+const CAPTION_REGION_WORDS: &[&str] = &[
+    "untertitel",
+    "captions",
+    "subtítulos",
+    "sous-titres",
+    "sottotitoli",
+];
+const CAPTIONS_ON_WORDS: &[&str] = &[
+    "untertitel aktivieren",
+    "turn on captions",
+    "activar subtítulos",
+    "activer les sous-titres",
+    "attiva sottotitoli",
+];
+
+/// Who is speaking in a running call, read from the call app's window:
+/// Meet's captions (Sokki turns them on once if they're off) and Zoom's
+/// "active speaker" tile. Teams isn't read yet.
+pub struct SpeakerWatch {
+    target: Target,
+    app: Element,
+    region: Option<Element>,
+    captions_pressed: bool,
+    tracker: crate::CaptionTracker,
+}
+
+impl SpeakerWatch {
+    pub fn new(target: Target) -> Result<Self, PostError> {
+        if !ax::trusted() {
+            return Err(PostError::NotTrusted);
+        }
+        let pid = app_pid(target).ok_or(PostError::NotRunning)?;
+        let app = Element::app(pid);
+        if matches!(target, Target::Meet { .. }) {
+            wake_web_accessibility(&app);
+        }
+        Ok(Self {
+            target,
+            app,
+            region: None,
+            captions_pressed: false,
+            tracker: crate::CaptionTracker::default(),
+        })
+    }
+
+    /// The names speaking right now (usually none or one).
+    pub fn poll(&mut self) -> Vec<String> {
+        match self.target {
+            Target::Meet { .. } => self.poll_meet(),
+            Target::Zoom => self.poll_zoom(),
+            Target::Teams => Vec::new(),
+        }
+    }
+
+    fn poll_zoom(&mut self) -> Vec<String> {
+        let mut names = Vec::new();
+        for w in meeting_windows(&self.app, self.target) {
+            for tile in w.find_all(BUDGET, &mut |e| e.role() == "AXTabGroup") {
+                for attr in ["AXDescription", "AXTitle"] {
+                    if let Some(name) = tile
+                        .string(attr)
+                        .as_deref()
+                        .and_then(crate::zoom_active_speaker)
+                    {
+                        if !names.contains(&name) {
+                            names.push(name);
+                        }
+                    }
+                }
+            }
+        }
+        names
+    }
+
+    fn poll_meet(&mut self) -> Vec<String> {
+        if !self.region.as_ref().is_some_and(|r| r.alive()) {
+            self.region = self.find_caption_region();
+        }
+        let Some(region) = self.region.clone() else {
+            return Vec::new();
+        };
+        let blocks: Vec<(String, String)> = caption_blocks(&region)
+            .iter()
+            .filter_map(|block| {
+                let texts = static_texts(block);
+                let (name, rest) = texts.split_first()?;
+                Some((name.clone(), rest.join(" ")))
+            })
+            .collect();
+        self.tracker.update(&blocks)
+    }
+
+    fn find_caption_region(&mut self) -> Option<Element> {
+        let windows = meeting_windows(&self.app, self.target);
+        let find = |w: &Element| {
+            w.find(BUDGET, &mut |e| {
+                e.role() == "AXGroup" && {
+                    let l = e.label();
+                    CAPTION_REGION_WORDS
+                        .iter()
+                        .any(|x| l == *x || l.starts_with(&format!("{x} |")))
+                }
+            })
+        };
+        if let Some(r) = windows.iter().find_map(find) {
+            return Some(r);
+        }
+        if self.captions_pressed {
+            return None;
+        }
+        // Captions are off: their own button, once (never a key press, which
+        // could land in the chat field).
+        for w in &windows {
+            let button = w.find(BUDGET, &mut |e| {
+                matches!(e.role().as_str(), "AXButton" | "AXCheckBox")
+                    && has_any(&e.label(), CAPTIONS_ON_WORDS)
+            });
+            if let Some(b) = button {
+                log::info!("meeting-chat: turning on captions with {}", b.describe());
+                self.captions_pressed = true;
+                b.perform("AXPress");
+                std::thread::sleep(Duration::from_millis(500));
+                return windows.iter().find_map(find);
+            }
+        }
+        None
+    }
+}
+
+/// Meet's caption lines: each is a group that starts with the speaker's
+/// picture, then the name, then the words. They sit a level or two below
+/// the region; without pictures, the region's children are taken.
+fn caption_blocks(region: &Element) -> Vec<Element> {
+    let mut blocks = Vec::new();
+    let mut level = vec![region.clone()];
+    for _ in 0..4 {
+        let mut next = Vec::new();
+        for e in &level {
+            for k in e.children() {
+                if k.children().iter().any(|c| c.role() == "AXImage") {
+                    blocks.push(k);
+                } else {
+                    next.push(k);
+                }
+            }
+        }
+        if !blocks.is_empty() {
+            return blocks;
+        }
+        level = next;
+    }
+    region.children()
+}
+
+/// The texts inside an element, in reading order.
+fn static_texts(e: &Element) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stack = vec![e.clone()];
+    let mut n = 0;
+    while let Some(x) = stack.pop() {
+        n += 1;
+        if n > 400 {
+            break;
+        }
+        if x.role() == "AXStaticText" {
+            if let Some(t) = x.text().filter(|t| !t.trim().is_empty()) {
+                out.push(t.trim().to_string());
+            }
+            continue;
+        }
+        for k in x.children().into_iter().rev() {
+            stack.push(k);
+        }
+    }
+    out
+}
+
 pub fn dump(target: Target, max: usize) -> Result<String, PostError> {
     if !ax::trusted() {
         return Err(PostError::NotTrusted);

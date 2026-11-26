@@ -2486,6 +2486,13 @@ detection_enabled: boolean;
  */
 chat_notice_enabled: boolean; 
 /**
+ * Name the speakers of a recorded call after who the call app shows
+ * as speaking: Zoom's active-speaker tile, Google Meet's captions
+ * (Sokki turns Meet's captions on for this, visible to the user only).
+ * Uses Accessibility (`meeting/call_speakers.rs`).
+ */
+call_names_enabled: boolean; 
+/**
  * After a meeting, send its notes (summary, decisions, action items; no
  * transcript) to everyone invited in the calendar, from the user's own
  * Gmail or Apple Mail and in their name. On by default (Robin,
@@ -2977,7 +2984,12 @@ kind?: StreamWorkKind | null }
  * `committed` is the append-only, flicker-free prefix; `tentative` is the
  * volatile suffix the model may still rewrite.
  */
-export type StreamTextEvent = { committed: string; tentative: string }
+export type StreamTextEvent = { 
+/**
+ * Paragraphs the dictation cleanup has finished, shown before
+ * `committed` (`dictation_cleanup`); empty without the cleanup.
+ */
+cleaned?: string; committed: string; tentative: string }
 /**
  * Semantic kind of "working" phase, used to localize the spinner label.
  */

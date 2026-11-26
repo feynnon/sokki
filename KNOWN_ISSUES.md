@@ -28,7 +28,7 @@ Status: open unless marked.
 | V8 | "Typed" is judged by key count vs. text growth (at most one character per key press between reads) | macOS autocorrect replacing a typed word, or a word finished from a suggestion, counts as not typed; so does text typed in a burst faster than the reads (40–80 ms) only if it outruns the key count | conservative on purpose: such words are never learned. The phone keyboard can mark the source of each character exactly |
 | V7 | Measurements are small | 14 TTS sentences, 30 terms, 36 real dictations | re-measure on real dictations once the journal has pairs |
 
-## Summary (Qwen 3.5 9B)
+## Summary (built-in model: Gemma 4 E4B since 25.11.2026; S1–S8 seen with Qwen 3.5 9B)
 
 | # | Problem | Example | Fix idea |
 |---|---|---|---|
@@ -38,8 +38,12 @@ Status: open unless marked.
 | S4 | Missed facts | mixed call: "49 € per seat" missing | prompt tuning, evaluation set |
 | S5 | Misattributed action items (seen once, fixed by a prompt rule) | agency confirmation credited to the wrong speaker | keep the live test |
 | S6 | Ollama's MLX runner rejects structured output (HTTP 501) | JSON comes from the prompt only | retry logic exists; watch failure rate |
-| S7 | Built-in model: the GGUF carries no sampling settings, so llama-server would use its own (temperature 0.8, top-k 40, min-p 0.05) | Ollama's model uses Qwen's: 1.0, top-k 20, top-p 0.95, presence penalty 1.5 | fixed 2026-11-20: llama-server starts with Qwen's values (`BuiltinModel::sampling`, Robin: "Nimm Qwens Werte"); requests still send none |
+| S7 | Built-in model: the GGUF carries no sampling settings, so llama-server would use its own (temperature 0.8, top-k 40, min-p 0.05) | Ollama's model uses Qwen's: 1.0, top-k 20, top-p 0.95, presence penalty 1.5 | fixed 2026-11-20: llama-server starts with Qwen's values (`BuiltinModel::sampling`, Robin: "Nimm Qwens Werte"); requests still send none; since 25.11.2026 Gemma 4's card values (1.0, top-p 0.95, top-k 64) and min-p 0 |
 | S8 | Speaker names in the summary vary from run to run: the same sample meeting (`resources/sample-meeting/`), where two of three people are named in the call, gave "Daniel" and "Priya" in one run and only "Speaker 1/2/3" in the next (2026-11-24) | the summary model at its own default temperature | renaming speakers in the app fixes one meeting; none yet in the prompt |
+| S9 | Gemma 4 E4B pads the decisions list with points that were only discussed (25.11. test, 4 real meetings) | "was discussed", "is promising" listed as decisions | a prompt rule once a real note shows it in Sokki |
+| S10 | Gemma 4 E4B once wrote a placeholder instead of a name | "[the person being referred to]" | a prompt rule, or drop such items |
+| S11 | Gemma 4 E4B still gives details to the wrong side (twice in one meeting) | who handles leads; whose call funnel it is | correct the transcript first (D1) |
+| S12 | Not yet tested with Gemma: a meeting long enough to be summarised in parts, a second meeting set, and summaries with the MTP draft model (tested in dictation only, where quality was the same) | – | the next long real meeting |
 
 ## Dictation cleanup (Gemma 4 E4B, 2026-11-24)
 
@@ -49,13 +53,16 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 |---|---|---|---|
 | C1 | Meaning errors remain: 13–14 per 15 dictations by two blind raters (changed, dropped or added content) | a dropped "not", a dropped priority clause, dropped closing requests | a check that every content word of the transcript survives; a bigger model once it fits |
 | C2 | A list heading was written twice where two live pieces meet (1 of 15) | heading final, its list still open, the next step began with the heading again | fixed: a block equal to the previous block's first line is dropped (`cleanup::Live::step`) |
-| C3 | When the final transcript does not start with what was cleaned live (a stream that revised itself), the whole dictation is cleaned again at the stop, which can pass the 20 s limit on long dictations; then the transcript is pasted uncleaned | not seen yet | clean only from the first word that differs |
+| C3 | When the final transcript does not start with what was cleaned live, everything was cleaned again at the stop | a 480-word dictation (26.11.): one early change, all of it again at the stop, the 20 s limit hit, raw pasted 23 s after the stop | fixed 26.11.: the cleanup goes back to the step before the first changed word and goes on from there, live and at the stop (`Live::roll_back`) |
 | C4 | Live cleanup needs live text: with the overlay off, the decoded chunks are not handed on, so the whole dictation is cleaned at the stop | – | hand decoded chunks to the cleanup without the preview |
-| C5 | Memory next to meetings: the cleanup model (4.5–5 GB) next to the 9B summary model would be ~11 GB for Sokki | – | fixed 25.11.: it stops 2 min after the last dictation, stops when a meeting starts or is processed or a local summary model opens, and does not start then (those dictations are pasted uncleaned) |
+| C5 | Memory next to meetings: the cleanup model (4.5–5 GB) next to the summary model (then the 9B) would be ~11 GB for Sokki | – | fixed 25.11.: it stops 2 min after the last dictation, stops when a meeting starts or is processed or a local summary model opens, and does not start then (those dictations are pasted uncleaned) |
 | C9 | Off by default: the cleanup changes every dictated text and adds 3.5–4 s before the paste, and its meaning errors (C1) are real | – | Robin tries it with the switch on and decides the default |
 | C6 | A failed or slow cleanup shows Post Process's notice ("Pasted Without Post-Processing") | – | its own notice text |
 | C7 | Not measured on the phone; Android does not clean dictations yet | – | out of scope for the Mac build |
 | C8 | Transcribing a History entry again gives the transcript uncleaned (the retry runs no cleanup) | – | run the cleanup in the retry job too |
+| C10 | Short dictations get no live cleanup: a piece needs 60 words of settled sentences, so in 34 of Robin's dictations (26.11.) 8 showed cleaned paragraphs while he spoke; the others are cleaned once at the stop (1.5–2.5 s for up to 60 words) | – | a smaller first piece, if Robin wants to see the cleanup sooner (60 words was the approved piece size) |
+| C11 | The live panel shows about three lines (window 400 × 120), so cleaned paragraphs scroll up out of view while the newest raw words show | – | a taller panel while the cleanup is on |
+| C12 | The open last paragraph shown live is cleaned again at the stop and may change (unchanged in 3 of 7 dictations, 26.11.); finished paragraphs did not change (6 of 6) | – | by design: the open paragraph is re-cleaned with the next piece |
 
 ## Speakers
 
@@ -66,7 +73,7 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 | P3 | Sortformer handles at most 4 speakers per track | fallback to sherpa clustering for larger meetings |
 | P4 | Voice profiles tested only on synthetic voices; phone vs. clean voice similarity only 0.78 | test with real recordings |
 | P5 | Renaming a real name ("Ich") only changes structured spots in the note, not running text | fine for now |
-| P6 | Names from the call app (who is speaking in Zoom, Teams, Meet) not built yet: needs a test call per app first (research in side-session notes `speaker-names.md`) | read the active-speaker marker via Accessibility, lay it over the diarized turns |
+| P6 | Names from the call app: Meet (captions) and Zoom (active-speaker tile) are read, but not yet confirmed in a real call with two people: Meet and Zoom refuse automated test guests, and Sokki Test has no Accessibility. Teams isn't read. Check the log after a real call: "Call speakers: N span(s) of M name(s)" | first real two-person Meet and Zoom call; then Teams (Live Captions panel) |
 | P7 | Names said in the meeting ("Danke, Lena") aren't used yet | let the summary model propose, as a suggestion only |
 | P8 | Slack huddle members aren't proposed yet: branch `slack-huddle` isn't merged | after the merge, write the huddle's members to `invitees.json` |
 | P9 | A name given from a guess (the last invitee left) is applied without asking; if the guest list is wrong (someone uninvited spoke), the name is wrong until the user renames it | wait for a real case before adding a check |
@@ -287,7 +294,8 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 
 | # | Problem | Fix idea |
 |---|---|---|
-| M1 | Not yet tried in a real app: tested only in a simulated text field (Sokki Test has no Accessibility since its new certificate, 24.11.). Electron apps (Slack, Claude, Notion) hide their fields until asked: Sokki asks each running app once with `AXManualAccessibility` while autocorrect is on (`mac.rs`, `ask_for_fields`), unverified in a real app. Chrome may still hide its fields without its full screen-reader mode (`AXEnhancedUserInterface`), which Sokki doesn't switch on (it upsets window managers) | try it; the log says once per app and role when the focused element isn't a text field ("autocorrect: <app>: focused element is …"); if Chrome shows none, measure what its screen-reader mode costs before switching it on |
+| M1 | Chrome and other Chromium browsers show page text fields only in their screen-reader mode (`AXEnhancedUserInterface`), so Sokki switches it on for the browser in front while autocorrect is on (`mac.rs`, `CHROMIUM`). That mode makes the browser animate window moves done by window managers (Rectangle, Magnet …) and costs it some CPU; not measured yet. Electron apps (Slack, Claude) get `AXManualAccessibility` instead. Measured 25.11. with the lab (`scripts/autocorrect-lab.sh`): fields appear about 2 s after the switch, so Sokki sets it about once a second for the app in front | measure the browser's CPU with the mode on; if a user with a window manager complains, offer a per-browser opt-out |
+| M5 | Chrome takes the typed fix only in its active window. Tested 26.11. with a test window in front: input, textarea and rich editor (contenteditable) each fixed every word exactly, typing with 150 and 400 ms pauses (18 of 18 fixes). If the window isn't active, the fix doesn't arrive: Sokki leaves the word as typed and selects nothing (`the fix didn't arrive` in the log). A word typed within ~2 s of Chrome's start is missed while its screen-reader mode wakes (M1) | Robin tries it in Chrome, Slack and Claude after the release |
 | M2 | Cmd-Z after a fix: unknown whether apps undo a word replaced through Accessibility (a 2008 report says TextEdit doesn't). Backspace right after a fix works | try it in Chrome, Slack, Claude |
 | M3 | Third-party apps built on Apple's text fields (not Chromium/Electron) get macOS's autocorrect and Sokki's: two correctors on one word | exclude them once a real case shows up |
 | M4 | The same open cases as the phone (K2–K5): two plausible fixes are left alone, the user's own names can get changed until undone once | as K4, K5 |

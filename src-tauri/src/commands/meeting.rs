@@ -542,6 +542,9 @@ pub async fn pull_meeting_llm(app: AppHandle) -> Result<(), String> {
     use tauri::Emitter;
     let settings = crate::settings::get_settings(&app).meetings;
     tauri::async_runtime::spawn_blocking(move || {
+        if settings.llm_provider.trim() == sokki_engine::llm::BUILTIN {
+            return meeting::process::download_builtin(&app);
+        }
         meeting::pull::LLM.run(|note| {
             meeting::process::pull_model(&settings, |p| {
                 note(p.clone());

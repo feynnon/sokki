@@ -94,6 +94,24 @@ test.describe("Sprecher page", () => {
   });
 });
 
+test.describe("meeting settings", () => {
+  test("names from the call: a switch that says Meet shows captions", async ({
+    page,
+  }) => {
+    await open(page, { lang: "de", theme: "dark", section: "meetings" });
+    await page.getByRole("button", { name: "Meeting-Einstellungen" }).click();
+    const label = page.getByText("Namen aus dem Call", { exact: true });
+    await label.scrollIntoViewIfNeeded();
+    await expect(label).toBeVisible();
+    await expect(
+      page.getByText("schaltet Sokki dafür die Untertitel ein", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await shot(page, "einstellungen-namen-aus-dem-call");
+  });
+});
+
 test.describe("names in a meeting", () => {
   test("huddle of three: both names proposed, one click", async ({ page }) => {
     const now = new Date().toISOString();

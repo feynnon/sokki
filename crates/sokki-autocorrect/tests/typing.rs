@@ -23,6 +23,10 @@ struct Fake {
     /// a key the user presses while Sokki swaps a word (between select and insert)
     race: RefCell<Option<char>>,
     keys: Cell<u64>,
+    /// the app takes no keys right now: a typed fix never arrives
+    deaf: bool,
+    /// a key the user presses right after the fix was typed
+    after_fix: RefCell<Option<char>>,
 }
 
 impl Fake {
@@ -34,6 +38,8 @@ impl Fake {
             replaceable: true,
             race: RefCell::new(None),
             keys: Cell::new(0),
+            deaf: false,
+            after_fix: RefCell::new(None),
         }
     }
 
@@ -82,7 +88,12 @@ impl Field for Fake {
         true
     }
     fn insert(&self, text: &str) -> bool {
-        self.put(text);
+        if !self.deaf {
+            self.put(text);
+        }
+        if let Some(c) = self.after_fix.borrow_mut().take() {
+            self.key(c);
+        }
         true
     }
 }
@@ -203,4 +214,65 @@ fn leaves_apple_apps_terminals_and_editors_alone() {
         "notion.id",
         &["Notion.id".into()]
     ));
+}
+
+#[test]
+fn a_fix_that_never_arrives_leaves_the_word_and_no_selection() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let mut f = Fake::new("com.google.Chrome");
+    f.deaf = true;
+    let got = type_in(&mut ac, &f, "Ich hbae ");
+    assert_eq!(got, vec![Outcome::Skipped("the fix didn't arrive")]);
+    // the next key goes after the space, not over the word
+    f.deaf = false;
+    type_in(&mut ac, &f, "es");
+    assert_eq!(f.text.borrow().as_str(), "Ich hbae es");
+}
+
+#[test]
+fn a_key_right_after_the_fix_lands_after_it() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich hbae");
+    *f.after_fix.borrow_mut() = Some('e');
+    let got = type_in(&mut ac, &f, " ");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "hbae".into(),
+            fix: "habe".into(),
+            exact: true
+        }]
+    );
+    type_in(&mut ac, &f, "s ");
+    assert_eq!(f.text.borrow().as_str(), "Ich habe es ");
+    assert_eq!(f.sel.get(), (u16_len("Ich habe es "), 0));
+}
+
+/// A rich editor in a browser (Slack, Claude, Gmail): a space at the end is a no-break space
+/// until the next character comes.
+#[test]
+fn fixes_in_a_rich_editor_with_no_break_spaces() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.tinyspeck.slackmacgap");
+    let mut got = Vec::new();
+    for c in "Ich habe das nihct gesehen ".chars() {
+        // the space before the cursor turns plain when the next character comes
+        let t = f.text.borrow().replace('\u{a0}', " ");
+        *f.text.borrow_mut() = t;
+        f.key(if c == ' ' { '\u{a0}' } else { c });
+        let o = ac.on_key(&f, &|| f.keys.get());
+        if o != Outcome::Nothing {
+            got.push(o);
+        }
+    }
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+    assert!(f.text.borrow().starts_with("Ich habe das nicht"));
 }

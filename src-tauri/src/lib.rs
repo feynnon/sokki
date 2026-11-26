@@ -297,6 +297,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         });
         meeting::process::apply_retention(app_handle);
         meeting::process::set_builtin_llm_paths(app_handle);
+        meeting::process::move_to_gemma(app_handle);
         meeting::resume_interrupted(app_handle);
         video::resume(app_handle);
         meeting::process::retry_summaries(app_handle);

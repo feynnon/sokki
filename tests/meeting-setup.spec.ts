@@ -288,14 +288,14 @@ test.describe("setup: the summary model", () => {
       page.getByRole("heading", { name: "Notes for your meetings" }),
     ).toBeVisible();
     await expect(
-      page.getByText("Needs about 6.4 GB. Your Mac has 16 GB."),
+      page.getByText("Needs about 5.6 GB. Your Mac has 16 GB."),
     ).toBeVisible();
     await expect(
       page.getByText("About 3 minutes after you hang up"),
     ).toBeVisible();
-    await expect(page.getByText("Qwen 3.5 9B")).toBeVisible();
+    await expect(page.getByText("Gemma 4 E4B")).toBeVisible();
     await shot(page, "setup-summary-16gb");
-    await page.getByRole("button", { name: "Download 5.7 GB" }).click();
+    await page.getByRole("button", { name: "Download 5.1 GB" }).click();
     // The next screen, at once; the download runs in the background.
     await expect(
       page.getByRole("heading", { name: "Your data" }),
@@ -310,10 +310,10 @@ test.describe("setup: the summary model", () => {
       (window as any).__emit("meeting-llm-pull", {
         status: "downloading",
         completed: 2.4e9,
-        total: 5_680_522_464,
+        total: 5_075_824_832,
       }),
     );
-    await expect(page.getByText("42% · 2.4 GB of 5.7 GB")).toBeVisible();
+    await expect(page.getByText("47% · 2.4 GB of 5.1 GB")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
     await shot(page, "setup-summary-downloading");
   });
@@ -322,7 +322,7 @@ test.describe("setup: the summary model", () => {
     page,
   }) => {
     await open(page, { onboarding: { step: "summary" }, provider: "local" });
-    await page.getByRole("button", { name: "Download 5.7 GB" }).click();
+    await page.getByRole("button", { name: "Download 5.1 GB" }).click();
     await expect(
       page.getByRole("heading", { name: "Your data" }),
     ).toBeVisible();
@@ -338,7 +338,7 @@ test.describe("setup: the summary model", () => {
   }) => {
     await open(page, { onboarding: { step: "summary" }, memory: 8 * GiB });
     await expect(
-      page.getByText("Needs about 6.4 GB. Your Mac has 8 GB."),
+      page.getByText("Needs about 5.6 GB. Your Mac has 8 GB."),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -382,7 +382,7 @@ test.describe("setup: the summary model", () => {
       memory: 16 * GiB,
     });
     await expect(
-      page.getByText("Braucht etwa 6,4 GB. Dein Mac hat 16 GB."),
+      page.getByText("Braucht etwa 5,6 GB. Dein Mac hat 16 GB."),
     ).toBeVisible();
     await expect(
       page.getByText("Etwa 3 Minuten nach dem Auflegen"),
@@ -466,10 +466,10 @@ test.describe("the sample meeting", () => {
   }) => {
     await open(page, {
       llm: "model_missing",
-      download: { completed: 1.7e9, total: 5_680_522_464 },
+      download: { completed: 1.7e9, total: 5_075_824_832 },
     });
     await expect(
-      page.getByText("Ready once the summary model is in · 29% of 5.7 GB"),
+      page.getByText("Ready once the summary model is in · 33% of 5.1 GB"),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Play sample meeting" }),
@@ -481,7 +481,7 @@ test.describe("the sample meeting", () => {
     page,
   }) => {
     await open(page, { llm: "model_missing" });
-    await page.getByRole("button", { name: "Download 5.7 GB" }).click();
+    await page.getByRole("button", { name: "Download 5.1 GB" }).click();
     expect(await called(page, "pull_meeting_llm")).toHaveLength(1);
   });
 });

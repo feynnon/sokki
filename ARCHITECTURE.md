@@ -89,8 +89,8 @@ These hold everywhere; a change that breaks one is a bug.
   a real recording needs it. Code for a rule not yet proven stays in,
   switched off, with a note (`DiarizeConfig::merge_similarity`).
 - **The language model's default temperature.** Sokki never sets one in a
-  request. The built-in model gets its publisher's defaults (Qwen's, as in
-  Ollama) when its server starts, because its GGUF file carries none.
+  request. The built-in model gets its publisher's defaults (Gemma 4's
+  model card) when its server starts, because its GGUF file carries none.
 
 ## Platforms
 
@@ -160,11 +160,16 @@ Short records of choices that are not obvious from the code.
   dropping the handle stops it, and a shell watchdog stops it when Sokki
   dies. A server process instead of linking llama.cpp: the app already
   links ggml through transcribe.cpp, and two ggml copies in one binary
-  clash. Same model (Qwen 3.5 9B, Q4_K_M), same prompts, measured as fast
-  as Ollama (KNOWN_ISSUES.md F8). Ollama and cloud providers stay options.
+  clash. The model is Gemma 4 E4B (Q4_K_M with its MTP draft model) since
+  25.11.2026; it replaced Qwen 3.5 9B after two fully blind ratings on 4
+  real meetings (3.25 of 5 against 2.38/2.25, about half the wrong facts,
+  22 s instead of 42 s; 5.6 GB resident with the draft model, against 6.4
+  GB). Summaries and dictation
+  cleanup share its files, so it is one download; the 9B's file is deleted
+  once Gemma is there. Ollama and cloud providers stay options.
 - **Dictations cleaned while they are spoken.** `cleanup` cuts the
   transcript's final part into pieces of about 60 words at sentence ends
-  and cleans each one with Gemma 4 E4B in a second `llama-server` (MTP
+  and cleans each one with the built-in model in its own `llama-server` (MTP
   speculative decoding: about 53 tokens/s on an M1 Pro), keeping the last
   paragraph open for the next piece; at the stop only the rest is left
   (about 1 s for 30–60 words, 1.6–4.6 s for 140–484). The server stays up

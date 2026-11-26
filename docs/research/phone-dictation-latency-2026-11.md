@@ -78,6 +78,24 @@ Test clips played as the microphone (debug hook), right after the keyboard opene
 - **A busy Mac:** one read took 4.5 s while the Mac was under load. The Mac now sends a keep-alive every second while it reads (from 0.2.21).
 - **The text came out right** in all four runs, with nothing left underlined.
 
+## Formatting (dictation cleanup) for phone dictations through the Mac (26 Nov, 22:00)
+
+The phone's text goes through the Mac's dictation cleanup (Gemma 4 E4B, the same as a Mac dictation), live too: cleaned paragraphs as soon as a live step is done, the rest at the stop.
+
+Measured with the Mac test app and `examples/dictate`; first words are unchanged at 0.7–1.3 s.
+
+| Clip | Done after stop | Live cleanup steps / words cleaned while speaking |
+|---|---|---|
+| Test clips, 9–28 s | 1.1–2.9 s | 0 (short dictations are cleaned at the stop, by design) |
+| Robin, 65 s (177 words) | 2.5 s | 4 / 132 |
+| Robin, 30 s | 3.0 s | 3 / 65 |
+| Robin, 20 s | 2.3 s | 2 / 41 |
+
+- **How the pieces end matters for the cleanup.**
+  - First version, fixed 15 s pieces with the final text read again whole: the cleanup redid all 132 live-cleaned words at the stop, and the 65 s dictation was done only 8.6 s after the stop.
+  - Now: pieces cut at pauses (15–30 s, `dictation-core`), and the final text is those pieces plus the last one.
+- **Formatting of a German test letter:** greeting on its own line, paragraphs, and in one run a shopping list as bullet points.
+
 ## Parakeet on the phone, faster (26 Nov, the fallback without a Mac)
 
 Robin (26 Nov): without the Mac, "using the local parakeet, and looking to making that as fast as possible", especially the first words.

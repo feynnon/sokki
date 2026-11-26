@@ -223,6 +223,138 @@ fn redraw() {
     }
 }
 
+/// The cleanup of one phone dictation through this Mac
+/// (`meeting/phone_link.rs`): its own session, beside the Mac's own
+/// dictation and its overlay. Same model, settings and live steps.
+pub struct PhoneCleanup {
+    session: Session,
+    last: String,
+    committed: String,
+    tentative: String,
+    previous_tentative: String,
+    /// Set when a live step finished: the phone gets the cleaned text.
+    stepped: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// The phone keyboard opened: start the cleanup model, when the cleanup is
+/// on and may run, so a dictation finds it loaded (4.4 s, 12.4 s from a
+/// cold disk on an M1 Pro). It stops again after [`IDLE`] unused.
+pub fn warm_for_phone(app: &AppHandle) {
+    let settings = get_settings(app);
+    if settings.dictation_cleanup_enabled
+        && ENGINE.available()
+        && blocked(
+            crate::actions::meeting_recording(app),
+            crate::meeting::process::busy(),
+            llm::local_job_running(),
+        )
+        .is_none()
+    {
+        ENGINE.warm();
+    }
+}
+
+/// A phone dictation starts: its cleanup, when the cleanup is on and may
+/// run now (no meeting recording or being processed, no summary model).
+pub fn begin_for_phone(app: &AppHandle) -> Option<PhoneCleanup> {
+    let settings = get_settings(app);
+    if !settings.dictation_cleanup_enabled {
+        return None;
+    }
+    if let Some(why) = blocked(
+        crate::actions::meeting_recording(app),
+        crate::meeting::process::busy(),
+        llm::local_job_running(),
+    ) {
+        info!("Phone dictation cleanup skipped: {why}");
+        return None;
+    }
+    if !ENGINE.available() {
+        return None;
+    }
+    let stepped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = stepped.clone();
+    let live = sokki_engine::cleanup::Live::new(&settings.custom_words);
+    let session = ENGINE.begin_with(live, move || {
+        flag.store(true, std::sync::atomic::Ordering::SeqCst)
+    });
+    Some(PhoneCleanup {
+        session,
+        last: String::new(),
+        committed: String::new(),
+        tentative: String::new(),
+        previous_tentative: String::new(),
+        stepped,
+    })
+}
+
+impl PhoneCleanup {
+    /// The live text: `committed` is final, `tentative` may still change.
+    /// Hands the cleanup the final part plus the settled sentences, as for a
+    /// dictation here.
+    pub fn live(&mut self, committed: &str, tentative: &str) {
+        self.previous_tentative = std::mem::replace(&mut self.tentative, tentative.to_string());
+        self.committed = committed.to_string();
+        let settled = sokki_engine::cleanup::settled(&self.previous_tentative, tentative);
+        let text = format!("{committed} {settled}").trim().to_string();
+        if self.last != text && !text.is_empty() {
+            self.last = text.clone();
+            self.session.text(&text);
+        }
+    }
+
+    /// A live step finished since the last call.
+    pub fn stepped(&self) -> bool {
+        self.stepped
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// What the phone shows: the cleaned paragraphs, then what isn't
+    /// cleaned yet as transcribed.
+    pub fn shown(&self) -> String {
+        let all = format!("{} {}", self.committed, self.tentative)
+            .trim()
+            .to_string();
+        let view = self.session.view();
+        if view.cleaned.is_empty() {
+            return all;
+        }
+        let rest = view
+            .rest(&self.committed)
+            .map(|r| format!("{r} {}", self.tentative))
+            .or_else(|| view.rest(&all).map(str::to_string));
+        match rest {
+            Some(rest) if !rest.trim().is_empty() => format!("{} {}", view.cleaned, rest.trim()),
+            Some(_) => view.cleaned,
+            None => all,
+        }
+    }
+
+    /// The cleaned dictation for its final `transcript`, or `None` when the
+    /// model failed or took too long. Blocks.
+    pub fn finish(self, transcript: &str) -> Option<String> {
+        if transcript.trim().is_empty() {
+            return None;
+        }
+        let t0 = Instant::now();
+        match self.session.finish(transcript, FINISH_TIMEOUT) {
+            Ok(text) if !text.trim().is_empty() => {
+                info!(
+                    "Phone dictation cleaned up ({} words) {:.2} s after the transcript",
+                    transcript.split_whitespace().count(),
+                    t0.elapsed().as_secs_f64()
+                );
+                Some(text)
+            }
+            Ok(_) => None,
+            Err(e) => {
+                warn!("Phone dictation cleanup failed ({e:#}); sending the transcript");
+                None
+            }
+        }
+    }
+}
+
 /// The dictation was cancelled: its cleanup stops.
 pub fn cancel() {
     current().take();

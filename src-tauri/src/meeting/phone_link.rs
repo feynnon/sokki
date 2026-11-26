@@ -275,6 +275,7 @@ impl Handler for MacHandler {
                 if let Some(tm) = self.app.try_state::<Arc<TranscriptionManager>>() {
                     tm.initiate_model_load(false);
                 }
+                crate::dictation_cleanup::warm_for_phone(&self.app);
                 Ok(hello())
             }
             Request::Upload { started_at, .. } => accept_upload(&self.app, &started_at, &body)
@@ -302,7 +303,7 @@ impl Handler for MacHandler {
             .ok_or("Sokki on the Mac is still starting.")?
             .inner()
             .clone();
-        dictate_for_phone(&tm, peer, audio, text)
+        dictate_for_phone(&self.app, &tm, peer, audio, text)
     }
 }
 
@@ -313,50 +314,74 @@ const BUSY: &str = "The Mac is busy transcribing.";
 
 /// How often the phone gets the text so far, as Mac dictation's live text.
 const DICTATE_PREVIEW_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
-/// Live text re-reads the piece still growing; past this, the piece's text
-/// stays and a new one starts (the final text is read whole anyway).
-const DICTATE_PIECE: usize = 15 * 16_000;
+/// Live text re-reads the piece still growing; a piece ends at a pause
+/// after this long (at most the second), is read once more and kept. The
+/// final text is read whole anyway; these pieces are what the cleanup
+/// works on while the person speaks, so they should come out as the whole
+/// read does: cut at pauses (fixed 15 s cuts made the cleanup redo all its
+/// live steps at the stop, 7.3 s for a 65 s dictation, 2026-11-26), and
+/// long, as the Mac's own dictation (25–32 s).
+const DICTATE_PIECE_MIN_S: f32 = 15.0;
+const DICTATE_PIECE_MAX_S: f32 = 30.0;
 
 /// While a read runs, the phone hears from the Mac this often: a busy Mac
 /// (a 10 s piece took 4.5 s on Robin's Mac under load, 2026-11-26) isn't
 /// a Mac that's gone, and the phone takes over only from one that's gone.
 const DICTATE_KEEPALIVE: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// Reads `audio` on another thread and meanwhile sends the phone the last
-/// text again every second.
-fn read_keeping_alive(
-    tm: &TranscriptionManager,
-    audio: Vec<f32>,
+/// Runs `job` on another thread and meanwhile sends the phone the text it
+/// shows (`now`) every second.
+fn keeping_alive<T: Send + 'static>(
+    job: impl FnOnce() -> T + Send + 'static,
     heard: u64,
-    shown: &str,
+    now: &dyn Fn() -> String,
     text: &dyn Fn(DictationText),
-) -> Result<String, String> {
-    let tm = tm.clone();
-    let read = std::thread::spawn(move || tm.transcribe(audio).map_err(|e| format!("{e:#}")));
+) -> Result<T, String> {
+    let job = std::thread::spawn(job);
     let mut beat = std::time::Instant::now();
-    while !read.is_finished() {
+    while !job.is_finished() {
         std::thread::sleep(std::time::Duration::from_millis(50));
         if beat.elapsed() >= DICTATE_KEEPALIVE {
             beat = std::time::Instant::now();
             text(DictationText {
                 is_final: false,
                 heard,
-                text: shown.to_string(),
+                text: now(),
             });
         }
     }
-    read.join()
-        .map_err(|_| "The Mac's read failed.".to_string())?
+    job.join().map_err(|_| "The Mac's read failed.".to_string())
+}
+
+/// Reads `audio` with the dictation model, keeping the phone posted.
+fn read_keeping_alive(
+    tm: &TranscriptionManager,
+    audio: Vec<f32>,
+    heard: u64,
+    now: &dyn Fn() -> String,
+    text: &dyn Fn(DictationText),
+) -> Result<String, String> {
+    let tm = tm.clone();
+    keeping_alive(
+        move || tm.transcribe(audio).map_err(|e| format!("{e:#}")),
+        heard,
+        now,
+        text,
+    )?
 }
 
 /// The phone keyboard dictates through this Mac: the same model and
 /// settings as dictating here. Live text every 0.5 s (the growing piece read
-/// again, as the Mac's own live text with Parakeet does), then the whole
-/// dictation read once at the stop, as for a dictation here. Nothing is
+/// again, as the Mac's own live text with Parakeet does); a piece that ends
+/// at a pause after 15–30 s is read once more and kept; at the stop the
+/// rest is read. With the dictation cleanup on, the text is cleaned and laid out as for a
+/// dictation here, live too: the phone gets the cleaned paragraphs and the
+/// rest as transcribed, and the cleaned dictation at the end. Nothing is
 /// stored or added to the history. Measured with the phone's 13 test clips:
 /// first words 0.66 s, done 0.16 s after the stop (`docs/research/
 /// phone-dictation-latency-2026-11.md`).
 fn dictate_for_phone(
+    app: &AppHandle,
     tm: &TranscriptionManager,
     peer: &str,
     audio: std::sync::mpsc::Receiver<Vec<f32>>,
@@ -375,21 +400,44 @@ fn dictate_for_phone(
     if tm.is_streaming() || tm.job_active() {
         return Err(BUSY.into());
     }
+    let mut cleanup = crate::dictation_cleanup::begin_for_phone(app);
     let mut heard: Vec<f32> = Vec::new();
-    let (mut piece_start, mut done_text) = (0usize, String::new());
+    let mut done_text = String::new();
+    let mut seg =
+        dictation_core::Segmenter::new(dictation_core::Mode::Pauses(dictation_core::Params {
+            min_s: DICTATE_PIECE_MIN_S,
+            max_s: DICTATE_PIECE_MAX_S,
+            ..Default::default()
+        }));
+    let mut ended_pieces: std::collections::VecDeque<Vec<f32>> = Default::default();
     let mut last_read = 0usize;
     let mut ended = false;
     let mut previews = 0usize;
     let mut shown = String::new();
     while !ended {
         match audio.recv_timeout(DICTATE_PREVIEW_EVERY) {
-            Ok(a) => heard.extend(a),
+            Ok(a) => {
+                ended_pieces.extend(seg.push(&a));
+                heard.extend(a);
+            }
             Err(RecvTimeoutError::Disconnected) => ended = true,
             Err(RecvTimeoutError::Timeout) => {}
         }
+        // A paragraph was cleaned meanwhile: show it at once.
+        if let Some(c) = cleanup.as_ref().filter(|c| c.stepped()) {
+            shown = c.shown();
+            text(DictationText {
+                is_final: false,
+                heard: last_read as u64,
+                text: shown.clone(),
+            });
+        }
         loop {
             match audio.try_recv() {
-                Ok(a) => heard.extend(a),
+                Ok(a) => {
+                    ended_pieces.extend(seg.push(&a));
+                    heard.extend(a);
+                }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     ended = true;
                     break;
@@ -401,26 +449,67 @@ fn dictate_for_phone(
             continue;
         }
         last_read = heard.len();
-        let piece = heard[piece_start..].to_vec();
-        let piece_len = piece.len();
-        let read = read_keeping_alive(tm, piece, last_read as u64, &shown, text)?;
+        let now = || {
+            cleanup
+                .as_ref()
+                .map_or_else(|| shown.clone(), |c| c.shown())
+        };
+        // Pieces that ended at a pause: read whole, kept (the cleanup's
+        // final part).
+        while let Some(piece) = ended_pieces.pop_front() {
+            let read = read_keeping_alive(tm, piece, last_read as u64, &now, text)?;
+            done_text = format!("{done_text} {}", read.trim()).trim().to_string();
+        }
+        let read = read_keeping_alive(tm, seg.pending().to_vec(), last_read as u64, &now, text)?;
         previews += 1;
-        shown = format!("{done_text} {}", read.trim()).trim().to_string();
+        let raw = format!("{done_text} {}", read.trim()).trim().to_string();
+        shown = match cleanup.as_mut() {
+            Some(c) => {
+                c.live(&done_text, read.trim());
+                c.shown()
+            }
+            None => raw.clone(),
+        };
         text(DictationText {
             is_final: false,
             heard: heard.len() as u64,
             text: shown.clone(),
         });
-        if piece_len >= DICTATE_PIECE {
-            done_text = shown.clone();
-            piece_start = heard.len();
-        }
     }
     let t = std::time::Instant::now();
-    let final_text = if heard.is_empty() {
-        String::new()
-    } else {
-        read_keeping_alive(tm, heard.clone(), heard.len() as u64, &shown, text)?
+    let now = || {
+        cleanup
+            .as_ref()
+            .map_or_else(|| shown.clone(), |c| c.shown())
+    };
+    // The final text: the pieces kept so far, then the rest. Not the whole
+    // dictation read again: that differed enough from the pieces that the
+    // cleanup redid every live step at the stop (7 s for 65 s, 2026-11-26),
+    // and pieces cut at pauses are as accurate (8–20 s pieces: 10.5 % of
+    // words different from the references on Robin's 34 dictations, whole
+    // dictations 10.3 %; docs/research/phone-dictation-latency-2026-11.md).
+    let mut final_text = done_text.clone();
+    for piece in ended_pieces.drain(..).chain(seg.finish()) {
+        let end = seg.speech_end(&piece);
+        if end == 0 {
+            continue;
+        }
+        let read = read_keeping_alive(tm, piece[..end].to_vec(), heard.len() as u64, &now, text)?;
+        final_text = format!("{final_text} {}", read.trim()).trim().to_string();
+    }
+    let read_ms = t.elapsed().as_millis();
+    let final_text = match cleanup.take() {
+        Some(c) => {
+            let raw = final_text.clone();
+            keeping_alive(
+                move || c.finish(&raw),
+                heard.len() as u64,
+                &|| shown.clone(),
+                text,
+            )?
+            .unwrap_or(final_text)
+        }
+        None => final_text,
     };
     text(DictationText {
         is_final: true,
@@ -428,7 +517,7 @@ fn dictate_for_phone(
         text: final_text.trim().to_string(),
     });
     log::info!(
-        "Phone link: dictation for {peer}: {:.1} s of audio, {previews} live updates, final read in {} ms, {:.1} s in all",
+        "Phone link: dictation for {peer}: {:.1} s of audio, {previews} live updates, final read in {read_ms} ms, done {} ms after the stop, {:.1} s in all",
         heard.len() as f64 / 16_000.0,
         t.elapsed().as_millis(),
         started.elapsed().as_secs_f64()

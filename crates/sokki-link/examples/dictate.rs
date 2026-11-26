@@ -1,7 +1,7 @@
 //! Dictates a WAV (16 kHz mono 16-bit) into a Sokki on a Mac in real time,
 //! as the phone keyboard does, and prints how fast the text came back.
 //!
-//!   cargo run --example dictate -- <phone key hex> <Mac id> <clip.wav> [--now]
+//!   [SHOW=1] cargo run --example dictate -- <phone key hex> <Mac id> <clip.wav> [--now]
 //!
 //! The phone key must be paired with that Mac (its phone_link.json). Without
 //! `--now` it waits 30 s after connecting, as a keyboard that has been open a
@@ -41,25 +41,39 @@ async fn main() -> anyhow::Result<()> {
     });
     let (mut first, mut lags, mut finished) = (None, vec![], None);
     let mut text = String::new();
+    // SHOW=1: every new live text (lines as ⏎).
+    let show = std::env::var("SHOW").is_ok();
+    let mut shown = String::new();
+    let mut formatted_live = 0usize;
     sokki_link::dictate(&conn, rx, |u| {
         let now = start.elapsed().as_secs_f64();
         if u.is_final {
             finished = Some(now - audio_s);
             text = u.text;
         } else if !u.text.is_empty() {
+            // Keep-alives repeat the last text: only new text counts.
+            if u.text != shown {
+                if show {
+                    println!("live {now:5.2} s: {}", u.text.replace('\n', "⏎"));
+                }
+                if u.text.contains('\n') {
+                    formatted_live += 1;
+                }
+                shown = u.text.clone();
+                lags.push(now - u.heard as f64 / 16_000.0);
+            }
             first.get_or_insert(now);
-            lags.push(now - u.heard as f64 / 16_000.0);
         }
     })
     .await?;
     lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
     println!(
-        "first words {:.2} s; behind speech median {:.2} s, worst {:.2} s; done {:.2} s after stop",
+        "first words {:.2} s; behind speech median {:.2} s, worst {:.2} s; done {:.2} s after stop; {formatted_live} live texts with paragraphs",
         first.unwrap_or(f64::NAN),
         lags.get(lags.len() / 2).copied().unwrap_or(f64::NAN),
         lags.last().copied().unwrap_or(f64::NAN),
         finished.unwrap_or(f64::NAN)
     );
-    println!("final: {text}");
+    println!("final: {}", text.replace('\n', "⏎"));
     Ok(())
 }

@@ -104,6 +104,8 @@ chrono = "0.4"
 # Phone link: the phone app sends recordings to this Mac (meeting/phone_link.rs).
 # Phone link: direct, end-to-end encrypted connection to the phone app.
 sokki-link = { path = "../crates/sokki-link" }
+# Phone dictation through this Mac: live pieces cut at pauses.
+dictation-core = { path = "../mobile/dictation-core" }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.10"

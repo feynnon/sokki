@@ -32,6 +32,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `cloudflare-kv-usage-2026-11.md` | Cloudflare's free plan: which KV operations the counter and website use per day, why 26.11. neared the delete cap (the move to R2), launch-day estimate, Workers Paid or not. |
 | `second-brain-2026-11.md` | A built-in second brain (Karpathy's LLM wiki): the tools, why people quit, a local Mac stack (FTS5 + sqlite-vec, EmbeddingGemma), small-model limits, a phased plan. Research only, nothing built. |
 | `ios-keyboard-dictation-2026-11.md` | What a dev podcast says about dictation on iOS: the keyboard microphone workaround (getUserMedia web view), who copied it, and what users still miss. |
+| `memory-layer-2026-11.md` | Hidden use cases of a queryable memory (work, personal, agents), the field since the LLM Wiki (autoresearch, gbrain), and the query layer: index, metadata tiers, `sokki search/get/tasks` CLI, read-only MCP, privacy gate. Keyword search first, vectors after an eval. Research only. |
 
 ## Decisions these measurements support (Nov 2026)
 

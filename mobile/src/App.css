@@ -128,3 +128,6 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 /* A link inside a line of text: same size and baseline as the text around it. */
 .link.inline { padding: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; font-family: inherit; }
 .recorder .hint { text-align: center; }
+/* The Mac's progress on a recording in the list. */
+.bar { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin: 4px 0 2px; }
+.bar i { display: block; height: 4px; background: var(--accent); transition: width 0.4s; }

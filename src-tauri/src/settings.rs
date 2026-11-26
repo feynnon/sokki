@@ -734,6 +734,16 @@ pub struct MeetingSettings {
     /// The person set `auto_start_enabled` themselves (the card's switch).
     /// Until then the default may change under them; after, never.
     pub auto_start_set: bool,
+    /// Seconds Sokki listens in on a conversation, in memory only, before it
+    /// shows it as a meeting (Robin, 2026-11-26: "Show at 60 s"). A
+    /// conversation that ends sooner is dropped and nothing is kept. At most
+    /// 240.
+    pub auto_start_show_after_s: u32,
+    /// A meeting that started by itself is deleted when its conversation
+    /// lasted less than this many seconds, counted from when Sokki began
+    /// listening in (Robin: "Conversation keeps going for more than 2 mins
+    /// (else drop)").
+    pub auto_start_min_talk_s: u32,
 }
 
 impl Default for MeetingSettings {
@@ -763,6 +773,8 @@ impl Default for MeetingSettings {
             silence_hint_enabled: true,
             auto_start_enabled: true,
             auto_start_set: false,
+            auto_start_show_after_s: 60,
+            auto_start_min_talk_s: 120,
         }
     }
 }
@@ -1518,8 +1530,11 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
             }
         }
 
-        if updated {
-            store.set("settings", serde_json::to_value(&settings).unwrap());
+        // A setting added since this store was written goes into the file
+        // too, so `sokki config` (scripts/sokki) finds and changes every one.
+        let full = serde_json::to_value(&settings).unwrap();
+        if updated || full != settings_value {
+            store.set("settings", full);
         }
 
         settings
@@ -2066,6 +2081,15 @@ mod tests {
             MeetingSettings::default().mail_notes_auto,
             "new installs: on"
         );
+    }
+
+    #[test]
+    fn settings_round_trip_unchanged() {
+        // get_settings writes the store whenever the parsed settings differ
+        // from it; a lossy round trip would write on every read.
+        let once = serde_json::to_value(get_default_settings()).unwrap();
+        let parsed: AppSettings = serde_json::from_value(once.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), once);
     }
 
     #[test]

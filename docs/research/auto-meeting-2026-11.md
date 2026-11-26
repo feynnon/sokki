@@ -34,6 +34,7 @@ No desktop app we found starts recording because people talk. They start on the 
 
 - **On for everyone, but only with the user's own voice known** (since 2026-11-26 evening; first off for everyone and on only on Robin's Mac). Until a voice profile named like the user (`meetings.user_name`) has a voice, the microphone stays closed and nothing starts.
 - **Start only when the user is in it:** at least 12 s of speech in the last 30 s, and at least 2 of its 3 s speech pieces match the user's own voice (cosine ≥ 0.5 to an embedding of that profile). Other people's voices, even known ones, don't count (Robin, 2026-11-26: "Only activate it if the owner is present"). The user alone is enough ("when only I am speaking"). First built as "two different voices", then "any known voice"; both changed the same day.
+- **Listen in first, show later** (Robin, 2026-11-26 evening: "we don't bother showing a meeting recording unless we think: Yes, this is a meeting"): once a candidate passes, Sokki records the conversation into memory only, with nothing on screen and nothing on disk. After `meetings.auto_start_show_after_s` (60 s; Robin: "Show at 60 s"), if there are still 12 s of speech in the last 30 s and the user's voice is in it again, it becomes a meeting with everything so far as its first minutes. No speech for 30 s before that: dropped, nothing kept. A shown meeting whose conversation lasted less than `meetings.auto_start_min_talk_s` (2 min, from the listening-in) is deleted when it stops. Both durations can be set (`sokki config`).
 - **Not on media:** no start while any app plays sound (Core Audio `kAudioProcessPropertyIsRunningOutput`, per app, Sokki left out). Sound plus speech on the mic is most likely a video, music or podcast. With headphones nothing reaches the mic, and the check doesn't matter.
 - **Not on calls:** a call app on the microphone keeps the existing click-to-start prompt; the listener stays out.
 - **Not during a dictation.**
@@ -92,6 +93,17 @@ Not tested headless: stopping an auto-started meeting in the pill (then 15 minut
 | Video with two strangers | no start | no start, best similarity 0.16–0.30 |
 
 On Robin's Mac the voice profile named like `meetings.user_name` exists with one sample, so it keeps working there.
+
+## Headless test: listening in, shown at 60 s (2026-11-26, 21:22)
+
+| Case (made-up voices, the test's "own" voice) | Expected | Result |
+|---|---|---|
+| 40 s chat | dropped, nothing kept | listening in after 15 s of listening; dropped 54 s later (no speech for 30 s) |
+| 78 s chat | nothing kept | shown 61 s into listening in (76 s kept from before); deleted at the stop: 62 s of conversation, under 120 s. The pill showed for about 2 min and went away |
+| 4 min conversation | shown at 60 s, kept | shown 61 s in (76 s kept); stopped 120 s after the last speech; note done, 351 s of audio |
+| Video with two strangers | never listens in | similarity 0.16–0.29, no listening in |
+
+Seen: a conversation between about 60 s and 2 min shows the pill and then deletes the meeting. That is the trade-off of showing at 60 s while keeping only 2 min and longer.
 
 ## First real use (2026-11-26, Robin's Mac, 0.2.17)
 

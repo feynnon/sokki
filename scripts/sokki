@@ -4,6 +4,10 @@
 #   sokki transcribe FILE [--json]   Any audio or video file to text, with Sokki's speech model.
 #   sokki ask [PROMPT]               Ask the local language model Sokki uses for summaries.
 #                                    Reads stdin too: `cat notes.md | sokki ask "Summarise"`.
+#   sokki config [KEY [VALUE]]       List every setting, show one, or change one.
+#                                    `sokki config meetings.auto_start_show_after_s 90`
+#
+# All commands: CLI.md. Every setting: CONFIG.md.
 #
 # Everything runs on this Mac. On Linux, the `sokki` binary from crates/sokki has
 # the same two commands. Install: ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
@@ -20,7 +24,7 @@ APP_BIN="${SOKKI_APP_BIN:-/Applications/Sokki.app/Contents/MacOS/$APP_EXE}"
 SETTINGS="${SOKKI_SETTINGS:-$HOME/Library/Application Support/$APP_ID/settings_store.json}"
 
 usage() {
-  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 die() { echo "sokki: $*" >&2; exit 1; }
@@ -146,9 +150,102 @@ print(text.strip())
 PY
 }
 
+# Sokki's settings, read and changed in its settings file. The running app
+# applies a change within a second (src-tauri/src/config_watch.rs). Keys are
+# dotted paths under "settings" (CONFIG.md lists them). Values are JSON
+# (true, 60, "text", ["a","b"]); a bare word counts as text. Only existing
+# keys, and only with the type they have, so a typo can't break the file.
+# Keys, tokens and passwords never print.
+config() {
+  [ $# -le 2 ] || die "usage: sokki config [KEY [VALUE]]"
+  [ -f "$SETTINGS" ] || die "no settings yet at $SETTINGS (start Sokki once)"
+  python3 - "$SETTINGS" "$@" <<'PY'
+import json, os, sys, tempfile
+path, args = sys.argv[1], sys.argv[2:]
+with open(path) as f:
+    store = json.load(f)
+root = store.get("settings")
+if not isinstance(root, dict):
+    sys.exit("sokki: the settings file has no settings")
+
+def secret(key):
+    k = key.lower()
+    return any(w in k for w in ("key", "token", "secret", "password"))
+
+def shown(key, value):
+    if secret(key) and value not in (None, "", {}, []):
+        return '"(hidden)"'
+    return json.dumps(value, ensure_ascii=False)
+
+def flat(prefix, value, out):
+    if isinstance(value, dict) and value and not secret(prefix):
+        for k in sorted(value):
+            flat(f"{prefix}.{k}" if prefix else k, value[k], out)
+    else:
+        out.append((prefix, value))
+    return out
+
+def find(key):
+    node = root
+    parts = key.split(".")
+    for part in parts[:-1]:
+        if not isinstance(node, dict) or part not in node:
+            return None, None
+        node = node[part]
+    if not isinstance(node, dict) or parts[-1] not in node:
+        return None, None
+    return node, parts[-1]
+
+if not args:
+    for key, value in flat("", root, []):
+        print(f"{key} = {shown(key, value)}")
+    sys.exit(0)
+
+key = args[0]
+parent, last = find(key)
+if parent is None:
+    near = [k for k, _ in flat("", root, []) if key.split(".")[-1] in k][:8]
+    hint = ("; did you mean: " + ", ".join(near)) if near else ""
+    sys.exit(f"sokki: no setting {key}{hint}. `sokki config` lists them all.")
+if len(args) == 1:
+    print(shown(key, parent[last]))
+    sys.exit(0)
+
+raw = args[1]
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    value = raw
+old = parent[last]
+def kind(v):
+    if isinstance(v, bool): return "true or false"
+    if isinstance(v, (int, float)): return "a number"
+    if isinstance(v, str): return "text"
+    if isinstance(v, list): return "a list"
+    if isinstance(v, dict): return "an object"
+    return "empty"
+if old is not None and kind(old) != kind(value):
+    if kind(old) == "text" and not isinstance(value, (dict, list)):
+        value = raw
+    else:
+        sys.exit(f"sokki: {key} takes {kind(old)}, not {raw!r}")
+if isinstance(old, int) and not isinstance(old, bool) and isinstance(value, float):
+    if value != int(value):
+        sys.exit(f"sokki: {key} takes a whole number, not {raw!r}")
+    value = int(value)
+parent[last] = value
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings-")
+with os.fdopen(fd, "w") as f:
+    json.dump(store, f, indent=2, ensure_ascii=False)
+os.replace(tmp, path)
+print(f"{key} = {shown(key, value)}  (was {shown(key, old)})")
+PY
+}
+
 case "${1:-}" in
   transcribe) shift; transcribe "$@" ;;
   ask) shift; ask "$@" ;;
+  config) shift; config "$@" ;;
   ""|-h|--help|help) usage ;;
-  *) die "unknown command $1 (try: sokki transcribe FILE, sokki ask PROMPT)" ;;
+  *) die "unknown command $1 (try: sokki transcribe FILE, sokki ask PROMPT, sokki config)" ;;
 esac

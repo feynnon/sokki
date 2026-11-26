@@ -13,6 +13,13 @@ other setting is read when it is next used). Invalid JSON is ignored until
 the file is valid again; a single invalid value falls back to its default
 without touching the other settings.
 
+## From the command line
+
+`sokki config KEY VALUE` changes one setting, checked against its type
+(`sokki config meetings.auto_start_show_after_s 90`); the app applies it
+within a second. `sokki config` lists every setting, `sokki config KEY`
+shows one. All commands: [CLI.md](CLI.md).
+
 ## For Claude
 
 - Read: `jq .settings "~/Library/Application Support/org.sokki.app/settings_store.json"`
@@ -77,6 +84,8 @@ Most useful keys:
 | `meetings.silence_hint_enabled` | `bool` | `true` | While a meeting records: say so when the microphone brings no speech (muted, wrong device) or a detected call brings no sound, once per recording (`meeting/silence.rs`). |
 | `meetings.auto_start_enabled` | `bool` | `true` | Start a meeting by itself when the user's own voice talks near the Mac and no call app runs; stop it after two minutes without speech. On by default (Robin, 2026-11-26), but it only listens once the user's own voice is known (a voice profile named `user_name`). A one-line card has an Auto-Start switch that turns this off (`meeting/auto.rs`). While it listens, the microphone stays open. |
 | `meetings.auto_start_set` | `bool` | `false` | The person set auto start themselves (the card's switch); a later default never changes it. |
+| `meetings.auto_start_show_after_s` | `u32` | `60` | Seconds Sokki listens in on a conversation, in memory only, before it shows it as a meeting. A conversation that ends sooner is dropped and nothing is kept. At most 240. |
+| `meetings.auto_start_min_talk_s` | `u32` | `120` | A meeting that started by itself is deleted when its conversation lasted less than this many seconds, counted from when Sokki began listening in. |
 
 ## All other settings
 

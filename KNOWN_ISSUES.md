@@ -281,6 +281,8 @@ Chrome (posted in 2.1 s; "stop" → same).
 | # | Problem | Fix idea |
 |---|---|---|
 | P1 | **Gone 2026-11-26: the phone no longer writes meeting transcripts** (Robin: too battery intensive; without a Mac a recording waits for one). It was: a transcript written on the phone (no Mac) only runs while Sokki is on screen. Leave the app or lock the phone and Android freezes it (`isFrozen=true`), and the transcript waits until Sokki is opened again. Pixel 7: a 3-minute clip stood at 0 words for 6 minutes in the background, then finished 59 s after Sokki came back. A 30-minute meeting takes 12.6 minutes with the screen on (`docs/research/android-phone-transcript-2026-11.md`) | run the transcript in a foreground service with a "Writing the transcript" notification, in Rust or Kotlin, not in the WebView |
+| P2 | "Note ready" can come up to 15 minutes after the Mac finishes when Sokki is closed: Android runs a background job at most every 15 minutes (`NoteCheck.kt`). With Sokki open the note arrives within 4 s | the Mac pushes to the phone (Firebase Cloud Messaging, or a relay the phone keeps open), if 15 minutes turns out too slow in real use |
+| P3 | After the phone restarts, "Note ready" for notes still in progress waits until Sokki is opened once: the job isn't kept across a restart (that needs the boot permission) | `setPersisted(true)` plus `RECEIVE_BOOT_COMPLETED`, once a real case shows it's needed |
 
 ## Keyboard (Android)
 
@@ -341,3 +343,4 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | AM4 | Music counts as speech for the voice detector | synthesised music: 28–30 s of 30 s "speech" | harmless while the known-voice check holds; noted in the research doc |
 | AM5 | First real start was a recording the user didn't want | 2026-11-26 12:01 UTC: own voice + one unknown person in the room, similarity 0.64; the user turned auto start off after 11.8 s | open: reason not known yet; auto start is off on that Mac |
 | AM6 | Own voice scores low against one stored sample | real voice on the built-in mic 0.64–0.70 (test voices 0.91), unknown speech up to 0.47, bar 0.5 | open: more samples of the user's voice would widen the gap |
+| AM7 | The pill's timer starts at 0:00 when an auto meeting shows, though the recording already holds the minute before | by design of listening in (2026-11-26) | open: the pill could start at the kept length |

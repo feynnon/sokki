@@ -39,6 +39,31 @@ const tile = () =>
       };
     }
   ).SokkiRecorder;
+/** "Note ready" while Sokki is closed (NoteCheck.kt): the page reports each
+ * recording the Mac has taken (`watch`) and each note it fetched itself
+ * (`seen`); Android asks the Mac about the rest every 15 minutes. */
+const notes = () =>
+  (
+    window as unknown as {
+      SokkiNotes?: {
+        watch(id: string): void;
+        seen(id: string): void;
+        askPermission(): void;
+        share(title: string, text: string): void;
+        copy?(text: string): void;
+      };
+    }
+  ).SokkiNotes;
+/** The note is on screen, so "Note ready" isn't needed (and is taken
+ * back). Not while the app is out of sight: Android also runs the page's
+ * checks when it wakes the app for NoteJob, and the notification must stay. */
+function seenIfShown(remoteId: string) {
+  if (document.visibilityState === "visible") notes()?.seen(remoteId);
+}
+/** While the app is open: the Mac's progress every few seconds, and an
+ * unsent recording tried again every minute. */
+const POLL_MS = 4000;
+const RESEND_MS = 60_000;
 import { Format, scan } from "@tauri-apps/plugin-barcode-scanner";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { inviteMailto } from "../../shared/invite";
@@ -103,13 +128,35 @@ function stateLine(r: Recording, paired: boolean) {
       return r.error ? "Not sent: Mac not reachable" : "Not sent yet";
     case "uploading":
       return "Sending to the Mac…";
-    case "processing":
-      return STAGE[r.stage ?? ""] ?? "Processing on the Mac…";
+    case "processing": {
+      const stage = STAGE[r.stage ?? ""] ?? "Processing on the Mac…";
+      return r.progress != null
+        ? `${stage} ${Math.round(r.progress * 100)} %`
+        : stage;
+    }
     case "done":
       return "Ready";
     case "failed":
       return r.error ?? "Failed";
   }
+}
+
+/** The Mac's summary (Markdown) as plain text for pasting and sharing,
+ * like NoteCheck.plain: "## Tasks" → "Tasks", "- [ ] x" → "☐ x",
+ * "- x" → "• x", no "**". */
+function plain(md: string) {
+  return md
+    .split("\n")
+    .map((raw) => {
+      const l = raw.trimEnd().split("**").join("");
+      if (l.startsWith("## ")) return l.slice(3);
+      if (l.startsWith("- [ ] ")) return `☐ ${l.slice(6)}`;
+      if (l.startsWith("- [x] ")) return `☑ ${l.slice(6)}`;
+      if (l.startsWith("- ")) return `• ${l.slice(2)}`;
+      return l;
+    })
+    .join("\n")
+    .trim();
 }
 
 /** "**bold**" → <strong>. */
@@ -169,8 +216,6 @@ export default function App() {
   };
   const [pairing, setPairing] = useState<link.Pairing | null>(null);
   const [pairingKnown, setPairingKnown] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [checkNote, setCheckNote] = useState<string | null>(null);
   useEffect(() => {
     // A pairing link (sokki.org/p#… or sokki://pair#…) opens pairing with it.
     const fromLink = () => {
@@ -219,26 +264,36 @@ export default function App() {
     saveList(next);
   }, []);
 
+  const sending = useRef(new Set<string>());
   const send = useCallback(
     async (r: Recording): Promise<boolean> => {
-      const audio = await getAudio(r.localId);
-      if (!audio) {
-        update(r.localId, { state: "failed", error: "The audio is gone." });
-        return false;
-      }
-      update(r.localId, { state: "uploading", error: null });
+      if (sending.current.has(r.localId)) return false;
+      sending.current.add(r.localId);
       try {
-        const id = await link.upload(audio, new Date(r.startedAt));
-        update(r.localId, {
-          state: "processing",
-          remoteId: id,
-          stage: "waiting",
-        });
-        await deleteAudio(r.localId);
-        return true;
-      } catch (e) {
-        update(r.localId, { state: "waiting", error: String(e) });
-        return false;
+        const audio = await getAudio(r.localId);
+        if (!audio) {
+          update(r.localId, { state: "failed", error: "The audio is gone." });
+          return false;
+        }
+        update(r.localId, { state: "uploading", error: null });
+        try {
+          const id = await link.upload(audio, new Date(r.startedAt));
+          update(r.localId, {
+            state: "processing",
+            remoteId: id,
+            stage: "waiting",
+          });
+          await deleteAudio(r.localId);
+          // "Note ready" also while Sokki is closed; Android asks once.
+          notes()?.watch(id);
+          notes()?.askPermission();
+          return true;
+        } catch (e) {
+          update(r.localId, { state: "waiting", error: String(e) });
+          return false;
+        }
+      } finally {
+        sending.current.delete(r.localId);
       }
     },
     [update],
@@ -271,48 +326,75 @@ export default function App() {
     [send],
   );
 
-  /** Only when the user asks (and once right after recording): send what
-   * is unsent, fetch what the Mac has finished. No retries in between. */
-  const checkAgain = useCallback(async () => {
-    setChecking(true);
-    setCheckNote(null);
-    let unreachable = 0;
-    let open = 0;
-    for (const r of listRef.current) {
-      if (r.state === "waiting" || r.state === "uploading") {
-        if (!pairingRef.current) continue;
-        if (!(await send(r))) unreachable++;
-      } else if (r.state === "processing" && r.remoteId) {
-        try {
-          const s = await link.status(r.remoteId);
-          if (s.status === "done")
-            update(r.localId, {
-              state: "done",
-              title: s.title,
-              summary: s.summary,
-              transcript: s.transcript,
-              stage: null,
-            });
-          else if (s.status === "failed")
-            update(r.localId, { state: "failed", error: s.error });
-          else {
-            update(r.localId, { stage: s.stage });
-            open++;
+  /** Fetches the Mac's progress and finished notes, and with `resend`
+   * sends what is unsent. Runs by itself while the app is open (no "Check
+   * again"): every few seconds while the Mac works, every minute while a
+   * recording waits, and whenever the app comes to the front. */
+  const busy = useRef(false);
+  const refresh = useCallback(
+    async (resend: boolean) => {
+      if (busy.current || !pairingRef.current) return;
+      busy.current = true;
+      try {
+        for (const r of listRef.current) {
+          if (r.state === "waiting" || r.state === "uploading") {
+            if (resend) await send(r);
+          } else if (r.state === "processing" && r.remoteId) {
+            try {
+              const s = await link.status(r.remoteId);
+              if (s.status === "done") {
+                update(r.localId, {
+                  state: "done",
+                  title: s.title,
+                  summary: s.summary,
+                  transcript: s.transcript,
+                  stage: null,
+                  progress: null,
+                });
+                seenIfShown(r.remoteId);
+              } else if (s.status === "failed") {
+                update(r.localId, { state: "failed", error: s.error });
+                seenIfShown(r.remoteId);
+              } else {
+                update(r.localId, { stage: s.stage, progress: s.progress });
+              }
+            } catch {
+              /* The Mac isn't reachable right now: the next round asks again. */
+            }
           }
-        } catch {
-          unreachable++;
         }
+      } finally {
+        busy.current = false;
       }
-    }
-    setChecking(false);
-    setCheckNote(
-      unreachable
-        ? "Can't reach the Mac right now. Is it on and is Sokki running?"
-        : open
-          ? "The Mac is still working on it. Check again in a minute."
-          : null,
-    );
-  }, [send, update]);
+    },
+    [send, update],
+  );
+  const working = list.some((r) => r.state === "processing");
+  const unsent = list.some((r) => r.state === "waiting");
+  useEffect(() => {
+    if (!pairing) return;
+    void refresh(true);
+    const onShow = () => {
+      if (document.visibilityState !== "visible") return;
+      // Notes fetched while the app was out of sight: now they're seen.
+      for (const r of listRef.current)
+        if (r.remoteId && (r.state === "done" || r.state === "failed"))
+          notes()?.seen(r.remoteId);
+      void refresh(true);
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, [pairing, refresh]);
+  useEffect(() => {
+    if (!pairing || !working) return;
+    const t = setInterval(() => void refresh(false), POLL_MS);
+    return () => clearInterval(t);
+  }, [pairing, working, refresh]);
+  useEffect(() => {
+    if (!pairing || !unsent) return;
+    const t = setInterval(() => void refresh(true), RESEND_MS);
+    return () => clearInterval(t);
+  }, [pairing, unsent, refresh]);
 
   // For automated tests: add a recording without the microphone.
   useEffect(() => {
@@ -322,10 +404,10 @@ export default function App() {
         return add(new Blob([bytes], { type }), new Date(), durationS);
       },
       list: () => listRef.current,
-      checkAgain,
+      checkAgain: () => refresh(true),
       pair: (ticket: string) => link.pair(ticket).then((p) => (setPairing(p), p)),
     };
-  }, [add, checkAgain]);
+  }, [add, refresh]);
 
   useEffect(() => {
     if (!recording) return;
@@ -421,7 +503,6 @@ export default function App() {
           setPairing(p);
           // Recordings made before the Mac was connected go to it now.
           pairingRef.current = p;
-          void checkAgain();
           setView({ name: "list" });
         }}
         onUnpair={async () => {
@@ -450,8 +531,6 @@ export default function App() {
     return (
       <Detail
         r={r}
-        checking={checking}
-        onCheck={() => void checkAgain()}
         paired={!!pairing}
         onConnect={() => setView({ name: "setup" })}
         onBack={() => setView({ name: "list" })}
@@ -539,22 +618,6 @@ export default function App() {
             )}
           </section>
 
-          {pairing &&
-            list.some(
-              (r) => r.state === "waiting" || r.state === "processing",
-            ) && (
-            <div className="check">
-              <button
-                className="secondary"
-                disabled={checking}
-                onClick={() => void checkAgain()}
-              >
-                {checking ? "Checking…" : "Check again"}
-              </button>
-              {checkNote && <p className="muted small">{checkNote}</p>}
-            </div>
-          )}
-
           <section className="list">
             {list.length === 0 && (
               <p className="empty">
@@ -575,6 +638,16 @@ export default function App() {
                 <span className={`item-state s-${r.state}`}>
                   {clock(r.durationS)} · {stateLine(r, !!pairing)}
                 </span>
+                {r.state === "processing" && r.progress != null && (
+                  <span className="bar" aria-hidden="true">
+                    <i style={{ width: `${Math.round(r.progress * 100)}%` }} />
+                  </span>
+                )}
+                {r.state === "processing" && (
+                  <span className="item-state">
+                    We'll let you know when it's ready.
+                  </span>
+                )}
               </button>
             ))}
           </section>
@@ -725,32 +798,44 @@ function Setup({
 
 function Detail({
   r,
-  checking,
-  onCheck,
   paired,
   onConnect,
   onBack,
   onDelete,
 }: {
   r: Recording;
-  checking: boolean;
-  onCheck: () => void;
   paired: boolean;
   onConnect: () => void;
   onBack: () => void;
   onDelete: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"summary" | "transcript" | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
-  const copy = async () => {
+  const title = r.title ?? when(r.startedAt);
+  const summary = plain(r.summary ?? "");
+  const copy = async (what: "summary" | "transcript") => {
+    const text =
+      what === "summary" ? `${title}\n\n${summary}` : (r.transcript ?? "");
     try {
-      await navigator.clipboard.writeText(r.transcript ?? "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      // The WebView's own clipboard is refused (no secure context), so
+      // Android's clipboard through the bridge.
+      const bridge = notes();
+      if (bridge?.copy) bridge.copy(text);
+      else await navigator.clipboard.writeText(text);
+      setCopied(what);
+      setTimeout(() => setCopied(null), 1500);
     } catch {
       setShowTranscript(true);
     }
   };
+  // The whole note: title, summary, then the transcript.
+  const share = () =>
+    notes()?.share(
+      title,
+      [title, summary, r.transcript ? `Transcript\n${r.transcript}` : ""]
+        .filter(Boolean)
+        .join("\n\n"),
+    );
   return (
     <main className="page">
       <header className="top">
@@ -761,15 +846,28 @@ function Detail({
           Remove
         </button>
       </header>
-      <h1>{r.title ?? when(r.startedAt)}</h1>
+      <h1>{title}</h1>
       <p className="muted">
         {when(r.startedAt)} · {clock(r.durationS)} · {stateLine(r, paired)}
       </p>
       {r.state === "done" ? (
         <>
-          <button className="primary" onClick={() => void copy()}>
-            {copied ? "Copied" : "Copy transcript"}
-          </button>
+          {notes() && (
+            <button className="primary" onClick={share}>
+              Share
+            </button>
+          )}
+          <div className="row">
+            <button className="secondary" onClick={() => void copy("summary")}>
+              {copied === "summary" ? "Copied" : "Copy summary"}
+            </button>
+            <button
+              className="secondary"
+              onClick={() => void copy("transcript")}
+            >
+              {copied === "transcript" ? "Copied" : "Copy transcript"}
+            </button>
+          </div>
           {r.summary ? (
             <Summary md={r.summary} />
           ) : (
@@ -786,17 +884,13 @@ function Detail({
             {!paired
               ? "This recording stays on your phone. Connect Sokki on your Mac and it writes the transcript, with speakers and a summary."
               : r.state === "waiting"
-                ? "This recording is on your phone. It is sent when you tap Check again and the Mac is on."
-                : "The Mac turns it into a note. Tap Check again to fetch it."}
+                ? "This recording is on your phone. Sokki sends it as soon as the Mac is reachable."
+                : "The Mac turns it into a note with a summary. We'll let you know when it's ready."}
           </p>
           {paired && r.error && r.state === "waiting" && (
             <p className="muted small">{r.error}</p>
           )}
-          {paired ? (
-            <button className="secondary" disabled={checking} onClick={onCheck}>
-              {checking ? "Checking…" : "Check again"}
-            </button>
-          ) : (
+          {!paired && (
             <button className="primary" onClick={onConnect}>
               Connect your Mac
             </button>

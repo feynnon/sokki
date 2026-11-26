@@ -199,6 +199,8 @@ For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONT
 
 ## CLI Parameters
 
+All of Sokki's command lines (the `sokki` script with `transcribe`, `ask` and `config`, the app's flags, Linux): [CLI.md](CLI.md).
+
 Sokki supports command-line parameters on all platforms for integration with scripts, window managers, and autostart configurations.
 
 **Implementation:** `cli.rs` (definitions), `main.rs` (parsing), `lib.rs` (applying), `signal_handle.rs` (shared logic)

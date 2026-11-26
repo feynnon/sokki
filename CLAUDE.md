@@ -6,6 +6,8 @@ Read @AGENTS.md
   per platform (macOS: `src-tauri`; Linux/Omarchy: `crates/sokki`), and the
   invariants every change keeps.
 - `MEETINGS.md`: what the fork adds, layout, tests, build.
+- `CLI.md`: the `sokki` command (`transcribe`, `ask`, `config` for every
+  setting) and the app's flags. Keep it current with `scripts/sokki`.
 - `CONFIG.md`: every setting, and how to change it. The app's settings live in
   `~/Library/Application Support/org.sokki.app/settings_store.json`;
   the app applies external edits within a second (`src-tauri/src/config_watch.rs`).
@@ -33,6 +35,28 @@ Sokki gets the shell's macOS permissions, and on 2026-11-19 its onboarding
 reset the running Sokki's Accessibility grant, which froze all keyboard and
 mouse input. Never run `tccutil`, never click onboarding's permission
 buttons, no relaunch loops.
+
+## Eval data and test results
+
+Robin (2026-11-26): "Shouldn't be in the repo I guess, but you know,
+documented and available."
+
+- Eval and test data never goes into the repo. It lives in
+  `$SOKKI_EVALS/<set>/` (default `~/sokki-evals`). Each set has a `README.md`
+  with what it is, its source, its licence, whether it is private or public,
+  how to get or rebuild it, which scripts use it, and its fixed samples.
+- `docs/evals.md` is the index. Every new set gets a row there, and public
+  sets also get their source and SHA-256 in
+  `mobile/keyboard/tools/eval_sources.json` (`fetch_evals.py` downloads
+  them).
+- Scripts find data with `evals.path()` (Python) or `$SOKKI_EVALS`, never
+  with a hard-coded path. Run outputs go to `$SOKKI_EVALS/runs/<area>/`.
+- A fixed sample keeps its seed and recipe so later results compare with
+  earlier ones. A changed sample gets a new name.
+- Private data (Robin's typing, dictations, calls, meetings) never goes into
+  the repo, a test, a fixture or anywhere public. Tests use made-up data.
+- Every eval run is written up in `docs/research/`: the date, the task, the
+  set and sample, the numbers and the sources. Numbers only, no private text.
 
 ## Building
 

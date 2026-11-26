@@ -109,6 +109,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(Screen(), "SokkiScreen")
     webView.addJavascriptInterface(Recorder(), "SokkiRecorder")
     webView.addJavascriptInterface(JournalBridge(this), "SokkiJournal")
+    webView.addJavascriptInterface(NotesBridge(this), "SokkiNotes")
     Recording.page = java.lang.ref.WeakReference(webView)
   }
 

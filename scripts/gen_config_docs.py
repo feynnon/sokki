@@ -112,6 +112,13 @@ other setting is read when it is next used). Invalid JSON is ignored until
 the file is valid again; a single invalid value falls back to its default
 without touching the other settings.
 
+## From the command line
+
+`sokki config KEY VALUE` changes one setting, checked against its type
+(`sokki config meetings.auto_start_show_after_s 90`); the app applies it
+within a second. `sokki config` lists every setting, `sokki config KEY`
+shows one. All commands: [CLI.md](CLI.md).
+
 ## For Claude
 
 - Read: `jq .settings "~/Library/Application Support/org.sokki.app/settings_store.json"`

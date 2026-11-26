@@ -26,8 +26,16 @@
 //!   music on the speakers reaches the microphone; with headphones it
 //!   doesn't, and nothing plays then).
 //!
-//! It stops by itself after [`QUIET_STOP_S`] without speech. Both happen
-//! without asking. A one-line card (canvas M2.2, Robin's pick 2026-11-26)
+//! Then Sokki listens in: it records the conversation into memory only,
+//! nothing on screen, nothing on disk. After `auto_start_show_after_s`
+//! (60 s), if there is still speech and the user's voice is in it, it
+//! becomes a meeting with everything heard so far as its first minutes. A
+//! conversation that ends before (no speech for [`TRIAL_QUIET_S`]) is
+//! dropped (Robin, 2026-11-26: "anything below that: We just drop it").
+//!
+//! It stops by itself after [`QUIET_STOP_S`] without speech; when the
+//! conversation lasted less than `auto_start_min_talk_s` (2 min) from the
+//! listening-in, the meeting is deleted instead. Both happen without asking. A one-line card (canvas M2.2, Robin's pick 2026-11-26)
 //! shows for [`CARD_S`]: "Von selbst aufgenommen", an Auto-Start switch
 //! (sets `auto_start_enabled` to false; the recording goes on) and an X that
 //! only closes the card. The pill shows the recording. Stopping an
@@ -69,6 +77,11 @@ pub const MIN_KNOWN_PIECES: usize = 2;
 /// After a rejected candidate (not the user, sound playing, call), wait this
 /// long before checking again, so the embedder doesn't run every second.
 const RECHECK_S: f64 = 15.0;
+/// While listening in, the conversation counts as over after this long
+/// without speech: dropped, nothing kept.
+const TRIAL_QUIET_S: f64 = 30.0;
+/// Listening in never holds more than this in memory (about 19 MB).
+const TRIAL_MAX_S: f64 = 300.0;
 /// An auto-started meeting stops after this long without speech.
 pub const QUIET_STOP_S: f64 = 120.0;
 /// How long the card stays.
@@ -94,6 +107,8 @@ struct Ours {
     id: String,
     started: Instant,
     started_mono_us: u64,
+    /// When the listener began listening in on the conversation.
+    began_mono_us: u64,
 }
 
 static OURS: Mutex<Option<Ours>> = Mutex::new(None);
@@ -351,6 +366,7 @@ fn run(app: &AppHandle) {
     let mut embedder_failed = false;
     let mut was_enabled = false;
     let mut waiting_for_voice = false;
+    let mut trial: Option<Trial> = None;
     loop {
         let on = enabled(app);
         if on != was_enabled {
@@ -363,6 +379,12 @@ fn run(app: &AppHandle) {
                 close_listener(l);
             }
             window.clear();
+            if let Some(t) = trial.take() {
+                log::info!(
+                    "Auto meeting: dropped a conversation after {:.0} s (a meeting started); nothing kept",
+                    t.began.elapsed().as_secs_f64()
+                );
+            }
             watch_ours(app, id);
             std::thread::sleep(Duration::from_millis(500));
             continue;
@@ -375,6 +397,7 @@ fn run(app: &AppHandle) {
             }
             embedder = None;
             window.clear();
+            trial = None;
             std::thread::sleep(Duration::from_secs(1));
             continue;
         }
@@ -423,6 +446,12 @@ fn run(app: &AppHandle) {
                         .map(|f| f.is_speech())
                         .unwrap_or(false);
                     window.push(&frame, speech);
+                    if let Some(t) = trial.as_mut() {
+                        t.audio.extend_from_slice(&frame);
+                        if speech {
+                            t.last_speech = Instant::now();
+                        }
+                    }
                     frame.clear();
                 }
             }
@@ -432,14 +461,78 @@ fn run(app: &AppHandle) {
                 if let Some(l) = listening.take() {
                     close_listener(l);
                 }
+                if let Some(t) = trial.take() {
+                    log::info!(
+                        "Auto meeting: dropped a conversation after {:.0} s (the microphone stopped); nothing kept",
+                        t.began.elapsed().as_secs_f64()
+                    );
+                }
                 continue;
             }
         }
+        let timing = Timing::from_settings(app);
+
+        // Listening in: the conversation is recorded into memory only, and
+        // shown as a meeting once it held for `show_after_s`.
+        if let Some(t) = trial.as_ref() {
+            let in_s = t.began.elapsed().as_secs_f64();
+            let drop = if t.last_speech.elapsed().as_secs_f64() >= TRIAL_QUIET_S {
+                Some(format!("no speech for {TRIAL_QUIET_S:.0} s"))
+            } else if t.audio.len() as f64 / RATE as f64 > TRIAL_MAX_S {
+                Some(format!("still not clear after {TRIAL_MAX_S:.0} s"))
+            } else {
+                None
+            };
+            if let Some(why) = drop {
+                log::info!(
+                    "Auto meeting: dropped a conversation after {in_s:.0} s ({why}); nothing kept"
+                );
+                trial = None;
+                next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
+                continue;
+            }
+            if in_s < timing.show_after_s || Instant::now() < next_check {
+                continue;
+            }
+            if let Some(block) = blocked(app) {
+                log::info!(
+                    "Auto meeting: dropped a conversation after {in_s:.0} s ({}); nothing kept",
+                    describe(&block)
+                );
+                trial = None;
+                next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
+                continue;
+            }
+            let speech_s = window.speech_s();
+            let check = (speech_s >= MIN_SPEECH_S)
+                .then(|| owner_check(app, &mut embedder, &mut embedder_failed, &window));
+            match check {
+                Some(c) if c.matched >= MIN_KNOWN_PIECES => {
+                    let Some(t) = trial.take() else { continue };
+                    if let Some(l) = listening.take() {
+                        close_listener(l);
+                    }
+                    window.clear();
+                    start_ours(app, t, speech_s, &c);
+                }
+                Some(c) => log::info!(
+                    "Auto meeting: still listening in after {in_s:.0} s, the user's voice not in the last {WINDOW_S:.0} s ({} of {} pieces, best similarity {:.2})",
+                    c.matched,
+                    c.pieces,
+                    c.best
+                ),
+                None => log::info!(
+                    "Auto meeting: still listening in after {in_s:.0} s, only {speech_s:.1} s of speech in the last {WINDOW_S:.0} s"
+                ),
+            }
+            next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
+            continue;
+        }
+
         if Instant::now() < next_check || window.speech_s() < MIN_SPEECH_S {
             continue;
         }
         // A candidate: enough speech. Checks from cheapest to dearest.
-        let candidate_at = Instant::now();
         let speech_s = window.speech_s();
         let listened_s = l.opened.elapsed().as_secs_f64();
         if let Some(block) = blocked(app) {
@@ -450,67 +543,140 @@ fn run(app: &AppHandle) {
             next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
             continue;
         }
-        if embedder.is_none() && !embedder_failed {
-            let mut config = diarize::DiarizeConfig::new(super::process::models_dir(app));
-            config.allow_download = false;
-            config.num_threads = 1;
-            match diarize::SpeakerEmbedder::new(&config) {
-                Ok(e) => embedder = Some(e),
-                Err(e) => {
-                    log::warn!("Auto meeting: no speaker model ({e:#}); nothing starts by itself");
-                    embedder_failed = true;
-                }
-            }
-        }
-        let pieces = window.speech_pieces();
-        let (known, matched, best) = match embedder.as_ref() {
-            Some(emb) => {
-                let known = owner_voice(app, emb);
-                let embeddings: Vec<Vec<f32>> =
-                    pieces.iter().filter_map(|p| emb.embed(p).ok()).collect();
-                let (matched, best) = known_matches(&embeddings, &known, KNOWN_VOICE);
-                (known.len(), matched, best)
-            }
-            None => (0, 0, f32::NAN),
-        };
-        let check_ms = candidate_at.elapsed().as_millis();
-        if matched < MIN_KNOWN_PIECES {
+        let c = owner_check(app, &mut embedder, &mut embedder_failed, &window);
+        next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
+        if c.matched < MIN_KNOWN_PIECES {
             log::info!(
-                "Auto meeting: not started, the user's voice not in it (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces the user's, best similarity {best:.2}, {known} samples of the user's voice, checked in {check_ms} ms)",
-                pieces.len()
+                "Auto meeting: not started, the user's voice not in it (speech {speech_s:.1} s in {WINDOW_S:.0} s, {} of {} pieces the user's, best similarity {:.2}, {} samples of the user's voice, checked in {} ms)",
+                c.matched,
+                c.pieces,
+                c.best,
+                c.known,
+                c.check_ms
             );
-            next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
             continue;
         }
-        // Start. The listener lets go of the microphone first.
-        let preroll = window.preroll();
-        let preroll_s = preroll.len() as f64 / RATE as f64;
-        if let Some(l) = listening.take() {
-            close_listener(l);
-        }
-        window.clear();
-        *PREROLL.lock().unwrap_or_else(|e| e.into_inner()) = Some(preroll);
-        let begun = Instant::now();
-        match super::start_meeting(app, None) {
-            Ok(id) => {
-                log::info!(
-                    "Auto meeting: started {id} (speech {speech_s:.1} s in {WINDOW_S:.0} s, {matched} of {} pieces the user's voice, best similarity {best:.2}, checked in {check_ms} ms, recording {} ms later, {preroll_s:.1} s from before the start kept, listening for {listened_s:.0} s)",
-                    pieces.len(),
-                    begun.elapsed().as_millis()
-                );
-                *OURS.lock().unwrap_or_else(|e| e.into_inner()) = Some(Ours {
-                    id: id.clone(),
-                    started: Instant::now(),
-                    started_mono_us: super::mono_us(),
-                });
-                crate::usage::count(app, crate::usage::Count::AutoMeetingStarted);
-                offer_card(app, id);
-            }
-            Err(e) => log::warn!("Auto meeting: starting failed: {e}"),
-        }
-        take_preroll();
-        next_check = Instant::now() + Duration::from_secs_f64(RECHECK_S);
+        log::info!(
+            "Auto meeting: listening in (speech {speech_s:.1} s in {WINDOW_S:.0} s, {} of {} pieces the user's voice, best similarity {:.2}, checked in {} ms, listening for {listened_s:.0} s); shown after {:.0} s, nothing kept if it ends sooner",
+            c.matched,
+            c.pieces,
+            c.best,
+            c.check_ms,
+            timing.show_after_s
+        );
+        trial = Some(Trial {
+            began: Instant::now(),
+            began_mono_us: super::mono_us(),
+            last_speech: Instant::now(),
+            audio: window.preroll(),
+        });
     }
+}
+
+/// A conversation the listener records into memory only, before it is
+/// shown as a meeting. Nothing of it touches the disk unless it becomes one.
+struct Trial {
+    began: Instant,
+    began_mono_us: u64,
+    last_speech: Instant,
+    /// 16 kHz mono: the pre-roll, then everything since.
+    audio: Vec<f32>,
+}
+
+/// The two durations the user can set (`meetings.auto_start_show_after_s`,
+/// `meetings.auto_start_min_talk_s`).
+struct Timing {
+    show_after_s: f64,
+    min_talk_s: f64,
+}
+
+impl Timing {
+    fn from_settings(app: &AppHandle) -> Self {
+        let m = crate::settings::get_settings(app).meetings;
+        Self {
+            show_after_s: (m.auto_start_show_after_s as f64).min(TRIAL_MAX_S - 60.0),
+            min_talk_s: m.auto_start_min_talk_s as f64,
+        }
+    }
+}
+
+struct OwnerCheck {
+    known: usize,
+    pieces: usize,
+    matched: usize,
+    best: f32,
+    check_ms: u128,
+}
+
+/// How many speech pieces of the window are the user's own voice. Loads
+/// the speaker model the first time.
+fn owner_check(
+    app: &AppHandle,
+    embedder: &mut Option<diarize::SpeakerEmbedder>,
+    embedder_failed: &mut bool,
+    window: &Window,
+) -> OwnerCheck {
+    let began = Instant::now();
+    if embedder.is_none() && !*embedder_failed {
+        let mut config = diarize::DiarizeConfig::new(super::process::models_dir(app));
+        config.allow_download = false;
+        config.num_threads = 1;
+        match diarize::SpeakerEmbedder::new(&config) {
+            Ok(e) => *embedder = Some(e),
+            Err(e) => {
+                log::warn!("Auto meeting: no speaker model ({e:#}); nothing starts by itself");
+                *embedder_failed = true;
+            }
+        }
+    }
+    let pieces = window.speech_pieces();
+    let (known, matched, best) = match embedder.as_ref() {
+        Some(emb) => {
+            let known = owner_voice(app, emb);
+            let embeddings: Vec<Vec<f32>> =
+                pieces.iter().filter_map(|p| emb.embed(p).ok()).collect();
+            let (matched, best) = known_matches(&embeddings, &known, KNOWN_VOICE);
+            (known.len(), matched, best)
+        }
+        None => (0, 0, f32::NAN),
+    };
+    OwnerCheck {
+        known,
+        pieces: pieces.len(),
+        matched,
+        best,
+        check_ms: began.elapsed().as_millis(),
+    }
+}
+
+/// Shows a conversation that held as a meeting: everything heard since
+/// before it began becomes the meeting's first minutes.
+fn start_ours(app: &AppHandle, t: Trial, speech_s: f64, c: &OwnerCheck) {
+    let kept_s = t.audio.len() as f64 / RATE as f64;
+    let in_s = t.began.elapsed().as_secs_f64();
+    *PREROLL.lock().unwrap_or_else(|e| e.into_inner()) = Some(t.audio);
+    let begun = Instant::now();
+    match super::start_meeting(app, None) {
+        Ok(id) => {
+            log::info!(
+                "Auto meeting: started {id} after listening in for {in_s:.0} s (speech {speech_s:.1} s in {WINDOW_S:.0} s, {} of {} pieces the user's voice, best similarity {:.2}, recording {} ms later, {kept_s:.1} s from before kept)",
+                c.matched,
+                c.pieces,
+                c.best,
+                begun.elapsed().as_millis()
+            );
+            *OURS.lock().unwrap_or_else(|e| e.into_inner()) = Some(Ours {
+                id: id.clone(),
+                started: Instant::now(),
+                started_mono_us: super::mono_us(),
+                began_mono_us: t.began_mono_us,
+            });
+            crate::usage::count(app, crate::usage::Count::AutoMeetingStarted);
+            offer_card(app, id);
+        }
+        Err(e) => log::warn!("Auto meeting: starting failed: {e}"),
+    }
+    take_preroll();
 }
 
 fn describe(b: &Block) -> String {
@@ -579,10 +745,9 @@ fn offer_card(app: &AppHandle, id: String) {
     std::thread::spawn(move || {
         let shown = Instant::now();
         let answer = if crate::test_mic::active() {
-            std::env::var("SOKKI_TEST_AUTO_DISCARD").ok().map(|v| {
-                std::thread::sleep(Duration::from_secs(3));
-                v
-            })
+            std::env::var("SOKKI_TEST_AUTO_DISCARD")
+                .ok()
+                .inspect(|_| std::thread::sleep(Duration::from_secs(3)))
         } else {
             super::prompt::ask(
                 &handle,
@@ -615,10 +780,10 @@ fn offer_card(app: &AppHandle, id: String) {
 /// While meeting `id` records: if the listener started it, stop it after
 /// [`QUIET_STOP_S`] without speech on either track.
 fn watch_ours(app: &AppHandle, id: &str) {
-    let (started, started_mono_us) = {
+    let (started, started_mono_us, began_mono_us) = {
         let ours = OURS.lock().unwrap_or_else(|e| e.into_inner());
         match ours.as_ref() {
-            Some(o) if o.id == id => (o.started, o.started_mono_us),
+            Some(o) if o.id == id => (o.started, o.started_mono_us, o.began_mono_us),
             _ => return,
         }
     };
@@ -631,13 +796,25 @@ fn watch_ours(app: &AppHandle, id: &str) {
         return;
     }
     let length_s = started.elapsed().as_secs_f64();
+    let talk_s = last.saturating_sub(began_mono_us) as f64 / 1e6;
+    let min_talk_s = Timing::from_settings(app).min_talk_s;
+    // Forgotten first, so the listener doesn't log it as stopped by the user.
+    *OURS.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    if talk_s < min_talk_s {
+        match super::discard_meeting(app) {
+            Ok(_) => log::info!(
+                "Auto meeting: deleted {id}: the conversation lasted {talk_s:.0} s, less than {min_talk_s:.0} s"
+            ),
+            Err(e) => log::warn!("Auto meeting: deleting the short {id} failed: {e}"),
+        }
+        return;
+    }
     match super::stop_meeting(app) {
         Ok(_) => log::info!(
-            "Auto meeting: stopped {id} after {quiet_s:.0} s without speech ({length_s:.0} s recorded)"
+            "Auto meeting: stopped {id} after {quiet_s:.0} s without speech ({length_s:.0} s recorded, {talk_s:.0} s of conversation)"
         ),
         Err(e) => log::warn!("Auto meeting: stopping {id} failed: {e}"),
     }
-    *OURS.lock().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
 /// The meeting the listener started ended some other way (stop button,

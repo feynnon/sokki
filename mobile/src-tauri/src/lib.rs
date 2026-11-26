@@ -2,6 +2,8 @@ mod dictation;
 #[cfg(target_os = "android")]
 mod keyboard_voice;
 mod link;
+#[cfg(target_os = "android")]
+mod note_check;
 mod pieces;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

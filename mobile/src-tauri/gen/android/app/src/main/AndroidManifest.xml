@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Android 17+: needed to reach the Mac on the local network (phone link). -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- "Note ready" when the Mac has finished a meeting (NoteCheck.kt). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -58,6 +60,15 @@
                 android:name="android.service.quicksettings.TOGGLEABLE_TILE"
                 android:value="true" />
         </service>
+
+        <!-- Asks the Mac about unfinished meeting notes while Sokki is closed (NoteCheck.kt). -->
+        <service
+            android:name=".NoteJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver
+            android:name=".NoteCopy"
+            android:exported="false" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

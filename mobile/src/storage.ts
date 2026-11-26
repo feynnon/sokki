@@ -7,6 +7,7 @@ export interface Recording {
   remoteId: string | null; // the Mac's meeting id once uploaded
   state: "waiting" | "uploading" | "processing" | "done" | "failed";
   stage: string | null;
+  progress?: number | null; // 0–1 within the Mac's current stage
   error: string | null;
   title: string | null;
   summary: string | null;

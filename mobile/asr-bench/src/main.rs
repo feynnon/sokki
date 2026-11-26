@@ -4,6 +4,8 @@
 //! run over adb, to see whether a phone can transcribe meetings by itself.
 use std::time::Instant;
 
+mod via_mac;
+
 fn peak_rss_mb() -> f64 {
     std::fs::read_to_string("/proc/self/status")
         .ok()
@@ -19,6 +21,21 @@ fn peak_rss_mb() -> f64 {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    // Dictation through the Mac (src/via_mac.rs).
+    if args[1] == "--mac-serve" {
+        let _ = transcribe_cpp::init_backends_default();
+        via_mac::serve(&args[2]);
+        return;
+    }
+    if args[1] == "--via-mac" {
+        let r = hound::WavReader::open(&args[3]).expect("wav");
+        let samples = r
+            .into_samples::<i16>()
+            .map(|s| s.unwrap() as f32 / 32768.0)
+            .collect();
+        via_mac::dictate(&args[2], samples);
+        return;
+    }
     let (model, wav) = (&args[1], &args[2]);
     let _ = transcribe_cpp::init_backends_default();
     let mut r = hound::WavReader::open(wav).expect("wav");

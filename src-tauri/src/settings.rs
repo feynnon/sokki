@@ -484,8 +484,7 @@ pub struct AppSettings {
     /// day while the Mac is idle, a local language model checks each new
     /// word and Sokki speaks it to itself to hear how the speech model
     /// writes it (`learn_words.rs`). Does nothing while the journal is off.
-    /// Off by default until the learned words have been checked on real
-    /// writing (schema 9 turns it off once for everyone).
+    /// On by default (schema 11, Robin, 2026-11-26).
     #[serde(default = "default_learn_words")]
     pub learn_words: bool,
     /// Words learned from the user's writing (Vocabulary › Learned from
@@ -806,7 +805,7 @@ fn default_model() -> String {
     "".to_string()
 }
 
-const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 10;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 11;
 
 fn default_custom_words() -> Vec<String> {
     vec!["Sokki".to_string()]
@@ -831,7 +830,7 @@ fn default_hold_threshold_ms() -> u64 {
 }
 
 fn default_learn_words() -> bool {
-    false
+    true
 }
 
 fn default_keep_what_i_write() -> bool {
@@ -857,6 +856,14 @@ fn cleanup_on_by_default(settings: &mut AppSettings) {
 fn journal_on_by_default(settings: &mut AppSettings) {
     settings.keep_what_i_write = true;
     settings.learn_words = false;
+}
+
+/// Word learning became on by default (schema 11, Robin, 2026-11-26:
+/// "Wörter lernen sollte by default an sein"). Schema 9 had turned it off
+/// for everyone a few hours earlier, so it turns on once; a switch set
+/// after that stays as set.
+fn learning_on_by_default(settings: &mut AppSettings) {
+    settings.learn_words = true;
 }
 
 /// One "heard as" form of a word.
@@ -1765,6 +1772,11 @@ fn apply_settings_migrations(
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
+    if stored_schema_version < 11 {
+        learning_on_by_default(settings);
+        settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
+        updated = true;
+    }
 
     // The generic GPU choice was removed in favor of Auto or an exact device.
     // Normalize settings created by builds that exposed that short-lived option.
@@ -1954,26 +1966,37 @@ mod tests {
     }
 
     #[test]
-    fn journal_turns_on_once_and_learning_off() {
-        let (mut s, raw) = v8_store(false, true);
+    fn journal_and_learning_turn_on_once() {
+        let (mut s, raw) = v8_store(false, false);
         assert!(apply_settings_migrations(&mut s, &raw));
         assert!(s.keep_what_i_write, "the journal turns on");
-        assert!(!s.learn_words, "learning waits for the check");
+        assert!(s.learn_words, "learning turns on");
         assert_eq!(s.settings_schema_version, CURRENT_SETTINGS_SCHEMA_VERSION);
 
-        // Switched off afterwards: stays off on the next start.
+        // 0.2.16 and 0.2.17 (schemas 9, 10) had learning off: it turns on.
+        for version in [9, 10] {
+            let mut old = get_default_settings();
+            old.settings_schema_version = version;
+            old.learn_words = false;
+            let raw = serde_json::to_value(&old).unwrap();
+            assert!(apply_settings_migrations(&mut old, &raw));
+            assert!(old.learn_words, "schema {version}");
+        }
+
+        // Switched off afterwards: both stay off on the next start.
         s.keep_what_i_write = false;
+        s.learn_words = false;
         let raw = serde_json::to_value(&s).unwrap();
         apply_settings_migrations(&mut s, &raw);
-        assert!(!s.keep_what_i_write, "a switch set after that stays");
+        assert!(
+            !s.keep_what_i_write && !s.learn_words,
+            "switches set after that stay"
+        );
 
         let new = get_default_settings();
-        assert!(new.keep_what_i_write && !new.learn_words, "new installs");
+        assert!(new.keep_what_i_write && new.learn_words, "new installs");
         let empty: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
-        assert!(
-            empty.keep_what_i_write && !empty.learn_words,
-            "missing keys"
-        );
+        assert!(empty.keep_what_i_write && empty.learn_words, "missing keys");
     }
 
     #[test]

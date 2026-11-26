@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- A text field for the instant paste's lab test (examples/paste_edit.rs): a textarea, or
+     with ?rich a contenteditable editor like the ones in chat apps. -->
+<html><head><meta charset="utf-8"><title>Sokki paste lab</title>
+<style>body{font:15px -apple-system,sans-serif;margin:40px}textarea,div[contenteditable]{width:640px;height:280px;border:1px solid #999;padding:8px;font:inherit;white-space:pre-wrap}</style>
+</head><body>
+<script>
+const rich = location.search.includes("rich");
+const el = document.createElement(rich ? "div" : "textarea");
+if (rich) { el.contentEditable = "true"; el.setAttribute("role", "textbox"); el.setAttribute("aria-multiline", "true"); }
+document.body.appendChild(el);
+setInterval(() => { if (document.activeElement !== el) el.focus(); }, 200);
+el.focus();
+</script>
+</body></html>

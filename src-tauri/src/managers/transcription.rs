@@ -74,6 +74,10 @@ pub struct StreamTextEvent {
     pub cleaned: String,
     pub committed: String,
     pub tentative: String,
+    /// The dictation cleanup runs: the raw words show dimmed and upright
+    /// until they are cleaned, instead of italic.
+    #[serde(default)]
+    pub cleanup: bool,
 }
 
 /// Phase of the streaming overlay card, emitted to drive its UI state.
@@ -1444,13 +1448,7 @@ fn agreed_language(transcripts: &[Transcript]) -> Option<String> {
 fn emit_stream_text(app_handle: &AppHandle, committed: &str, tentative: &str) {
     // The committed part is final: the dictation's cleanup starts on it, and
     // what it has cleaned already shows in its place.
-    let (cleaned, committed, tentative) = crate::dictation_cleanup::live_text(committed, tentative);
-    let _ = StreamTextEvent {
-        cleaned,
-        committed,
-        tentative,
-    }
-    .emit(app_handle);
+    let _ = crate::dictation_cleanup::live_text(committed, tentative).emit(app_handle);
 }
 
 fn lock_perf(perf: &Mutex<StreamPerf>) -> MutexGuard<'_, StreamPerf> {

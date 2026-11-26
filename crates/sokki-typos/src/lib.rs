@@ -46,6 +46,19 @@ const GERMAN_ENDINGS: [&str; 18] = [
     "ere", "eres", "erem", "eren", "erer", "est", "end", "ens", "em", "es", "er", "en", "e", "st",
     "t", "te", "ten", "s",
 ];
+/// British -ise endings and their US -ize forms.
+const BRITISH: [(&str, &str); 10] = [
+    ("isations", "izations"),
+    ("isation", "ization"),
+    ("ising", "izing"),
+    ("isers", "izers"),
+    ("ised", "ized"),
+    ("ises", "izes"),
+    ("iser", "izer"),
+    ("ise", "ize"),
+    ("ysed", "yzed"),
+    ("yse", "yze"),
+];
 const PRONOUNS: [&str; 9] = ["ich", "du", "er", "sie", "es", "wir", "ihr", "man", "sich"];
 const DETERMINERS: &str = "der die das den dem des ein eine einen einem einer eines kein keine keinen keinem keiner \
 mein meine meinen meinem meiner dein deine deinen deinem deiner sein seine seinen seinem seiner ihre ihren \
@@ -163,22 +176,38 @@ fn umlaut_of(c: char) -> char {
     }
 }
 
-fn pos(c: char) -> Option<(i32, f64)> {
-    for (r, row) in QWERTZ.iter().enumerate() {
-        if let Some(i) = row.chars().position(|x| x == c) {
-            return Some((r as i32, i as f64 + 0.5 * r as f64));
-        }
-    }
-    None
+/// Where each letter key sits: row, and column with each row shifted half a key.
+#[derive(Clone)]
+struct Keyboard {
+    pos: HashMap<char, (i32, f64)>,
+    /// The layout is QWERTZ: y and z count as neighbours too (the QWERTY habit).
+    qwertz: bool,
 }
 
-fn neighbours(a: char, b: char) -> bool {
-    if (a == 'y' && b == 'z') || (a == 'z' && b == 'y') {
-        return true; // QWERTY habit on QWERTZ
+impl Keyboard {
+    fn new<S: AsRef<str>>(rows: &[S]) -> Keyboard {
+        let mut pos = HashMap::new();
+        for (r, row) in rows.iter().enumerate() {
+            for (i, c) in row.as_ref().chars().enumerate() {
+                if c.is_alphabetic() {
+                    pos.entry(c)
+                        .or_insert((r as i32, i as f64 + 0.5 * r as f64));
+                }
+            }
+        }
+        let qwertz =
+            pos.get(&'z').is_some_and(|p| p.0 == 0) && pos.get(&'y').is_some_and(|p| p.0 == 2);
+        Keyboard { pos, qwertz }
     }
-    match (pos(a), pos(b)) {
-        (Some((r1, c1)), Some((r2, c2))) => (r1 - r2).abs() <= 1 && (c1 - c2).abs() <= 1.0,
-        _ => false,
+
+    fn neighbours(&self, a: char, b: char) -> bool {
+        if self.qwertz && ((a == 'y' && b == 'z') || (a == 'z' && b == 'y')) {
+            return true; // QWERTY habit on QWERTZ
+        }
+        match (self.pos.get(&a), self.pos.get(&b)) {
+            (Some((r1, c1)), Some((r2, c2))) => (r1 - r2).abs() <= 1 && (c1 - c2).abs() <= 1.0,
+            _ => false,
+        }
     }
 }
 
@@ -306,6 +335,27 @@ impl Lexicon {
         out
     }
 
+    /// Folded words with the same first letter and at most `d` letters more or fewer.
+    fn near_words(&self, folded: &str, d: usize) -> Vec<String> {
+        let first: String = folded.chars().take(1).collect();
+        let n = folded.chars().count();
+        let lo = self
+            .lines
+            .partition_point(|&s| &self.buf[s as usize..] < first.as_str());
+        let mut out: Vec<String> = Vec::new();
+        for i in lo..self.lines.len() {
+            let (f, _, _) = self.line(i);
+            if !f.starts_with(first.as_str()) {
+                break;
+            }
+            let m = f.chars().count();
+            if m + d >= n && m <= n + d && out.last().is_none_or(|l| l != f) {
+                out.push(f.to_string());
+            }
+        }
+        out
+    }
+
     pub fn load(dir: &Path) -> std::io::Result<Lexicon> {
         let de = std::fs::read_to_string(dir.join("lexicon-de.txt"))?;
         let en = std::fs::read_to_string(dir.join("lexicon-en.txt"))?;
@@ -344,7 +394,29 @@ impl Lexicon {
         if self.personal.contains(typed) || (up && self.personal.contains(&low)) {
             out.insert("user");
         }
+        if out.is_empty() && self.british(&fold(typed)) {
+            out.insert("en");
+        }
         out
+    }
+
+    /// A British -ise spelling of a word the US list spells -ize (optimise, organised,
+    /// prioritising). The English list is the US one; with QWERTY keys s and z are neighbours, so
+    /// the -ise form read as a typo of the -ize one (Robin's typing: 6 words).
+    fn british(&self, t: &str) -> bool {
+        for (gb, us) in BRITISH {
+            if let Some(stem) = t.strip_suffix(gb) {
+                if stem.chars().count() >= 3
+                    && self
+                        .forms(&format!("{stem}{us}"))
+                        .iter()
+                        .any(|(_, l)| *l == "en")
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -355,6 +427,7 @@ pub struct Typos {
     pub lexicon: Lexicon,
     s: Slips,
     determiners: HashSet<&'static str>,
+    keys: Keyboard,
 }
 
 /// One fix in a text: the typed word at char offset `start`, and what replaces it.
@@ -377,7 +450,14 @@ impl Typos {
             lexicon,
             s: slips(),
             determiners: DETERMINERS.split(' ').collect(),
+            keys: Keyboard::new(&QWERTZ),
         })
+    }
+
+    /// The letter keys of the keyboard in use, row by row from the top (the Mac's layout);
+    /// which keys are neighbours decides how likely a slip is. The phone's QWERTZ until set.
+    pub fn set_keyboard<S: AsRef<str>>(&mut self, rows: &[S]) {
+        self.keys = Keyboard::new(rows);
     }
 
     /// words.bin and bigrams.bin from `tables`, the word lists from `lexicon`.
@@ -715,11 +795,48 @@ impl Typos {
                 scored.push((s, c));
             }
         }
+        // No word one slip away: the dictionary's common words two slips away compete
+        // (funtkionirt -> funktioniert). Robin's Mac typing, 26.11.2026: long words with a swap and a
+        // second slip were left as typed.
+        let mut two_slips = HashSet::new();
+        if scored.len() == 1 {
+            let bag = letter_bag(&t);
+            for c in self.lexicon.near_words(&t, 2) {
+                if bag_distance(&bag, &c) > 2 {
+                    continue; // more than two slips apart
+                }
+                let cf = c.chars().next().unwrap();
+                if (keep_first && base(cf).unwrap_or(cf) != tf)
+                    || !table.candidate(&c)
+                    || slip_set.contains(&c)
+                {
+                    continue;
+                }
+                let zc = table.zipf(&c);
+                if zc >= COMMON {
+                    let s = self.lm(&c, zc, p.as_deref()) + self.channel(&t, &c);
+                    two_slips.insert(c.clone());
+                    scored.push((s, c));
+                }
+            }
+        }
         let (top, word) = best_of(&scored);
         let total: f64 = scored.iter().map(|(s, _)| 10f64.powf(s - top)).sum();
         let sure = 1.0 / total >= TAU;
         if word != t && sure {
-            return Some(as_typed(typed, &spelled(&word).unwrap_or(word.clone())));
+            let spelling = if two_slips.contains(&word) {
+                // the spelling of the sentence's language: million in English, Million in German
+                let forms = self.lexicon.forms(&word);
+                let lang = sentence();
+                forms
+                    .iter()
+                    .find(|f| f.1 == lang)
+                    .or(forms.first())
+                    .map(|f| f.0.clone())
+            } else {
+                spelled(&word)
+            };
+            return Some(as_typed(typed, &spelling.unwrap_or(word.clone())));
         }
         if word == t && zt == 0.0 && tn >= COMPOUND_MIN && sentence() != "en" {
             if let Some(fix) = self.compound_fix(&t) {
@@ -777,7 +894,7 @@ impl Typos {
                         d[i - 1][j - 1] + UMLAUT
                     } else {
                         d[i - 1][j - 1]
-                            + if neighbours(ty[j - 1], w[i - 1]) {
+                            + if self.keys.neighbours(ty[j - 1], w[i - 1]) {
                                 s.near
                             } else {
                                 s.far
@@ -793,7 +910,7 @@ impl Typos {
                     let around = &w[i.saturating_sub(1)..(i + 1).min(n)];
                     let kind = if around.contains(&ch) {
                         s.double
-                    } else if around.iter().any(|&c| neighbours(ch, c)) {
+                    } else if around.iter().any(|&c| self.keys.neighbours(ch, c)) {
                         s.extra_near
                     } else {
                         s.extra_far
@@ -1161,6 +1278,39 @@ impl Typos {
         }
         false
     }
+}
+
+/// How often each letter occurs (a-z, ä ö ü ß; anything else shares one slot).
+fn letter_bag(w: &str) -> [i16; 31] {
+    let mut b = [0i16; 31];
+    for c in w.chars() {
+        b[slot(c)] += 1;
+    }
+    b
+}
+
+fn slot(c: char) -> usize {
+    match c {
+        'a'..='z' => c as usize - 'a' as usize,
+        'ä' => 26,
+        'ö' => 27,
+        'ü' => 28,
+        'ß' => 29,
+        _ => 30,
+    }
+}
+
+/// A lower bound on the slips between two words: the letters one has more of than the other.
+fn bag_distance(bag: &[i16; 31], w: &str) -> i16 {
+    let mut d = *bag;
+    for c in w.chars() {
+        d[slot(c)] -= 1;
+    }
+    let (more, fewer) = d.iter().fold(
+        (0, 0),
+        |(m, f), &x| if x > 0 { (m + x, f) } else { (m, f - x) },
+    );
+    more.max(fewer)
 }
 
 fn slip_set_sorted(s: &HashSet<String>) -> Vec<String> {

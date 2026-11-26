@@ -101,3 +101,31 @@ fn correct_long_compounds_stay_as_typed() {
         assert_eq!(fixed(&t, s), vec![], "{s}");
     }
 }
+
+#[test]
+fn neighbours_follow_the_keyboard_in_use() {
+    // QWERTY has y next to t and u; the phone's QWERTZ has it next to x
+    let mut t = typos();
+    let text = "She is expected to plau tonight. That was a loy of work.";
+    assert!(fixed(&t, text).is_empty(), "{:?}", fixed(&t, text));
+    t.set_keyboard(&["qwertyuiop", "asdfghjkl", "zxcvbnm"]);
+    let got = fixed(&t, text);
+    assert!(got.contains(&("plau".into(), "play".into())), "{got:?}");
+    assert!(got.contains(&("loy".into(), "lot".into())), "{got:?}");
+}
+
+#[test]
+fn british_spellings_are_words() {
+    // with QWERTY keys s and z are neighbours: optimised read as a typo of optimized
+    let mut t = typos();
+    t.set_keyboard(&["qwertyuiop", "asdfghjkl", "zxcvbnm"]);
+    let text = "We optimised the page, organised the files and analysed it.";
+    assert!(fixed(&t, text).is_empty(), "{:?}", fixed(&t, text));
+}
+
+#[test]
+fn a_word_two_slips_from_a_common_one_is_fixed() {
+    let t = typos();
+    let got = fixed(&t, "Das hat gestern gut fuktionirt.");
+    assert_eq!(got, vec![("fuktionirt".into(), "funktioniert".into())]);
+}

@@ -21,6 +21,20 @@ Agent task (session typed-words-dictionary, 24–26 Nov 2026): find out what Sok
 | Word learning end to end in Sokki Test (`scripts/test-learn.sh`, made-up journal) | 6/6 checks; 4 candidates, 4 learned, 6 heard-as pairs, 12.7–17.4 s |
 | Journal end to end (`scripts/test-journal.sh`, helper app) | 9/9 checks: typed vs pasted vs dictated told apart, passwords never kept, hung app doesn't split a message |
 
+## First check on real writing (26 Nov)
+
+Word learning on a copy of one day of Robin's Mac journal (131 messages, all with typed marks), built-in Gemma 4 E4B as judge, nothing added (`scripts/learn-review.sh`; the words stay in the vault, `reports/Sokki eval data/word-learning/`).
+
+| | Words |
+|---|---|
+| Unknown typed words (capitalized, 3+ letters) | 15 |
+| Typed in 2+ messages (learned now) | 0 |
+| Model says add | 8: 4 right (names, a product), 4 wrong (colloquial forms, a misspelled plural) |
+| Model says no | 7, all right (typos, chat abbreviations) |
+| Hear test gave a heard-as form | 5 of 8 |
+
+Three of the four wrong "add" words only ever stood at a sentence start, where German capitalizes every word; none of the four right ones did. Rule since then: a word counts only if it was capitalized inside a sentence at least once (`learn.rs`, `starts_sentence`). With it, 1 wrong of 5 "add" words remains. Robin's own rating of each word is pending.
+
 ## How others do it (research agent, 24 Nov)
 
 - Wispr Flow learns from edits in the field after a paste (vocabulary only; a deleted word never comes back), reads context through Accessibility, skips password fields, banking and URL bars.
@@ -36,9 +50,10 @@ Sources: docs.wisprflow.ai/articles/4052411709, docs.wisprflow.ai/articles/46782
 
 - Learn only from words typed key by key; dictated, pasted and autocompleted text never counts (Robin, 25 Nov: learned words from dictation were garbage).
 - The swap uses learned and glossary words only at 6+ letters; `custom_words` as before; heard-as pairs are fixed exactly.
-- "Keep what I write" is on by default for everyone; the data stays on the Mac (Robin, 26 Nov). Word learning is off by default until the words it would learn have been checked on Robin's real writing.
+- "Keep what I write" and word learning are on by default for everyone; the data stays on the Mac (Robin, 26 Nov).
+- A word must be capitalized inside a sentence at least once (first real-writing check, above).
 
 ## Open
 
-- Check of learned words on real writing: after about a week of Robin's journal, run the learner without adding anything, Robin rates every word; add the precision here.
+- Robin's rating of the first check; a second check after a week of writing, when words typed in 2+ messages exist.
 - Parakeet word list through CTC word spotting (proposed follow-up).

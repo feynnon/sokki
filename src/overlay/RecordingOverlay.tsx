@@ -393,7 +393,7 @@ const RecordingOverlay: React.FC = () => {
           <div className="stext">
             <div className="stext-clip">
               <div
-                className={`stext-cap ${overflowing ? "overflowing" : ""}`}
+                className={`stext-cap ${overflowing ? "overflowing" : ""} ${streamText.cleanup ? "cleanup" : ""}`}
                 ref={capRef}
                 onScroll={handleStreamScroll}
               >

@@ -70,7 +70,7 @@ export const DeveloperGroup: React.FC = () => {
             <dd className="text-ink-2">{t("sokki.developer.whereText")}</dd>
           </dl>
           <ToggleSwitch
-            checked={getSetting("learn_words") ?? false}
+            checked={getSetting("learn_words") ?? true}
             onChange={(enabled) => updateSetting("learn_words", enabled)}
             isUpdating={isUpdating("learn_words")}
             label={t("sokki.developer.learn")}

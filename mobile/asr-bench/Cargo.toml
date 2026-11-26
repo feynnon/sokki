@@ -9,6 +9,10 @@ description = "Measures speech-to-text speed and memory on a phone (Parakeet via
 transcribe-cpp = { version = "0.4.2", default-features = false }
 hound = "3"
 dictation-core = { path = "../dictation-core" }
+# --mac-serve / --via-mac: the same link as crates/sokki-link.
+iroh = "1.4.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "io-util"] }
+serde_json = "1"
 
 [features]
 # On the Mac: use the GPU, as Sokki does.

@@ -65,6 +65,14 @@ fn main() {
         std::fs::write(&a[4], [o.stdout, o.stderr].concat()).unwrap();
         return;
     }
+    if a.get(1).map(|s| s.as_str()) == Some("paste-edit") {
+        // the instant paste's lab test, with the lab's grant
+        let exe = std::env::current_exe()
+            .unwrap()
+            .with_file_name("paste_edit");
+        let _ = std::process::Command::new(exe).args(&a[2..]).status();
+        return;
+    }
     let mut out = std::fs::File::create(&a[4]).unwrap();
     let pid: i32 = a[1].parse().unwrap();
     let app = a[2].clone();

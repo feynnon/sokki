@@ -9,6 +9,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `dictation-formatting-and-cleanup-2026-11.md` | Dictation layout with Qwen3.5 (0.8B–9B), voting, live chunking, forward-pass timing. Then word cleanup with Gemma 4 E4B, the model comparison, latency in MLX and in Sokki's llama-server (plain, n-gram, MTP), and the shipped setup rated blind. |
 | `meeting-summaries-2026-11.md` | Meeting summaries: Qwen3.5 4B and Gemma 4 E4B against Sokki's Qwen3.5 9B. Speed, memory, two blind rating rounds. |
 | `muesli-and-cleanup-log-2026-11.md` | Running log of the Müsli tests (Sokki's own 0.8B/2B cleanup models) and the later Qwen/Gemma rounds. |
+| `phone-dictation-latency-2026-11.md` | Live dictation on the phone: Parakeet Ultra vs Nemotron Streaming on the Pixel 7, dictating through the Mac, newer phones' CPU. |
 | `data/results.json`, `data/forward_pass_timing.json` | Layout rounds and read/write speed per model. |
 | `data/cleanup_ratings.json` | Every blind rating of the word-cleanup rounds, per rater, version and dictation id (scores and error counts, no text). |
 | `data/cleanup_latency.json` | Wait after the speaker stops, per setup and dictation id; llama-server read/write speed and MTP acceptance. |
@@ -19,11 +20,14 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `data/live_vs_final.json` | Per dictation and round: word differences, distances to both references, cleanup steps, redo and wait. |
 | `live-pieces-and-summary-preload-2026-11.md` | The live panel as one growing text: live pieces of 20, 30 and 60 words on the same 34 dictations (wait, quality, how much raw text shows). The summary model loaded during the meeting (memory, the macOS memory warning, time saved) and how long reading a transcript takes. |
 | `data/live_pieces.json` | Per dictation and piece size: live steps, wait, raw words shown, words changed. |
+| `instant-paste-2026-11.md` | The dictation in the field at once, its raw end cleaned in place: how it decides it may edit, the replay of 34 dictations (time to the first paste and to the edit), the night lab in real text fields. |
+| `data/instant_paste.json` | Per dictation: seconds to the first paste and to the edit, words already right. |
 | `donation-ask-2026-11.md` | Wording of the donation ask on the milestone card: studies, A/B tests and real numbers from app tip jars. |
 | `monetisation-2026-11.md` | How comparable dictation and meeting apps and solo open-source makers earn money, grants, and ranked options for Sokki. |
 | `income-ai-era-2026-11.md` | Second round: how Handy got sponsors, Porzio perks, Obsidian, VoiceInk, team features without a cloud, new ranking. |
 | `mac-autocorrect-2026-11.md` | Mac autocorrect in Chrome and Electron apps: how Sokki reaches and writes their text fields, the lab test with Chrome in front, CPU and memory with autocorrect on and off, and the fix for German capitals in English sentences. |
 | `speaker-names-call-apps-2026-11.md` | Speaker names: voice grouping across 46 meetings, what Zoom and Meet show through Accessibility, why Meet needs captions on, the law on stored voices. |
+| `cloudflare-kv-usage-2026-11.md` | Cloudflare's free plan: which KV operations the counter and website use per day, why 26.11. neared the delete cap (the move to R2), launch-day estimate, Workers Paid or not. |
 | `second-brain-2026-11.md` | A built-in second brain (Karpathy's LLM wiki): the tools, why people quit, a local Mac stack (FTS5 + sqlite-vec, EmbeddingGemma), small-model limits, a phased plan. Research only, nothing built. |
 | `ios-keyboard-dictation-2026-11.md` | What a dev podcast says about dictation on iOS: the keyboard microphone workaround (getUserMedia web view), who copied it, and what users still miss. |
 
@@ -38,13 +42,13 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 - **Paste:** stays the second transcription of the whole recording (more accurate, 0.3 s).
 - **Sampling:** each model's own card settings. Exception: Qwen's card presence penalty (1.5) made it paraphrase freely, so it is off.
 - **Meet speaker names:** Sokki turns Meet's captions on while recording; nothing else shows the speaker reliably from outside the browser (research 26 Nov 2026, `speaker-names-call-apps-2026-11.md`).
-- **Word learning:** only words typed key by key; the swap only for learned words of 6+ letters; "Keep what I write" on by default, learning off until checked on real writing (Robin, 25–26 Nov 2026).
+- **Word learning:** only words typed key by key; the swap only for learned words of 6+ letters; a word must be capitalized inside a sentence once; "Keep what I write" and word learning on by default (Robin, 25–26 Nov 2026).
 - **Memory:** a heavy job may use up to 6.4 GB (Robin's limit, `~/PycharmProjects/CLAUDE.md`).
 
 ## Open questions
 
 - **Live transcript vs. second transcription: answered 26 Nov 2026** (`live-vs-final-2026-11.md`). On 34 real dictations the two differ in 0.7–0.9 % of words, and two reference models side with the pasted (second) transcription more often. The second pass costs a median of 0.32 s. It stays.
-- **Phone:** nothing here was measured on Android.
+- **Phone:** dictation through the Mac (`phone-dictation-latency-2026-11.md`) is so far measured with the Mac playing the phone; the Pixel run over home Wi-Fi is still to do.
 
 ## How to add an entry
 

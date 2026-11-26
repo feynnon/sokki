@@ -918,6 +918,17 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<PasteOutcome, String
     Ok(PasteOutcome::Blocked)
 }
 
+/// Pastes `text` as it is, over the selection: no trailing space and no
+/// auto-submit, whatever the settings say. For [`crate::instant_paste`],
+/// which replaces part of a paste it made.
+pub fn paste_plain(text: String, app_handle: AppHandle) -> Result<(), String> {
+    let _paste = PASTE_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut settings = get_settings(&app_handle);
+    settings.append_trailing_space = false;
+    settings.auto_submit = false;
+    paste_as_configured(text, app_handle, settings)
+}
+
 fn paste_as_configured(
     text: String,
     app_handle: AppHandle,

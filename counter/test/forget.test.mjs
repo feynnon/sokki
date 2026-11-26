@@ -333,3 +333,19 @@ test("a recording deleted while moving isn't copied to R2", async () => {
   assert.equal(e.FILES.store.size, 0);
   assert.equal(e.AUDIO.store.size, 0);
 });
+
+test("once KV is moved to R2, deleting never lists KV", async () => {
+  const e = r2env();
+  seed(e, ID, 20);
+  for (const k of e.AUDIO.store.keys()) e.FILES.store.set(k, 1);
+  e.AUDIO.store.clear();
+  await moveToR2(e); // finds KV empty, marks it moved
+  const lists = e.AUDIO.used.list;
+  const r = await call(e, "/forget", { id: ID });
+  assert.deepEqual(r.body, { ok: true, pending: 0 });
+  e.DB.db.exec("UPDATE forget_sweep SET touched = 0");
+  await drainAudio(e);
+  assert.equal(e.AUDIO.used.list, lists, "no KV list in /forget or the last look");
+  assert.equal(count(e, "SELECT COUNT(*) FROM forget_sweep"), 0, "last look done in R2");
+  assert.equal(r2FilesOf(e, ID), 0);
+});

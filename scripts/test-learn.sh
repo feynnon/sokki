@@ -32,6 +32,14 @@ quit_test_app() {
 }
 
 [[ -d "$TESTAPP" ]] || { echo "No test app; run: scripts/test-dictation.sh --build" >&2; exit 1; }
+# Another session's test build with the same id would take our settings and
+# our run (single instance): stop rather than disturb it.
+others="$(pgrep -fl 'Sokki Test[^/]*[.]app/Contents/MacOS/' | grep -vF "$TESTAPP/Contents/MacOS/" || true)"
+if [[ -n "$others" ]]; then
+  echo "Another Sokki Test build is running; not touching it:" >&2
+  echo "$others" >&2
+  exit 3
+fi
 if strings "$TESTAPP/Contents/MacOS/sokki" | grep -q /usr/bin/tccutil; then
   echo "The test app still contains tccutil; rebuild it from current meetings." >&2
   exit 1
@@ -116,6 +124,9 @@ for _ in $(seq 1 600); do
   tail -c +"$FROM" "$LOG" 2>/dev/null | grep -qE "Word learning: [0-9]+ candidates|Word learning stopped" && break
   sleep 0.5
 done
+# The settings store writes its file a moment after a change; quitting at
+# once can lose the learned words (seen 26 Nov when the line came quickly).
+sleep 2
 quit_test_app
 sleep 2
 

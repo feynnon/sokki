@@ -322,6 +322,27 @@ fn after_prefix_close(text: &str, prefix: &[String]) -> Option<(usize, usize)> {
     (d <= allowed).then(|| (words[j - 1].1, d))
 }
 
+/// What a dictation looks like at the stop, before its last cleanup steps:
+/// `fixed`, the paragraphs cleaned live that stay as they are, and `rest`,
+/// the open paragraph (cleaned, but cleaned again with the rest) and the
+/// words not cleaned yet, as transcribed.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Draft {
+    pub fixed: String,
+    pub rest: String,
+}
+
+impl Draft {
+    /// The whole text: `fixed`, a blank line, `rest`.
+    pub fn text(&self) -> String {
+        match (self.fixed.is_empty(), self.rest.is_empty()) {
+            (true, _) => self.rest.clone(),
+            (false, true) => self.fixed.clone(),
+            (false, false) => format!("{}\n\n{}", self.fixed, self.rest),
+        }
+    }
+}
+
 /// The model one step talks to.
 pub trait Model {
     /// The model's reply to `user` under `system`.
@@ -502,6 +523,19 @@ impl Live {
     /// transcript does not start with what was cleaned live, it is cleaned
     /// from the start.
     pub fn finish(&mut self, model: &dyn Model, text: &str) -> Result<String> {
+        self.finish_with_draft(model, text, &mut |_| {})
+    }
+
+    /// Like [`finish`](Self::finish), and before the last steps run, hands
+    /// `on_draft` what can be pasted at once: the paragraphs cleaned live,
+    /// then the rest as transcribed. The cleaned dictation starts with the
+    /// same [`Draft::fixed`] part.
+    pub fn finish_with_draft(
+        &mut self,
+        model: &dyn Model,
+        text: &str,
+        on_draft: &mut dyn FnMut(Draft),
+    ) -> Result<String> {
         // Even when the live text wobbled, the final one may still start
         // with what was cleaned.
         let live_steps = self.steps;
@@ -521,6 +555,15 @@ impl Live {
                 "Dictation cleanup: {differ} words of the cleaned part differ in the final transcript; kept as cleaned"
             );
         }
+        on_draft(Draft {
+            fixed: self.committed.join("\n\n"),
+            rest: [self.open.as_str(), rest.as_str()]
+                .iter()
+                .filter(|p| !p.is_empty())
+                .copied()
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+        });
         let ps = pieces(&rest, PIECE_WORDS);
         log::info!(
             "Dictation cleanup at the stop: {} words left in {} steps, after {} live steps ({} words){}",
@@ -807,7 +850,11 @@ impl Engine {
 
     /// Like [`begin`](Self::begin), with the step logic set up by the caller
     /// (another piece size, for measuring).
-    pub fn begin_with(self: &Arc<Self>, live: Live, on_change: impl Fn() + Send + 'static) -> Session {
+    pub fn begin_with(
+        self: &Arc<Self>,
+        live: Live,
+        on_change: impl Fn() + Send + 'static,
+    ) -> Session {
         self.warm();
         Session::start(Arc::clone(self), live, Box::new(on_change))
     }
@@ -815,7 +862,11 @@ impl Engine {
 
 enum Msg {
     Text(String),
-    Finish(String, mpsc::Sender<Result<String>>),
+    Finish(
+        String,
+        mpsc::Sender<Result<String>>,
+        Option<Box<dyn FnOnce(Draft) + Send>>,
+    ),
 }
 
 /// One dictation's cleanup, on its own thread. Dropping it without
@@ -859,11 +910,17 @@ impl Session {
                                 on_change();
                             }
                         }
-                        Msg::Finish(text, reply) => {
+                        Msg::Finish(text, reply, on_draft) => {
+                            let mut on_draft = on_draft;
+                            let mut hand = |d: Draft| {
+                                if let Some(f) = on_draft.take() {
+                                    f(d)
+                                }
+                            };
                             let r = match failed.take() {
                                 Some(e) => Err(e),
                                 None => Self::model(&engine, &mut model)
-                                    .and_then(|m| live.finish(m, &text)),
+                                    .and_then(|m| live.finish_with_draft(m, &text, &mut hand)),
                             };
                             let _ = reply.send(r);
                             break;
@@ -902,10 +959,22 @@ impl Session {
 
     /// The final transcript in, the cleaned dictation out: waits up to
     /// `timeout` for the steps still running and the last one.
-    pub fn finish(mut self, text: &str, timeout: Duration) -> Result<String> {
+    pub fn finish(self, text: &str, timeout: Duration) -> Result<String> {
+        self.finish_with_draft(text, timeout, None)
+    }
+
+    /// Like [`finish`](Self::finish); `on_draft` gets the [`Draft`] before
+    /// the last steps run (not when the cleanup failed earlier or the model
+    /// is not there).
+    pub fn finish_with_draft(
+        mut self,
+        text: &str,
+        timeout: Duration,
+        on_draft: Option<Box<dyn FnOnce(Draft) + Send>>,
+    ) -> Result<String> {
         let tx = self.tx.take().context("the cleanup did not start")?;
         let (reply_tx, reply_rx) = mpsc::channel();
-        tx.send(Msg::Finish(text.to_string(), reply_tx))
+        tx.send(Msg::Finish(text.to_string(), reply_tx, on_draft))
             .ok()
             .context("the cleanup stopped")?;
         match reply_rx.recv_timeout(timeout) {
@@ -1090,6 +1159,49 @@ mod tests {
             .join("\n\n")
         );
         assert_eq!(model.calls.borrow().len(), 3);
+    }
+
+    #[test]
+    fn the_draft_at_the_stop_is_the_cleaned_part_and_the_raw_rest() {
+        let model = Fake::new(|u| {
+            part(u)
+                .split("\n\n")
+                .flat_map(sentences)
+                .map(|s| format!("<{s}>"))
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        });
+        let mut live = Live::new(&[]);
+        let (s1, s2, s3) = (sentence("a", 35), sentence("b", 35), sentence("c", 12));
+        // Two live pieces: s1 is final after the second, s2 stays open.
+        for p in live.ready(&format!("{s1} {s2} not yet")) {
+            live.step(&model, &p, false).unwrap();
+        }
+        let mut draft = None;
+        let out = live
+            .finish_with_draft(&model, &format!("{s1} {s2} {s3}"), &mut |d| draft = Some(d))
+            .unwrap();
+        let draft = draft.unwrap();
+        // s1 is final (cleaned twice: open once); s2 is the open
+        // paragraph, s3 as transcribed.
+        assert_eq!(draft.fixed, format!("<<{s1}>>"));
+        assert_eq!(draft.rest, format!("<{s2}>\n\n{s3}"));
+        assert_eq!(draft.text(), format!("<<{s1}>>\n\n<{s2}>\n\n{s3}"));
+        // The cleaned dictation keeps the fixed part as it is.
+        assert!(out.starts_with(&format!("{}\n\n", draft.fixed)));
+        assert_ne!(out, draft.text());
+    }
+
+    #[test]
+    fn a_dictation_without_live_steps_drafts_the_transcript() {
+        let model = Fake::new(|u| format!("<{}>", part(u)));
+        let mut live = Live::new(&[]);
+        let mut draft = None;
+        live.finish_with_draft(&model, "Kurz und roh.", &mut |d| draft = Some(d))
+            .unwrap();
+        let draft = draft.unwrap();
+        assert_eq!(draft.fixed, "");
+        assert_eq!(draft.text(), "Kurz und roh.");
     }
 
     #[test]

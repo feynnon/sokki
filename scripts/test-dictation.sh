@@ -13,6 +13,8 @@
 #   OVERLAY=none scripts/test-dictation.sh ...  # the same run without live text (A/B)
 #   CLEANUP=1 scripts/test-dictation.sh ...     # with the dictation cleanup on
 #   CLEANUP=1 PIECE=60 scripts/test-dictation.sh ... # … live pieces of 60 words (default 30)
+#   CLEANUP=1 INSTANT=1 scripts/test-dictation.sh ... # … the instant paste: logs the
+#                                               # draft ("first paste") and the edit
 #   (needs Sokki's cleanup model; the "not pasted" line then shows the
 #   cleaned text, "live text" the transcript)
 #   SOKKI_TEST_LLM=1 scripts/test-dictation.sh  # also start the built-in language
@@ -148,12 +150,14 @@ FROM=$(($(stat -f %z "$LOG" 2>/dev/null || echo 0) + 1))
 # The app starts the dictation itself 3 s after launch and stops it after HOLD.
 echo "Dictating ${LENGTH}s of audio, stopping after ${HOLD}s…"
 open -g --env SOKKI_TEST_MIC="$WAV" --env SOKKI_TEST_HOLD_S="$HOLD" ${LLM_ENV[@]+"${LLM_ENV[@]}"} \
-  ${PIECE:+--env SOKKI_TEST_PIECE_WORDS="$PIECE"} -a "$TESTAPP"
+  ${PIECE:+--env SOKKI_TEST_PIECE_WORDS="$PIECE"} \
+  ${INSTANT:+--env SOKKI_TEST_INSTANT_PASTE="$INSTANT"} -a "$TESTAPP"
 # Wait for the paste: the dictation itself, then up to 60 s more.
 for _ in $(seq 1 $(( (${HOLD%.*} + 63) * 2 ))); do
-  tail -c +"$FROM" "$LOG" 2>/dev/null | grep -q "Test mode, not pasted" && break
+  tail -c +"$FROM" "$LOG" 2>/dev/null | grep -qE "Test mode, (not pasted|edited)|Instant paste: (left|nothing|the cleanup failed)" && break
   sleep 0.5
 done
+sleep 1  # the lines logged right after the paste
 if [[ -n "${SOKKI_TEST_LLM:-}" ]]; then
   for _ in $(seq 1 240); do
     tail -c +"$FROM" "$LOG" 2>/dev/null | grep -qE "language model (done|did not start)" && break
@@ -162,7 +166,7 @@ if [[ -n "${SOKKI_TEST_LLM:-}" ]]; then
 fi
 
 tail -c +"$FROM" "$LOG" \
-  | grep -E "Test mode|anguage model|Live text|Live long-form|previewed|Decoded long-form|chunks were decoded|not pasted|Dictation clean|ERROR|WARN" \
+  | grep -E "Test mode|anguage model|Live text|Live long-form|previewed|Decoded long-form|chunks were decoded|not pasted|Dictation clean|Instant paste|ERROR|WARN" \
   | grep -v "Loaded settings"
 
 quit_test_app

@@ -20,6 +20,7 @@
 //! cost that call its audio.
 
 use crate::commands::meeting::LlmDownload;
+use crate::managers::transcription::StreamTextEvent;
 use crate::settings::get_settings;
 use log::{info, warn};
 use once_cell::sync::Lazy;
@@ -149,6 +150,8 @@ pub fn begin(app: &AppHandle) {
         None => live,
     };
     let session = ENGINE.begin_with(live, redraw);
+    // So the focused field is readable at the stop, for the instant paste.
+    crate::instant_paste::wake();
     // A session left from an earlier dictation is dropped, which cancels it.
     *current() = Some(Current {
         session,
@@ -165,10 +168,15 @@ pub fn begin(app: &AppHandle) {
 /// gets the final part plus the sentences of the changing part that have
 /// settled ([`cleanup::settled`]). Returns what the panel shows: the cleaned
 /// paragraphs, and the rest as final and changing text.
-pub fn live_text(committed: &str, tentative: &str) -> (String, String, String) {
+pub fn live_text(committed: &str, tentative: &str) -> StreamTextEvent {
     let mut cur = current();
     let Some(c) = cur.as_mut() else {
-        return (String::new(), committed.to_string(), tentative.to_string());
+        return StreamTextEvent {
+            cleaned: String::new(),
+            committed: committed.to_string(),
+            tentative: tentative.to_string(),
+            cleanup: false,
+        };
     };
     c.previous_tentative = std::mem::replace(&mut c.tentative, tentative.to_string());
     c.committed = committed.to_string();
@@ -178,9 +186,14 @@ pub fn live_text(committed: &str, tentative: &str) -> (String, String, String) {
         c.last = text.clone();
         c.session.text(&text);
     }
-    let shown = c.panel(committed);
-    log_panel(&shown.0, &shown.1, &shown.2);
-    shown
+    let (cleaned, committed, tentative) = c.panel(committed);
+    log_panel(&cleaned, &committed, &tentative);
+    StreamTextEvent {
+        cleaned,
+        committed,
+        tentative,
+        cleanup: true,
+    }
 }
 
 /// A live step finished: the panel shows its cleaned paragraphs at once.
@@ -189,10 +202,11 @@ fn redraw() {
         let (cleaned, committed, tentative) = c.panel(&c.committed);
         (
             c.app.clone(),
-            crate::managers::transcription::StreamTextEvent {
+            StreamTextEvent {
                 cleaned,
                 committed,
                 tentative,
+                cleanup: true,
             },
         )
     });
@@ -225,14 +239,20 @@ pub fn take() -> Option<Pending> {
 impl Pending {
     /// The cleaned dictation for its final `transcript`, or `None` when the
     /// model failed or took too long (the transcript is pasted as it is).
-    pub async fn finish(self, transcript: String) -> Option<String> {
+    /// `on_draft` gets the draft before the last steps (`instant_paste`).
+    pub async fn finish(
+        self,
+        transcript: String,
+        on_draft: Option<Box<dyn FnOnce(sokki_engine::cleanup::Draft) + Send>>,
+    ) -> Option<String> {
         if transcript.trim().is_empty() {
             return None;
         }
         let t0 = Instant::now();
         let words = transcript.split_whitespace().count();
         let result = tauri::async_runtime::spawn_blocking(move || {
-            self.0.finish(&transcript, FINISH_TIMEOUT)
+            self.0
+                .finish_with_draft(&transcript, FINISH_TIMEOUT, on_draft)
         })
         .await;
         match result {

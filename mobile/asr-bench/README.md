@@ -217,3 +217,18 @@ leaves out the last period (K11). Ultra can't stream (`stream begin`
 refuses it, also as buffered stream), so live text with Ultra means
 re-reading audio, which the phone's CPU can't keep up with. Kept:
 Nemotron, lookahead 6.
+
+## Through the Mac (`--via-mac`, 2026-11-26)
+
+The phone sends its audio over an iroh link (as `crates/sokki-link`) to the Mac, which reads it with Parakeet Ultra on the GPU as Mac Sokki does (re-read every 0.5 s, whole dictation at the stop) and sends the text back.
+
+```sh
+asr-bench --mac-serve parakeet-ultra-Q8_0.gguf      # Mac; prints "ADDR {json}"
+asr-bench --via-mac '<json>' clip.wav               # phone; VB_RELAY=1 = relay only
+```
+
+Results for the 13 clips are in `docs/research/phone-dictation-latency-2026-11.md`:
+- first words after 0.66 s;
+- text 0.12 s behind the speech;
+- done 0.16 s after the stop;
+- 19 word errors, against Nemotron's 29.

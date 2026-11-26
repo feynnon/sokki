@@ -34,9 +34,16 @@ quit_test_app() {
     sleep 0.5
   done
   pkill -TERM -f "^$TESTAPP/Contents/MacOS/" || true
+  sleep 2
+  pkill -KILL -f "^$TESTAPP/Contents/MacOS/" 2>/dev/null || true
 }
 
 [[ -d "$TESTAPP" ]] || { echo "No test app; run: scripts/test-dictation.sh --build" >&2; exit 1; }
+# Test builds share one data folder; never run next to another one.
+if pgrep -f "/Applications/$NAME[^/]*\.app/Contents/MacOS/" | grep -v -x -f <(pgrep -f "^$TESTAPP/Contents/MacOS/" || true) >/dev/null; then
+  echo "Another $NAME build is running (another session's test); try again later." >&2
+  exit 1
+fi
 [[ $# -ge 1 ]] || { echo "usage: $0 mic.wav [wait_s]" >&2; exit 1; }
 abs() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
 MIC="$(abs "$1")"

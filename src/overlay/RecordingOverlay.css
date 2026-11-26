@@ -267,6 +267,16 @@
   white-space: pre-wrap;
   font-style: normal;
 }
+/* With the dictation cleanup on, the raw words are dimmed instead of
+   italic (Robin chose this of four looks, 26.11.2026), and turn full
+   strength when their piece is cleaned. */
+.stext-cap.cleanup {
+  font-style: normal;
+}
+.stext-cap.cleanup .committed,
+.stext-cap.cleanup .tentative {
+  opacity: 0.5;
+}
 .stext-cap .sloading {
   color: var(--s-muted);
 }

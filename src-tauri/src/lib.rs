@@ -18,6 +18,7 @@ mod dictation_cleanup;
 pub mod engine_supervisor;
 mod helpers;
 mod input;
+mod instant_paste;
 mod journal;
 mod language_detection;
 mod languages;

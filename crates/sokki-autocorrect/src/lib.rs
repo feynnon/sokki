@@ -25,6 +25,7 @@
 //! SPDX-License-Identifier: GPL-3.0-only
 
 pub mod fixlog;
+pub mod tail;
 mod text;
 
 #[cfg(target_os = "macos")]
@@ -178,6 +179,11 @@ impl Autocorrect {
         }
     }
 
+    /// The letter keys of the layout in use, row by row ([`sokki_typos::Typos::set_keyboard`]).
+    pub fn set_keyboard(&mut self, rows: &[String; 3]) {
+        self.typos.set_keyboard(rows);
+    }
+
     /// Forget the field: focus moved, or the switch went off.
     pub fn reset(&mut self) {
         self.last = None;
@@ -212,36 +218,25 @@ impl Autocorrect {
         // holds the last read's text plus no more characters than keys were pressed, at the
         // cursor. A paste (one key, many characters), dictation (no keys) or a move resets it.
         let prev = self.last.take().filter(|p| p.app == app);
-        let run = match &prev {
-            Some(p)
-                if cursor > p.cursor
-                    && cursor - p.cursor <= keys_at_read.saturating_sub(p.keys) as usize
-                    && same_text(
-                        &text::remove_u16(&text, p.cursor, cursor - p.cursor),
-                        &p.text,
-                    ) =>
-            {
-                p.run + (cursor - p.cursor)
-            }
+        // an edit at the cursor with no more characters added and deleted than keys were
+        // pressed (typing, Backspace, or both between two looks): where it starts
+        let edit_from = prev.as_ref().and_then(|p| {
+            edit_at_cursor(&p.text, p.cursor, &text, cursor)
+                .filter(|&(_, n)| n <= keys_at_read.saturating_sub(p.keys) as usize)
+                .map(|(from, _)| from)
+        });
+        let run = match (&prev, edit_from) {
+            // the run keeps its start, or starts where the edit did if that was before it
+            (Some(p), Some(from)) => cursor - from.min(p.cursor - p.run),
             // a run starts with one typed character: the last read's text plus that character
             // just before the cursor (after a click elsewhere in the text, or a key the last
             // read missed) ...
-            Some(p)
+            (Some(p), None)
                 if cursor > 0
                     && keys_at_read > p.keys
                     && same_text(&text::remove_u16(&text, cursor - 1, 1), &p.text) =>
             {
                 1
-            }
-            // Backspace right before the cursor, one character per key: the run shrinks by what
-            // was deleted, so a word corrected by hand mid-typing still counts as typed. (A field
-            // emptied when a message is sent deletes more than keys were pressed.)
-            Some(p)
-                if cursor < p.cursor
-                    && p.cursor - cursor <= keys_at_read.saturating_sub(p.keys) as usize
-                    && same_text(&text, &text::remove_u16(&p.text, cursor, p.cursor - cursor)) =>
-            {
-                p.run.saturating_sub(p.cursor - cursor)
             }
             // ... or the first character in an empty field (a new message, a sent one cleared).
             // Without this the first word of a message was never fixed.
@@ -467,6 +462,37 @@ impl Autocorrect {
 /// typed, put the word back and the typed characters at the cursor, where they were meant.
 /// Equal, counting a no-break space as a space: rich editors in browsers show a space at the
 /// end of a line as U+00A0 and turn it into a plain space once the next character comes.
+/// The edit that turned `old` (cursor `old_cursor`) into `new` (cursor `cursor`), if it happened
+/// at the cursor: the text after the cursor is unchanged. Returns where the edit starts and how
+/// many characters it added and deleted (UTF-16 units, as the cursor).
+fn edit_at_cursor(
+    old: &str,
+    old_cursor: usize,
+    new: &str,
+    cursor: usize,
+) -> Option<(usize, usize)> {
+    let a: Vec<u16> = old.encode_utf16().collect();
+    let b: Vec<u16> = new.encode_utf16().collect();
+    if old_cursor > a.len() || cursor > b.len() {
+        return None;
+    }
+    let same = |x: u16, y: u16| x == y || (is_space(x) && is_space(y));
+    let (ta, tb) = (&a[old_cursor..], &b[cursor..]);
+    if ta.len() != tb.len() || !ta.iter().zip(tb).all(|(&x, &y)| same(x, y)) {
+        return None;
+    }
+    let from = a[..old_cursor]
+        .iter()
+        .zip(&b[..cursor])
+        .take_while(|(&x, &y)| same(x, y))
+        .count();
+    Some((from, (old_cursor - from) + (cursor - from)))
+}
+
+fn is_space(u: u16) -> bool {
+    char::from_u32(u as u32).is_some_and(char::is_whitespace)
+}
+
 fn same_text(a: &str, b: &str) -> bool {
     a.chars().count() == b.chars().count()
         && a.chars()

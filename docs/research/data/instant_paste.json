@@ -1,0 +1,346 @@
+{
+"date": "2026-11-26",
+"note": "Instant paste replay, 34 Mac dictations, test mode (nothing pasted): seconds after the stop to the first paste and to the edit. Numbers only; n matches live_pieces.json.",
+"dictations": [
+{
+"n": 1,
+"seconds": 64.1,
+"words": 177,
+"first_paste_s": 2.263425,
+"edit_s": 4.243222,
+"nothing_to_edit": false,
+"words_right_from_start": 126,
+"final_words": 172
+},
+{
+"n": 2,
+"seconds": 26.8,
+"words": 76,
+"first_paste_s": 0.421721125,
+"edit_s": 3.628328834,
+"nothing_to_edit": false,
+"words_right_from_start": 0,
+"final_words": 74
+},
+{
+"n": 3,
+"seconds": 35.9,
+"words": 106,
+"first_paste_s": 0.735027708,
+"edit_s": 3.247357375,
+"nothing_to_edit": false,
+"words_right_from_start": 86,
+"final_words": 104
+},
+{
+"n": 4,
+"seconds": 11.8,
+"words": 36,
+"first_paste_s": 0.277244417,
+"edit_s": 2.6876585,
+"nothing_to_edit": true,
+"words_right_from_start": 36,
+"final_words": 36
+},
+{
+"n": 5,
+"seconds": 22.8,
+"words": 40,
+"first_paste_s": 0.363445833,
+"edit_s": 1.321055458,
+"nothing_to_edit": false,
+"words_right_from_start": 10,
+"final_words": 39
+},
+{
+"n": 6,
+"seconds": 38.4,
+"words": 107,
+"first_paste_s": 0.714324583,
+"edit_s": 3.460473417,
+"nothing_to_edit": false,
+"words_right_from_start": 14,
+"final_words": 101
+},
+{
+"n": 7,
+"seconds": 11.8,
+"words": 36,
+"first_paste_s": 0.22619683299999999,
+"edit_s": 2.603272792,
+"nothing_to_edit": false,
+"words_right_from_start": 16,
+"final_words": 30
+},
+{
+"n": 8,
+"seconds": 19.7,
+"words": 80,
+"first_paste_s": 0.39329125,
+"edit_s": 2.413593375,
+"nothing_to_edit": true,
+"words_right_from_start": 81,
+"final_words": 81
+},
+{
+"n": 9,
+"seconds": 14.5,
+"words": 47,
+"first_paste_s": 0.541520542,
+"edit_s": 1.748526584,
+"nothing_to_edit": true,
+"words_right_from_start": 47,
+"final_words": 47
+},
+{
+"n": 10,
+"seconds": 7.4,
+"words": 17,
+"first_paste_s": 0.15682916700000002,
+"edit_s": 1.630999917,
+"nothing_to_edit": false,
+"words_right_from_start": 14,
+"final_words": 15
+},
+{
+"n": 11,
+"seconds": 29.2,
+"words": 75,
+"first_paste_s": 0.711437417,
+"edit_s": 1.826338625,
+"nothing_to_edit": false,
+"words_right_from_start": 38,
+"final_words": 73
+},
+{
+"n": 12,
+"seconds": 4.8,
+"words": 17,
+"first_paste_s": 0.180506291,
+"edit_s": 1.758937375,
+"nothing_to_edit": false,
+"words_right_from_start": 4,
+"final_words": 15
+},
+{
+"n": 13,
+"seconds": 10.0,
+"words": 20,
+"first_paste_s": 0.244326083,
+"edit_s": 1.883540166,
+"nothing_to_edit": false,
+"words_right_from_start": 0,
+"final_words": 18
+},
+{
+"n": 14,
+"seconds": 21.9,
+"words": 64,
+"first_paste_s": 0.405739917,
+"edit_s": 2.190047084,
+"nothing_to_edit": false,
+"words_right_from_start": 3,
+"final_words": 62
+},
+{
+"n": 15,
+"seconds": 7.6,
+"words": 14,
+"first_paste_s": 0.2184785,
+"edit_s": 2.03182425,
+"nothing_to_edit": false,
+"words_right_from_start": 1,
+"final_words": 14
+},
+{
+"n": 16,
+"seconds": 18.7,
+"words": 67,
+"first_paste_s": 0.394372459,
+"edit_s": 2.118508417,
+"nothing_to_edit": false,
+"words_right_from_start": 15,
+"final_words": 62
+},
+{
+"n": 17,
+"seconds": 52.5,
+"words": 122,
+"first_paste_s": 1.319119292,
+"edit_s": 2.921696458,
+"nothing_to_edit": false,
+"words_right_from_start": 87,
+"final_words": 118
+},
+{
+"n": 18,
+"seconds": 43.5,
+"words": 113,
+"first_paste_s": 0.833856709,
+"edit_s": 2.098579,
+"nothing_to_edit": false,
+"words_right_from_start": 72,
+"final_words": 103
+},
+{
+"n": 19,
+"seconds": 21.7,
+"words": 61,
+"first_paste_s": 0.39317445900000003,
+"edit_s": 1.801115584,
+"nothing_to_edit": false,
+"words_right_from_start": 22,
+"final_words": 60
+},
+{
+"n": 20,
+"seconds": 18.8,
+"words": 70,
+"first_paste_s": 0.366743959,
+"edit_s": 2.012208375,
+"nothing_to_edit": false,
+"words_right_from_start": 15,
+"final_words": 69
+},
+{
+"n": 21,
+"seconds": 26.2,
+"words": 61,
+"first_paste_s": 0.424857458,
+"edit_s": 2.060542125,
+"nothing_to_edit": false,
+"words_right_from_start": 29,
+"final_words": 58
+},
+{
+"n": 22,
+"seconds": 15.8,
+"words": 31,
+"first_paste_s": 0.322520083,
+"edit_s": 3.658332458,
+"nothing_to_edit": false,
+"words_right_from_start": 26,
+"final_words": 30
+},
+{
+"n": 23,
+"seconds": 7.2,
+"words": 14,
+"first_paste_s": 0.205802417,
+"edit_s": 1.730366583,
+"nothing_to_edit": false,
+"words_right_from_start": 6,
+"final_words": 13
+},
+{
+"n": 24,
+"seconds": 37.6,
+"words": 92,
+"first_paste_s": 0.6812599579999999,
+"edit_s": 2.272433,
+"nothing_to_edit": false,
+"words_right_from_start": 42,
+"final_words": 81
+},
+{
+"n": 25,
+"seconds": 40.3,
+"words": 97,
+"first_paste_s": 0.746203167,
+"edit_s": 2.760507042,
+"nothing_to_edit": false,
+"words_right_from_start": 57,
+"final_words": 93
+},
+{
+"n": 26,
+"seconds": 37.5,
+"words": 96,
+"first_paste_s": 0.7038378750000001,
+"edit_s": 2.467391708,
+"nothing_to_edit": false,
+"words_right_from_start": 78,
+"final_words": 91
+},
+{
+"n": 27,
+"seconds": 21.2,
+"words": 49,
+"first_paste_s": 1.743822667,
+"edit_s": 3.135800333,
+"nothing_to_edit": false,
+"words_right_from_start": 4,
+"final_words": 45
+},
+{
+"n": 28,
+"seconds": 24.9,
+"words": 75,
+"first_paste_s": 0.426331333,
+"edit_s": 2.38718375,
+"nothing_to_edit": false,
+"words_right_from_start": 12,
+"final_words": 75
+},
+{
+"n": 29,
+"seconds": 11.2,
+"words": 20,
+"first_paste_s": 0.20904024999999998,
+"edit_s": 1.941022,
+"nothing_to_edit": true,
+"words_right_from_start": 20,
+"final_words": 20
+},
+{
+"n": 30,
+"seconds": 13.2,
+"words": 34,
+"first_paste_s": 0.20868545900000002,
+"edit_s": 2.198846417,
+"nothing_to_edit": false,
+"words_right_from_start": 20,
+"final_words": 33
+},
+{
+"n": 31,
+"seconds": 19.0,
+"words": 30,
+"first_paste_s": 0.31567758300000004,
+"edit_s": 2.443443125,
+"nothing_to_edit": true,
+"words_right_from_start": 30,
+"final_words": 30
+},
+{
+"n": 32,
+"seconds": 15.3,
+"words": 30,
+"first_paste_s": 0.2872525,
+"edit_s": 2.277816125,
+"nothing_to_edit": true,
+"words_right_from_start": 30,
+"final_words": 30
+},
+{
+"n": 33,
+"seconds": 174.9,
+"words": 480,
+"first_paste_s": 3.3041205,
+"edit_s": 5.233615916,
+"nothing_to_edit": false,
+"words_right_from_start": 429,
+"final_words": 474
+},
+{
+"n": 34,
+"seconds": 33.7,
+"words": 101,
+"first_paste_s": 0.680386625,
+"edit_s": 3.092990208,
+"nothing_to_edit": false,
+"words_right_from_start": 9,
+"final_words": 100
+}
+]
+}

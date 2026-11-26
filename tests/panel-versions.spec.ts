@@ -3,6 +3,7 @@ import { open } from "./fake-app";
 
 // Four looks for the raw words after the cleaned text (design exploration,
 // not a regression test): same invented text, same 400 × 184 panel, CSS only.
+// Robin chose 2-gedimmt on 26.11.2026; it is built (`.stext-cap.cleanup`).
 // Runs only with DESIGN=1: DESIGN=1 bunx playwright test tests/panel-versions.spec.ts
 const OUT = process.env.SHOT_DIR ?? "test-results/panel-versions";
 

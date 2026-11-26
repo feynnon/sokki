@@ -2009,8 +2009,7 @@ journal_excluded_apps?: string[];
  * day while the Mac is idle, a local language model checks each new
  * word and Sokki speaks it to itself to hear how the speech model
  * writes it (`learn_words.rs`). Does nothing while the journal is off.
- * Off by default until the learned words have been checked on real
- * writing (schema 9 turns it off once for everyone).
+ * On by default (schema 11, Robin, 2026-11-26).
  */
 learn_words?: boolean; 
 /**
@@ -3019,7 +3018,12 @@ export type StreamTextEvent = {
  * Paragraphs the dictation cleanup has finished, shown before
  * `committed` (`dictation_cleanup`); empty without the cleanup.
  */
-cleaned?: string; committed: string; tentative: string }
+cleaned?: string; committed: string; tentative: string; 
+/**
+ * The dictation cleanup runs: the raw words show dimmed and upright
+ * until they are cleaned, instead of italic.
+ */
+cleanup?: boolean }
 /**
  * Semantic kind of "working" phase, used to localize the spinner label.
  */

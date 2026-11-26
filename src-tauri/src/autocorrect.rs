@@ -19,11 +19,26 @@ const TABLES: &str = "../mobile/keyboard/src/main/assets/sokki";
 #[cfg(target_os = "macos")]
 const LEXICON: &str = "../crates/sokki-typos/data";
 
+/// The app in front: (pid, bundle id), from NSWorkspace (no Accessibility call).
 #[cfg(target_os = "macos")]
-fn front_app() -> Option<(i32, String)> {
+pub(crate) fn front_app() -> Option<(i32, String)> {
     let app = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let id = app.bundleIdentifier()?.to_string();
     Some((app.processIdentifier(), id))
+}
+
+/// The letter keys of the layout in use (`input::keyboard_letter_rows`), read on the main thread
+/// as TIS requires; None when the main thread doesn't answer within 200 ms.
+#[cfg(target_os = "macos")]
+fn keyboard_rows(app: &AppHandle) -> Option<[String; 3]> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(crate::input::keyboard_letter_rows());
+    })
+    .ok()?;
+    rx.recv_timeout(std::time::Duration::from_millis(200))
+        .ok()
+        .flatten()
 }
 
 /// Starts the autocorrect thread (idle while the switch is off).
@@ -57,7 +72,9 @@ pub fn start(app: &AppHandle) {
         let fixes = data_dir
             .map(|d| sokki_autocorrect::fixlog::FixLog::new(d.join("autocorrect_fixes.jsonl")));
         let settings_app = app.clone();
+        let keyboard_app = app.clone();
         runner::start(runner::Options {
+            keyboard: Box::new(move || keyboard_rows(&keyboard_app)),
             load: Box::new(move || sokki_typos::Typos::load(&tables, &lexicon)),
             kept_file,
             keys: sokki_keys::key_downs,

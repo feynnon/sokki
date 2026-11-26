@@ -187,8 +187,16 @@ Short records of choices that are not obvious from the code.
   local summary model is open (it is stopped when one of those begins).
   A model that fails or takes over 20 s leaves the transcript as it was.
   The live panel shows one growing text: the cleaned part, then the newest
-  words raw on the same line, replaced in place once cleaned; with the
-  cleanup on it is six lines tall instead of three (`overlay::set_tall_live`).
+  words raw on the same line (dimmed), replaced in place once cleaned; with
+  the cleanup on it is six lines tall instead of three
+  (`overlay::set_tall_live`). At the stop the text goes into the field at
+  once: the paragraphs cleaned live plus the rest as transcribed
+  (`cleanup::Draft`). When the last step is done, only the end that changed
+  is selected through Accessibility and pasted over (`instant_paste`,
+  `sokki_autocorrect::tail`), and only while the field still ends with
+  exactly the draft at the cursor and no key was pressed. Where Sokki can't
+  read the field, it pastes once, cleaned, as before. Between the paste and
+  the edit the panel shrinks to its pill.
   On by default since 26.11.2026 (turned on once for existing installs,
   settings schema 10); without the model (8 GB Macs, or not downloaded
   yet) it does nothing and the transcript is pasted as before.

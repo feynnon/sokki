@@ -17,6 +17,10 @@
 //! Results go to `vocabulary_learned` / `vocabulary_heard_as` (Vocabulary
 //! page). Removed ones go to `vocabulary_rejected` and never come back.
 //! Test mode: `SOKKI_TEST_LEARN=1` runs once right away.
+//! `SOKKI_TEST_LEARN_REPORT=<file>` also asks the model about every unknown
+//! typed word (also those typed once, which later runs would ask about) and
+//! writes each verdict and heard-as form to that file as JSON, for a person
+//! to review. It stays on this Mac like the journal.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -53,6 +57,35 @@ const HEAR: &[(&str, &str)] = &[
 
 fn test_run() -> bool {
     crate::test_mic::active() && std::env::var_os("SOKKI_TEST_LEARN").is_some()
+}
+
+fn report_path() -> Option<std::path::PathBuf> {
+    if !test_run() {
+        return None;
+    }
+    std::env::var_os("SOKKI_TEST_LEARN_REPORT").map(std::path::PathBuf::from)
+}
+
+/// One word of the review report.
+#[derive(serde::Serialize)]
+struct Reviewed {
+    word: String,
+    messages: usize,
+    sentence: String,
+    /// The model said "add".
+    add: bool,
+    /// Typed in enough messages to be learned in this run.
+    now: bool,
+    /// How the speech model wrote it in the hear test (only for "add").
+    heard: Vec<String>,
+}
+
+#[derive(serde::Serialize, Default)]
+struct Report {
+    entries: usize,
+    typed_entries: usize,
+    corrections: Vec<HeardAs>,
+    words: Vec<Reviewed>,
 }
 
 /// Starts the daily check. Call once at startup.
@@ -197,32 +230,72 @@ fn run(app: &AppHandle) -> Result<Outcome> {
         });
     }
 
-    let candidates = learn::candidates(&entries, &mut is_known, &skip);
-    out.candidates = candidates.len();
+    let report_to = report_path();
+    let mut report = Report {
+        entries: entries.len(),
+        typed_entries: entries.iter().filter(|e| e.typed.is_some()).count(),
+        corrections: pairs.clone(),
+        ..Report::default()
+    };
+    let candidates = if report_to.is_some() {
+        learn::candidates_with(&entries, &mut is_known, &skip, 1, usize::MAX)
+    } else {
+        learn::candidates(&entries, &mut is_known, &skip)
+    };
+    out.candidates = candidates
+        .iter()
+        .filter(|c| c.messages >= learn::MIN_MESSAGES)
+        .count();
     if !candidates.is_empty() {
-        let accepted = judge(app, &s, &candidates)?;
-        for word in accepted {
-            if busy() || dictating(app) {
-                log::info!(
-                    "Word learning: paused for a recording; the rest waits for the next run"
-                );
-                break;
-            }
-            match hear_test(app, &word, &langs) {
-                Ok(heard) => {
-                    for h in heard {
-                        if !rejected.contains(&h.to_lowercase()) {
-                            pairs.push(HeardAs {
-                                heard: h,
-                                word: word.clone(),
-                                source: "hear_test".into(),
-                            });
+        let verdicts = judge(app, &s, &candidates)?;
+        for (c, add) in candidates.iter().zip(verdicts) {
+            let now = c.messages >= learn::MIN_MESSAGES;
+            let mut heard_forms = Vec::new();
+            if add && (now || report_to.is_some()) {
+                if busy() || dictating(app) {
+                    log::info!(
+                        "Word learning: paused for a recording; the rest waits for the next run"
+                    );
+                    break;
+                }
+                match hear_test(app, &c.word, &langs) {
+                    Ok(heard) => {
+                        for h in heard {
+                            if !rejected.contains(&h.to_lowercase()) {
+                                heard_forms.push(h.clone());
+                                if now {
+                                    pairs.push(HeardAs {
+                                        heard: h,
+                                        word: c.word.clone(),
+                                        source: "hear_test".into(),
+                                    });
+                                }
+                            }
                         }
                     }
+                    Err(e) => log::warn!("Word learning: hear test failed: {e:#}"),
                 }
-                Err(e) => log::warn!("Word learning: hear test failed: {e:#}"),
+                if now {
+                    words.push(c.word.clone());
+                }
             }
-            words.push(word);
+            report.words.push(Reviewed {
+                word: c.word.clone(),
+                messages: c.messages,
+                sentence: c.sentence.clone(),
+                add,
+                now,
+                heard: heard_forms,
+            });
+        }
+    }
+    if let Some(path) = &report_to {
+        match serde_json::to_vec_pretty(&report) {
+            Ok(json) => match std::fs::write(path, json) {
+                Ok(()) => log::info!("Word learning: review report written"),
+                Err(e) => log::warn!("Word learning: review report not written: {e}"),
+            },
+            Err(e) => log::warn!("Word learning: review report not written: {e}"),
         }
     }
 
@@ -257,8 +330,9 @@ fn run(app: &AppHandle) -> Result<Outcome> {
     Ok(out)
 }
 
-/// Asks the local language model about each candidate; returns the words to learn.
-fn judge(app: &AppHandle, s: &AppSettings, candidates: &[learn::Candidate]) -> Result<Vec<String>> {
+/// Asks the local language model about each candidate: true = learn it.
+/// Shorter than `candidates` when a recording interrupted it.
+fn judge(app: &AppHandle, s: &AppSettings, candidates: &[learn::Candidate]) -> Result<Vec<bool>> {
     let llm_settings = crate::meeting::process::engine_settings(s).llm;
     if sokki_engine::llm::CLOUD_PROVIDERS.contains(&llm_settings.provider.trim()) {
         anyhow::bail!("the language model is a cloud provider; typed text stays on this Mac");
@@ -270,7 +344,7 @@ fn judge(app: &AppHandle, s: &AppSettings, candidates: &[learn::Candidate]) -> R
         t0.elapsed().as_secs_f64()
     );
     let llm = meeting_core::summary::LlmSummarizer::new(model.config());
-    let mut accepted = Vec::new();
+    let mut verdicts = Vec::new();
     for c in candidates {
         if busy() || dictating(app) {
             break;
@@ -283,15 +357,16 @@ fn judge(app: &AppHandle, s: &AppSettings, candidates: &[learn::Candidate]) -> R
                     "Word learning: model says {} for a candidate",
                     if yes { "add" } else { "no" }
                 );
-                if yes {
-                    accepted.push(c.word.clone());
-                }
+                verdicts.push(yes);
             }
-            Err(e) => log::warn!("Word learning: the language model failed: {e:#}"),
+            Err(e) => {
+                log::warn!("Word learning: the language model failed: {e:#}");
+                verdicts.push(false);
+            }
         }
     }
     drop(model);
-    Ok(accepted)
+    Ok(verdicts)
 }
 
 /// The words the speech model wrote where `sentence` (with "{}") had the word.
@@ -332,6 +407,9 @@ fn slot(transcript: &str, sentence: &str) -> Vec<String> {
 /// Says `word` with each voice and returns the heard forms worth fixing.
 fn hear_test(app: &AppHandle, word: &str, langs: &[String]) -> Result<Vec<String>> {
     let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+    // Learning runs after 5 idle minutes, when the speech model has usually
+    // been unloaded: load it (transcribe waits for the load).
+    tm.initiate_model_load(false);
     let mut heard_forms = Vec::new();
     for (i, (voice, sentence)) in HEAR.iter().enumerate() {
         let wav = std::env::temp_dir().join(format!("sokki-hear-{}-{i}.wav", std::process::id()));

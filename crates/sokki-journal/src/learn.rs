@@ -112,6 +112,18 @@ pub fn typed_words(e: &Entry) -> Option<Vec<&str>> {
     Some(out)
 }
 
+/// `word` (a slice of `text`) starts a sentence: first in the text, or after
+/// ".", "!", "?", ":" or a line break. German capitalizes every word there,
+/// so a capital letter says nothing about a name.
+fn starts_sentence(text: &str, word: &str) -> bool {
+    let at = (word.as_ptr() as usize).saturating_sub(text.as_ptr() as usize);
+    let before = text.get(..at).unwrap_or("");
+    let lead = before.trim_end_matches(|c: char| {
+        !c.is_alphanumeric() && !matches!(c, '.' | '!' | '?' | ':' | '\n')
+    });
+    lead.is_empty() || lead.ends_with(['.', '!', '?', ':', '\n'])
+}
+
 fn words_dictated(e: &Entry) -> HashSet<String> {
     e.dictated
         .iter()
@@ -135,8 +147,21 @@ pub fn candidates(
     known: &mut dyn FnMut(&str) -> bool,
     skip: &HashSet<String>,
 ) -> Vec<Candidate> {
-    // lowercase → (spelling, messages, sentence)
-    let mut seen: BTreeMap<String, (String, usize, String)> = BTreeMap::new();
+    candidates_with(entries, known, skip, MIN_MESSAGES, MAX_CANDIDATES)
+}
+
+/// [`candidates`] with its two limits open: words typed in at least
+/// `min_messages` messages, at most `max` of them. The review report uses
+/// it to show what later runs would ask about too.
+pub fn candidates_with(
+    entries: &[Entry],
+    known: &mut dyn FnMut(&str) -> bool,
+    skip: &HashSet<String>,
+    min_messages: usize,
+    max: usize,
+) -> Vec<Candidate> {
+    // lowercase → (spelling, messages, sentence, seen inside a sentence)
+    let mut seen: BTreeMap<String, (String, usize, String, bool)> = BTreeMap::new();
     for e in entries {
         let Some(typed) = typed_words(e) else {
             continue;
@@ -148,27 +173,35 @@ pub fn candidates(
                 continue;
             }
             let key = word.to_lowercase();
-            if skip.contains(&key) || dictated.contains(&key) || !in_this.insert(key.clone()) {
+            if skip.contains(&key) || dictated.contains(&key) {
                 continue;
             }
+            let inside = !starts_sentence(&e.text, word);
+            let first_here = in_this.insert(key.clone());
             let slot = seen
                 .entry(key)
-                .or_insert_with(|| (word.to_string(), 0, sentence_with(&e.text, word)));
-            slot.1 += 1;
+                .or_insert_with(|| (word.to_string(), 0, sentence_with(&e.text, word), false));
+            slot.3 |= inside;
+            if first_here {
+                slot.1 += 1;
+            }
         }
     }
+    // Only ever capitalized at a sentence start ("Zeigs mir …", "Gedimmt
+    // finde ich besser"): on Robin's writing (26 Nov 2026) 3 of the model's
+    // 4 wrong words, none of its 4 right ones.
     let mut out: Vec<Candidate> = seen
         .into_values()
-        .filter(|(_, n, _)| *n >= MIN_MESSAGES)
-        .filter(|(w, _, _)| !known(w))
-        .map(|(word, messages, sentence)| Candidate {
+        .filter(|(_, n, _, inside)| *n >= min_messages && *inside)
+        .filter(|(w, _, _, _)| !known(w))
+        .map(|(word, messages, sentence, _)| Candidate {
             word,
             messages,
             sentence,
         })
         .collect();
     out.sort_by(|a, b| b.messages.cmp(&a.messages).then(a.word.cmp(&b.word)));
-    out.truncate(MAX_CANDIDATES);
+    out.truncate(max);
     out
 }
 
@@ -338,6 +371,7 @@ pub fn corrections(entries: &[Entry], known: &mut dyn FnMut(&str) -> bool) -> Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::entry::Dictated;
 
     fn entry(text: &str) -> Entry {
@@ -353,6 +387,18 @@ mod tests {
             typed: Some(vec![[0, text.chars().count()]]),
             replaceable: None,
         }
+    }
+
+    #[test]
+    fn a_word_only_at_sentence_starts_is_no_name() {
+        let es = vec![
+            entry("Zeigs mir bitte. Gruß an Tarnisio"),
+            entry("Ok. Zeigs mir noch mal, Tarnisio kommt auch"),
+            entry("Liste:\nZeigs nochmal"),
+        ];
+        let c = candidates(&es, &mut |_| false, &HashSet::new());
+        let words: Vec<_> = c.iter().map(|c| c.word.as_str()).collect();
+        assert_eq!(words, ["Tarnisio"]);
     }
 
     /// A tiny stand-in for the spell checker.

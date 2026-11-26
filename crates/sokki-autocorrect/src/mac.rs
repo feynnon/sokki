@@ -266,13 +266,41 @@ pub fn describe(pid: i32) -> String {
 /// field, secure input, an app that doesn't answer in time, or an app Sokki leaves alone.
 /// `front`: the app in front, (pid, bundle id), from NSWorkspace (no Accessibility call).
 pub fn focused(front: Option<(i32, String)>, excluded: &[String]) -> Option<AxField> {
+    let app = &front.as_ref()?.1;
+    if !crate::allowed(app, excluded) {
+        return None;
+    }
+    field_of(front)
+}
+
+/// The focused field of the app in front, in any app but Sokki itself: for editing what
+/// Sokki pasted there ([`crate::tail`]). None for a password or protected field, secure
+/// input, or an app that doesn't answer in time.
+pub fn pasted_into(front: Option<(i32, String)>) -> Option<AxField> {
+    let app = &front.as_ref()?.1;
+    if app.is_empty() || app.starts_with("org.sokki.") {
+        return None;
+    }
+    field_of(front)
+}
+
+/// Asks the app in front to show its text fields (Chrome needs about 2 s the first time), for
+/// [`pasted_into`]: called when a dictation starts.
+pub fn wake(front: Option<(i32, String)>) {
+    let Some((pid, app)) = front else { return };
+    if secure_input() || app.starts_with("org.sokki.") {
+        return;
+    }
+    let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
+    unsafe { AXUIElementSetMessagingTimeout(app_el.0 .0, TIMEOUT_S) };
+    ask_for_fields(&app_el, pid, &app);
+}
+
+fn field_of(front: Option<(i32, String)>) -> Option<AxField> {
     if secure_input() {
         return None;
     }
     let (pid, app) = front?;
-    if !crate::allowed(&app, excluded) {
-        return None;
-    }
     let app_el = El(Cf(unsafe { AXUIElementCreateApplication(pid) }));
     unsafe { AXUIElementSetMessagingTimeout(app_el.0 .0, TIMEOUT_S) };
     ask_for_fields(&app_el, pid, &app);

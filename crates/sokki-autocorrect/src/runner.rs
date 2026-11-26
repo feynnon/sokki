@@ -35,6 +35,9 @@ pub struct Options {
     pub front: fn() -> Option<(i32, String)>,
     /// Called with every fix, skip and undo, for the log and counts.
     pub report: Report,
+    /// The letter keys of the layout in use, row by row ([`sokki_typos::Typos::set_keyboard`]);
+    /// read every few seconds while autocorrect is on. None keeps what the model has.
+    pub keyboard: Box<dyn Fn() -> Option<[String; 3]> + Send>,
 }
 
 /// The app list, shared with the thread.
@@ -72,6 +75,8 @@ fn run(h: Handle, o: Options) {
     let mut on = false;
     let mut checked = Instant::now() - Duration::from_secs(10);
     let mut key_at = Instant::now();
+    let mut rows: Option<[String; 3]> = None;
+    let mut rows_at = Instant::now() - Duration::from_secs(60);
     loop {
         std::thread::sleep(TICK);
         if checked.elapsed() >= Duration::from_secs(1) {
@@ -112,6 +117,20 @@ fn run(h: Handle, o: Options) {
             }
         }
         let Some(ac) = ac.as_mut() else { continue };
+        if rows_at.elapsed() >= Duration::from_secs(5) {
+            rows_at = Instant::now();
+            let now_rows = (o.keyboard)();
+            if now_rows.is_some() && now_rows != rows {
+                if let Some(r) = &now_rows {
+                    ac.set_keyboard(r);
+                    log::info!(
+                        "autocorrect: keyboard rows set ({} letters)",
+                        r.iter().map(|x| x.trim().chars().count()).sum::<usize>()
+                    );
+                }
+                rows = now_rows;
+            }
+        }
         if checked.elapsed() < TICK {
             // just checked the switch: also get the app in front ready (once per app)
             let excluded = h.excluded.lock().map(|x| x.clone()).unwrap_or_default();

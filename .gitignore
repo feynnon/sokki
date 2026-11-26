@@ -55,3 +55,4 @@ vm-share/
 crates/*/target/
 vm-tools/
 .gstack/
+.wrangler/

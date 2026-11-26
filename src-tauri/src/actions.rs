@@ -879,10 +879,26 @@ impl ShortcutAction for TranscribeAction {
                                     show_processing_overlay(&ah);
                                 }
                             }
+                            // With the cleanup, paste a draft at once and
+                            // clean its end in place (`instant_paste`).
+                            let instant = match cleaning {
+                                true => {
+                                    let ah = ah.clone();
+                                    tauri::async_runtime::spawn_blocking(move || {
+                                        crate::instant_paste::InstantPaste::at_stop(&ah, stop_time)
+                                    })
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                }
+                                false => None,
+                            };
+                            let on_draft = instant.as_ref().map(|i| i.on_draft());
                             let output = async {
                                 match cleanup {
                                     Some(cleanup) => {
-                                        let cleaned = cleanup.finish(transcription.clone()).await;
+                                        let cleaned =
+                                            cleanup.finish(transcription.clone(), on_draft).await;
                                         ProcessedTranscription {
                                             final_text: cleaned
                                                 .clone()
@@ -970,6 +986,7 @@ impl ShortcutAction for TranscribeAction {
                                 let ah_clone = ah.clone();
                                 let paste_time = Instant::now();
                                 let post_process_failed = processed.post_process_failed;
+                                let cleaned_text = processed.post_processed_text.clone();
                                 let rm_for_paste = Arc::clone(&rm);
                                 // Taken before the paste thread exists, and so
                                 // before the next session can start.
@@ -998,14 +1015,27 @@ impl ShortcutAction for TranscribeAction {
                                             &raw_transcription,
                                             &final_text,
                                         );
-                                        let pasted = if crate::test_mic::active() {
-                                            log::info!(
-                                                "Test mode, not pasted ({:?} after the stop): {final_text}",
-                                                stop_time.elapsed()
-                                            );
-                                            Ok(utils::PasteOutcome::Pasted)
-                                        } else {
-                                            utils::paste(final_text, ah_clone.clone())
+                                        // The draft is in the field already:
+                                        // only its end is cleaned in place.
+                                        let to_paste = match &instant {
+                                            Some(i) => i.finish(
+                                                final_text,
+                                                cleaned_text.as_deref(),
+                                            ),
+                                            None => Some(final_text),
+                                        };
+                                        let pasted = match to_paste {
+                                            None => Ok(utils::PasteOutcome::Pasted),
+                                            Some(final_text) if crate::test_mic::active() => {
+                                                log::info!(
+                                                    "Test mode, not pasted ({:?} after the stop): {final_text}",
+                                                    stop_time.elapsed()
+                                                );
+                                                Ok(utils::PasteOutcome::Pasted)
+                                            }
+                                            Some(final_text) => {
+                                                utils::paste(final_text, ah_clone.clone())
+                                            }
                                         };
                                         let (outcome, notice) =
                                             match pasted {

@@ -144,6 +144,76 @@ mod macos {
             }
         }
     }
+
+    /// The physical letter keys, row by row (kVK_ANSI_Q.. on the top row, then A.., then Z..).
+    const LETTER_KEYS: [&[u16]; 3] = [
+        &[12, 13, 14, 15, 17, 16, 32, 34, 31, 35, 33],
+        &[0, 1, 2, 3, 5, 4, 38, 40, 37, 41, 39],
+        &[6, 7, 8, 9, 11, 45, 46],
+    ];
+
+    /// What the current layout types on each letter key without modifiers, row by row; a key
+    /// that types no letter is a space. Main thread only (TIS).
+    pub(super) fn letter_rows() -> Option<[String; 3]> {
+        // SAFETY: called on the main thread; the source follows the Create Rule and is
+        // released by InputSource::drop.
+        let source = InputSource(unsafe { TISCopyCurrentKeyboardLayoutInputSource() });
+        if source.0.is_null() {
+            return None;
+        }
+        // SAFETY: the source stays retained while its layout data is read.
+        let data = unsafe { TISGetInputSourceProperty(source.0, kTISPropertyUnicodeKeyLayoutData) };
+        if data.is_null() {
+            return None;
+        }
+        // SAFETY: data is a CFData owned by the retained source.
+        let layout = unsafe { CFDataGetBytePtr(data) };
+        if layout.is_null() {
+            return None;
+        }
+        // SAFETY: no arguments.
+        let keyboard_type = unsafe { LMGetKbdType() } as u32;
+        let letter = |keycode: u16| -> char {
+            let mut dead_key_state = 0;
+            let mut chars = [0_u16; 4];
+            let mut length = 0_usize;
+            // SAFETY: layout points to valid UCKeyboardLayout bytes while source is retained;
+            // the output pointers reference local storage of the declared sizes.
+            let status = unsafe {
+                UCKeyTranslate(
+                    layout,
+                    keycode,
+                    0, // kUCKeyActionDown
+                    0,
+                    keyboard_type,
+                    UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK,
+                    &mut dead_key_state,
+                    chars.len(),
+                    &mut length,
+                    chars.as_mut_ptr(),
+                )
+            };
+            match char::decode_utf16(chars[..length.min(4)].iter().copied()).next() {
+                Some(Ok(c)) if status == 0 && length == 1 && c.is_alphabetic() => {
+                    c.to_lowercase().next().unwrap_or(c)
+                }
+                _ => ' ',
+            }
+        };
+        let row = |keys: &[u16]| keys.iter().map(|&k| letter(k)).collect::<String>();
+        Some([
+            row(LETTER_KEYS[0]),
+            row(LETTER_KEYS[1]),
+            row(LETTER_KEYS[2]),
+        ])
+    }
+}
+
+/// The letter keys of the keyboard layout in use, row by row (see `macos::letter_rows`), for
+/// autocorrect's model of which keys are neighbours. Main thread only.
+#[cfg(target_os = "macos")]
+pub fn keyboard_letter_rows() -> Option<[String; 3]> {
+    macos::letter_rows()
 }
 
 /// Wrapper for Enigo to store in Tauri's managed state.

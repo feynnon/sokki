@@ -39,7 +39,8 @@ A tiny Cloudflare Worker behind Sokki's **Your data** page:
   R2, whose first 10 GB are free; 900 MB with KV only).
 - **Moving to R2**: once `FILES` is bound, new uploads go to R2 and the hourly
   cron moves the older files over from KV, 100 per run within the KV delete
-  budget, then stops (`cache` key `kv_moved`). Deletes in R2 are free and go
+  budget, then stops (`cache` key `kv_moved`, set 26.11.); from then on
+  the counter doesn't touch KV at all. Deletes in R2 are free and go
   1,000 per call, so "Delete what was shared" finishes in the request.
 - **Tell me about paid recording tasks** sends the id and the languages of the
   user's own recordings (`POST /tasks`); unticking removes it. See who ticked it:

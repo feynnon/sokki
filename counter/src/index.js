@@ -182,7 +182,7 @@ async function forget(req, env, ctx) {
     ).bind(body.id, t),
   ]);
   // Files from before R2 may still be in KV (until moved): one listing.
-  if (env.FILES) await queueStrays(env, body.id, "kv");
+  if (env.FILES && (await kvInUse(env))) await queueStrays(env, body.id, "kv");
   await drainAudio(env, { id: body.id, max: 5000, kvMax: FORGET_NOW_MAX });
   const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM forget_audio WHERE id = ?1")
     .bind(body.id)
@@ -351,15 +351,25 @@ async function sweepAudio(env) {
   )
     .bind(now() - 300)
     .all();
+  if (!results.length) return;
+  const stores = !env.FILES ? ["kv"] : (await kvInUse(env)) ? ["kv", "r2"] : ["r2"];
   for (const { id } of results) {
     let found = 0;
-    for (const store of env.FILES ? ["kv", "r2"] : ["kv"]) {
+    for (const store of stores) {
       const n = await queueStrays(env, id, store);
       if (n === null) return;
       found += n;
     }
     if (!found) await env.DB.prepare("DELETE FROM forget_sweep WHERE id = ?1").bind(id).run();
   }
+}
+
+/** Workers KV may still hold audio: R2 isn't bound, or the move to R2
+ * (moveToR2) hasn't emptied it yet. Once moved, nothing is written to KV
+ * again, so listing it would only use up the free plan's 1,000 lists a day. */
+async function kvInUse(env) {
+  if (!env.FILES) return true;
+  return !(await env.DB.prepare("SELECT 1 FROM cache WHERE key = 'kv_moved'").first());
 }
 
 /**

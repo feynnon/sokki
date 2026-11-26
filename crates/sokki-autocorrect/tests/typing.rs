@@ -340,3 +340,17 @@ fn a_word_corrected_with_backspace_while_typing_is_still_fixed() {
     assert_eq!(got.len(), 1, "{got:?}");
     assert_eq!(f.text.borrow().as_str(), "Das ist nicht ");
 }
+
+#[test]
+fn a_backspace_and_a_letter_between_two_looks_keep_the_word_typed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.anthropic.claudefordesktop");
+    type_in(&mut ac, &f, "Das ist nihx");
+    // fast typing: Backspace and the next letter land before Sokki looks again
+    f.key('\u{8}');
+    f.key('c');
+    assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
+    let got = type_in(&mut ac, &f, "t ");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(f.text.borrow().as_str(), "Das ist nicht ");
+}

@@ -120,10 +120,61 @@ Another 20 words the model left were names, product names, English spellings, sl
 - The first word in an empty field, and a word typed right after a click, were never fixed: Sokki only counted a word from its second letter. Tests `a_typo_as_the_first_word_of_an_empty_field_is_fixed`, `a_word_typed_after_a_click_into_the_text_is_fixed`.
 - A Backspace inside a word made Sokki forget it was typed, so a word corrected by hand while typing was never fixed. Now a Backspace shrinks what counts as typed by one character. Test `a_word_corrected_with_backspace_while_typing_is_still_fixed`. Whether this explains the 7 mid-text losses is not shown yet: the journal holds no keys.
 - The fix list now also has a line `"what":"missed"` for every word the model would fix that Sokki leaves because it didn't see it typed, with the reason, so the next losses show their cause.
+- **First day of 0.2.17** (12:50 to 14:00 local): 34 fixes and 6 missed. 5 of the 6 were "start of the word not seen typed", all mid-sentence after a space. Likely cause: two keys between two looks, one of them a Backspace (fast typing). Sokki then saw neither a plain addition nor a plain deletion and forgot the run. Now any edit at the cursor counts, as long as it adds and deletes no more characters than keys were pressed. Test `a_backspace_and_a_letter_between_two_looks_keep_the_word_typed`.
 
 The 9 the model doesn't fix are a model question shared with the phone keyboard; not changed here.
 
 There is no language setting for autocorrect: it handles German and English sentence by sentence. Robin's `spoken_languages` (en, de) is the dictation setting.
+
+### The model's own misses (26 Nov 2026, evening)
+
+**Task:** find out why the typo model (`crates/sokki-typos`) leaves typos in Robin's Mac typing although the meant word is one slip away and common, and fix what it can without new wrong edits. Measured on Robin's labelled typos and capital truth (`~/sokki-typing-data`), typing37k and 136m (4,000 words each), `de-clean-10k` and the 8 misses from the day's journal (139 entries when measured). Numbers only; examples below are made up.
+
+**Robin's slips on the Mac** (349 labelled typos): two letters swapped 167 (48 %), a letter missing 81, an extra letter 35, a doubled letter 33, a wrong letter 23 (6.6 %), two or more slips 10. For comparison, wrong letters are about 60 % of the typos in typing37k (phones) and about 26 % in 136m (hardware keyboards).
+
+**Causes:**
+1. The model took the phone's QWERTZ keys as neighbours. Robin's Mac uses a US/ABC layout (QWERTY): y sits next to t and u, z next to s and x. So "plau" for "play" counted as a far slip and stayed.
+2. A word with no candidate one slip away got no candidates at all: two slips in a long word ("fuktionirt") stayed.
+3. Short swaps and swaps at a word's end: the right word leads but holds 81–94 % of the vote against a second real word one slip away (both swaps, or a swap against a missing letter). The model needs 95 %. Most of the day's misses are this case.
+4. Capitals: at a sentence start the capitalised and the lower-case form of the same swap get the same answer (86 % share for both), so "the capital changes the answer" did not reproduce.
+
+**Fix:**
+- The Mac reads which letter each physical key types in the layout in use (macOS UCKeyTranslate, on the main thread, every 5 s while autocorrect is on), and the model takes those rows as neighbours (`Typos::set_keyboard`). The phone keeps QWERTZ. Log line: "autocorrect: keyboard rows set (26 letters)".
+- British -ise spellings (optimised, organising) count as English words when the US list has the -ize form. With QWERTY neighbours they would otherwise become -ize.
+- A word with no candidate one slip away gets the dictionary's common words (zipf ≥ 3) two slips away; the same 95 % rule decides. A letter-count bound keeps it fast: 3 ms per long unknown word (95th percentile), 38 ms without it. A minimum word length made no difference (3 to 8 letters measured the same).
+
+**Measured** (before → after):
+
+| Set | What | Before | After, QWERTY (Robin's Mac) | After, QWERTZ |
+|---|---|---|---|---|
+| Robin, 349 labelled typos | fixed right / fixed wrong / missed | 289 / 3 / 109 | 290 / 3 / 108 | 289 / 3 / 109 |
+| Robin, 47,494 words | other words wrongly changed | 48 | 47 | 47 |
+| Robin | German nouns left lower / wrong capitals | 417 / 238 | 418 / 238 | 418 / 238 |
+| 136m, 4,000 words | right fixes / wrong changes | 543 / 56 | 558 / 56 | 557 / 56 |
+| typing37k, 4,000 words | right fixes / wrong changes | 524 / 55 | 539 / 55 | 529 / 55 |
+| de-clean-10k, 156,983 words | words changed | 385 | 386 (6 new, 5 gone) | 387 (2 new) |
+| Journal of the day | misses fixed | 0 of 8 | 1 of 8 | 1 of 8 |
+
+Of the 6 new changes on de-clean-10k, 2 fix real typos in the set, 1 is in a Luxembourgish sentence and 3 change names. The 1 more noun left lower case on Robin's text is an -ise word in a German sentence.
+
+**Tried and left out** (each against the same "before"):
+
+| Option | Robin: right / wrong / words changed | 136m right / wrong | typing37k right / wrong | de-clean changes (new / gone) | Journal |
+|---|---|---|---|---|---|
+| Swaps 2× more likely | 292 / 4 / 52 | 1,069 / 110 (both) | | 388 (3 / 0) | 1 of 8 |
+| Wrong letters 4× less likely | 295 / 3 / 49 | 1,030 / 108 (both) | | 370 (18 / 33) | 0 of 8 |
+| Hardware-keyboard slip rates (wrong letter ×0.21, missing ×0.64, extra ×0.69: the typing37k → 136m ratios) + the fix | 290 / 3 / 48 | 542 / 55 | 501 / 55 | 348 (19 / 56) | 2 of 8 |
+| Same + swaps 2× | 292 / 4 / 49 | 549 / 56 | 498 / 53 | 351 (23 / 57) | 3 of 8 |
+| Same + 90 % share instead of 95 % | 303 / 4 / 54 | 577 / 64 | 536 / 57 | 417 (51 / 19) | 4 of 8 |
+| Same + 85 % share | 309 / 5 / 75 | 600 / 69 | 555 / 62 | 465 (91 / 11) | 5 of 8 |
+| Other-language candidates 10× less likely once the sentence leans one way | 287 / 2 / 53 | 1,069 / 111 (both) | | 386 (6 / 5) | 1 of 8 |
+| A built German word (compound, inflection) competes with a common German word one slip away | 297 / 4 / 81 | 1,113 / 112 (both) | | 406 (21 / 0) | 0 of 8 |
+
+The hardware-keyboard rates remove 56 wrong changes on German text but lose as many of Robin's typos as they win (11 won, 12 lost against the fix alone) and many wrong-letter fixes in both public sets. Every option that fixes more of Robin's swaps also changes more correct words.
+
+**Not fixed, and what would:** 7 of the day's 8 misses stay (cause 3, and two long words where keeping the typed word still scores higher than two slips). Two paths, both outside this change:
+- Decide a doubtful word once the next word is typed (`NEXT_CONTEXT` in the Python twin, off because the app decides at the space). Autocorrect would have to replace the word before last.
+- Give autocorrect the words Sokki learns from the journal. The Python twin's `SPLIT_DECISION` (off since 23 Nov: as many of Robin's names and tool words changed as typos fixed) could then be measured again.
 
 ## Open questions
 

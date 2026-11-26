@@ -5,6 +5,9 @@
 //!     sokki-typos <tables dir> <lexicon dir> report <journal dir> [--examples]
 //!         What Sokki would have fixed in the "Keep what I write" journal, per app: counts only;
 //!         --examples also prints each fix (the user's own text: never into a report or commit).
+//!
+//! SOKKI_TYPOS_KEYBOARD sets the letter keys (`Typos::set_keyboard`): "qwerty", "qwertz" (the
+//! default, the phone's), or three rows separated by spaces.
 //! SPDX-License-Identifier: GPL-3.0-only
 
 use std::io::{BufRead, Read, Write};
@@ -18,13 +21,21 @@ fn main() {
         std::process::exit(2);
     }
     let t0 = Instant::now();
-    let typos = match sokki_typos::Typos::load(Path::new(&args[1]), Path::new(&args[2])) {
+    let mut typos = match sokki_typos::Typos::load(Path::new(&args[1]), Path::new(&args[2])) {
         Ok(t) => t,
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(1);
         }
     };
+    if let Ok(k) = std::env::var("SOKKI_TYPOS_KEYBOARD") {
+        let rows: Vec<&str> = match k.as_str() {
+            "qwerty" => vec!["qwertyuiop", "asdfghjkl", "zxcvbnm"],
+            "qwertz" => vec!["qwertzuiopü", "asdfghjklöä", "yxcvbnm"],
+            k => k.split(' ').collect(),
+        };
+        typos.set_keyboard(&rows);
+    }
     eprintln!("loaded in {} ms", t0.elapsed().as_millis());
     let out = std::io::stdout();
     let mut out = out.lock();

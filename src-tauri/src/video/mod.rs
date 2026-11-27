@@ -135,7 +135,8 @@ fn test_file() -> Option<PathBuf> {
 /// screen. In the test app (`crate::test_mic`) the real screen is recorded
 /// when it may be, and the file stands in only when it may not.
 pub fn test_capture() -> bool {
-    test_file().is_some() && !(crate::test_mic::active() && bridge::sources()["screen"] == "allowed")
+    test_file().is_some()
+        && !(crate::test_mic::active() && bridge::sources()["screen"] == "allowed")
 }
 
 /// `~/Movies/Sokki`, or `SOKKI_VIDEOS_DIR` (the test app's).
@@ -557,7 +558,10 @@ mod tests {
         // video plus its sound (AAC, 32 kbit/s, about the FLAC's size).
         let screen = std::fs::metadata(out.join(SCREEN_FILE)).unwrap().len();
         let sound = std::fs::metadata(out.join(MIC_FILE)).unwrap().len();
-        assert!(size < screen + 2 * sound + 100_000, "{size} > {screen} + 2 × {sound}");
+        assert!(
+            size < screen + 2 * sound + 100_000,
+            "{size} > {screen} + 2 × {sound}"
+        );
         let _ = std::fs::remove_dir_all(&out);
     }
 }

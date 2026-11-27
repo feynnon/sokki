@@ -42,6 +42,10 @@ pub struct VoiceProfile {
     /// unused for a year are deleted ([`VoiceProfiles::forget_unused`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_heard: Option<String>,
+    /// Other names this person had ("Mara" before "Mara Lind"): a
+    /// speaker or a call name with one of them is this person.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
 }
 
 impl VoiceProfile {
@@ -52,8 +56,24 @@ impl VoiceProfile {
             emails: Vec::new(),
             consent_at: None,
             last_heard: None,
+            aliases: Vec::new(),
         }
     }
+
+    /// Whether `name` is this person: their name or one of their old ones,
+    /// in any case and spacing.
+    pub fn is_called(&self, name: &str) -> bool {
+        let n = norm(name);
+        norm(&self.name) == n || self.aliases.iter().any(|a| norm(a) == n)
+    }
+}
+
+/// A name compared without case and extra spaces.
+fn norm(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -143,7 +163,7 @@ impl VoiceProfiles {
                 );
             }
         }
-        match self.profiles.iter_mut().find(|p| p.name == name) {
+        match self.profiles.iter_mut().find(|p| p.is_called(name)) {
             Some(p) => {
                 p.embeddings.push(e);
                 let excess = p.embeddings.len().saturating_sub(MAX_EMBEDDINGS_PER_NAME);
@@ -160,7 +180,73 @@ impl VoiceProfiles {
 
     /// The person called `name`, if known.
     pub fn person(&self, name: &str) -> Option<&VoiceProfile> {
-        self.profiles.iter().find(|p| p.name == name)
+        self.profiles
+            .iter()
+            .find(|p| p.name == name)
+            .or_else(|| self.profiles.iter().find(|p| p.is_called(name)))
+    }
+
+    /// The name Sokki uses for the person called `name` (their name for an
+    /// old name or another spelling), or `name` itself for someone unknown.
+    pub fn canonical(&self, name: &str) -> String {
+        self.person(name)
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| name.trim().to_string())
+    }
+
+    /// The person called `from` is now called `to`: their profile is
+    /// renamed, or merged into `to`'s when Sokki knows `to` already (voices,
+    /// addresses, consent, old names). `from` stays as an old name. Returns
+    /// whether `from` was known. Saves.
+    pub fn rename_person(&mut self, from: &str, to: &str) -> Result<bool> {
+        let to = to.trim();
+        if to.is_empty() {
+            bail!("voice profile name is empty");
+        }
+        let Some(i) = self.profiles.iter().position(|p| p.is_called(from)) else {
+            return Ok(false);
+        };
+        match self
+            .profiles
+            .iter()
+            .position(|p| p.is_called(to))
+            .filter(|&j| j != i)
+        {
+            Some(j) => {
+                let old = self.profiles.remove(i);
+                let j = if j > i { j - 1 } else { j };
+                let p = &mut self.profiles[j];
+                // Oldest first, the newest kept, as `enroll` does.
+                p.embeddings.splice(0..0, old.embeddings);
+                let excess = p.embeddings.len().saturating_sub(MAX_EMBEDDINGS_PER_NAME);
+                p.embeddings.drain(..excess);
+                for e in old.emails {
+                    if !p.emails.contains(&e) {
+                        p.emails.push(e);
+                    }
+                }
+                p.consent_at = match (p.consent_at.take(), old.consent_at) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (a, b) => a.or(b),
+                };
+                p.last_heard = p.last_heard.take().max(old.last_heard);
+                for a in std::iter::once(old.name).chain(old.aliases) {
+                    if !p.is_called(&a) {
+                        p.aliases.push(a);
+                    }
+                }
+            }
+            None => {
+                let p = &mut self.profiles[i];
+                let old = std::mem::replace(&mut p.name, to.to_string());
+                if !p.is_called(&old) {
+                    p.aliases.push(old);
+                }
+                p.aliases.retain(|a| norm(a) != norm(to));
+            }
+        }
+        self.save()?;
+        Ok(true)
     }
 
     /// Changes the person called `name` (created if unknown) and saves.
@@ -169,7 +255,12 @@ impl VoiceProfiles {
         if name.is_empty() {
             bail!("voice profile name is empty");
         }
-        let i = match self.profiles.iter().position(|p| p.name == name) {
+        let i = match self
+            .profiles
+            .iter()
+            .position(|p| p.name == name)
+            .or_else(|| self.profiles.iter().position(|p| p.is_called(name)))
+        {
             Some(i) => i,
             None => {
                 self.profiles.push(VoiceProfile::new(name));
@@ -422,5 +513,48 @@ mod tests {
         let s = p.scores(&[0.2, 1.0]);
         assert_eq!(s[0].0, "B");
         assert_eq!(s[1].0, "A");
+    }
+
+    #[test]
+    fn one_person_under_any_spelling_and_old_name() {
+        let path = tmp_path("rename");
+        let mut p = VoiceProfiles::open(&path).unwrap();
+        p.enroll("Mara", &[1.0, 0.0]).unwrap();
+        p.update("Mara", |v| v.emails = vec!["mara@example.com".into()])
+            .unwrap();
+        // Another spelling is the same person, not a new one.
+        p.enroll("mARA ", &[0.9, 0.1]).unwrap();
+        assert_eq!(p.names(), vec!["Mara"]);
+        assert_eq!(p.person("MARA").unwrap().embeddings.len(), 2);
+
+        // Typed as the full name: renamed, the first name kept as an old one.
+        assert!(p.rename_person("Mara", "Mara Lind").unwrap());
+        assert_eq!(p.names(), vec!["Mara Lind"]);
+        assert_eq!(p.canonical("mara"), "Mara Lind");
+        assert_eq!(p.canonical("Mara  LIND"), "Mara Lind");
+        assert_eq!(p.canonical("Jonas"), "Jonas");
+
+        // Two records of one person: merged into the one asked for.
+        p.update("Jo", |v| {
+            v.emails = vec!["jo@example.com".into()];
+            v.consent_at = Some("2026-11-20T10:00:00Z".into());
+        })
+        .unwrap();
+        p.enroll("Jo", &[0.0, 1.0]).unwrap();
+        p.update("Jo Weber", |v| v.emails = vec!["jo@example.com".into()])
+            .unwrap();
+        assert!(p.rename_person("Jo", "Jo Weber").unwrap());
+        let jo = p.person("jo").unwrap();
+        assert_eq!(jo.name, "Jo Weber");
+        assert_eq!(jo.embeddings.len(), 1);
+        assert_eq!(jo.emails, vec!["jo@example.com"]);
+        assert!(jo.consent_at.is_some());
+        assert_eq!(p.names(), vec!["Mara Lind", "Jo Weber"]);
+        assert!(!p.rename_person("Nobody", "Somebody").unwrap());
+
+        // Kept on disk.
+        let q = VoiceProfiles::open(&path).unwrap();
+        assert_eq!(q.canonical("Mara"), "Mara Lind");
+        assert_eq!(q.canonical("jo"), "Jo Weber");
     }
 }

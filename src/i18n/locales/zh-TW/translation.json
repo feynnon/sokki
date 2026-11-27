@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "無法儲存"
+    "saveFailed": "無法儲存",
+    "mailsTo": "筆記寄至 {{email}}"
   }
 }

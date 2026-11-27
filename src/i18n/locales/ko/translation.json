@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "저장할 수 없음"
+    "saveFailed": "저장할 수 없음",
+    "mailsTo": "{{email}}(으)로 노트를 받습니다"
   }
 }

@@ -12,7 +12,10 @@ use tauri::{AppHandle, Manager};
 
 fn paths(app: &AppHandle) -> Option<sokki_index::Paths> {
     let data = app.path().app_data_dir().ok()?;
-    let user_name = crate::settings::get_settings(app).meetings.user_name.clone();
+    let user_name = crate::settings::get_settings(app)
+        .meetings
+        .user_name
+        .clone();
     Some(sokki_index::Paths {
         index: data.join("index.sqlite"),
         meetings_dir: data.join("meetings"),

@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Не вдалося зберегти"
+    "saveFailed": "Не вдалося зберегти",
+    "mailsTo": "Отримує нотатки на {{email}}"
   }
 }

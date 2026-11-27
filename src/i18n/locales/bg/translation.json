@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Неуспешно запазване"
+    "saveFailed": "Неуспешно запазване",
+    "mailsTo": "Получава бележките на {{email}}"
   }
 }

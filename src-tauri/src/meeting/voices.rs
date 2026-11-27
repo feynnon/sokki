@@ -46,6 +46,233 @@ fn user_name(app: &AppHandle) -> String {
     crate::settings::get_settings(app).meetings.user_name
 }
 
+/// The name Sokki uses for the person called `name`: their own name for an
+/// old name or another spelling ("mara" → "Mara Lind"), else `name`.
+pub fn person_name(app: &AppHandle, name: &str) -> String {
+    match process::voice_profiles(app) {
+        Some(p) => p.canonical(name),
+        None => name.trim().to_string(),
+    }
+}
+
+/// Every name of the person using Sokki: theirs and the old ones.
+fn user_names(app: &AppHandle) -> Vec<String> {
+    let user = user_name(app);
+    let mut out = vec![user.clone()];
+    if let Some(p) = process::voice_profiles(app)
+        .as_ref()
+        .and_then(|p| p.person(&user).cloned())
+    {
+        out.push(p.name);
+        out.extend(p.aliases);
+    }
+    out
+}
+
+/// A name compared without case and extra spaces.
+fn norm(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// `to` is another way to write `from`: another case, or the full name for
+/// a first name ("Mara" → "Mara Lind") and back. Robin, 27 Nov 2026: one
+/// person showed under a first name in some meetings, a full name in others.
+fn same_name(from: &str, to: &str) -> bool {
+    let (a, b) = (norm(from), norm(to));
+    !a.is_empty()
+        && !b.is_empty()
+        && (a == b || b.starts_with(&format!("{a} ")) || a.starts_with(&format!("{b} ")))
+}
+
+/// The person called `from` is now called `to`, everywhere: their profile
+/// (merged when `to` is known too), every meeting where a speaker has one
+/// of their names, and the user's own name when it's them. Returns the
+/// meetings that changed.
+fn rename_person(
+    app: &AppHandle,
+    store: &MeetingStore,
+    from: &str,
+    to: &str,
+    backup: Backup,
+) -> Result<Vec<String>> {
+    let mut profiles = process::voice_profiles(app).context("Voice profiles unavailable")?;
+    // Every name of both records, before anything changes.
+    let mut names: Vec<String> = vec![norm(from)];
+    for n in [from, to] {
+        if let Some(p) = profiles.person(n) {
+            names.push(norm(&p.name));
+            names.extend(p.aliases.iter().map(|a| norm(a)));
+        }
+    }
+    let is_them = |name: &str| norm(name) != norm(to) && names.contains(&norm(name));
+    // What each meeting renames. The meeting list and speakers.json can
+    // disagree (a meeting of 26 Nov 2026 had a name only in speakers.json
+    // and the note), so both are read.
+    let mut plan: Vec<(MeetingRecord, Vec<String>)> = Vec::new();
+    for r in store.list().into_iter().filter(processed) {
+        let mut olds: Vec<String> = r
+            .speakers
+            .iter()
+            .cloned()
+            .chain(
+                process::load_speakers(&store.audio_dir(&r.id))
+                    .into_iter()
+                    .map(|s| s.name),
+            )
+            .filter(|s| is_them(s))
+            .collect();
+        olds.sort();
+        olds.dedup();
+        if !olds.is_empty() {
+            plan.push((r, olds));
+        }
+    }
+    let mut settings = crate::settings::get_settings(app);
+    let user_changes = is_them(&settings.meetings.user_name);
+    // A copy of everything this touches first (release manager, 27 Nov:
+    // the join rewrites real notes in 40 meetings).
+    if backup == Backup::Always || plan.len() > 1 {
+        let mut files = vec![profiles.path().to_path_buf()];
+        if let Some(root) = plan.first().map(|(r, _)| store.audio_dir(&r.id)) {
+            if let Some(meetings) = root.parent() {
+                files.push(meetings.join("index.json"));
+            }
+        }
+        if user_changes {
+            if let Ok(dir) = app.path().app_data_dir() {
+                files.push(dir.join("settings_store.json"));
+            }
+        }
+        for (r, _) in &plan {
+            files.push(store.audio_dir(&r.id).join(process::SPEAKERS_FILE));
+            if let Some(note) = r.note_path.as_deref() {
+                files.push(std::path::PathBuf::from(note));
+            }
+        }
+        let dir = app
+            .path()
+            .app_data_dir()
+            .context("No app data folder")?
+            .join("backups")
+            .join(format!(
+                "{}-{}",
+                backup.prefix(),
+                chrono::Local::now().format("%Y%m%d-%H%M%S-%3f")
+            ));
+        backup_files(&dir, &files)?;
+        log::info!(
+            "Speakers: {} file(s) backed up to {} before renaming a person in {} meeting(s)",
+            files.len(),
+            dir.display(),
+            plan.len()
+        );
+    }
+    profiles.rename_person(from, to)?;
+    if user_changes {
+        settings.meetings.user_name = to.to_string();
+        crate::settings::write_settings(app, settings);
+        log::info!("Speakers: the user's own name follows their person");
+    }
+    let mut changed = Vec::new();
+    for (r, olds) in &plan {
+        for old in olds {
+            rename_in(app, store, &r.id, old, to)?;
+        }
+        changed.push(r.id.clone());
+    }
+    Ok(changed)
+}
+
+/// When [`rename_person`] copies the files it changes first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Backup {
+    /// Always (the join at start).
+    Always,
+    /// When more than one meeting changes (a rename in the card).
+    SeveralMeetings,
+}
+
+impl Backup {
+    fn prefix(self) -> &'static str {
+        match self {
+            Backup::Always => "speaker-join",
+            Backup::SeveralMeetings => "speaker-rename",
+        }
+    }
+}
+
+/// Copies `files` that exist into `dir` (numbered, so equal names don't
+/// clash) and writes `manifest.json` there: each original path with its
+/// copy, so a restore puts every byte back where it was.
+pub fn backup_files(dir: &Path, files: &[std::path::PathBuf]) -> Result<()> {
+    std::fs::create_dir_all(dir).with_context(|| format!("Can't create {}", dir.display()))?;
+    let mut manifest = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (i, f) in files.iter().enumerate() {
+        if !f.is_file() || !seen.insert(f.clone()) {
+            continue;
+        }
+        let name = f
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let copy = format!("{i:04}-{name}");
+        std::fs::copy(f, dir.join(&copy))
+            .with_context(|| format!("Backing up {} failed", f.display()))?;
+        manifest.push(serde_json::json!({ "original": f, "copy": copy }));
+    }
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest)?,
+    )
+    .with_context(|| format!("Can't write {}", dir.display()))?;
+    Ok(())
+}
+
+/// Joins the records of one person that came apart before Sokki knew old
+/// names (27 Nov 2026: three people each as a first name with the voice
+/// and as a full name with the address). A first name joins the one full
+/// name that starts with it when both share an address, the first name has
+/// none, or it is the user's. Runs at start; does nothing once joined.
+pub fn join_name_variants(app: &AppHandle) {
+    let Some(profiles) = process::voice_profiles(app) else {
+        return;
+    };
+    let user = norm(&user_name(app));
+    let people = profiles.profiles().to_vec();
+    let mut pairs = Vec::new();
+    for short in &people {
+        let longer: Vec<_> = people
+            .iter()
+            .filter(|p| {
+                p.name != short.name
+                    && norm(&p.name).starts_with(&format!("{} ", norm(&short.name)))
+            })
+            .collect();
+        let [long] = longer.as_slice() else { continue };
+        let shared = short.emails.iter().any(|e| long.emails.contains(e));
+        if shared || short.emails.is_empty() || norm(&short.name) == user {
+            pairs.push((short.name.clone(), long.name.clone()));
+        }
+    }
+    let store = store(app);
+    for (short, long) in &pairs {
+        match rename_person(app, &store, short, long, Backup::Always) {
+            Ok(ids) => log::info!(
+                "Speakers: joined two records of one person ({} meeting(s) renamed)",
+                ids.len()
+            ),
+            Err(e) => log::warn!("Speakers: joining two records of one person failed: {e:#}"),
+        }
+    }
+    if !pairs.is_empty() {
+        crate::local_index::refresh(app);
+    }
+}
+
 /// Known people, from the voice profiles.
 pub fn people(app: &AppHandle) -> Vec<Person> {
     process::voice_profiles(app)
@@ -103,13 +330,30 @@ fn processed(r: &MeetingRecord) -> bool {
 }
 
 fn all_speakers(store: &MeetingStore) -> (Vec<MeetingRecord>, Vec<MeetingSpeakers>) {
+    all_speakers_named(store, None)
+}
+
+/// [`all_speakers`], each name as the person's own (`profiles`), so one
+/// person is one voice on the Sprecher page whatever a note still says.
+fn all_speakers_named(
+    store: &MeetingStore,
+    profiles: Option<&diarize::VoiceProfiles>,
+) -> (Vec<MeetingRecord>, Vec<MeetingSpeakers>) {
     let records: Vec<MeetingRecord> = store.list().into_iter().filter(processed).collect();
     let meetings = records
         .iter()
         .map(|r| MeetingSpeakers {
             meeting_id: r.id.clone(),
             started_at: r.started_at.clone(),
-            speakers: process::load_speakers(&store.audio_dir(&r.id)),
+            speakers: process::load_speakers(&store.audio_dir(&r.id))
+                .into_iter()
+                .map(|mut s| {
+                    if let Some(p) = profiles.filter(|_| !is_placeholder(&s.name)) {
+                        s.name = p.canonical(&s.name);
+                    }
+                    s
+                })
+                .collect(),
         })
         .filter(|m| !m.speakers.is_empty())
         .collect();
@@ -155,10 +399,10 @@ fn has_audio(store: &MeetingStore, r: &MeetingRecord) -> bool {
 /// Every voice across meetings, for the Sprecher page.
 pub fn page(app: &AppHandle) -> VoicesPage {
     let store = store(app);
-    let user = user_name(app);
-    let (records, meetings) = all_speakers(&store);
-    let groups = voices::group(&meetings, &user, SAME_VOICE);
     let profiles = process::voice_profiles(app);
+    let user = person_name(app, &user_name(app));
+    let (records, meetings) = all_speakers_named(&store, profiles.as_ref());
+    let groups = voices::group(&meetings, &user, SAME_VOICE);
     let people = people(app);
     let by_id: HashMap<&str, &MeetingRecord> = records.iter().map(|r| (r.id.as_str(), r)).collect();
     let mut invitee_cache: HashMap<String, Vec<Invitee>> = HashMap::new();
@@ -270,7 +514,8 @@ fn name_the_rest(app: &AppHandle, store: &MeetingStore, id: &str) -> Vec<String>
         else {
             break;
         };
-        let left = p.left.expect("checked");
+        let mut left = p.left.expect("checked");
+        left.name = person_name(app, &left.name);
         if rename_in(app, store, id, &p.speaker, &left.name).is_err() {
             break;
         }
@@ -362,14 +607,38 @@ pub fn name_voice(
     emails: &[String],
     consent: bool,
 ) -> Result<u32> {
-    let to = to.trim();
-    if to.is_empty() {
+    if to.trim().is_empty() {
         bail!("The name is empty.");
     }
+    // "mara lind" for a known "Mara Lind" is them, not someone new.
+    let canonical = person_name(app, to);
+    let to = canonical.as_str();
     let store = store(app);
     let mut embeddings = Vec::new();
     let mut ids: Vec<String> = Vec::new();
     for m in members {
+        // A known person given their full name (or another spelling): the
+        // person is renamed, in every meeting, not split in two.
+        let known = !is_placeholder(&m.speaker)
+            && process::voice_profiles(app).is_some_and(|p| p.person(&m.speaker).is_some());
+        if m.speaker != to && known && same_name(&m.speaker, to) {
+            for id in rename_person(app, &store, &m.speaker, to, Backup::SeveralMeetings)? {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+            if let Some(e) = process::load_speakers(&store.audio_dir(&m.meeting_id))
+                .into_iter()
+                .find(|s| s.name == to)
+                .and_then(|s| s.embedding)
+            {
+                embeddings.push(e);
+            }
+            if !ids.contains(&m.meeting_id) {
+                ids.push(m.meeting_id.clone());
+            }
+            continue;
+        }
         if m.speaker != to {
             embeddings.extend(rename_in(app, &store, &m.meeting_id, &m.speaker, to)?);
         } else if let Some(e) = process::load_speakers(&store.audio_dir(&m.meeting_id))
@@ -529,11 +798,14 @@ fn name_from_call(app: &AppHandle, store: &MeetingStore, r: &MeetingRecord) -> u
         .iter()
         .map(|s| s.to_string())
         .collect();
-    self_names.push(user_name(app));
+    self_names.extend(user_names(app));
     // At least a few seconds together, so one stray caption names nobody.
     let pairs = voices::names_from_call(&turns, &spans, &self_names, 3.0);
     let mut n = 0;
     for (speaker, name) in pairs {
+        // The call's "Lena Vogt" is the known "Lena Vogt", however
+        // the call writes it.
+        let name = person_name(app, &name);
         if rename_in(app, store, &r.id, &speaker, &name).is_ok() {
             n += 1;
         }
@@ -647,4 +919,36 @@ fn wav_data_url(samples: &[f32]) -> Result<String> {
         "data:audio/wav;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(buf.into_inner())
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_backup_holds_every_file_byte_for_byte() {
+        let root = std::env::temp_dir().join(format!("sokki-backup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("a")).unwrap();
+        std::fs::create_dir_all(root.join("b")).unwrap();
+        let one = root.join("a/speakers.json");
+        let two = root.join("b/speakers.json");
+        std::fs::write(&one, b"[{\"name\":\"Mara\"}]").unwrap();
+        std::fs::write(&two, [0u8, 159, 146, 150]).unwrap();
+        let missing = root.join("c/none.json");
+        let dir = root.join("backup");
+        backup_files(&dir, &[one.clone(), two.clone(), missing, one.clone()]).unwrap();
+        let manifest: Vec<serde_json::Value> =
+            serde_json::from_slice(&std::fs::read(dir.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(manifest.len(), 2);
+        for m in manifest {
+            let original = std::path::PathBuf::from(m["original"].as_str().unwrap());
+            let copy = dir.join(m["copy"].as_str().unwrap());
+            assert_eq!(
+                std::fs::read(original).unwrap(),
+                std::fs::read(copy).unwrap()
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "No s'ha pogut desar"
+    "saveFailed": "No s'ha pogut desar",
+    "mailsTo": "Rep les notes a {{email}}"
   }
 }

@@ -1623,6 +1623,7 @@
     "offerHint": "Haken nur bei denen, die einverstanden sind.",
     "offerKeep": "Merken",
     "offerLater": "Nicht jetzt",
-    "saveFailed": "Konnte nicht sichern"
+    "saveFailed": "Konnte nicht sichern",
+    "mailsTo": "Bekommt die Notizen an {{email}}"
   }
 }

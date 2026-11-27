@@ -277,9 +277,31 @@ pub fn invitee_name(i: &Invitee, people: &[Person]) -> Option<String> {
     i.name
         .as_deref()
         .map(str::trim)
-        .filter(|n| !n.is_empty())
+        .filter(|n| !n.is_empty() && !n.contains('@'))
         .map(String::from)
-        .or(email)
+        .or_else(|| email.as_deref().map(name_from_address))
+}
+
+/// "lena.vogt@example.com" → "Lena Vogt": a calendar guest without a
+/// display name (Google gives only the address, as on 27 Nov 2026) is
+/// proposed by name, not as an address.
+pub fn name_from_address(email: &str) -> String {
+    let local = email.split('@').next().unwrap_or(email);
+    let words: Vec<String> = local
+        .split(['.', '_', '-', '+'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().chain(c.flat_map(char::to_lowercase)).collect(),
+                None => String::new(),
+            }
+        })
+        .collect();
+    if words.is_empty() || !local.chars().any(char::is_alphabetic) {
+        return email.to_string();
+    }
+    words.join(" ")
 }
 
 /// Names to propose for the unnamed speakers of one meeting.
@@ -841,5 +863,18 @@ mod tests {
         let c = group_candidates(&g, &inv, &[], "Robin");
         assert_eq!(c.len(), 1);
         assert_eq!((c[0].0.name.as_str(), c[0].1), ("Mara", 3));
+    }
+
+    #[test]
+    fn a_guest_known_only_by_address_is_proposed_by_name() {
+        assert_eq!(name_from_address("lena.vogt@example.com"), "Lena Vogt");
+        assert_eq!(name_from_address("JONAS_weber@example.org"), "Jonas Weber");
+        assert_eq!(name_from_address("12345@example.com"), "12345@example.com");
+        let guest = Invitee {
+            name: Some("mia.sand@example.com".into()),
+            email: Some("mia.sand@example.com".into()),
+            is_me: false,
+        };
+        assert_eq!(invitee_name(&guest, &[]).as_deref(), Some("Mia Sand"));
     }
 }

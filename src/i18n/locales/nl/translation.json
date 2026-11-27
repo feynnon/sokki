@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Kon niet opslaan"
+    "saveFailed": "Kon niet opslaan",
+    "mailsTo": "Krijgt de notities op {{email}}"
   }
 }

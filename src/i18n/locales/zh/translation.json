@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "无法保存"
+    "saveFailed": "无法保存",
+    "mailsTo": "笔记发送至 {{email}}"
   }
 }

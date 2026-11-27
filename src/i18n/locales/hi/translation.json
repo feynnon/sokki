@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "सहेजा नहीं जा सका"
+    "saveFailed": "सहेजा नहीं जा सका",
+    "mailsTo": "{{email}} पर नोट्स मिलते हैं"
   }
 }

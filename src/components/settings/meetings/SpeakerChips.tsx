@@ -38,7 +38,29 @@ export const SpeakerChips: React.FC<{
   const box = useRef<HTMLDivElement>(null);
   // Names shown at once, before the note catches up.
   const [given, setGiven] = useState<Record<string, string>>({});
+  // Each named speaker's first address: a dot and a tooltip on the chip
+  // show who gets the notes and where (Robin, 27 Nov: "I see no email").
+  const [mail, setMail] = useState<Record<string, string>>({});
   const key = `${record.id}|${record.speakers.join(",")}|${record.status.kind}`;
+  useEffect(() => {
+    if (record.status.kind !== "done" || editing) return;
+    let live = true;
+    const named = record.speakers.filter((s) => !PLACEHOLDER.test(s));
+    void Promise.all(
+      named.map((s) =>
+        commands
+          .personEmails(s)
+          .then((list) => [s, Array.isArray(list) ? (list[0] ?? "") : ""])
+          .catch(() => [s, ""]),
+      ),
+    ).then((pairs) => {
+      if (live) setMail(Object.fromEntries(pairs));
+    });
+    return () => {
+      live = false;
+    };
+  }, [key, editing]);
+
   useEffect(() => {
     setGiven({});
     if (record.status.kind !== "done") return;
@@ -75,7 +97,11 @@ export const SpeakerChips: React.FC<{
               key={sp}
               type="button"
               aria-expanded={editing === sp}
-              title={t("meetings.renameSpeaker")}
+              title={
+                mail[sp]
+                  ? t("speakers.mailsTo", { email: mail[sp] })
+                  : t("meetings.renameSpeaker")
+              }
               onClick={(e) => {
                 const chip = e.currentTarget;
                 const room = (box.current?.clientWidth ?? PANEL_W) - PANEL_W;
@@ -90,6 +116,12 @@ export const SpeakerChips: React.FC<{
               }}
               className={`h-[22px] px-2 inline-flex items-center rounded-md text-[11px] font-medium cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary ${suggest ? "text-text bg-wash border border-logo-primary" : "bg-wash text-ink-2 hover:text-text"}`}
             >
+              {!suggest && mail[sp] && (
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 rounded-full bg-emerald-400 me-1.5 shrink-0"
+                />
+              )}
               {suggest ? guess(p.candidates, or) : shown}
             </button>
           );

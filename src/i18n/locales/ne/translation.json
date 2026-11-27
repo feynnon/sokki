@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "सुरक्षित गर्न सकिएन"
+    "saveFailed": "सुरक्षित गर्न सकिएन",
+    "mailsTo": "{{email}} मा नोटहरू पाउँछ"
   }
 }

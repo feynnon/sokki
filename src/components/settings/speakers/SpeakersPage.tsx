@@ -106,7 +106,9 @@ export const SpeakersPage: React.FC = () => {
         <span className="flex flex-col min-w-0 flex-1">
           <span className="text-[13px] font-semibold truncate">{label(v)}</span>
           <span className="text-[12px] text-ink-3 truncate">
-            {t("speakers.meetings", { count: v.meetings })}
+            {v.emails.length > 0
+              ? `${v.emails[0]} · ${t("speakers.meetings", { count: v.meetings })}`
+              : t("speakers.meetings", { count: v.meetings })}
           </span>
         </span>
         {v.suggestion && (

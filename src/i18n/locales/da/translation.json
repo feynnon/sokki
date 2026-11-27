@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Kunne ikke gemme"
+    "saveFailed": "Kunne ikke gemme",
+    "mailsTo": "Får noterne på {{email}}"
   }
 }

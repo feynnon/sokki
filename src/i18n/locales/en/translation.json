@@ -1623,6 +1623,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Couldn't save"
+    "saveFailed": "Couldn't save",
+    "mailsTo": "Gets the notes at {{email}}"
   }
 }

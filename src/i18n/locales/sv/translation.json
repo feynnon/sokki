@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Kunde inte spara"
+    "saveFailed": "Kunde inte spara",
+    "mailsTo": "Får anteckningarna till {{email}}"
   }
 }

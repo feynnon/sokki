@@ -68,6 +68,14 @@ test.describe("Sprecher page", () => {
     const named = await args(page, "name_voice");
     expect(named[0].name).toBe("Jonas Weber");
 
+    // The list shows each person's address (Robin, 27 Nov: "I still
+    // don't see email addresses in the speakers").
+    await expect(
+      page
+        .getByRole("button", { name: /Lea Brandt/ })
+        .getByText(/lea@example\.com/),
+    ).toBeVisible();
+    await shot(page, "sprecher-liste-adressen");
     await page.getByRole("button", { name: /Lea Brandt/ }).click();
     await expect(
       page.getByText("Sokki erkennt diese Stimme wieder."),
@@ -386,6 +394,12 @@ test.describe("names in a meeting", () => {
     expect(await args(page, "set_person_emails")).toEqual([
       { name: "Jonas Weber", emails: ["jonas@example.com"] },
     ]);
+    // The chip says where the notes go.
+    await expect(chip).toHaveAttribute(
+      "title",
+      "Bekommt die Notizen an jonas@example.com",
+    );
+    await shot(page, "chip-mit-adresse");
     await chip.click();
     await expect(mail).toHaveValue("jonas@example.com");
 

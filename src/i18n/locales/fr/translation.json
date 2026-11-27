@@ -1382,6 +1382,7 @@
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
     "offerLater": "Not now",
-    "saveFailed": "Enregistrement impossible"
+    "saveFailed": "Enregistrement impossible",
+    "mailsTo": "Reçoit les notes à {{email}}"
   }
 }

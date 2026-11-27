@@ -36,7 +36,9 @@ static HOOK_SUBSCRIBERS: Mutex<Vec<Sender<String>>> = Mutex::new(Vec::new());
 /// Every hook event (without content, from the engine) as one JSON line to
 /// every subscriber, as the Linux daemon sends them.
 fn forward_hook_event(e: &sokki_engine::hooks::HookEvent) {
-    let Ok(line) = serde_json::to_string(e) else { return };
+    let Ok(line) = serde_json::to_string(e) else {
+        return;
+    };
     HOOK_SUBSCRIBERS
         .lock()
         .unwrap_or_else(|p| p.into_inner())
@@ -48,7 +50,10 @@ fn forward_hook_event(e: &sokki_engine::hooks::HookEvent) {
 pub fn start(app: &AppHandle) {
     let Some(path) = socket_path(app) else { return };
     if UnixStream::connect(&path).is_ok() {
-        log::warn!("Local API: another Sokki answers on {}; not listening", path.display());
+        log::warn!(
+            "Local API: another Sokki answers on {}; not listening",
+            path.display()
+        );
         return;
     }
     let _ = std::fs::remove_file(&path);
@@ -237,9 +242,9 @@ fn handle(app: &AppHandle, req: Request) -> Reply {
             Ok(()) => Reply::ok(),
             Err(e) => Reply::error(e),
         },
-        Request::InstallModels => Reply::error(
-            "On the Mac, Sokki downloads its models in the app (Settings → Models).",
-        ),
+        Request::InstallModels => {
+            Reply::error("On the Mac, Sokki downloads its models in the app (Settings → Models).")
+        }
         // The app applies settings_store.json changes within a second
         // (config_watch.rs).
         Request::Reload => Reply::ok(),

@@ -640,7 +640,10 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
 /// `scripts/test-meeting.sh` to check its resolution, frame rate and size.
 fn log_video(id: &str, stopped: Instant) {
     while stopped.elapsed() < Duration::from_secs(300) {
-        if let Some(meta) = crate::video::list().into_iter().find(|m| m.meeting_id == id) {
+        if let Some(meta) = crate::video::list()
+            .into_iter()
+            .find(|m| m.meeting_id == id)
+        {
             match meta.status.as_str() {
                 "ready" => {
                     let file = std::path::Path::new(&meta.folder)

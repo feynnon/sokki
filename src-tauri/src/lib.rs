@@ -297,6 +297,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     {
         meeting::detect::sync_with_settings(app_handle);
         meeting::auto::spawn(app_handle);
+        // One person, one name: joins first-name and full-name records of
+        // the same person (meeting/voices.rs), off the start path.
+        let handle = app_handle.clone();
+        std::thread::spawn(move || meeting::voices::join_name_variants(&handle));
         // A click on one of Sokki's banners opens its window.
         let handle = app_handle.clone();
         meeting::notify_macos::on_click(move || {

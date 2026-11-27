@@ -993,7 +993,12 @@ mod tests {
         // 2026-11-27: "meetings are detected when I just type". Keyboard
         // sound must never fill the window with speech, for any typist.
         use crate::audio_toolkit::vad::{EarshotVad, VoiceActivityDetector};
-        for (rate, level, seed) in [(5.0, 0.05, 1), (8.0, 0.3, 7), (12.0, 0.3, 3), (12.0, 0.8, 11)] {
+        for (rate, level, seed) in [
+            (5.0, 0.05, 1),
+            (8.0, 0.3, 7),
+            (12.0, 0.3, 3),
+            (12.0, 0.8, 11),
+        ] {
             let audio = typing_sound(90.0, rate, level, seed);
             let mut vad = EarshotVad::new(VAD_THRESHOLD).unwrap();
             let mut w = Window::new();

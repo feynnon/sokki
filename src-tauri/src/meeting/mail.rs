@@ -207,7 +207,8 @@ fn plan(app: &AppHandle, r: &MeetingRecord, resolve: bool) -> Plan {
 /// (Sprecher page or name field), else the matching invitee's, which is then
 /// kept on the speaker's profile when `keep` (a send, not a preview).
 fn speaker_addresses(app: &AppHandle, r: &MeetingRecord, keep: bool) -> Vec<(String, String)> {
-    let user = crate::settings::get_settings(app).meetings.user_name;
+    let user =
+        super::voices::person_name(app, &crate::settings::get_settings(app).meetings.user_name);
     let people = super::voices::people(app);
     let store = app.state::<Arc<MeetingStore>>().inner().clone();
     let invited: Vec<(Option<String>, Option<String>)> = super::voices::invitees(&store, r)
@@ -217,7 +218,12 @@ fn speaker_addresses(app: &AppHandle, r: &MeetingRecord, keep: bool) -> Vec<(Str
         .collect();
     let mut out = Vec::new();
     for name in &r.speakers {
-        if name.trim().is_empty() || *name == user || sokki_engine::speakers::is_placeholder(name) {
+        if name.trim().is_empty() || sokki_engine::speakers::is_placeholder(name) {
+            continue;
+        }
+        // Any of the user's names ("Mara" for "Mara Lind") is the user.
+        let name = &super::voices::person_name(app, name);
+        if *name == user {
             continue;
         }
         let own = people

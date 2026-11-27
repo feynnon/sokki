@@ -1621,6 +1621,7 @@
     "offerTitle": "Künftig von selbst erkennen?",
     "offerHint": "Haken nur bei denen, die einverstanden sind.",
     "offerKeep": "Merken",
-    "offerLater": "Nicht jetzt"
+    "offerLater": "Nicht jetzt",
+    "saveFailed": "Konnte nicht sichern"
   }
 }

@@ -918,6 +918,14 @@ pub async fn name_voice(
     .map_err(|e| format!("{e:#}"))
 }
 
+/// A person's email addresses (empty when Sokki knows none).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn person_emails(app: AppHandle, name: String) -> Vec<String> {
+    meeting::voices::emails(&app, &name)
+}
+
 /// Sets a person's email addresses.
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -1226,6 +1234,13 @@ pub async fn name_voice(
     _consent: bool,
 ) -> Result<u32, String> {
     Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub fn person_emails(_name: String) -> Vec<String> {
+    Vec::new()
 }
 
 #[cfg(not(target_os = "macos"))]

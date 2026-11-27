@@ -1685,6 +1685,12 @@ async nameVoice(members: VoiceMember[], name: string, emails: string[], consent:
 }
 },
 /**
+ * A person's email addresses (empty when Sokki knows none).
+ */
+async personEmails(name: string) : Promise<string[]> {
+    return await TAURI_INVOKE("person_emails", { name });
+},
+/**
  * Sets a person's email addresses.
  */
 async setPersonEmails(name: string, emails: string[]) : Promise<Result<null, string>> {

@@ -986,6 +986,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::meeting_voice_offer,
             commands::meeting::voice_offer_done,
             commands::meeting::name_voice,
+            commands::meeting::person_emails,
             commands::meeting::set_person_emails,
             commands::meeting::speaker_clip,
             commands::audio::get_microphone_mode,

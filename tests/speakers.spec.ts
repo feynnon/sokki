@@ -341,6 +341,129 @@ test.describe("names in a meeting", () => {
     await expect(card).toHaveCount(0);
   });
 
+  test("an address typed is kept: on close, on Esc, on Enter, and shown again", async ({
+    page,
+  }) => {
+    // Robin, 27 Nov: an address typed in the card was lost, whether he
+    // clicked "Benennen" or not.
+    await open(page, {
+      lang: "de",
+      theme: "dark",
+      section: "meetings",
+      extra: {
+        list_meetings: [
+          {
+            id: "m5",
+            started_at: new Date().toISOString(),
+            duration_s: 30 * 60,
+            status: { kind: "done" },
+            tracks: ["mic.flac", "system.flac"],
+            source_app: "Zoom",
+            title: "Planung Januar",
+            note_path: "/tmp/sokki-notes/m5.md",
+            speakers: ["Du", "Jonas Weber", "Speaker 3"],
+            warnings: [],
+            summary_missing: null,
+            audio_deleted: false,
+            online: true,
+          },
+        ],
+        get_meeting_note: {
+          summary: "- Jonas Weber bucht den Raum.",
+          transcript: "[00:04] Jonas Weber: Ich buche den Raum.",
+        },
+      },
+    });
+    const chip = page.getByRole("button", { name: "Jonas Weber", exact: true });
+    const card = page.getByRole("dialog", { name: "Jonas Weber ist …" });
+    const mail = card.getByRole("textbox", { name: "E-Mail-Adressen" });
+
+    // Typed, then a click outside: kept.
+    await chip.click();
+    await mail.fill("jonas@example.com");
+    await page.getByRole("heading", { name: "Planung Januar" }).click();
+    await expect(card).toHaveCount(0);
+    expect(await args(page, "set_person_emails")).toEqual([
+      { name: "Jonas Weber", emails: ["jonas@example.com"] },
+    ]);
+    await chip.click();
+    await expect(mail).toHaveValue("jonas@example.com");
+
+    // A second one, then Esc: kept, and nothing saved twice.
+    await mail.fill("jonas@example.com, j.weber@example.com");
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+    await chip.click();
+    await expect(mail).toHaveValue("jonas@example.com, j.weber@example.com");
+    // Closed without a change: nothing new is saved.
+    await page.keyboard.press("Escape");
+    expect(await args(page, "set_person_emails")).toHaveLength(2);
+
+    // Enter with the name unchanged saves the address too and closes.
+    await chip.click();
+    await mail.fill("jonas@example.com");
+    await mail.press("Enter");
+    await expect(card).toHaveCount(0);
+    const set = await args(page, "set_person_emails");
+    expect(set[set.length - 1]).toEqual({
+      name: "Jonas Weber",
+      emails: ["jonas@example.com"],
+    });
+    // Renaming is a different thing: nothing went through name_voice.
+    expect(await args(page, "name_voice")).toHaveLength(0);
+  });
+
+  test("a new name typed and the card closed: the speaker is named", async ({
+    page,
+  }) => {
+    await open(page, {
+      lang: "de",
+      theme: "dark",
+      section: "meetings",
+      extra: {
+        list_meetings: [
+          {
+            id: "m6",
+            started_at: new Date().toISOString(),
+            duration_s: 30 * 60,
+            status: { kind: "done" },
+            tracks: ["mic.flac"],
+            source_app: null,
+            title: "Kurz abgestimmt",
+            note_path: "/tmp/sokki-notes/m6.md",
+            speakers: ["Du", "Speaker 2"],
+            warnings: [],
+            summary_missing: null,
+            audio_deleted: false,
+            online: false,
+          },
+        ],
+        get_meeting_note: {
+          summary: "- Speaker 2 schreibt das Protokoll.",
+          transcript: "[00:04] Speaker 2: Ich schreibe das Protokoll.",
+        },
+      },
+    });
+    await page.getByRole("button", { name: "Speaker 2", exact: true }).click();
+    const card = page.getByRole("dialog", { name: "Speaker 2 ist …" });
+    await card
+      .getByRole("textbox", { name: "Name", exact: true })
+      .fill("Ida Kern");
+    await card
+      .getByRole("textbox", { name: "E-Mail-Adressen" })
+      .fill("ida@example.com");
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+    expect(await args(page, "name_voice")).toEqual([
+      {
+        members: [{ meeting_id: "m6", speaker: "Speaker 2" }],
+        name: "Ida Kern",
+        emails: ["ida@example.com"],
+        consent: false,
+      },
+    ]);
+  });
+
   test("chips on a second row: the card hangs under the clicked chip", async ({
     page,
   }) => {

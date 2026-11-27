@@ -452,6 +452,13 @@ pub fn voice_offer_done(app: &AppHandle, id: &str) -> Result<()> {
         .with_context(|| format!("Can't write to {}", dir.display()))
 }
 
+/// A person's email addresses (empty when Sokki knows none).
+pub fn emails(app: &AppHandle, name: &str) -> Vec<String> {
+    process::voice_profiles(app)
+        .and_then(|p| p.person(name.trim()).map(|v| v.emails.clone()))
+        .unwrap_or_default()
+}
+
 /// Sets a person's email addresses (all of them).
 pub fn set_emails(app: &AppHandle, name: &str, emails: Vec<String>) -> Result<()> {
     let mut profiles = process::voice_profiles(app).context("Voice profiles unavailable")?;

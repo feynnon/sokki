@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { parseEmails, useVoiceClip } from "../speakers/voiceClip";
+import { notify } from "@/stores/noticeStore";
 
 const PLACEHOLDER = /^(Speaker|Sprecher|Sprecherin) \d+$/;
 
@@ -137,28 +138,35 @@ const NamePanel: React.FC<{
   const { t } = useTranslation();
   const clip = useVoiceClip();
   const [other, setOther] = useState(candidates.length === 0);
-  const [name, setName] = useState(PLACEHOLDER.test(speaker) ? "" : speaker);
+  const placeholder = PLACEHOLDER.test(speaker);
+  const [name, setName] = useState(placeholder ? "" : speaker);
   const [emails, setEmails] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const audio = !record.audio_deleted;
   const card = useRef<HTMLDivElement>(null);
+  // The person's saved addresses, so the field shows them and a save only
+  // happens when they changed.
+  const saved = useRef<string[]>([]);
   useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // A chip toggles the card itself.
-      const chip = (target as Element).closest?.("[aria-expanded]");
-      if (card.current && !card.current.contains(target) && !chip) onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", down);
-    document.addEventListener("keydown", key);
+    if (placeholder) return;
+    let live = true;
+    void commands
+      .personEmails(speaker)
+      .then((list) => {
+        if (!live || !Array.isArray(list)) return;
+        saved.current = list;
+        setEmails((typed) => (typed ? typed : list.join(", ")));
+      })
+      .catch(() => {});
     return () => {
-      document.removeEventListener("mousedown", down);
-      document.removeEventListener("keydown", key);
+      live = false;
     };
-  }, [onClose]);
+  }, [speaker, placeholder]);
+
+  // What's typed is saved on Enter, on "Benennen" and when the card closes
+  // (click outside, Esc): an address typed is never lost (Robin, 27 Nov).
+  const latest = useRef({ name, emails });
+  latest.current = { name, emails };
+  const done = useRef(false);
 
   const give = async (to: string, mails: string[]) => {
     const n = to.trim();
@@ -173,10 +181,78 @@ const NamePanel: React.FC<{
       false,
     );
     if (r.status === "ok") onDone();
-    else setError(r.error);
+    else
+      notify({
+        title: t("speakers.saveFailed"),
+        detail: r.error,
+        level: "error",
+      });
   };
 
-  const submit = () => void give(name, parseEmails(emails));
+  /** Saves what's typed: a new name names the speaker (with the
+   * addresses); the same name with other addresses keeps those. */
+  const commit = () => {
+    if (done.current) return;
+    done.current = true;
+    const n = latest.current.name.trim();
+    const mails = parseEmails(latest.current.emails);
+    if (n && n !== speaker) {
+      void give(n, mails);
+      return;
+    }
+    if (placeholder) return;
+    const same =
+      mails.length === saved.current.length &&
+      mails.every((m) => saved.current.includes(m));
+    if (same) return;
+    saved.current = mails;
+    void commands.setPersonEmails(speaker, mails).then((r) => {
+      if (r.status !== "ok")
+        notify({
+          title: t("speakers.saveFailed"),
+          detail: r.error,
+          level: "error",
+        });
+    });
+  };
+
+  const close = () => {
+    commit();
+    onClose();
+  };
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
+  useEffect(() => {
+    // (Again after React's development double mount, whose cleanup below
+    // already committed nothing.)
+    done.current = false;
+    const down = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // A chip toggles the card itself.
+      const chip = (target as Element).closest?.("[aria-expanded]");
+      if (card.current && !card.current.contains(target) && !chip)
+        closeRef.current();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      document.removeEventListener("keydown", key);
+      // A chip click or another chip closes the card too: keep what's typed.
+      commit();
+    };
+  }, []);
+
+  const submit = () => {
+    const n = name.trim();
+    const renames = n && n !== speaker;
+    commit();
+    if (!renames) onClose();
+  };
   const onEnter = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") submit();
   };
@@ -220,7 +296,10 @@ const NamePanel: React.FC<{
             <button
               key={c.name}
               type="button"
-              onClick={() => void give(c.name, c.email ? [c.email] : [])}
+              onClick={() => {
+                done.current = true;
+                void give(c.name, c.email ? [c.email] : []);
+              }}
               className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-wash border border-line hover:border-logo-primary text-[13px] cursor-pointer"
             >
               {c.name}
@@ -268,10 +347,8 @@ const NamePanel: React.FC<{
           </div>
         </>
       )}
-      {(error || clip.error) && (
-        <p className="text-[12px] text-red-500 select-text">
-          {error ?? clip.error}
-        </p>
+      {clip.error && (
+        <p className="text-[12px] text-red-500 select-text">{clip.error}</p>
       )}
     </div>
   );

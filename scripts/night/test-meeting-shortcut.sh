@@ -16,7 +16,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 if grep -q '"kind": *"\(recording\|processing\)"' "$index" 2>/dev/null; then
   fail "a meeting records or processes; try later"
 fi
-pgrep -x Sokki >/dev/null || fail "Sokki is not running (start it with: open -g -a Sokki)"
+pgrep -f "/Sokki.app/Contents/MacOS/" >/dev/null || fail "Sokki is not running (start it with: open -g -a Sokki)"
 swiftc -O -o "$bin" "$here/post_keys.swift"
 
 # A blank TextEdit document takes the typed letters, so nothing lands in

@@ -399,8 +399,18 @@ export async function open(page: Page, s: Scenario) {
         meeting_speaker_proposals: () => [],
         meeting_voice_offer: () => [],
         voice_offer_done: () => null,
-        name_voice: (a) => (a.members as unknown[]).length + 1,
-        set_person_emails: () => null,
+        // Email addresses, per person: kept like voice-profiles.json.
+        name_voice: (a) => {
+          const all = ((w.__emails ??= {})[a.name as string] ??= []);
+          for (const e of a.emails as string[])
+            if (!all.includes(e)) all.push(e);
+          return (a.members as unknown[]).length + 1;
+        },
+        person_emails: (a) => (w.__emails ??= {})[a.name as string] ?? [],
+        set_person_emails: (a) => {
+          (w.__emails ??= {})[a.name as string] = a.emails;
+          return null;
+        },
         // A tenth of a second of silence.
         speaker_clip: () =>
           "data:audio/wav;base64,UklGRkQGAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YSAGAAA=",

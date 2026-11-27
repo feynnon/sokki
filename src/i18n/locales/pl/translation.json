@@ -1381,6 +1381,7 @@
     "offerTitle": "Recognise them from now on?",
     "offerHint": "Tick only those who agree.",
     "offerKeep": "Remember",
-    "offerLater": "Not now"
+    "offerLater": "Not now",
+    "saveFailed": "Nie udało się zapisać"
   }
 }

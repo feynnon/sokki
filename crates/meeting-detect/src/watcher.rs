@@ -89,6 +89,8 @@ pub enum DetectorState {
 pub struct Detector {
     config: WatcherConfig,
     state: DetectorState,
+    /// Meeting apps playing audio at the current observation, if known.
+    playing: Option<Vec<String>>,
 }
 
 fn find<'a>(apps: &'a [MeetingApp], id: &str) -> Option<&'a MeetingApp> {
@@ -100,6 +102,7 @@ impl Detector {
         Detector {
             config,
             state: DetectorState::Idle,
+            playing: None,
         }
     }
 
@@ -112,6 +115,9 @@ impl Detector {
     /// `end_after` while releasing. `None` when only a change can matter.
     pub fn next_deadline(&self) -> Option<Instant> {
         match &self.state {
+            // Held back (a browser that plays nothing): only a change can
+            // start it, so no deadline, or the event loop would spin.
+            DetectorState::Pending { app, .. } if !self.looks_like_a_call(app) => None,
             DetectorState::Pending { since, .. } => Some(*since + self.config.start_after),
             DetectorState::Releasing { released_at, .. } => {
                 Some(*released_at + self.config.end_after)
@@ -133,6 +139,26 @@ impl Detector {
     /// best first (as returned by [`classify_all`]). `now` must not go
     /// backwards between calls.
     pub fn observe(&mut self, now: Instant, apps: &[MeetingApp]) -> Vec<MeetingEvent> {
+        self.observe_playing(now, apps, None)
+    }
+
+    /// [`Detector::observe`], also told which meeting apps play audio now
+    /// (their [`MeetingApp::id`]s; `None`: not known, nothing is held back).
+    ///
+    /// A browser holding the mic is not yet a call: a tab can listen for
+    /// dictation, a voice search or a test page, and an agent's test
+    /// browser can open the mic while the user just types (2026-11-27: 11
+    /// prompts in a day, none a call). A call also plays the other side, so
+    /// a browser starts a meeting only once it plays audio too, or once its
+    /// tab is a known call service ([`MeetingApp::call`]). Native call apps
+    /// (Zoom, Slack, Teams) hold the mic only in a call and start as before.
+    pub fn observe_playing(
+        &mut self,
+        now: Instant,
+        apps: &[MeetingApp],
+        playing: Option<&[&str]>,
+    ) -> Vec<MeetingEvent> {
+        self.playing = playing.map(|p| p.iter().map(|s| s.to_string()).collect());
         let mut events = Vec::new();
         let state = std::mem::take(&mut self.state);
         self.state = match state {
@@ -185,11 +211,25 @@ impl Detector {
         now: Instant,
         events: &mut Vec<MeetingEvent>,
     ) -> DetectorState {
-        if now.saturating_duration_since(since) >= self.config.start_after {
+        if now.saturating_duration_since(since) >= self.config.start_after
+            && self.looks_like_a_call(&app)
+        {
             events.push(MeetingEvent::Started { app: app.clone() });
             DetectorState::Active { app, since }
         } else {
             DetectorState::Pending { app, since }
+        }
+    }
+
+    /// Whether `app` holding the mic is a call (see
+    /// [`Detector::observe_playing`]).
+    fn looks_like_a_call(&self, app: &MeetingApp) -> bool {
+        if app.kind != crate::AppKind::Browser || app.call.is_some() {
+            return true;
+        }
+        match &self.playing {
+            None => true,
+            Some(playing) => playing.iter().any(|id| id == app.id),
         }
     }
 
@@ -221,6 +261,12 @@ impl Detector {
 /// `FnMut() -> Result<Vec<AudioClient>>`; [`SystemSource`] is the real one.
 pub trait ClientSource: Send + 'static {
     fn poll(&mut self) -> Result<Vec<AudioClient>>;
+
+    /// The processes playing audio now, or `None` when the source can't
+    /// tell (then nothing is held back; see [`Detector::observe_playing`]).
+    fn poll_playing(&mut self) -> Option<Vec<AudioClient>> {
+        None
+    }
 }
 
 impl<F> ClientSource for F
@@ -239,6 +285,11 @@ pub struct SystemSource;
 impl ClientSource for SystemSource {
     fn poll(&mut self) -> Result<Vec<AudioClient>> {
         crate::audio_input_clients()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn poll_playing(&mut self) -> Option<Vec<AudioClient>> {
+        crate::audio_output_clients().ok()
     }
 }
 
@@ -487,7 +538,25 @@ impl Watcher {
                             let mut apps = classify_all(&clients, own_pid);
                             #[cfg(target_os = "macos")]
                             crate::macos::name_calls(&mut apps);
-                            for event in detector.observe(clock.now(), &apps) {
+                            let playing: Option<Vec<&str>> = source.poll_playing().map(|out| {
+                                classify_all(&out, own_pid).iter().map(|a| a.id).collect()
+                            });
+                            let was_pending = matches!(detector.state(), DetectorState::Pending { .. });
+                            let events =
+                                detector.observe_playing(clock.now(), &apps, playing.as_deref());
+                            if let DetectorState::Pending { app, since } = detector.state() {
+                                let held = clock.now().saturating_duration_since(*since);
+                                if was_pending
+                                    && held >= config.start_after
+                                    && held < config.start_after + config.poll_interval
+                                {
+                                    log::info!(
+                                        "meeting watcher: {} holds the mic but plays nothing; not a call yet",
+                                        app.label()
+                                    );
+                                }
+                            }
+                            for event in events {
                                 log::info!("meeting event: {event:?}");
                                 on_event(event);
                             }
@@ -555,6 +624,95 @@ mod tests {
             matched_by: MatchedBy::BundleId,
             call: None,
         }
+    }
+
+    fn browser(call: Option<&str>) -> MeetingApp {
+        MeetingApp {
+            kind: AppKind::Browser,
+            call: call.map(String::from),
+            ..app("chrome")
+        }
+    }
+
+    /// Every 2 s for `secs`, the given app holds the mic; `playing(t)` says
+    /// which apps play audio at t. Returns the times of `Started`.
+    fn starts(app: MeetingApp, secs: u64, playing: impl Fn(u64) -> Vec<&'static str>) -> Vec<u64> {
+        let t0 = Instant::now();
+        let mut d = Detector::new(WatcherConfig::default());
+        let mut out = Vec::new();
+        for t in (0..=secs).step_by(2) {
+            let p = playing(t);
+            for e in d.observe_playing(t0 + S * t as u32, std::slice::from_ref(&app), Some(&p)) {
+                if matches!(e, MeetingEvent::Started { .. }) {
+                    out.push(t);
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn browser_holding_the_mic_while_nothing_plays_is_no_call() {
+        // The 2026-11-27 case: Chrome holds the mic for a minute while the
+        // user types in other apps; Chrome plays nothing. No prompt.
+        assert_eq!(starts(browser(None), 600, |_| vec![]), Vec::<u64>::new());
+        // Something else playing doesn't make Chrome's mic a call.
+        assert_eq!(
+            starts(browser(None), 60, |_| vec!["slack"]),
+            Vec::<u64>::new()
+        );
+    }
+
+    #[test]
+    fn browser_call_starts_once_the_other_side_plays() {
+        // Joining a call in the browser: the mic first, the call audio a
+        // few seconds later. Starts on the first poll that has both.
+        assert_eq!(
+            starts(browser(None), 30, |t| if t >= 10 {
+                vec!["chrome"]
+            } else {
+                vec![]
+            }),
+            vec![10]
+        );
+        // A call that plays from the start starts as before (3 s, 4th s poll).
+        assert_eq!(starts(browser(None), 30, |_| vec!["chrome"]), vec![4]);
+    }
+
+    #[test]
+    fn named_browser_call_needs_no_sound() {
+        assert_eq!(
+            starts(browser(Some("Google Meet")), 30, |_| vec![]),
+            vec![4]
+        );
+    }
+
+    #[test]
+    fn native_call_app_needs_no_sound() {
+        assert_eq!(starts(app("zoom"), 30, |_| vec![]), vec![4]);
+    }
+
+    #[test]
+    fn held_back_browser_sets_no_deadline() {
+        // The event-driven loop waits for the deadline: a held-back browser
+        // must not leave one in the past, or it would spin.
+        let t0 = Instant::now();
+        let mut d = Detector::new(WatcherConfig::default());
+        let apps = [browser(None)];
+        d.observe_playing(t0, &apps, Some(&[]));
+        d.observe_playing(t0 + S * 10, &apps, Some(&[]));
+        assert!(matches!(d.state(), DetectorState::Pending { .. }));
+        assert_eq!(d.next_deadline(), None);
+    }
+
+    #[test]
+    fn unknown_playing_holds_nothing_back() {
+        let t0 = Instant::now();
+        let mut d = Detector::new(WatcherConfig::default());
+        let apps = [browser(None)];
+        d.observe(t0, &apps);
+        let events = d.observe(t0 + S * 4, &apps);
+        assert!(matches!(events.as_slice(), [MeetingEvent::Started { .. }]));
     }
 
     /// Run a script of (seconds since start, apps holding the mic) through

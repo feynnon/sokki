@@ -954,6 +954,62 @@ mod tests {
         assert_eq!(known_matches(&pieces, &[], KNOWN_VOICE).0, 0);
     }
 
+    /// Made-up keyboard sound, the same as scripts/make-typing-wav.py: key
+    /// clicks (noise burst with a resonance, key up 80 ms later) about
+    /// `rate` a second over faint room noise. Seeded.
+    fn typing_sound(secs: f32, rate: f32, level: f32, seed: u64) -> Vec<f32> {
+        let mut s = seed;
+        let mut next = move || {
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((s >> 40) as f32 / (1u64 << 24) as f32) * 2.0 - 1.0
+        };
+        let n = (secs * RATE as f32) as usize;
+        let mut out: Vec<f32> = (0..n).map(|_| next() * 0.002).collect();
+        let mut t = 0.0f32;
+        while t < secs {
+            t += 1.0 / rate * (0.5 + (next() + 1.0) * 0.5);
+            let start = (t * RATE as f32) as usize;
+            for (off, amp) in [(0usize, 1.0f32), (1280, 0.5)] {
+                let f = 1800.0 + 1200.0 * (next() + 1.0);
+                for i in 0..800 {
+                    let k = start + off + i;
+                    if k >= n {
+                        break;
+                    }
+                    let env = (-(i as f32) / 120.0).exp();
+                    let x = 0.6 * next()
+                        + 0.4 * (2.0 * std::f32::consts::PI * f * i as f32 / RATE as f32).sin();
+                    out[k] += level * amp * env * x;
+                }
+            }
+        }
+        out.iter().map(|x| x.clamp(-1.0, 1.0)).collect()
+    }
+
+    #[test]
+    fn typing_is_not_speech() {
+        // 2026-11-27: "meetings are detected when I just type". Keyboard
+        // sound must never fill the window with speech, for any typist.
+        use crate::audio_toolkit::vad::{EarshotVad, VoiceActivityDetector};
+        for (rate, level, seed) in [(5.0, 0.05, 1), (8.0, 0.3, 7), (12.0, 0.3, 3), (12.0, 0.8, 11)] {
+            let audio = typing_sound(90.0, rate, level, seed);
+            let mut vad = EarshotVad::new(VAD_THRESHOLD).unwrap();
+            let mut w = Window::new();
+            let mut most = 0.0f64;
+            for frame in audio.chunks_exact(EARSHOT_FRAME_SAMPLES) {
+                let speech = vad.push_frame(frame).map(|f| f.is_speech()).unwrap();
+                w.push(frame, speech);
+                most = most.max(w.speech_s());
+            }
+            assert!(
+                most < MIN_SPEECH_S / 2.0,
+                "{rate} keys/s at {level}: {most:.1} s of speech in 30 s"
+            );
+        }
+    }
+
     #[test]
     fn window_counts_speech_and_cuts_pieces() {
         let mut w = Window::new();

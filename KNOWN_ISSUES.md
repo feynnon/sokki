@@ -350,6 +350,25 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | AM6 | Own voice scores low against one stored sample | real voice on the built-in mic 0.64–0.70 (test voices 0.91), unknown speech up to 0.47, bar 0.5 | open: more samples of the user's voice would widen the gap |
 | AM7 | The pill's timer starts at 0:00 when an auto meeting shows, though the recording already holds the minute before | by design of listening in (2026-11-26) | open: the pill could start at the kept length |
 
+## Search index and the `sokki` command line (2026-11-26, `crates/sokki-index`, CLI.md)
+
+| # | Problem | Example | Fix idea |
+|---|---|---|---|
+| IX1 | The summary's tasks and decisions have no time or quote from the model: their evidence is the turn code finds with the most words in common (`evidence_origin: "match"`), a pointer, not proof | "Angebot der Druckerei prüfen" → the turn "Dann prüfe ich bis Freitag das neue Angebot der Druckerei" (made-up set); an item without two shared words of four letters or more gets none | ask the summary model for `evidence_ts` and a quote and keep only quotes code finds (research: Gemma's extraction is incomplete, never invented); needs a summary eval first |
+| IX2 | Keyword search misses another ending and any English question about a German meeting | `memory-search-de`: "reklamieren" doesn't find "reklamiert"; "termination notice" finds nothing (0 of 3) | stemming, or the vector eval (`memory-layer-2026-11.md`) |
+| IX3 | Trigram false matches are not measured: the made-up set has 46 turns and few distractors | "rat" also matches "Beratung", "Rathaus" | measure on a real archive in the private eval (50–100 questions) |
+| IX4 | Notes written before 26.11.2026 have no `segments.jsonl`: their turns have the note's mm:ss times, the next turn's start as end, and no channel (mic/system) | `sokki index status` counts `turns_with_exact_times` | reprocessing a meeting writes the file (only while its audio is kept) |
+| IX5 | A person is a name: "Anna" in one meeting and "Anna Beispiel" in another are two people, and a speaker named only in the transcript (not in a voice profile) counts like one named by hand | `sokki people` lists both | person ids from voice profiles and calendar e-mails |
+| IX6 | The dictation's app is the app in front when the history entry is saved, not where the text was pasted; older dictations have none | the test app's dictation (nothing pasted) got "Problem Reporter", a crash dialog that was in front (26.11.) | take the app at the paste, from `paste_tx` |
+| IX7 | No Settings screen for `agent_access` yet; only `sokki config agent_access …` | – | four designs on the canvas first (Robin's rule), then the screen |
+| IX8 | On the Mac the API's `models` state always says ready, and `install_models` is refused: the app's Models page manages downloads | `sokki status --json` | report the selected speech model's state |
+| IX9 | `sokki ask` on the Mac talks to `meetings.llm_base_url` (Ollama) only, as the old script did: with the built-in model selected it fails unless Ollama runs | `llm_provider: builtin` | start the built-in model for one question through `sokki_engine::llm::open` |
+| IX10 | The Linux build of `crates/sokki` after the split into macOS and Linux parts | – | fixed 27.11.: `cargo check --all-targets` and `cargo test` in the Arch box (`packaging/docker`, aarch64) without a warning; not yet run in the Omarchy VM |
+| IX11 | No item changes over time (`valid_from`/`invalid_at`): a task closed in a later meeting stays open in the index until the note's checkbox is ticked | – | as in the research, once a real case needs it |
+| IX12 | Hooks need `agent_access` on: the runner passes each hook's scope as `SOKKI_SCOPE`, which only narrows the setting | a CRM hook with access off gets "agent access is off" | Robin's call: a per-run grant from the runner for approved hooks (e.g. `SOKKI_HOOK_GRANT`) |
+| IX13 | Quitting by signal (SIGTERM, as the test scripts do) skips `RunEvent::Exit`, so `sokki.sock` stays as a file; clients then say "not running", and the next start replaces it (tested 26.11.) | – | none needed; a quit from the menu removes it |
+| IX14 | Own notes were in the index twice: the typed lines from `notes.md` and again from the note's "Meine Notizen" section | – | fixed 27.11.: with a `notes.md`, the note's section adds only Sokki's additions |
+
 ## Hooks (2026-11-26, HOOKS.md)
 
 | # | Problem | Example | Fix idea |
@@ -357,7 +376,7 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | H1 | Fixed: `own_notes.saved` fires on the Mac, 30 s after the last save (`meeting/own_notes.rs::save`) | – | – |
 | H2 | Linux has no `meeting.deleted` and no `own_notes.saved` | the Linux service can't delete a meeting and has no own notes | fire both once it has them |
 | H3 | Linux dictation ids are times, not history ids | `d:1764194412000` | once Linux keeps a dictation history |
-| H4 | `sokki hooks` on the Mac needs the repository's build of `crates/sokki` | `scripts/sokki hooks` runs `crates/sokki/target/{release,debug}/sokki`; no installed binary yet | ship the Rust CLI with the app (cli-index session) |
+| H4 | `sokki hooks` on the Mac needed the repository's build of `crates/sokki` | – | fixed 27.11.: the app bundles the Rust CLI (`resources/bin/sokki`, `scripts/build-sokki-cli.sh`), `install.sh` links it; `scripts/sokki` runs it |
 | H5 | A hook paused for a meeting (SIGSTOP) can lose a network call | a hook halfway through an HTTP request when a recording starts may get a timeout from the server after the meeting | the retry runs it again; if a real case shows up, let a hook opt out of pausing |
 | H6 | Approval pins only the files the `run` line names | a script that sources `lib.sh` can change `lib.sh` without a new allow | documented; pin the whole hooks folder if a real case shows up |
 | H7 | `meeting.note_ready` can fire more than once per meeting | after a reprocess; once more when a summary that waited for the model lands | by design (the note changed); hooks dedupe, as the Reminders example does |

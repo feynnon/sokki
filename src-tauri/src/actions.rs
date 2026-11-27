@@ -951,6 +951,13 @@ impl ShortcutAction for TranscribeAction {
                                     // "Your data": the user's own recordings, kept on
                                     // this Mac, and the words dictated so far.
                                     Ok(entry) => {
+                                        // The app the text goes into, for
+                                        // `sokki search --app` (local_index.rs).
+                                        hm.set_target_app(
+                                            entry.id,
+                                            crate::autocorrect::front_app_name().as_deref(),
+                                        );
+                                        crate::local_index::refresh(&ah);
                                         crate::hooks::dictation_done(
                                             entry.id,
                                             entry

@@ -13,6 +13,26 @@ pub struct Config {
     pub meetings: Meetings,
     pub dictation: Dictation,
     pub llm: LlmSettings,
+    pub agents: Agents,
+}
+
+/// What scripts, hooks and AI agents may read with `sokki search`, `get`
+/// and the other index commands.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Agents {
+    /// "off" (default), "summaries" (meeting list, summaries, decisions,
+    /// tasks, own notes), "transcripts" (plus transcripts), "dictations"
+    /// (plus dictations). What a cloud agent reads leaves the computer.
+    pub access: String,
+}
+
+impl Default for Agents {
+    fn default() -> Self {
+        Agents {
+            access: "off".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -99,6 +119,7 @@ impl Default for Config {
             meetings: Meetings::default(),
             dictation: Dictation::default(),
             llm: LlmSettings::default(),
+            agents: Agents::default(),
         }
     }
 }

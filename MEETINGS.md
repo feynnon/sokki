@@ -475,7 +475,9 @@ scripts/test-meeting.sh mic.wav system.wav`.
 | Path | What |
 |---|---|
 | `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, the built-in model server, Ollama; the hooks runner (`hooks/`, [HOOKS.md](HOOKS.md)) |
-| `crates/sokki` | The Linux/Omarchy host: `sokki daemon` (PipeWire recording, call detection, dictation), the CLI and the processing worker. See ARCHITECTURE.md |
+| `crates/sokki` | The `sokki` command line on macOS and Linux (CLI.md); on Linux also the host: `sokki daemon` (PipeWire recording, call detection, dictation) and the processing worker. See ARCHITECTURE.md |
+| `crates/sokki-api` | The local socket API both hosts serve (requests, replies, events): the specification |
+| `crates/sokki-index` | `index.sqlite`: what `sokki search/get/meetings/tasks` read. Derived from the notes, the meeting folders and `history.db`; rebuildable (see "Search index" below) |
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
 | `crates/meeting-detect` | Which processes use the mic (Core Audio), meeting-app matching, debounce watcher |
@@ -492,10 +494,61 @@ scripts/test-meeting.sh mic.wav system.wav`.
 
 Data on disk:
 - meeting audio + index: `~/Library/Application Support/org.sokki.app/meetings/`
+  (`index.json`, then one folder per meeting: the audio, `speakers.json`,
+  `timing.json`, `segments.jsonl`, and if any `items.jsonl` and `notes.md`)
 - voice profiles: `…/org.sokki.app/voice-profiles.json`
 - diarization models: `…/org.sokki.app/meeting-models/` (downloaded on first use)
 - notes: the folder set on the Meetings page (default `~/Documents/Sokki`)
 - hooks: `~/.config/sokki/hooks.toml`; their queue and logs in `…/org.sokki.app/hooks/`
+- the search index: `…/org.sokki.app/index.sqlite`; the local API's socket
+  `…/org.sokki.app/sokki.sock`; reads through `sokki`: `…/agent-access.log`
+
+## Search index (`crates/sokki-index`, 2026-11-26)
+
+The memory layer's step 1 (`docs/research/memory-layer-2026-11.md`): scripts,
+hooks and agents query everything Sokki recorded with keyword search,
+filters, stable ids and cited speaker turns. No models; vectors come later,
+behind an eval.
+
+- **The note carries its id.** `id: <meeting folder name>` in the
+  frontmatter, written by `meeting_core::note::render_note` (notes from
+  before 26.11.2026 have none; the index takes the id from the meeting's
+  record).
+- **One sidecar per meeting, `segments.jsonl`:** one line per paragraph of
+  the note's transcript, in order: `start_ms`, `end_ms`, `track` (`mic` =
+  the Mac's person, `system` = the call), `speaker_id` (`s1`, `s2`, …,
+  stays when the speaker is renamed) and the name at writing time. No text:
+  the note stays the truth, so edits in Obsidian count. Paragraph i of the
+  note is line i of the file; after an edit the index pairs them by the
+  shown time. Written by `sokki_engine::process::run` into the meeting
+  folder (Mac and Linux).
+- **Tasks** stay `- [ ] **Owner**: task`; a trailing `<!-- t=mm:ss -->`
+  (the own-notes comment style) points at where it was said.
+- **`index.sqlite`** (in the app's data folder): `sources` (a meeting, its
+  own notes, a dictation), `segments` (every citable piece: one speaker turn,
+  one summary bullet, one own-notes line, one hook section line, one
+  dictation; with times, speaker, person id, whether the name is confirmed,
+  channel), `source_people`, `people`, `dictations` (time, target app, raw
+  and cleaned text), `items` (tasks, decisions, hook items, with
+  `evidence_ms`, a quote and whether code found it in the transcript).
+  Search: FTS5 `unicode61` (accents folded) plus FTS5 `trigram` for parts
+  of German compounds, fused by rank (`docs/research/memory-index-recall-2026-11.md`).
+- **Up to date by itself.** Each source has a fingerprint (file sizes and
+  times, the record's fields): the app indexes a meeting right after its
+  note is written (`local_index::sync_meeting`, before the note is
+  announced), and after a rename, a new title, a delete or a dictation
+  (`local_index::refresh`, in the background); every `sokki` read syncs
+  first, so Obsidian edits show up too. `sokki index rebuild` starts over.
+- **Deletes.** Every row is keyed by its source. A deleted meeting, or one
+  marked `private: true` (in the note's frontmatter or its record), loses
+  all its rows in one transaction, with `secure_delete` on (SQLite and
+  FTS5's own), and the write-ahead log is checkpointed. The sample meeting
+  and the typing journal are never indexed.
+- **Who may read it:** `agent_access` (CONFIG.md), off by default:
+  `summaries` | `transcripts` | `dictations`. The app indexes either way
+  (the files are on disk already); the setting gates what `sokki` shows.
+- **Hooks write back** through `sokki note append` (a section in the note)
+  and `sokki item add` (a checked quote, kept in `items.jsonl`). CLI.md.
 
 ## Tests
 
@@ -506,6 +559,10 @@ python3 -I testdata/generate.py                      # once: synthetic fixtures
 (cd crates/meeting-core   && CARGO_TARGET_DIR=/tmp/hm-target-core   cargo test)
 (cd crates/meeting-detect && CARGO_TARGET_DIR=/tmp/hm-target-detect cargo test)
 (cd crates/sokki-engine   && CARGO_TARGET_DIR=/tmp/hm-target-engine cargo test)
+(cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test)   # index: sync, search, deletes, write-back
+(cd crates/sokki          && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test)   # the CLI's JSON, on made-up data
+(cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test --test recall_eval -- --ignored --nocapture)  # recall, needs $SOKKI_EVALS
+scripts/test-cli.sh   # the CLI against a test app in headless test mode (build it first, see the script)
 (cd crates/diarize        && CARGO_TARGET_DIR=/tmp/hm-target-diarize cargo test --release)
 (cd crates/meeting-e2e    && CARGO_TARGET_DIR=/tmp/hm-target-e2e    cargo test --release -- --nocapture --test-threads=1)
 

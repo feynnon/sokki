@@ -1,22 +1,57 @@
-//! `sokki`: dictation and meeting notes on Linux. One binary: the
-//! background service, its command line, and the processing worker.
+//! `sokki`: dictation and meeting notes, from the command line. On Linux
+//! one binary is the background service, its command line and the
+//! processing worker. On the Mac it is the command line of the app: it
+//! talks to the running app over the local socket (`sokki-api`), asks the
+//! app for transcriptions, and reads the index (`sokki-index`) directly.
 
-mod api;
-mod audio;
+mod args;
 mod client;
-mod config;
-mod daemon;
 mod hooks;
-mod keep_awake;
-mod local;
-mod models;
-mod output;
+mod memory;
 mod paths;
+// Plain files (meeting.json), also read by `sokki hooks` on the Mac.
 mod store;
+
+#[cfg(target_os = "macos")]
+mod mac;
+
+#[cfg(target_os = "linux")]
+mod audio;
+#[cfg(target_os = "linux")]
+mod config;
+#[cfg(target_os = "linux")]
+mod daemon;
+#[cfg(target_os = "linux")]
+mod keep_awake;
+#[cfg(target_os = "linux")]
+mod local;
+#[cfg(target_os = "linux")]
+mod models;
+#[cfg(target_os = "linux")]
+mod output;
+#[cfg(target_os = "linux")]
 mod worker;
 
 use anyhow::{bail, Context, Result};
 use api::{MeetingState, Request};
+use sokki_api as api;
+
+#[cfg(target_os = "linux")]
+const PLATFORM_HELP: &str = "\
+  sokki transcribe FILE [--json]             Any audio or video file to text
+  sokki ask [--think] [PROMPT]               Ask the local language model (stdin is appended)
+  sokki models install                       Download the speech models
+  sokki reload                               Re-read ~/.config/sokki/sokki.toml
+  sokki doctor                               Check the setup
+  sokki daemon                               Run the service (systemd does this)
+";
+
+#[cfg(target_os = "macos")]
+const PLATFORM_HELP: &str = "\
+  sokki transcribe FILE [--json]             Any audio or video file to text (waits while a meeting runs)
+  sokki ask [--think] [PROMPT]               Ask the local language model (stdin is appended)
+  sokki config [KEY [VALUE]]                 List, show or change a setting (CONFIG.md)
+";
 
 const HELP: &str = "\
 sokki: dictation and meeting notes, on your computer.
@@ -29,15 +64,43 @@ Usage:
   sokki open [ID|latest]                     Open a meeting's note
   sokki speakers ID [--json]                 Speakers of a meeting
   sokki name ID SPEAKER NAME [--forget]      Name a speaker (remembers the voice)
-  sokki transcribe FILE [--json]             Any audio or video file to text
-  sokki ask [--think] [PROMPT]               Ask the local language model (stdin is appended)
-  sokki models install                       Download the speech models
-  sokki reload                               Re-read ~/.config/sokki/sokki.toml
   sokki events                               Stream state and hook events as JSON lines
   sokki hooks list|allow|run|test|log        Your own commands on events (HOOKS.md)
-  sokki doctor                               Check the setup
-  sokki daemon                               Run the service (systemd does this)
 ";
+
+/// The commands that read or write the index.
+const MEMORY: [&str; 9] = [
+    "search", "get", "meetings", "tasks", "decisions", "people", "index", "note", "item",
+];
+
+fn print_help() {
+    print!("{HELP}{PLATFORM_HELP}\n{}", memory::HELP);
+}
+
+#[cfg(target_os = "macos")]
+fn memory_env() -> Result<memory::Env> {
+    mac::memory_env()
+}
+
+#[cfg(target_os = "linux")]
+fn memory_env() -> Result<memory::Env> {
+    let cfg = config::Config::load(&paths::config_file())?;
+    let mut scope = sokki_index::Scope::parse(&cfg.agents.access)?;
+    if let Some(s) = std::env::var("SOKKI_SCOPE").ok().filter(|s| !s.is_empty()) {
+        scope = scope.narrow(sokki_index::Scope::parse(&s)?);
+    }
+    Ok(memory::Env {
+        paths: sokki_index::Paths {
+            index: paths::data_dir().join("index.sqlite"),
+            meetings_dir: paths::meetings_dir(),
+            history_db: None,
+            user_name: cfg.meetings.user_name.clone(),
+        },
+        scope,
+        how_to_allow: "set access = \"summaries\" (or transcripts, dictations) under [agents] in ~/.config/sokki/sokki.toml",
+        audit_log: paths::data_dir().join("agent-access.log"),
+    })
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -51,6 +114,7 @@ fn main() {
         .format_timestamp(None)
         .init();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    #[cfg(target_os = "linux")]
     if let ["process", id] = words.as_slice() {
         std::process::exit(worker::main(id));
     }
@@ -65,6 +129,11 @@ fn flag(words: &[&str], f: &str) -> bool {
 }
 
 fn run(words: &[&str]) -> Result<()> {
+    if let Some(cmd) = words.first() {
+        if MEMORY.contains(cmd) && !flag(words, "--help") && !flag(words, "-h") {
+            return memory::run(&memory_env()?, words);
+        }
+    }
     let json = flag(words, "--json");
     let plain: Vec<&str> = words.iter().copied().filter(|w| !w.starts_with("--")).collect();
     let simple = |req: Request| -> Result<()> {
@@ -72,6 +141,7 @@ fn run(words: &[&str]) -> Result<()> {
         Ok(())
     };
     match plain.as_slice() {
+        #[cfg(target_os = "linux")]
         ["daemon"] => daemon::main(),
         ["hooks", ..] => hooks::main(&words[words.iter().position(|w| *w == "hooks").unwrap_or(0) + 1..]),
         ["events"] => client::events(),
@@ -101,12 +171,26 @@ fn run(words: &[&str]) -> Result<()> {
             name: name.join(" "),
             remember: !flag(words, "--forget"),
         }),
+        #[cfg(target_os = "linux")]
         ["models", "install"] => models_install(),
+        #[cfg(target_os = "linux")]
         ["transcribe", file] => local::transcribe(file, json),
+        #[cfg(target_os = "linux")]
         ["ask", rest @ ..] => local::ask(rest, flag(words, "--think")),
+        #[cfg(target_os = "linux")]
         ["doctor"] => doctor(),
+        #[cfg(target_os = "macos")]
+        ["transcribe", file] => mac::transcribe(file, json),
+        #[cfg(target_os = "macos")]
+        ["ask", ..] => {
+            // The prompt keeps words that start with "--" except --think.
+            let prompt: Vec<&str> = words[1..].iter().copied().filter(|w| *w != "--think").collect();
+            mac::ask(&prompt, flag(words, "--think"))
+        }
+        #[cfg(target_os = "macos")]
+        ["config", ..] => mac::config(&words[1..]),
         ["help"] | [] => {
-            print!("{HELP}");
+            print_help();
             Ok(())
         }
         ["version"] => {
@@ -115,7 +199,7 @@ fn run(words: &[&str]) -> Result<()> {
         }
         _ => {
             if flag(words, "--help") || flag(words, "-h") {
-                print!("{HELP}");
+                print_help();
                 return Ok(());
             }
             bail!("unknown command. Try: sokki help")
@@ -197,6 +281,14 @@ fn open(id: &str) -> Result<()> {
     let path = note
         .and_then(|n| n.path.clone())
         .context("no note for that meeting (yet)")?;
+    #[cfg(target_os = "macos")]
+    return mac::open_path(&path);
+    #[cfg(target_os = "linux")]
+    open_linux(&path)
+}
+
+#[cfg(target_os = "linux")]
+fn open_linux(path: &str) -> Result<()> {
     // `gio open` goes by the file name (.md: the Markdown app, on Omarchy
     // Omawrite); xdg-open sniffs the content, calls a note with front
     // matter plain text and opens it in a terminal editor (seen in the VM).
@@ -211,7 +303,7 @@ fn open(id: &str) -> Result<()> {
     } else {
         std::process::Command::new("xdg-open")
     };
-    cmd.arg(&path)
+    cmd.arg(path)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -240,6 +332,7 @@ fn speakers(id: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 /// Starts the download in the daemon and shows its progress until done.
 fn models_install() -> Result<()> {
     use std::io::{BufRead, BufReader, Write};
@@ -271,6 +364,7 @@ fn models_install() -> Result<()> {
     bail!("the daemon stopped")
 }
 
+#[cfg(target_os = "linux")]
 /// Why Ollama may be on the CPU, from the graphics chips the kernel sees.
 fn gpu_hint() -> String {
     let vendors: Vec<String> = std::fs::read_dir("/sys/class/drm")
@@ -309,6 +403,7 @@ fn gpu_hint() -> String {
     "no GPU Ollama can use was found; Sokki is made for machines with one".into()
 }
 
+#[cfg(target_os = "linux")]
 /// Checks what Sokki needs, in plain words.
 fn doctor() -> Result<()> {
     let have = |cmd: &str| {

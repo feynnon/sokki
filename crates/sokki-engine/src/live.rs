@@ -1412,6 +1412,8 @@ mod tests {
                     own_notes: None,
                     warnings: vec![],
                     live,
+                    id: None,
+                    meeting_dir: None,
                 },
                 crate::Deps {
                     transcriber: t,

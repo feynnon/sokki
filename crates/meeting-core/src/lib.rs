@@ -178,6 +178,12 @@ pub trait Summarizer: Send + Sync {
 /// Facts about the meeting itself, for the note's frontmatter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingMeta {
+    /// The meeting's stable id: its folder name ("meeting-20261117-140251-015").
+    /// Written into the note's frontmatter as `id:`, so the note, its folder
+    /// and the index (`crates/sokki-index`) refer to each other. Never
+    /// changes when the note is renamed or retitled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Local start time, RFC 3339, e.g. "2026-11-17T14:03:00+01:00".
     pub started_at: String,
     pub duration_s: f64,

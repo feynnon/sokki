@@ -208,6 +208,7 @@ fn in_room_meeting_two_people_on_mic() {
     assert_eq!(r.transcript.segments.len(), 6);
     let md = render_markdown(&MeetingNote {
         meta: MeetingMeta {
+            id: None,
             started_at: "2026-11-17T09:30:00+01:00".into(),
             duration_s: 38.6,
             source_app: None,

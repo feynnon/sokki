@@ -243,6 +243,8 @@ fn process(
             previous_note: record.note_path.as_deref().map(PathBuf::from),
             warnings,
             live,
+            id: Some(id.to_string()),
+            meeting_dir: Some(store.audio_dir(id)),
             own_notes: super::own_notes::for_processing(store, &record.id),
         },
         sokki_engine::Deps {
@@ -319,6 +321,9 @@ fn process(
             .collect();
         super::voices::after_processing(app, id, &recognised);
     }
+    // In the index before anything announces the note, so a hook that
+    // searches finds it.
+    crate::local_index::sync_meeting(app, id);
     emit_changed(app, id);
     notify_done(app, &out.note_path);
     #[cfg(target_os = "macos")]
@@ -363,6 +368,8 @@ fn no_speech(app: &AppHandle, store: &MeetingStore, record: &MeetingRecord) -> R
     );
     let _ = tauri::Emitter::emit(app, NO_SPEECH_EVENT, id);
     emit_changed(app, id);
+    // An earlier note of this meeting leaves the index.
+    crate::local_index::refresh(app);
     #[cfg(target_os = "macos")]
     crate::hooks::meeting_event_for(sokki_engine::hooks::event::MEETING_DELETED, record);
     Ok(())
@@ -497,6 +504,7 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
     if let Ok(r) = updated {
         super::title::write_typed_into_note(&r);
     }
+    crate::local_index::sync_meeting(app, id);
     match result {
         Ok(done) => {
             log::info!(

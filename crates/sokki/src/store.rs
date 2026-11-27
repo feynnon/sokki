@@ -2,6 +2,8 @@
 //! `meeting.json` (this record) and `speakers.json`. The folder is the
 //! database; there is no index to get out of sync.
 
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};

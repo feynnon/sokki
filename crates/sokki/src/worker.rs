@@ -124,6 +124,8 @@ fn run(id: &str) -> Result<()> {
             warnings,
             // The Linux worker is a separate process; live pieces come later.
             live: None,
+            id: Some(record.id.clone()),
+            meeting_dir: Some(dir.clone()),
             own_notes: None,
         },
         sokki_engine::Deps {

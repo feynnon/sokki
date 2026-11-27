@@ -7,27 +7,38 @@ description = "Sokki for Linux: dictation and meeting notes as a background serv
 repository = "https://github.com/feynnon/sokki"
 
 [dependencies]
-sokki-engine = { path = "../sokki-engine", features = ["asr"] }
+# The local API (requests, events) and the index, on every platform.
+sokki-api = { path = "../sokki-api" }
+sokki-index = { path = "../sokki-index" }
+sokki-engine = { path = "../sokki-engine" }
 meeting-core = { path = "../meeting-core" }
-meeting-detect = { path = "../meeting-detect" }
-diarize = { path = "../diarize" }
 anyhow = "1"
 log = "0.4"
 env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-toml = "0.9"
+# preserve_order: `sokki config` rewrites the Mac's settings file in its
+# own key order.
+serde_json = { version = "1", features = ["preserve_order"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 libc = "0.2"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+# Linux: the service itself (recording, speech models, the worker). On the
+# Mac the app does all that; this binary is only its command line.
+[target.'cfg(target_os = "linux")'.dependencies]
+sokki-engine = { path = "../sokki-engine", features = ["asr"] }
+meeting-detect = { path = "../meeting-detect" }
+diarize = { path = "../diarize" }
+toml = "0.9"
 # Decoding the recorded FLAC tracks (pure Rust).
 claxon = "0.4"
 # Model downloads with progress, hash-checked.
-ureq = { version = "3", default-features = false, features = ["rustls"] }
 sha2 = "0.10"
-
 # GPU through Vulkan on Linux (AMD, Intel, NVIDIA), CPU otherwise.
-[target.'cfg(target_os = "linux")'.dependencies]
 transcribe-cpp = { version = "0.4.2", default-features = false, features = ["vulkan"] }
+
+[dev-dependencies]
+sokki-index = { path = "../sokki-index", features = ["fixtures"] }
 
 [profile.release]
 lto = "thin"

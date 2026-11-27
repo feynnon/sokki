@@ -138,6 +138,12 @@ pub struct Input {
     pub warnings: Vec<String>,
     /// What was transcribed during the recording ([`crate::live`]).
     pub live: Option<crate::live::Live>,
+    /// The meeting's id (its folder name), written into the note's
+    /// frontmatter as `id:`.
+    pub id: Option<String>,
+    /// The meeting's folder: the transcript's sidecar
+    /// ([`meeting_core::note::SEGMENTS_FILE`]) goes there.
+    pub meeting_dir: Option<PathBuf>,
     /// What the person typed during the meeting, for the note's
     /// "Meine Notizen" section ([`meeting_core::own_notes`]).
     pub own_notes: Option<OwnNotes>,
@@ -233,6 +239,8 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         previous_note,
         mut warnings,
         live,
+        id,
+        meeting_dir,
         own_notes,
     } = input;
     let own_lines = own_notes
@@ -405,6 +413,7 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
     (deps.progress)(Stage::Writing, None);
     let note = MeetingNote {
         meta: MeetingMeta {
+            id,
             started_at,
             duration_s,
             source_app,
@@ -422,6 +431,14 @@ pub fn run(input: Input, deps: Deps, settings: &Settings) -> Result<Output> {
         meeting_core::note::write_note(&settings.notes_dir, &note, &settings.note_options())?;
     if let Some(o) = own_notes.as_ref().filter(|_| !own_lines.is_empty()) {
         write_own_notes(&note_path, &o.id, &own_lines, &added)?;
+    }
+    // Times, tracks and speaker ids per paragraph, for the index
+    // (`crates/sokki-index`). A failure costs the index its exact times,
+    // never the note.
+    if let Some(dir) = &meeting_dir {
+        if let Err(e) = meeting_core::note::write_segment_lines(dir, &note.transcript) {
+            log::warn!("No segments.jsonl for the index: {e:#}");
+        }
     }
     let title = meeting_core::note::note_title(&note);
     clock.step("writing the note");
@@ -784,6 +801,8 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                id: None,
+                meeting_dir: None,
                 own_notes: None,
             },
             Deps {
@@ -820,6 +839,8 @@ mod tests {
             previous_note: None,
             warnings: vec![],
             live: None,
+            id: None,
+            meeting_dir: None,
             own_notes: None,
         }
     }
@@ -1125,6 +1146,8 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                id: None,
+                meeting_dir: None,
                 own_notes: None,
             },
             Deps {
@@ -1184,6 +1207,8 @@ mod tests {
                 previous_note: None,
                 warnings: vec![],
                 live: None,
+                id: None,
+                meeting_dir: None,
                 own_notes: None,
             },
             Deps {

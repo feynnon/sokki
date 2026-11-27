@@ -1,0 +1,11 @@
+[package]
+name = "sokki-api"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Sokki's local API: the requests, replies and events between the app (macOS) or service (Linux) and its clients, as JSON lines over a Unix socket. The specification."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"

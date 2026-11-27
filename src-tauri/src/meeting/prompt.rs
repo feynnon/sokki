@@ -26,6 +26,31 @@ static PENDING: Mutex<Pending> = Mutex::new(Pending {
 });
 static ANSWERED: Condvar = Condvar::new();
 
+/// The question "record this call?" while it is on screen, for the local
+/// API's state (`local_api.rs`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Asking {
+    pub app: String,
+    /// Unix ms.
+    pub since_ms: u64,
+    /// Unix ms when no answer counts as "no".
+    pub expires_ms: u64,
+}
+
+static ASKING: Mutex<Option<Asking>> = Mutex::new(None);
+
+/// The record question on screen, if any.
+pub fn asking() -> Option<Asking> {
+    ASKING.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 /// What a question is about.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -63,6 +88,14 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         encode(meeting_app)
     );
     show(app, url, width, height, kind != Kind::AutoStarted);
+    if matches!(kind, Kind::Started { .. }) {
+        let now = unix_ms();
+        *ASKING.lock().unwrap_or_else(|e| e.into_inner()) = Some(Asking {
+            app: meeting_app.to_string(),
+            since_ms: now,
+            expires_ms: now + timeout.as_millis() as u64,
+        });
+    }
 
     let deadline = Instant::now() + timeout;
     let mut p = PENDING.lock().unwrap_or_else(|e| e.into_inner());
@@ -82,6 +115,9 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         None
     };
     drop(p);
+    if matches!(kind, Kind::Started { .. }) {
+        *ASKING.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
     hide(app);
     answer
 }

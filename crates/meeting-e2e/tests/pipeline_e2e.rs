@@ -176,6 +176,7 @@ fn oracle_pipeline_on_all_fixtures() {
         };
         let note = MeetingNote {
             meta: MeetingMeta {
+                id: None,
                 started_at: "2026-11-17T10:00:00+01:00".into(),
                 duration_s: fx.truth.duration_s,
                 source_app: None,
@@ -310,6 +311,7 @@ fn real_pipeline_on_all_fixtures() {
         };
         let note = MeetingNote {
             meta: MeetingMeta {
+                id: None,
                 started_at: "2026-11-17T10:00:00+01:00".into(),
                 duration_s: fx.truth.duration_s,
                 source_app: None,

@@ -511,6 +511,7 @@ pub fn set_meeting_title(app: AppHandle, id: String, title: String) -> Result<()
     }
     meeting::title::write_typed_into_note(&r);
     meeting::emit_changed(&app, &id);
+    crate::local_index::refresh(&app);
     Ok(())
 }
 
@@ -532,6 +533,8 @@ pub fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {
     store.remove(&id).map_err(|e| e.to_string())?;
     crate::video::delete_for_meeting(&id);
     meeting::emit_changed(&app, &id);
+    // Its rows leave the index too (secure_delete).
+    crate::local_index::refresh(&app);
     if let Some(r) = &record {
         crate::hooks::meeting_event_for(sokki_engine::hooks::event::MEETING_DELETED, r);
     }
@@ -785,6 +788,7 @@ pub fn rename_meeting_speaker(
         })
         .map_err(|e| e.to_string())?;
     meeting::emit_changed(&app, &id);
+    crate::local_index::refresh(&app);
     crate::hooks::meeting_event(
         &app,
         sokki_engine::hooks::event::MEETING_SPEAKERS_NAMED,

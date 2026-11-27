@@ -37,6 +37,7 @@ fn golden(name: &str, actual: &str) {
 
 fn meta() -> MeetingMeta {
     MeetingMeta {
+        id: None,
         started_at: "2026-11-17T14:03:00+01:00".into(),
         duration_s: 4.0 * 60.0 + 58.0,
         source_app: Some("Google Chrome".into()),

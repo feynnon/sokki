@@ -26,6 +26,9 @@ mod languages;
 mod learn_words;
 mod legacy_data;
 mod llm_client;
+#[cfg(target_os = "macos")]
+mod local_api;
+mod local_index;
 mod managers;
 pub mod meeting;
 mod memory;
@@ -308,6 +311,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         meeting::process::retry_summaries(app_handle);
         meeting::phone_link::start_if_enabled(app_handle);
         meeting::slack::keep_alive(app_handle);
+        // The `sokki` command line: the socket API, and the index it
+        // searches brought up to date in the background.
+        local_api::start(app_handle);
+        local_index::refresh(app_handle);
     }
 
     // Note: Shortcuts are NOT initialized here.
@@ -1465,6 +1472,7 @@ pub fn run(cli_args: CliArgs) {
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Exit => {
             meeting::finalize_on_exit(app);
+            local_api::stop(app);
             hooks::flush();
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the

@@ -63,6 +63,10 @@ flacenc = "0.5.1"
 # Meeting notes (this fork): pipeline, Markdown notes, summaries.
 meeting-core = { path = "../crates/meeting-core" }
 sokki-engine = { path = "../crates/sokki-engine" }
+# The local API (`local_api.rs`, the same socket API as Linux) and the
+# search index the `sokki` command reads (`local_index.rs`).
+sokki-api = { path = "../crates/sokki-api" }
+sokki-index = { path = "../crates/sokki-index" }
 # Speaker separation (Sortformer via transcribe-cpp) and voice profiles (sherpa-onnx).
 diarize = { path = "../crates/diarize" }
 # Checking the summary model server from the settings page (same as meeting-core).

@@ -27,6 +27,19 @@ pub(crate) fn front_app() -> Option<(i32, String)> {
     Some((app.processIdentifier(), id))
 }
 
+/// The name of the app in front ("Notes", "Mail"), for the dictation
+/// history.
+#[cfg(target_os = "macos")]
+pub(crate) fn front_app_name() -> Option<String> {
+    let app = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
+    Some(app.localizedName()?.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn front_app_name() -> Option<String> {
+    None
+}
+
 /// The letter keys of the layout in use (`input::keyboard_letter_rows`), read on the main thread
 /// as TIS requires; None when the main thread doesn't answer within 200 ms.
 #[cfg(target_os = "macos")]

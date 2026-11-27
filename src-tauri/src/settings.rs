@@ -629,6 +629,20 @@ pub struct AppSettings {
     /// Meeting notes (this fork): recording, speakers, summary and the notes folder.
     #[serde(default)]
     pub meetings: MeetingSettings,
+    /// What scripts, hooks and AI agents may read through the `sokki`
+    /// command (`sokki search`, `get`, `meetings`, `tasks`, …; CLI.md):
+    /// "off" (nothing), "summaries" (the meeting list, summaries,
+    /// decisions, tasks, the person's own notes), "transcripts" (plus the
+    /// meeting transcripts) or "dictations" (plus the dictations). Off by
+    /// default: what an agent running in the cloud reads leaves this Mac.
+    /// The typing journal is never shared. No Settings screen yet; `sokki
+    /// config agent_access summaries` sets it.
+    #[serde(default = "default_agent_access")]
+    pub agent_access: String,
+}
+
+fn default_agent_access() -> String {
+    "off".to_string()
 }
 
 /// Settings for meeting notes. Every field falls back to its default when
@@ -1449,6 +1463,7 @@ pub fn get_default_settings() -> AppSettings {
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
         meetings: MeetingSettings::default(),
+        agent_access: default_agent_access(),
     }
 }
 

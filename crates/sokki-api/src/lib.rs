@@ -1,8 +1,18 @@
-//! The local API between `sokki daemon` and its clients (the `sokki` CLI and
-//! the Omarchy shell plugin). This file is the specification.
+//! The local API between Sokki and its clients (the `sokki` CLI, the
+//! Omarchy shell plugin, hooks and scripts). This file is the
+//! specification. Served by `sokki daemon` on Linux and by the app on
+//! macOS (`src-tauri/src/local_api.rs`), the same on both.
 //!
-//! Transport: a Unix socket at `$XDG_RUNTIME_DIR/sokki/sokki.sock`, one JSON
-//! object per line in each direction.
+//! Transport: a Unix socket ([`socket_path`]), one JSON object per line in
+//! each direction:
+//! - Linux: `$XDG_RUNTIME_DIR/sokki/sokki.sock`
+//! - macOS: `~/Library/Application Support/org.sokki.app/sokki.sock`
+//!
+//! `SOKKI_SOCKET` overrides both (tests).
+//!
+//! Searching what Sokki recorded is not part of this API: the CLI reads
+//! the index (`crates/sokki-index`) directly, so it works while Sokki is
+//! closed.
 //!
 //! - A client sends one [`Request`] and reads one [`Reply`].
 //! - `{"cmd":"subscribe"}` instead keeps the connection open: the daemon
@@ -32,6 +42,34 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+/// The macOS app's data folder name (its bundle id).
+pub const MAC_APP_ID: &str = "org.sokki.app";
+
+fn home() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Where the socket is on this platform (see the module docs).
+pub fn socket_path() -> PathBuf {
+    if let Some(p) = std::env::var_os("SOKKI_SOCKET").filter(|p| !p.is_empty()) {
+        return PathBuf::from(p);
+    }
+    if cfg!(target_os = "macos") {
+        return home()
+            .join("Library/Application Support")
+            .join(MAC_APP_ID)
+            .join("sokki.sock");
+    }
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| std::env::temp_dir().join(format!("sokki-{}", unsafe { libc::getuid() })));
+    runtime.join("sokki/sokki.sock")
+}
 
 /// What a client asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

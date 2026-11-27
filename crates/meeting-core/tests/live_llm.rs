@@ -86,6 +86,7 @@ fn report(name: &str, t: &Transcript, s: &MeetingSummary, stats: &SummaryStats, 
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("live-notes");
     let note = MeetingNote {
         meta: MeetingMeta {
+            id: None,
             started_at: "2026-11-17T10:00:00+01:00".into(),
             duration_s,
             source_app: None,

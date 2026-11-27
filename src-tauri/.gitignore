@@ -12,3 +12,5 @@
 # tauri.conf.json on Linux.
 /transcribe-libs/
 /resources/llm/
+# The `sokki` command line, built by scripts/build-sokki-cli.sh.
+/resources/bin/

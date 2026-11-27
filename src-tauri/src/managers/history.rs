@@ -43,6 +43,9 @@ const ADDED_COLUMNS: &[&str] = &[
     "language_source",
     "meeting_id",
     "meeting_track",
+    // The app in front when a dictation was saved (where its text went),
+    // for the search index (`crates/sokki-index`).
+    "target_app",
 ];
 
 /// Every column a [`HistoryEntry`] is read from.
@@ -337,6 +340,24 @@ impl HistoryManager {
         self.cleanup_old_entries()?;
 
         Ok(entry)
+    }
+
+    /// Records which app a dictation went into. Best effort: the index
+    /// shows no app when it fails.
+    pub fn set_target_app(&self, id: i64, app: Option<&str>) {
+        let Some(app) = app.map(str::trim).filter(|a| !a.is_empty()) else {
+            return;
+        };
+        let result = self.get_connection().and_then(|c| {
+            c.execute(
+                "UPDATE transcription_history SET target_app = ?1 WHERE id = ?2",
+                rusqlite::params![app, id],
+            )
+            .map_err(Into::into)
+        });
+        if let Err(e) = result {
+            warn!("Couldn't note the dictation's app: {e}");
+        }
     }
 
     /// Save the entry for a file whose audio is already at `file_name`.

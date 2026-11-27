@@ -1,4 +1,6 @@
-//! Where Sokki keeps things, following the XDG base directories.
+//! Where Sokki keeps things, following the XDG base directories (Linux;
+//! on the Mac only the socket is used here, see `mac.rs`).
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 use std::path::PathBuf;
 
@@ -38,12 +40,16 @@ pub fn voice_profiles() -> PathBuf {
     data_dir().join("voice-profiles.json")
 }
 
-/// `$XDG_RUNTIME_DIR/sokki/sokki.sock`
+/// `$XDG_RUNTIME_DIR/sokki/sokki.sock` (Linux), `<data folder>/sokki.sock`
+/// (macOS).
 pub fn socket() -> PathBuf {
-    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join(format!("sokki-{}", unsafe { libc::getuid() })));
-    runtime.join("sokki/sokki.sock")
+    // The Mac: in the installed app's data folder (`SOKKI_DATA_DIR` for a
+    // test app), unless `SOKKI_SOCKET` says otherwise.
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("SOKKI_SOCKET").is_none_or(|s| s.is_empty()) {
+        return crate::mac::data_dir().join("sokki.sock");
+    }
+    sokki_api::socket_path()
 }
 
 /// Expands a leading `~/`.

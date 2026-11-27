@@ -11,7 +11,7 @@ detail is [MEETINGS.md](MEETINGS.md).
 
 ```
  Front ends (thin, native to each platform)
-   macOS: Tauri window + menu bar   Omarchy: shell plugin + sokki CLI   Android: app + keyboard
+   macOS: window, menu, sokki CLI   Omarchy: shell plugin + sokki CLI   Android: app + keyboard
           │ in process                    │ local socket, JSON lines         │ sokki-link (iroh)
  ─────────┴───────────────────────────────┴─────────────────────────────────┴──────────
  Hosts: own the platform, run the engine
@@ -57,10 +57,12 @@ A meeting, on any platform:
 | `crates/meeting-mail` | Notes to everyone in a meeting: calendar events and which one a recording belongs to, recipients, the objection list, the mail text, and sending through Apple Mail (AppleScript) or Gmail (`gmail.send`). The calendar itself is read by the host (macOS: EventKit, `src-tauri/swift/calendar.swift`). |
 | `crates/meeting-chat` | The chat notice (macOS): find a meeting's chat field through Accessibility, post one line, watch for "stop". |
 | `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in models (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. `cleanup`: cleaning up a dictation while it is spoken. `hooks`: the person's own commands on events, with their queue ([HOOKS.md](HOOKS.md)). |
-| `crates/sokki` | The Linux host. One binary: `sokki daemon` (systemd user service), the CLI (`sokki meeting …`, `sokki dictation …`, `sokki events`), and `sokki process` (the model worker). |
+| `crates/sokki` | The `sokki` command line, on macOS and Linux (CLI.md). On Linux also the host, in the same binary: `sokki daemon` (systemd user service) and `sokki process` (the model worker). On the Mac it is a client of the app: the socket API, the app's headless transcription, the index. |
+| `crates/sokki-api` | The local API both hosts serve: requests, replies, events, the socket's path. The specification. |
+| `crates/sokki-index` | `index.sqlite`: keyword search (FTS5 unicode61 + trigram) over meetings, own notes and dictations, derived from the files and rebuildable; tasks and decisions with evidence checked against the transcript; write-back for hooks. No models, no platform code. |
 | `crates/sokki-link` | Phone ↔ computer link over iroh: pairing, sending a recording, getting the note back. |
 | `crates/meeting-e2e` | Headless harness: real speech recognition on synthetic fixtures (`testdata/audio`), with word error rate and speaker metrics. |
-| `src-tauri` | The macOS app (the desktop app inherited from upstream). `src/meeting/` is the macOS host: recording, prompts, the indicator, and the adapter around `sokki_engine::process`. |
+| `src-tauri` | The macOS app (the desktop app inherited from upstream). `src/meeting/` is the macOS host: recording, prompts, the indicator, and the adapter around `sokki_engine::process`. `src/local_api.rs` serves the socket API; `src/local_index.rs` keeps the index current. |
 | `src` | The Tauri window (React). |
 | `mobile` | Android: Tauri mobile app plus a HeliBoard keyboard (GPL-3.0; everything in `crates/` stays MIT). |
 | `packaging/omarchy` | Omarchy integration: the shell plugin (QML), the systemd unit, `omarchy-*` scripts, the PKGBUILD and the one-line installer. |
@@ -111,15 +113,26 @@ These hold everywhere; a change that breaks one is a bug.
 | Settings | `settings_store.json` | `~/.config/sokki/sokki.toml` | app storage |
 | Data | `~/Library/Application Support/org.sokki.app` | `~/.local/share/sokki` | app storage |
 
-## The local API (Linux)
+## The local API (macOS and Linux)
 
-`sokki daemon` listens on `$XDG_RUNTIME_DIR/sokki/sokki.sock`. One JSON
-object per line in each direction. A client sends a request and reads one
-reply; `{"cmd":"subscribe"}` instead keeps the connection open and streams
-events. The CLI is a thin client of this API, and so is the shell plugin
-(it runs `sokki events`). Requests and events are defined in
-`crates/sokki/src/api.rs`; that file is the specification. Subscribers also
-get each hook event (`sokki_engine::hooks::HookEvent`, without content).
+One API on both platforms, so one `sokki` command line and every script or
+hook works on both. On Linux `sokki daemon` listens on
+`$XDG_RUNTIME_DIR/sokki/sokki.sock`; on the Mac the app listens on
+`~/Library/Application Support/org.sokki.app/sokki.sock` (`local_api.rs`,
+only for this user). One JSON object per line in each direction. A client
+sends a request and reads one reply; `{"cmd":"subscribe"}` instead keeps the
+connection open and streams events (the whole state, never a diff). The CLI
+is a thin client of this API, and so is the Omarchy shell plugin (it runs
+`sokki events`). Requests and events are defined in
+`crates/sokki-api/src/lib.rs`; that file is the specification. On the Mac
+every request calls what the menu bar or the app's flags already call.
+Subscribers also get each hook event (`sokki_engine::hooks::HookEvent`,
+without content).
+
+Searching is not part of the API: `sokki search`, `get`, `meetings`,
+`tasks` read `index.sqlite` directly (after bringing it up to date), so they
+work while Sokki is closed. They show nothing until the person turns on
+`agent_access`.
 
 ## Testing
 
@@ -205,6 +218,21 @@ Short records of choices that are not obvious from the code.
   On by default since 26.11.2026 (turned on once for existing installs,
   settings schema 10); without the model (8 GB Macs, or not downloaded
   yet) it does nothing and the transcript is pasted as before.
+- **Keyword search first, one derived index.** Agents found facts in
+  memory as well or better with keyword search, filters, stable ids and
+  cited turns than with vectors (`docs/research/memory-layer-2026-11.md`).
+  So `index.sqlite` has no embeddings yet: FTS5 whole words plus trigrams
+  (German compounds; `memory-index-recall-2026-11.md`), fed from the notes,
+  the meeting folders and `history.db`, which stay the truth. Any row can be
+  rebuilt; deletes remove every row of a source with `secure_delete`. The
+  index is in the app's data folder, not the notes folder, so a synced
+  notes folder never carries it. Vectors come after a private eval shows a
+  gain.
+- **The Mac gets the Linux CLI, not its own.** The bash `scripts/sokki`
+  had three commands and no events; the Rust binary gives both platforms
+  the same commands. The app bundles it (`resources/bin/sokki`, built by
+  `scripts/build-sokki-cli.sh`, signed by `release.sh`) and `install.sh`
+  links it into `~/.local/bin`.
 - **Hooks bring the use cases.** Sokki provides facts and events (a note
   is ready, a dictation is done, a schedule is due); what happens then is
   the person's own code in `~/.config/sokki/hooks.toml`, run by one runner

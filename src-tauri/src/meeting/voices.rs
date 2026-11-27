@@ -411,6 +411,8 @@ pub fn name_voice(
         })?;
     }
     let mut changed = ids.len() as u32;
+    // The renamed notes, in the index (in the background).
+    crate::local_index::refresh(app);
     for id in &ids {
         changed += name_the_rest(app, &store, id).len() as u32;
         crate::hooks::meeting_event(app, sokki_engine::hooks::event::MEETING_SPEAKERS_NAMED, id);

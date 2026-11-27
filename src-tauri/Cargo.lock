@@ -7382,6 +7382,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sokki-api"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "sokki-app"
 version = "0.10.1"
 dependencies = [
@@ -7433,8 +7442,10 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "signal-hook",
+ "sokki-api",
  "sokki-autocorrect",
  "sokki-engine",
+ "sokki-index",
  "sokki-journal",
  "sokki-keys",
  "sokki-link",
@@ -7530,6 +7541,19 @@ dependencies = [
  "sha2 0.10.9",
  "toml 0.9.12+spec-1.1.0",
  "ureq 3.2.0",
+]
+
+[[package]]
+name = "sokki-index"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "log",
+ "meeting-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

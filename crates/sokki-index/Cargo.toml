@@ -1,0 +1,26 @@
+[package]
+name = "sokki-index"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Sokki's search index: one SQLite file derived from the meeting notes, their folders and the dictation history; rebuildable at any time. No models, no platform code."
+
+[features]
+# Made-up meetings and dictations for tests and demos (fixtures.rs).
+fixtures = []
+
+[[example]]
+name = "make_fixture"
+required-features = ["fixtures"]
+
+[dependencies]
+meeting-core = { path = "../meeting-core" }
+anyhow = "1"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The same version and build as the macOS app's history.db (src-tauri), so
+# Cargo links one SQLite. Bundled: FTS5 with the trigram tokenizer and
+# FTS5 secure-delete need SQLite 3.42 or newer, whatever the OS ships.
+rusqlite = { version = "0.37", features = ["bundled"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

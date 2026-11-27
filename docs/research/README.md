@@ -35,6 +35,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `second-brain-2026-11.md` | A built-in second brain (Karpathy's LLM wiki): the tools, why people quit, a local Mac stack (FTS5 + sqlite-vec, EmbeddingGemma), small-model limits, a phased plan. Research only, nothing built. |
 | `ios-keyboard-dictation-2026-11.md` | What a dev podcast says about dictation on iOS: the keyboard microphone workaround (getUserMedia web view), who copied it, and what users still miss. |
 | `memory-layer-2026-11.md` | Hidden use cases of a queryable memory (work, personal, agents), the field since the LLM Wiki (autoresearch, gbrain), and the query layer: index, metadata tiers, `sokki search/get/tasks` CLI, read-only MCP, privacy gate. Keyword search first, vectors after an eval. Research only. |
+| `memory-index-recall-2026-11.md` | The index's keyword search on a made-up German set: whole words (FTS5 unicode61) vs trigram vs both, recall@1/@5 and MRR per category (compound parts, inflections, no umlauts, English↔German). Why `sokki search` fuses both. |
 
 ## Decisions these measurements support (Nov 2026)
 

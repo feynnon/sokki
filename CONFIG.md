@@ -167,6 +167,7 @@ Most useful keys:
 | `language_detection` | `LanguageDetectionMode` | `"when_needed"` | `when_needed` or `always`. |
 | `language_detection_window_secs` | `u32` | `5` | Seconds of speech the language detector hears (debug). Read through [`AppSettings::language_detection_window_samples`], which clamps it. |
 | `overlay_style` | `OverlayStyle` | `"live"` | Which recording overlay to show: None / Minimal / Live. Streaming mode is not gated on this — that follows model capability. Migrated from the old `overlay_position` (position `none` → style `None`). |
+| `agent_access` | `String` | `"off"` | What scripts, hooks and AI agents may read through the `sokki` command (`sokki search`, `get`, `meetings`, `tasks`, …; CLI.md): "off" (nothing), "summaries" (the meeting list, summaries, decisions, tasks, the person's own notes), "transcripts" (plus the meeting transcripts) or "dictations" (plus the dictations). Off by default: what an agent running in the cloud reads leaves this Mac. The typing journal is never shared. No Settings screen yet; `sokki config agent_access summaries` sets it. |
 
 ## Shortcut bindings (`bindings.<id>.current_binding`)
 

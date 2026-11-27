@@ -30,8 +30,8 @@
 # ($SOKKI_NOTARY_PROFILE) made by `xcrun notarytool store-credentials`.
 # Every Mach-O in the bundle needs that signature, the hardened runtime and a
 # secure timestamp; the Swift code is a static lib inside the main binary, and
-# the one helper binary is resources/llm/llama-server, signed below before
-# Tauri seals the bundle.
+# the two helper binaries, resources/llm/llama-server and resources/bin/sokki
+# (the command line), are signed below before Tauri seals the bundle.
 set -euo pipefail
 
 NOTES="${1:?usage: scripts/release.sh <notes.md> [--publish]}"
@@ -84,6 +84,8 @@ BUILD_SLOT_PRIORITY=release build_lock_acquire  # a release goes first in the qu
 "$REPO/scripts/build-llama-server.sh"  # the built-in language model
 LLAMA="$REPO/src-tauri/resources/llm/llama-server"
 [[ -f "$LLAMA" ]] && sign "$LLAMA"  # Tauri signs only the main binary
+"$REPO/scripts/build-sokki-cli.sh"  # the `sokki` command line, linked by install.sh
+sign "$REPO/src-tauri/resources/bin/sokki"
 [[ -d "$REPO/node_modules" ]] || (cd "$REPO" && bun install --frozen-lockfile)
 (cd "$REPO" && bun run tauri build --bundles app --config "src-tauri/brands/sokki/tauri.conf.json")
 build_lock_release

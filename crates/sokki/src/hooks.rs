@@ -36,15 +36,19 @@ fn state_dir() -> PathBuf {
     app_data().join("hooks")
 }
 
-/// The app's data folder: on the Mac the app's (`SOKKI_APP_ID`, else
-/// org.sokki.app), on Linux `~/.local/share/sokki`.
+/// The app's data folder: on the Mac the app's (`SOKKI_APP_ID` if set,
+/// else the CLI's own, which follows `SOKKI_DATA_DIR` and the installed
+/// app's bundle id), on Linux `~/.local/share/sokki`.
 fn app_data() -> PathBuf {
-    if cfg!(target_os = "macos") {
-        let id = std::env::var("SOKKI_APP_ID").unwrap_or_else(|_| "org.sokki.app".into());
-        crate::paths::expand(&format!("~/Library/Application Support/{id}"))
-    } else {
-        crate::paths::data_dir()
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(id) = std::env::var("SOKKI_APP_ID").ok().filter(|i| !i.is_empty()) {
+            return crate::paths::expand(&format!("~/Library/Application Support/{id}"));
+        }
+        crate::mac::data_dir()
     }
+    #[cfg(not(target_os = "macos"))]
+    crate::paths::data_dir()
 }
 
 fn value<'a>(args: &'a [&str], flag: &str) -> Option<&'a str> {
@@ -272,11 +276,10 @@ fn daemon_gate() -> Gate {
 
 /// A real meeting by id, from the app's meeting list.
 fn meeting(id: &str, kind: &str) -> Result<HookEvent> {
-    if cfg!(target_os = "macos") {
-        mac_meeting(id, kind)
-    } else {
-        daemon_meeting(id, kind)
-    }
+    #[cfg(target_os = "macos")]
+    return mac_meeting(id, kind);
+    #[cfg(not(target_os = "macos"))]
+    return daemon_meeting(id, kind);
 }
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -309,7 +312,8 @@ fn mac_meeting(id: &str, kind: &str) -> Result<HookEvent> {
     Ok(HookEvent::meeting(kind, id, note.as_deref(), meta))
 }
 
-#[cfg_attr(target_os = "macos", allow(dead_code))]
+// The Linux service's meeting store is compiled only there.
+#[cfg(not(target_os = "macos"))]
 fn daemon_meeting(id: &str, kind: &str) -> Result<HookEvent> {
     let r = crate::store::Store::new(crate::paths::meetings_dir()).get(id)?;
     Ok(HookEvent::meeting(

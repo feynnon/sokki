@@ -11,7 +11,12 @@ use crate::api::{Event, Reply, Request};
 fn connect() -> Result<UnixStream> {
     let path = crate::paths::socket();
     UnixStream::connect(&path).with_context(|| {
-        "Sokki is not running. Start it with: systemctl --user start sokki".to_string()
+        if cfg!(target_os = "macos") {
+            "Sokki is not running (or is older than its local API). Start it with: open -a Sokki"
+                .to_string()
+        } else {
+            "Sokki is not running. Start it with: systemctl --user start sokki".to_string()
+        }
     })
 }
 

@@ -236,6 +236,15 @@ pub fn render_note(note: &MeetingNote, opts: &NoteOptions) -> String {
 
     // Frontmatter.
     out.push_str("---\ntype: meeting\n");
+    if let Some(id) = note
+        .meta
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        out.push_str(&format!("id: {}\n", yaml_scalar(id)));
+    }
     if let Some((date, time)) = date_and_time(&note.meta.started_at) {
         out.push_str(&format!("date: {date}\nstart: {}\n", yaml_scalar(&time)));
     }
@@ -369,32 +378,115 @@ fn render_summary(out: &mut String, s: &MeetingSummary, l: &Labels) {
     }
 }
 
-/// `**[mm:ss] Speaker:** text`, consecutive segments of one speaker joined
-/// into one paragraph.
-fn render_transcript(t: &Transcript, l: &Labels) -> String {
-    if t.segments.is_empty() {
-        return format!("{}\n", l.no_speech);
-    }
-    let mut paras: Vec<(f64, &str, String)> = Vec::new();
+/// One paragraph of the note's transcript: consecutive segments of one
+/// speaker, joined. The note and its sidecar (`segments.jsonl`) are both
+/// made from these, so paragraph i of the note is line i of the sidecar.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Turn {
+    pub start_s: f64,
+    pub end_s: f64,
+    /// The track of the turn's first segment.
+    pub track: TrackKind,
+    pub speaker: String,
+    pub text: String,
+}
+
+/// The transcript as the note's paragraphs.
+pub fn turns(t: &Transcript) -> Vec<Turn> {
+    let mut paras: Vec<Turn> = Vec::new();
     for s in &t.segments {
         let text = one_line(&s.text);
         if text.is_empty() {
             continue;
         }
         match paras.last_mut() {
-            Some((_, sp, buf)) if *sp == s.speaker => {
-                buf.push(' ');
-                buf.push_str(&text);
+            Some(p) if p.speaker == s.speaker => {
+                p.text.push(' ');
+                p.text.push_str(&text);
+                p.end_s = p.end_s.max(s.end_s);
             }
-            _ => paras.push((s.start_s, &s.speaker, text)),
+            _ => paras.push(Turn {
+                start_s: s.start_s,
+                end_s: s.end_s,
+                track: s.track,
+                speaker: s.speaker.clone(),
+                text,
+            }),
         }
     }
+    paras
+}
+
+/// The file next to a meeting's audio that gives each paragraph of its
+/// note's transcript what the Markdown can't hold: exact start and end in
+/// ms, the track (mic = this computer's person, system = the call), and a
+/// speaker id that stays when the speaker is renamed. One JSON object per
+/// line, in the note's order; no text (the note stays the truth for it).
+pub const SEGMENTS_FILE: &str = "segments.jsonl";
+
+/// One line of [`SEGMENTS_FILE`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SegmentLine {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub track: TrackKind,
+    /// "s1", "s2", … in order of first appearance of (track, speaker).
+    pub speaker_id: String,
+    /// The speaker's name when the note was written; a rename changes the
+    /// note, not this.
+    pub speaker: String,
+}
+
+/// [`SEGMENTS_FILE`]'s lines for a transcript.
+pub fn segment_lines(t: &Transcript) -> Vec<SegmentLine> {
+    let mut ids: Vec<(TrackKind, String)> = Vec::new();
+    turns(t)
+        .into_iter()
+        .map(|p| {
+            let key = (p.track, p.speaker.clone());
+            let n = match ids.iter().position(|k| *k == key) {
+                Some(i) => i + 1,
+                None => {
+                    ids.push(key);
+                    ids.len()
+                }
+            };
+            SegmentLine {
+                start_ms: (p.start_s.max(0.0) * 1000.0).round() as u64,
+                end_ms: (p.end_s.max(p.start_s).max(0.0) * 1000.0).round() as u64,
+                track: p.track,
+                speaker_id: format!("s{n}"),
+                speaker: p.speaker,
+            }
+        })
+        .collect()
+}
+
+/// Writes [`SEGMENTS_FILE`] into a meeting's folder (atomically).
+pub fn write_segment_lines(dir: &Path, t: &Transcript) -> Result<PathBuf> {
+    let mut text = String::new();
+    for line in segment_lines(t) {
+        text.push_str(&serde_json::to_string(&line)?);
+        text.push('\n');
+    }
+    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    let path = dir.join(SEGMENTS_FILE);
+    let tmp = dir.join(format!("{SEGMENTS_FILE}.tmp"));
+    std::fs::write(&tmp, text).with_context(|| format!("writing {}", tmp.display()))?;
+    std::fs::rename(&tmp, &path)?;
+    Ok(path)
+}
+
+/// `**[mm:ss] Speaker:** text`, consecutive segments of one speaker joined
+/// into one paragraph.
+fn render_transcript(t: &Transcript, l: &Labels) -> String {
+    let paras = turns(t);
     if paras.is_empty() {
         return format!("{}\n", l.no_speech);
     }
     paras
         .into_iter()
-        .map(|(t, sp, text)| format!("**[{}] {}:** {}\n", format_mmss(t), sp, text))
+        .map(|p| format!("**[{}] {}:** {}\n", format_mmss(p.start_s), p.speaker, p.text))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -706,6 +798,7 @@ mod tests {
     fn note(summary: Option<MeetingSummary>) -> MeetingNote {
         MeetingNote {
             meta: MeetingMeta {
+                id: None,
                 started_at: "2026-11-17T14:03:00+01:00".into(),
                 duration_s: 34.0 * 60.0 + 10.0,
                 source_app: Some("Zoom".into()),
@@ -720,6 +813,53 @@ mod tests {
             },
             summary,
         }
+    }
+
+    #[test]
+    fn the_id_goes_into_the_frontmatter() {
+        let mut n = note(None);
+        assert!(!render_markdown(&n).contains("\nid:"));
+        n.meta.id = Some("meeting-20261117-140251-015".into());
+        let md = render_markdown(&n);
+        assert!(md.starts_with("---\ntype: meeting\nid: meeting-20261117-140251-015\ndate:"));
+    }
+
+    #[test]
+    fn the_sidecar_has_one_line_per_paragraph() {
+        let mut n = note(None);
+        n.transcript.segments[2].track = TrackKind::System;
+        let md = render_markdown(&n);
+        let paragraphs = md.lines().filter(|l| l.starts_with("**[")).count();
+        let lines = segment_lines(&n.transcript);
+        assert_eq!(lines.len(), paragraphs);
+        assert_eq!(lines.len(), 3);
+        // The two first segments of "Ich" are one paragraph, 0.0–4.5 s.
+        assert_eq!((lines[0].start_ms, lines[0].end_ms), (0, 4500));
+        assert_eq!(lines[0].speaker_id, "s1");
+        assert_eq!(lines[1].track, TrackKind::System);
+        assert_eq!(lines[1].speaker_id, "s2");
+        // "Ich" again: the same id.
+        assert_eq!(lines[2].speaker_id, "s1");
+        let dir = tempfile_dir("sidecar");
+        let path = write_segment_lines(&dir, &n.transcript).unwrap();
+        let text = std::fs::read_to_string(path).unwrap();
+        let back: Vec<SegmentLine> = text
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(back, lines);
+        assert!(!text.contains("Hallo"), "no transcript text in the sidecar");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn tempfile_dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "meeting-core-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&d);
+        d
     }
 
     #[test]

@@ -57,16 +57,23 @@ mv "$bundle" "$APP"
 open "$APP"
 say "Sokki is installed and open."
 
-# The `sokki` command: transcribe a file, ask the local model. A `sokki` that is
-# not ours (or a link to a source checkout) is left alone.
+# The `sokki` command (CLI.md): transcribe a file, ask the local model, search
+# what Sokki recorded. A link to the binary inside the app, so every update
+# brings it along. A `sokki` that is not ours (or a link to a source checkout)
+# is left alone; the old script copy ("Sokki from the command line") is
+# replaced.
 BIN="$HOME/.local/bin"
 CLI="$BIN/sokki"
-if [[ -L "$CLI" ]] || { [[ -e "$CLI" ]] && ! grep -q "Sokki from the command line" "$CLI" 2>/dev/null; }; then
-  :
-elif mkdir -p "$BIN" && curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/sokki" -o "$tmp/sokki" \
-     && grep -q "Sokki from the command line" "$tmp/sokki"; then
-  install -m 755 "$tmp/sokki" "$CLI"
-  echo "In the terminal: sokki transcribe FILE, sokki ask \"…\""
-  case ":$PATH:" in *":$BIN:"*) ;; *) echo "Add $BIN to your PATH to use it." ;; esac
+APP_CLI="$APP/Contents/Resources/resources/bin/sokki"
+if [[ -x "$APP_CLI" ]]; then
+  if [[ -L "$CLI" && "$(readlink "$CLI")" != "$APP_CLI" ]] \
+     || { [[ -e "$CLI" && ! -L "$CLI" ]] && ! grep -q "Sokki from the command line" "$CLI" 2>/dev/null; }; then
+    :
+  elif mkdir -p "$BIN"; then
+    rm -f "$CLI"
+    ln -s "$APP_CLI" "$CLI"
+    echo "In the terminal: sokki transcribe FILE, sokki ask \"…\", sokki search … (sokki help)"
+    case ":$PATH:" in *":$BIN:"*) ;; *) echo "Add $BIN to your PATH to use it." ;; esac
+  fi
 fi
 echo "Summaries on your Mac: Sokki offers its built-in model under Models → Language model."

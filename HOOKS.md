@@ -229,12 +229,27 @@ The runner is one engine module for both
 (`crates/sokki-engine/src/hooks/`); each host only calls `hooks::emit` at
 the moment something happens.
 
+## Reading more and writing back
+
+A hook reads more with `sokki search`, `get`, `meetings`, `tasks`,
+`decisions` (`--json`, within `SOKKI_SCOPE`), and writes back only through
+the command line, never by editing files:
+
+```bash
+echo "Kunde: Muster GmbH" | sokki note append "m:$SOKKI_ID" --section CRM --replace
+sokki item add "m:$SOKKI_ID" --kind custom:crm --text "Vertrag läuft aus" --quote "läuft im März aus" --at 00:10
+```
+
+`note append` adds a section to the note (before the transcript; `--replace`
+so a second run doesn't repeat it). `item add` stores an item next to the
+meeting after checking its quote against the transcript; it needs
+`transcripts`. Both are searchable at once. Details: CLI.md, "Writing back".
+
 ## Later
 
 - `calendar.upcoming`: a brief before a call from past meetings with the
   same people.
-- Writing back through the command line: `sokki note append`, tags, items
-  a hook found (`custom:<hook>`), stored in the index.
+- Tags as a write-back.
 - Mail, Slack and the chat notice as built-in hooks on the same runner.
 - A Hooks list in Settings: on and off, last run, allow a changed hook, the
   log.

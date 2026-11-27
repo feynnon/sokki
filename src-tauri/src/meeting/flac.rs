@@ -38,6 +38,8 @@ pub struct FlacWriter {
     /// Samples waiting for a full frame, as 16-bit values.
     pending: Vec<i32>,
     header_len: usize,
+    /// Smallest and largest frame written, in bytes, for STREAMINFO.
+    frame_sizes: (usize, usize),
     frames: u64,
     sample_rate: u32,
     /// Gets every sample as written, as decoding the file will give it back.
@@ -84,6 +86,7 @@ impl FlacWriter {
             dest: (framebuf, context),
             pending: Vec::with_capacity(BLOCK_SIZE),
             header_len: header.len(),
+            frame_sizes: (usize::MAX, 0),
             frames: 0,
             sample_rate,
             tee: None,
@@ -155,6 +158,8 @@ impl FlacWriter {
         self.out
             .write_all(sink.as_slice())
             .with_context(|| format!("Writing {}", self.partial_path.display()))?;
+        let size = sink.as_slice().len();
+        self.frame_sizes = (self.frame_sizes.0.min(size), self.frame_sizes.1.max(size));
         // Reuse the allocation for the next frame.
         self.pending = samples;
         self.pending.clear();
@@ -174,6 +179,18 @@ impl FlacWriter {
         self.stream
             .stream_info_mut()
             .set_total_samples(total as usize);
+        // Frames are written here, not added to `stream`, so its frame sizes
+        // would stay at their start values (min 0xFFFFFF > max 0). AVFoundation
+        // then decodes no audio at all, so a "Meeting with screen" video was
+        // silent (2026-11-27). 0 means "unknown" in the FLAC format.
+        let (min, max) = match self.frame_sizes {
+            (min, max) if min <= max => (min, max),
+            _ => (0, 0),
+        };
+        self.stream
+            .stream_info_mut()
+            .set_frame_sizes(min, max)
+            .map_err(|e| anyhow!("FLAC frame sizes: {e:?}"))?;
 
         let header = header_bytes(&self.stream)?;
         if header.len() != self.header_len {
@@ -263,6 +280,13 @@ mod tests {
             "tone rms {tone_rms}"
         );
         assert!(decoded[24_000..].iter().all(|x| x.abs() < 1e-4));
+
+        // STREAMINFO's frame sizes are real (bytes 12..18 after "fLaC" and the
+        // block header): min ≤ max. AVFoundation reads no audio otherwise.
+        let bytes = fs::read(&final_path).unwrap();
+        let min = u32::from_be_bytes([0, bytes[12], bytes[13], bytes[14]]);
+        let max = u32::from_be_bytes([0, bytes[15], bytes[16], bytes[17]]);
+        assert!(min > 0 && min <= max, "frame sizes {min}..{max}");
 
         let size = fs::metadata(&final_path).unwrap().len();
         // 40k samples of 16-bit PCM would be 80 KB; the silent second adds almost nothing.

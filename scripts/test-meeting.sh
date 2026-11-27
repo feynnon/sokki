@@ -54,6 +54,12 @@
 #                                                     # test meeting; logs which meeting page the
 #                                                     # hidden window shows and how fast
 #                                                     # ("Meeting page on screen … ms")
+#   WITH_SCREEN=screen.mov scripts/test-meeting.sh ... # "Meeting with screen": records the real
+#                                                     # screen when Sokki Test may (never asks),
+#                                                     # else uses screen.mov (make one with
+#                                                     # scripts/screen-eval/bench.swift); checks the
+#                                                     # finished .mp4: codec, size, frame rate, MB/min.
+#                                                     # The video is deleted with the temp folder.
 #   KEEP_MEETINGS=1 scripts/test-meeting.sh ...       # keep the test app's earlier meetings
 #                                                     # (voices across meetings)
 #   CALL_SPEAKERS=spans.json scripts/test-meeting.sh ... # who spoke when, as Meet's captions
@@ -208,7 +214,7 @@ sleep 1
 [[ -n "${KEEP_MEETINGS:-}" ]] || rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="Hook|own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|Meeting page|ERROR|WARN"
+PATTERN="Screen video|screen video|Hook|own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|Meeting page|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
@@ -226,7 +232,8 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
   ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} ${OWN_NOTES:+--env SOKKI_TEST_OWN_NOTES="$OWN_NOTES"} \
-  ${PILL_CLICK_AT:+--env SOKKI_TEST_PILL_CLICK_AT_S="$PILL_CLICK_AT"} -a "$TESTAPP"
+  ${PILL_CLICK_AT:+--env SOKKI_TEST_PILL_CLICK_AT_S="$PILL_CLICK_AT"} \
+  ${WITH_SCREEN:+--env SOKKI_TEST_WITH_SCREEN=1 --env SOKKI_TEST_SCREEN="$(abs "$WITH_SCREEN")" --env SOKKI_VIDEOS_DIR="$WORK/videos"} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"
@@ -242,6 +249,8 @@ for _ in $(seq 1 "$LIMIT"); do
     # The notes mail goes out after processing; wait for it (2 min at most).
     [[ -z "${MAIL_TO:-}" ]] || grep -qE "notes mailed|notes not mailed|the meeting failed" "$EVENTS" \
       || (( $(date +%s) - ${MAILWAIT:=$(date +%s)} > 120 )) || continue
+    # The screen video is finished after the note.
+    [[ -z "${WITH_SCREEN:-}" ]] || grep -qE "Test mode: (screen video ready|the screen video|the meeting failed)" "$EVENTS" || continue
     # Hooks run after the note; wait for their runs (2 min at most).
     [[ -z "${HOOKS:-}" ]] || grep -qE "Hooks: .* on meeting.note_ready .*: |Hooks: .* skipped|the meeting failed" "$EVENTS" \
       || (( $(date +%s) - ${HOOKWAIT:=$(date +%s)} > 120 )) || continue
@@ -270,6 +279,22 @@ if [[ -n "${HOOKS:-}" ]]; then
     [[ -f "$f" && "$f" -nt "$WORK" ]] || continue
     echo "--- $f"; cat "$f"
   done
+fi
+if [[ -n "${WITH_SCREEN:-}" ]]; then
+  VIDEO=$(sed -n 's/.*Test mode: screen video ready .*after the stop: \(.*\.mp4\) (.*/\1/p' "$WORK/log.txt" | tail -1)
+  if [[ -f "$VIDEO" ]]; then
+    ffprobe -v error -count_packets -show_entries stream=codec_type,codec_name,width,height,nb_read_packets,channels,sample_rate:format=duration,size \
+      -of json "$VIDEO" | jq -r '
+      (.format.duration|tonumber) as $d | (.format.size|tonumber) as $b
+      | (.streams[] | select(.codec_type=="video")) as $v
+      | "Screen video: \($v.codec_name) \($v.width)x\($v.height), \($v.nb_read_packets) frames in \($d|floor) s (\(($v.nb_read_packets|tonumber)/$d*100|floor/100) fps on average), \($b) bytes = \($b/1e6/$d*60*100|floor/100) MB per minute; audio tracks: \([.streams[]|select(.codec_type=="audio")|"\(.codec_name) \(.channels)ch \(.sample_rate) Hz"]|join(", "))",
+        (if $v.codec_name != "hevc" then "FAIL: video codec is \($v.codec_name), not hevc" else empty end),
+        (if ($v.height|tonumber) > 1080 then "FAIL: \($v.height) pixels high, more than 1080" else empty end),
+        (if ([.streams[]|select(.codec_type=="audio")]|length) != 1 then "FAIL: not one audio track" else empty end)'
+    ls "$(dirname "$VIDEO")"
+  else
+    echo "FAIL: no screen video"
+  fi
 fi
 if [[ -s "$SAMPLES" && -n "$STARTED" ]]; then
   awk -v stop="$(echo "$STARTED + $HOLD" | bc)" '{

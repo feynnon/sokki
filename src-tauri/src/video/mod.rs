@@ -3,10 +3,15 @@
 //! After Stop, Sokki puts the screen video and the meeting's sound together
 //! into one `.mp4`.
 //!
-//! Files live in `~/Movies/Sokki/<date time>/`: `screen.mov`, copies of the
-//! audio tracks, the finished `<date time>.mp4` and `video.json` (this
-//! module's record of it). The meeting's own audio may be deleted after its
-//! note is written; the copies here stay.
+//! Files live in `~/Movies/Sokki/<date time>/`: `screen.mov` (until the
+//! render), copies of the audio tracks, the finished `<date time>.mp4` and
+//! `video.json` (this module's record of it). The meeting's own audio may be
+//! deleted after its note is written; the copies here stay.
+//!
+//! Size: the screen is captured scaled down, at a few frames per second, and
+//! encoded once, during the recording ([`ENCODING`]). The render copies that
+//! video into the `.mp4` without encoding it again and then deletes
+//! `screen.mov`. Measurements: `docs/research/screen-recording-size-2026-11.md`.
 //!
 //! Test mode (`SOKKI_TEST_SCREEN` = a video file): no capture and no
 //! permission prompt; at Stop that file is copied in as if recorded.
@@ -26,6 +31,38 @@ use crate::meeting::{TrackTiming, MIC_FILE, SYSTEM_FILE, TIMING_FILE};
 
 const META_FILE: &str = "video.json";
 const SCREEN_FILE: &str = "screen.mov";
+
+/// How the screen is captured and encoded (hardware HEVC). Chosen as the
+/// smallest setting where 11 pt text still reads, see
+/// `docs/research/screen-recording-size-2026-11.md`.
+pub struct Encoding {
+    /// Frames are scaled to at most this many pixels high.
+    pub max_height: u32,
+    /// At most this many frames a second; an unchanged screen sends none.
+    pub fps: f64,
+    /// HEVC constant quality, 0 to 1.
+    pub quality: f64,
+    /// Seconds between key frames.
+    pub key_frame_s: f64,
+}
+
+pub const ENCODING: Encoding = Encoding {
+    max_height: 1080,
+    fps: 2.0,
+    quality: 0.5,
+    key_frame_s: 10.0,
+};
+
+fn screen_config(folder: &Path) -> serde_json::Value {
+    serde_json::json!({
+        "display": null,
+        "path": folder.join(SCREEN_FILE),
+        "max_height": ENCODING.max_height,
+        "fps": ENCODING.fps,
+        "quality": ENCODING.quality,
+        "key_frame_s": ENCODING.key_frame_s,
+    })
+}
 
 /// One recorded track in the video's folder.
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
@@ -94,8 +131,18 @@ fn test_file() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// `~/Movies/Sokki`.
+/// Whether this recording uses the `SOKKI_TEST_SCREEN` file instead of the
+/// screen. In the test app (`crate::test_mic`) the real screen is recorded
+/// when it may be, and the file stands in only when it may not.
+pub fn test_capture() -> bool {
+    test_file().is_some() && !(crate::test_mic::active() && bridge::sources()["screen"] == "allowed")
+}
+
+/// `~/Movies/Sokki`, or `SOKKI_VIDEOS_DIR` (the test app's).
 pub fn videos_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("SOKKI_VIDEOS_DIR").filter(|d| !d.is_empty()) {
+        return PathBuf::from(dir);
+    }
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp"))
@@ -148,9 +195,12 @@ pub fn start(app: &AppHandle, source_app: Option<String>) -> Result<String, Stri
     if manager.is_recording() {
         return Err("A recording is already running.".into());
     }
-    let test = test_file().is_some();
-    if !test && !screen_allowed() && !bridge::request_screen() {
-        return Err("screen_not_allowed".into());
+    let test = test_capture();
+    if !test && !screen_allowed() {
+        // The test app never shows macOS's prompt.
+        if crate::test_mic::active() || !bridge::request_screen() {
+            return Err("screen_not_allowed".into());
+        }
     }
 
     let now = chrono::Local::now();
@@ -163,9 +213,7 @@ pub fn start(app: &AppHandle, source_app: Option<String>) -> Result<String, Stri
             started_us: now_us(),
         }
     } else {
-        let config = serde_json::json!({
-            "screen": { "display": null, "path": folder.join(SCREEN_FILE) },
-        });
+        let config = serde_json::json!({ "screen": screen_config(&folder) });
         match bridge::start(&config) {
             Ok(h) => Capture::Real(h),
             Err(e) => {
@@ -317,6 +365,11 @@ fn spawn_render(app: AppHandle, meta: VideoMeta) {
                 meta.rendered = Some(name);
                 meta.status = "ready".into();
                 meta.error = None;
+                // The .mp4 holds the same video, copied as it was recorded.
+                let folder = Path::new(&meta.folder);
+                for f in [SCREEN_FILE.to_string(), format!("{SCREEN_FILE}.first_us")] {
+                    let _ = std::fs::remove_file(folder.join(f));
+                }
             }
             Err(e) => {
                 log::warn!("Screen video {}: render failed: {e}", meta.folder);
@@ -443,6 +496,29 @@ pub fn resume(app: &AppHandle) {
 mod tests {
     use super::*;
 
+    /// The capture gets the measured setting: scaled down, a few frames a
+    /// second, a fixed quality (docs/research/screen-recording-size-2026-11.md).
+    #[test]
+    fn screen_config_carries_the_encoding() {
+        let config = screen_config(Path::new("/tmp/sokki-video"));
+        assert_eq!(config["path"], "/tmp/sokki-video/screen.mov");
+        assert_eq!(config["max_height"], ENCODING.max_height);
+        assert_eq!(config["fps"], ENCODING.fps);
+        assert_eq!(config["quality"], ENCODING.quality);
+        assert!(ENCODING.max_height <= 1080 && ENCODING.max_height >= 720);
+        assert!(ENCODING.fps > 0.0 && ENCODING.fps <= 5.0);
+        assert!(ENCODING.quality > 0.0 && ENCODING.quality < 1.0);
+    }
+
+    #[test]
+    fn videos_dir_follows_the_override() {
+        // Only this test sets it; other tests don't read videos_dir.
+        std::env::set_var("SOKKI_VIDEOS_DIR", "/tmp/sokki-test-videos");
+        assert_eq!(videos_dir(), PathBuf::from("/tmp/sokki-test-videos"));
+        std::env::remove_var("SOKKI_VIDEOS_DIR");
+        assert!(videos_dir().ends_with("Movies/Sokki"));
+    }
+
     /// Renders the screen video with sound from sample files. Needs
     /// `SOKKI_VIDEO_FIXTURES=<dir with screen.mov, mic.flac>`; skipped
     /// otherwise.
@@ -477,6 +553,11 @@ mod tests {
         let name = render(&meta).unwrap();
         let size = std::fs::metadata(out.join(&name)).unwrap().len();
         assert!(size > 10_000, "{size} bytes");
+        // The video is copied, not encoded again: the .mp4 is the screen
+        // video plus its sound (AAC, 32 kbit/s, about the FLAC's size).
+        let screen = std::fs::metadata(out.join(SCREEN_FILE)).unwrap().len();
+        let sound = std::fs::metadata(out.join(MIC_FILE)).unwrap().len();
+        assert!(size < screen + 2 * sound + 100_000, "{size} > {screen} + 2 × {sound}");
         let _ = std::fs::remove_dir_all(&out);
     }
 }

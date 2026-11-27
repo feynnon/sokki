@@ -2,12 +2,16 @@
 // meeting's sound. C ABI in video_capture.h; Rust side in src/video/bridge.rs.
 //
 // Screen: ScreenCaptureKit (macOS 12.3+), Sokki's own windows (the recording
-// pill) left out. Written with AVAssetWriter as an HEVC .mov file. Frame times
-// are host-clock times; the first one is turned into wall-clock microseconds
-// so it lines up with the meeting's audio tracks.
+// pill) left out. ScreenCaptureKit scales the screen down and limits the frame
+// rate; AVAssetWriter encodes it with the hardware HEVC encoder at a fixed
+// quality as a .mov file (settings from Rust, measured in
+// docs/research/screen-recording-size-2026-11.md). Frame times are host-clock
+// times; the first one is turned into wall-clock microseconds so it lines up
+// with the meeting's audio tracks.
 //
 // Render: AVMutableComposition of the screen video and the audio tracks,
-// exported as one .mp4.
+// written as one .mp4. The video is copied as it is (no second encode); the
+// audio tracks are mixed into one AAC track.
 
 import AVFoundation
 import CoreGraphics
@@ -56,9 +60,37 @@ private func blocking<T>(_ work: @escaping () async -> T) -> T {
 
 // MARK: - Writer
 
+/// How the screen is encoded. Defaults are only a fallback; Rust sends them.
+private struct Encoding {
+    /// Frames are scaled to at most this many pixels high (0: native).
+    var maxHeight = 0
+    /// At most this many frames per second; an unchanged screen sends none.
+    var fps = 30.0
+    /// HEVC constant quality, 0...1 (0: the encoder's default bit rate).
+    var quality = 0.0
+    /// Seconds between key frames.
+    var keyFrameSeconds = 10.0
+
+    init(_ cfg: [String: Any]) {
+        if let v = cfg["max_height"] as? NSNumber { maxHeight = v.intValue }
+        if let v = cfg["fps"] as? NSNumber, v.doubleValue > 0 { fps = v.doubleValue }
+        if let v = cfg["quality"] as? NSNumber { quality = v.doubleValue }
+        if let v = cfg["key_frame_s"] as? NSNumber, v.doubleValue > 0 { keyFrameSeconds = v.doubleValue }
+    }
+
+    /// The capture size for a display of `width` x `height` pixels: scaled
+    /// down to `maxHeight`, even numbers (the encoder needs them).
+    func size(width: Int, height: Int) -> (Int, Int) {
+        guard maxHeight > 0, height > maxHeight else { return (width & ~1, height & ~1) }
+        let w = Int((Double(width) * Double(maxHeight) / Double(height)).rounded())
+        return (w & ~1, maxHeight & ~1)
+    }
+}
+
 /// One video file written from sample buffers as they arrive.
 private final class VideoWriter {
     let url: URL
+    private let encoding: Encoding
     private let writer: AVAssetWriter
     private var input: AVAssetWriterInput?
     private let queue = DispatchQueue(label: "org.sokki.video.writer")
@@ -68,8 +100,9 @@ private final class VideoWriter {
     private var finished = false
     private(set) var error: String?
 
-    init(url: URL) throws {
+    init(url: URL, encoding: Encoding) throws {
         self.url = url
+        self.encoding = encoding
         try? FileManager.default.removeItem(at: url)
         writer = try AVAssetWriter(outputURL: url, fileType: .mov)
     }
@@ -80,10 +113,17 @@ private final class VideoWriter {
             if input == nil {
                 let width = CVPixelBufferGetWidth(image)
                 let height = CVPixelBufferGetHeight(image)
+                var compression: [String: Any] = [
+                    AVVideoExpectedSourceFrameRateKey: encoding.fps,
+                    AVVideoMaxKeyFrameIntervalDurationKey: encoding.keyFrameSeconds,
+                    AVVideoAllowFrameReorderingKey: false,
+                ]
+                if encoding.quality > 0 { compression[AVVideoQualityKey] = encoding.quality }
                 let settings: [String: Any] = [
                     AVVideoCodecKey: AVVideoCodecType.hevc,
                     AVVideoWidthKey: width,
                     AVVideoHeightKey: height,
+                    AVVideoCompressionPropertiesKey: compression,
                 ]
                 let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
                 input.expectsMediaDataInRealTime = true
@@ -152,9 +192,11 @@ private final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "org.sokki.video.screen")
     private(set) var stopError: String?
+    private let encoding: Encoding
 
-    init(path: String) throws {
-        writer = try VideoWriter(url: URL(fileURLWithPath: path))
+    init(path: String, encoding: Encoding) throws {
+        self.encoding = encoding
+        writer = try VideoWriter(url: URL(fileURLWithPath: path), encoding: encoding)
     }
 
     func start(displayID: CGDirectDisplayID) async throws {
@@ -170,9 +212,12 @@ private final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         let config = SCStreamConfiguration()
         let scale = CGFloat(CGDisplayPixelsWide(display.displayID)) / CGFloat(max(display.width, 1))
         let factor = max(scale, 1)
-        config.width = Int(CGFloat(display.width) * factor) & ~1
-        config.height = Int(CGFloat(display.height) * factor) & ~1
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        // ScreenCaptureKit scales on the GPU, so a smaller size also costs less.
+        let (width, height) = encoding.size(
+            width: Int(CGFloat(display.width) * factor), height: Int(CGFloat(display.height) * factor))
+        config.width = width
+        config.height = height
+        config.minimumFrameInterval = CMTime(seconds: 1 / encoding.fps, preferredTimescale: 600)
         config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         config.showsCursor = true
         config.queueDepth = 6
@@ -261,7 +306,7 @@ public func sokki_video_start(
         return nil
     }
     do {
-        let recorder = try ScreenRecorder(path: path)
+        let recorder = try ScreenRecorder(path: path, encoding: Encoding(screen))
         let display = (screen["display"] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
         let error: Error? = blocking {
             do { try await recorder.start(displayID: display); return nil } catch { return error }
@@ -347,18 +392,100 @@ private func render(_ cfg: [String: Any]) async throws {
 
     let outURL = URL(fileURLWithPath: out)
     try? FileManager.default.removeItem(at: outURL)
-    guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
-        throw fail(15, "The video could not be exported.")
+    try await write(composition, end: end, to: outURL)
+}
+
+/// Writes the composition as .mp4: the video samples as they are (they were
+/// encoded during the recording, a second encode would only add size and
+/// time), the audio tracks mixed into one AAC track.
+private func write(_ composition: AVComposition, end: CMTime, to url: URL) async throws {
+    guard let videoTrack = composition.tracks(withMediaType: .video).first else {
+        throw fail(14, "The recorded video could not be read.")
     }
-    export.timeRange = CMTimeRange(start: .zero, duration: end)
-    export.outputURL = outURL
-    export.outputFileType = .mp4
-    export.shouldOptimizeForNetworkUse = true
-    await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-        export.exportAsynchronously { done.resume() }
+    let audioTracks = composition.tracks(withMediaType: .audio)
+    let reader = try AVAssetReader(asset: composition)
+    reader.timeRange = CMTimeRange(start: .zero, duration: end)
+    let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+    writer.shouldOptimizeForNetworkUse = true
+
+    let videoOut = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: nil)
+    videoOut.alwaysCopiesSampleData = false
+    guard reader.canAdd(videoOut) else { throw fail(15, "The video could not be exported.") }
+    reader.add(videoOut)
+    let hint = (try? await videoTrack.load(.formatDescriptions))?.first
+    let videoIn = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: hint)
+    videoIn.transform = videoTrack.preferredTransform
+    videoIn.expectsMediaDataInRealTime = false
+    guard writer.canAdd(videoIn) else { throw fail(15, "The video could not be exported.") }
+    writer.add(videoIn)
+
+    var pairs: [(AVAssetReaderOutput, AVAssetWriterInput)] = [(videoOut, videoIn)]
+    if !audioTracks.isEmpty {
+        // Speech, recorded at 16 kHz: one channel, 32 kbit/s AAC (0.24 MB a minute).
+        let audioOut = AVAssetReaderAudioMixOutput(audioTracks: audioTracks, audioSettings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 16_000,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ])
+        let audioIn = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 16_000,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderBitRateKey: 32_000,
+        ])
+        audioIn.expectsMediaDataInRealTime = false
+        if reader.canAdd(audioOut), writer.canAdd(audioIn) {
+            reader.add(audioOut)
+            writer.add(audioIn)
+            pairs.append((audioOut, audioIn))
+        }
     }
-    if export.status != .completed {
-        throw export.error ?? fail(16, "The video could not be exported.")
+
+    guard reader.startReading() else {
+        throw reader.error ?? fail(15, "The video could not be exported.")
+    }
+    guard writer.startWriting() else {
+        reader.cancelReading()
+        throw writer.error ?? fail(15, "The video could not be exported.")
+    }
+    writer.startSession(atSourceTime: .zero)
+
+    await withTaskGroup(of: Void.self) { group in
+        for (index, (output, input)) in pairs.enumerated() {
+            group.addTask {
+                await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                    let queue = DispatchQueue(label: "org.sokki.video.render.\(index)")
+                    input.requestMediaDataWhenReady(on: queue) {
+                        while input.isReadyForMoreMediaData {
+                            guard reader.status == .reading, let buffer = output.copyNextSampleBuffer() else {
+                                input.markAsFinished()
+                                done.resume()
+                                return
+                            }
+                            if !input.append(buffer) {
+                                input.markAsFinished()
+                                done.resume()
+                                return
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if reader.status == .failed || writer.status == .failed {
+        writer.cancelWriting()
+        throw writer.error ?? reader.error ?? fail(16, "The video could not be exported.")
+    }
+    writer.endSession(atSourceTime: end)
+    await writer.finishWriting()
+    if writer.status != .completed {
+        throw writer.error ?? fail(16, "The video could not be exported.")
     }
 }
 

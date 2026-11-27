@@ -443,8 +443,18 @@ Without Screen Recording permission, macOS is asked and the meeting is
 recorded without the screen (from the call window) or not started (from the
 Meetings page, which then says how to allow it).
 
+Size (2026-11-27, `docs/research/screen-recording-size-2026-11.md`): the screen
+is captured at most 1080 pixels high, at most 2 frames a second, and encoded
+once by the hardware HEVC encoder at quality 0.5 (`ENCODING` in
+`src-tauri/src/video/mod.rs`), about 0.3 MB a minute where it was 26 MB. The
+render copies that video into the `.mp4` unchanged, adds the sound as one
+mono AAC track and deletes `screen.mov`.
+
 Tests: `SOKKI_VIDEO_FIXTURES=<dir with screen.mov, mic.flac> cargo test --lib
 video::` renders the screen video with sound from sample files.
+`WITH_SCREEN=<video> scripts/test-meeting.sh …` records a test meeting with
+screen in Sokki Test and checks the `.mp4` (codec, size, frame rate, sound).
+The bench: `scripts/screen-eval/`.
 `SOKKI_TEST_SCREEN=<video file>` skips capture and copies that file in at Stop.
 
 The Videos page (camera, recording bar, looks) was removed on 2026-11-23

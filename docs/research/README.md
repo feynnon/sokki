@@ -37,6 +37,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `ios-keyboard-dictation-2026-11.md` | What a dev podcast says about dictation on iOS: the keyboard microphone workaround (getUserMedia web view), who copied it, and what users still miss. |
 | `memory-layer-2026-11.md` | Hidden use cases of a queryable memory (work, personal, agents), the field since the LLM Wiki (autoresearch, gbrain), and the query layer: index, metadata tiers, `sokki search/get/tasks` CLI, read-only MCP, privacy gate. Keyword search first, vectors after an eval. Research only. |
 | `memory-index-recall-2026-11.md` | The index's keyword search on a made-up German set: whole words (FTS5 unicode61) vs trigram vs both, recall@1/@5 and MRR per category (compound parts, inflections, no umlauts, English↔German). Why `sokki search` fuses both. |
+| `screen-recording-size-2026-11.md` | "Meeting with screen" file size: resolution (native to 720 lines), frame rate, HEVC vs H.264, constant quality vs bit rate, read back with OCR on made-up 11/12 pt screens. 26.4 → 0.27 MB per minute at 1080 lines, 2 fps, quality 0.5. Why the videos had no sound (FLAC header). |
 
 ## Decisions these measurements support (Nov 2026)
 

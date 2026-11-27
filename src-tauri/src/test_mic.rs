@@ -39,6 +39,11 @@
 //! after the recording, ends: the recording is started by hand during the
 //! call ("hand"), from the prompt ("prompt"), or by hand and kept with "Keep
 //! recording" when the call ends ("keep"). Logs whether and when it stopped.
+//!
+//! `SOKKI_TEST_WITH_SCREEN=1` records the first meeting as "Meeting with
+//! screen" (`crate::video`), into `SOKKI_VIDEOS_DIR`: the real screen when
+//! the test app may record it (never asked for here), else the
+//! `SOKKI_TEST_SCREEN` file; it logs the finished video.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -65,6 +70,11 @@ pub fn active() -> bool {
 /// A meeting is tested instead of a dictation.
 pub fn meeting() -> bool {
     active() && std::env::var_os("SOKKI_TEST_MEETING").is_some_and(|v| !v.is_empty())
+}
+
+/// The test meeting also records the screen ("Meeting with screen").
+pub fn with_screen() -> bool {
+    meeting() && std::env::var_os("SOKKI_TEST_WITH_SCREEN").is_some_and(|v| !v.is_empty())
 }
 
 /// The call side of a test meeting, played in place of the system audio.
@@ -471,7 +481,12 @@ fn start_timed(app: &tauri::AppHandle, which: &str) -> Option<String> {
         .map(|d| d.as_micros() as u64)
         .unwrap_or(0);
     let click = Instant::now();
-    let id = match crate::meeting::start_meeting(app, Some("Test".into())) {
+    let started = if which == "first" && with_screen() {
+        crate::video::start(app, Some("Test".into()))
+    } else {
+        crate::meeting::start_meeting(app, Some("Test".into()))
+    };
+    let id = match started {
         Ok(id) => id,
         Err(e) => {
             warn!("Test mode: the {which} meeting didn't start: {e}");
@@ -599,6 +614,9 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
                     "Test mode: meeting processed {:.1}s after the stop",
                     stopped.elapsed().as_secs_f64()
                 );
+                if with_screen() {
+                    log_video(&id, stopped);
+                }
                 return;
             }
             Some(MeetingStatus::Failed { error }) => {
@@ -616,6 +634,37 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
             _ => {}
         }
     }
+}
+
+/// Waits for the test meeting's screen video and logs where it is, for
+/// `scripts/test-meeting.sh` to check its resolution, frame rate and size.
+fn log_video(id: &str, stopped: Instant) {
+    while stopped.elapsed() < Duration::from_secs(300) {
+        if let Some(meta) = crate::video::list().into_iter().find(|m| m.meeting_id == id) {
+            match meta.status.as_str() {
+                "ready" => {
+                    let file = std::path::Path::new(&meta.folder)
+                        .join(meta.rendered.as_deref().unwrap_or_default());
+                    let bytes = std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
+                    info!(
+                        "Test mode: screen video ready {:.1}s after the stop: {} ({bytes} bytes, {:.1}s recorded, {})",
+                        stopped.elapsed().as_secs_f64(),
+                        file.display(),
+                        meta.duration_s,
+                        if crate::video::test_capture() { "test file" } else { "real capture" }
+                    );
+                    return;
+                }
+                "failed" => {
+                    warn!("Test mode: the screen video failed: {:?}", meta.error);
+                    return;
+                }
+                _ => {}
+            }
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    warn!("Test mode: the screen video was not ready after 300 s");
 }
 
 /// Speaker names (board card speaker-names), after a test meeting: logs

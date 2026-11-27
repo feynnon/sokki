@@ -731,9 +731,9 @@ fn index_dictation(ix: &Index, d: &Dictation, fp: &str) -> Result<()> {
         params![source, d.id.to_string(), started_at, d.at_ms, d.target_app, fp, now_ms()],
     )?;
     tx.execute(
-        "INSERT OR REPLACE INTO dictations(source_id, history_id, at_ms, target_app, raw, cleaned, language)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![source, d.id, d.at_ms, d.target_app, d.raw, d.cleaned, d.language],
+        "INSERT OR REPLACE INTO dictations(source_id, history_id, at, at_ms, target_app, raw, cleaned, language)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![source, d.id, started_at, d.at_ms, d.target_app, d.raw, d.cleaned, d.language],
     )?;
     let text = d.cleaned.as_deref().unwrap_or(&d.raw);
     let mut ord = 0;

@@ -42,7 +42,7 @@ quit_app
 echo "== made-up data in $DATA"
 rm -rf "$DATA"
 mkdir -p "$DATA"
-(cd "$W/crates/sokki-index" && CARGO_TARGET_DIR="$W/target/cli" cargo run -q --example make_fixture --features fixtures -- "$DATA" transcripts)
+(cd "$W/crates/sokki-index" && CARGO_TARGET_DIR="$W/target/cli" cargo run -q --example make_fixture --features fixtures -- "$DATA")
 # The app's settings: the installed Sokki's, minus everything that reaches outside it (as test-dictation.sh),
 # plus agent access and a notes folder inside the test data.
 jq --arg notes "$DATA/notes" '.settings.onboarding_completed = true
@@ -58,8 +58,7 @@ jq --arg notes "$DATA/notes" '.settings.onboarding_completed = true
   | .settings.meetings.mail_notes_auto = false
   | .settings.meetings.slack_post_huddles = false
   | .settings.meetings.user_name = "Ich"
-  | .settings.meetings.notes_dir = $notes
-  | .settings.agent_access = "dictations"' "$REAL" > "$DATA/settings_store.json"
+  | .settings.meetings.notes_dir = $notes' "$REAL" > "$DATA/settings_store.json"
 say -v Anna -o "$S/dict.aiff" "Bitte die Reisekostenabrechnung bis Donnerstag an die Buchhaltung schicken."
 afconvert -f WAVE -d LEI16@16000 -c 1 "$S/dict.aiff" "$S/dict.wav"
 
@@ -117,7 +116,8 @@ check "status says not running" 'echo "$off" | grep -q "not running"'
 g=$("$CLI" get m:meeting-20261103-100000-001@00:05 --window 30s --json)
 check "search and get work with the app closed" '[[ "$(echo "$g" | jq ".results | length")" -ge 1 ]]'
 echo "== start again over the left socket"
-open -g -a "$TESTAPP"
+# Test apps start only in test mode (SOKKI_TEST_MIC), so it dictates again.
+open -g --env SOKKI_TEST_MIC="$S/dict.wav" --env SOKKI_TEST_HOLD_S=6 -a "$TESTAPP"
 for _ in $(seq 1 60); do "$CLI" status >/dev/null 2>&1 && break; sleep 0.5; done
 check "a second start replaces the old socket" '"$CLI" status --json | jq -e .ok >/dev/null'
 quit_app

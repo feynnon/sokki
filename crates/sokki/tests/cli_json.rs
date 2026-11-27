@@ -44,14 +44,6 @@ fn sokki(root: &Path, args: &[&str], stdin: Option<&str>) -> Run {
     }
 }
 
-/// What the person does in a terminal (the CLI refuses it without one).
-fn set_access(root: &Path, access: &str) {
-    let path = root.join("settings_store.json");
-    let mut v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    v["settings"]["agent_access"] = Value::from(access);
-    std::fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
-}
-
 fn json(r: &Run) -> Value {
     assert_eq!(r.code, 0, "stderr: {}", r.err);
     serde_json::from_str(r.out.trim()).unwrap_or_else(|e| panic!("{e}: {}", r.out))
@@ -60,7 +52,7 @@ fn json(r: &Run) -> Value {
 #[test]
 fn the_index_commands_answer_in_json() {
     let root = dir("json");
-    sokki_index::fixtures::write(&root, "transcripts").unwrap();
+    sokki_index::fixtures::write(&root).unwrap();
     let m0 = sokki_index::fixtures::MEETINGS[0];
 
     let s = json(&sokki(&root, &["search", "Vertrag", "--json"], None));
@@ -109,12 +101,36 @@ fn the_index_commands_answer_in_json() {
     let st = json(&sokki(&root, &["index", "status", "--json"], None));
     assert_eq!(st["meetings"], 3);
     assert_eq!(st["dictations"], 2);
-    assert_eq!(st["agent_access"], "transcripts");
+    assert!(st.get("agent_access").is_none(), "no gate any more");
 
-    // Dictations need the widest access.
-    let none = json(&sokki(&root, &["search", "Steuererklärung", "--json"], None));
-    assert!(none["results"].as_array().unwrap().is_empty());
-    assert!(sokki(&root, &["get", "d:1"], None).code != 0);
+    // Everything is readable: dictations and transcripts too.
+    let d = json(&sokki(&root, &["search", "Steuererklärung", "--json"], None));
+    assert_eq!(d["results"][0]["cite"], "d:1");
+    let g = json(&sokki(&root, &["get", "d:1", "--json"], None));
+    assert_eq!(g["results"][0]["target_app"], "Notes");
+    let k = json(&sokki(&root, &["search", "Kündigungsfrist", "--section", "transcript", "--json"], None));
+    assert_eq!(k["results"].as_array().unwrap().len(), 1);
+
+    // Plain SQL, read-only, on the stable views.
+    let path = sokki(&root, &["db", "path"], None);
+    assert_eq!(path.code, 0, "{}", path.err);
+    assert_eq!(path.out.trim(), root.join("index.sqlite").to_string_lossy());
+    let q = json(&sokki(
+        &root,
+        &["sql", "SELECT t.cite, t.speaker FROM segments_tri JOIN turns t ON t.segment_id = segments_tri.rowid WHERE segments_tri MATCH 'vertrag'", "--json"],
+        None,
+    ));
+    assert_eq!(q["rows"][0]["cite"], format!("m:{m0}@00:05"));
+    assert_eq!(q["rows"][0]["speaker"], "Jana Beispiel");
+    let views = json(&sokki(&root, &["sql", "SELECT (SELECT count(*) FROM meetings) AS m, (SELECT count(*) FROM tasks WHERE status = 'open') AS t, (SELECT count(*) FROM dictations) AS d", "--json"], None));
+    assert_eq!((views["rows"][0]["m"].as_i64(), views["rows"][0]["t"].as_i64(), views["rows"][0]["d"].as_i64()), (Some(3), Some(4), Some(2)));
+    let write = sokki(&root, &["sql", "DELETE FROM sources"], None);
+    assert_ne!(write.code, 0, "read-only");
+    let limited = json(&sokki(&root, &["sql", "SELECT * FROM turns", "--max-rows", "2", "--json"], None));
+    assert_eq!(limited["rows"].as_array().unwrap().len(), 2);
+    assert_eq!(limited["truncated"], true);
+    let schema = json(&sokki(&root, &["db", "schema", "--json"], None));
+    assert_eq!(schema["schema"], sokki_index::db::SCHEMA.to_string());
 
     // Write-back.
     let a = json(&sokki(&root, &["note", "append", m0, "--section", "CRM", "--json"], Some("Kunde: Druckerei Muster\n")));
@@ -133,22 +149,6 @@ fn the_index_commands_answer_in_json() {
     assert_ne!(wrong.code, 0);
     assert!(wrong.err.contains("not in the transcript"), "{}", wrong.err);
 
-    // The setting is the person's: no agent (no terminal) may change it.
-    let c = sokki(&root, &["config", "agent_access", "dictations"], None);
-    assert_ne!(c.code, 0);
-    assert!(c.err.contains("the person's choice"), "{}", c.err);
-    // Summaries hide transcripts, and checking a hook's quote; off refuses.
-    set_access(&root, "summaries");
-    let quote = sokki(&root, &["item", "add", m0, "--kind", "custom:risk", "--text", "x", "--quote", "Kündigungsfrist", "--at", "00:31"], None);
-    assert!(quote.err.contains("needs transcripts"), "{}", quote.err);
-    let s = json(&sokki(&root, &["search", "Kündigungsfrist", "--json"], None));
-    assert!(s["results"].as_array().unwrap().iter().all(|r| r["section"] != "transcript"), "{s}");
-    assert!(sokki(&root, &["config", "agent_access", "everything"], None).code != 0);
-    set_access(&root, "off");
-    let off = sokki(&root, &["search", "Druckerei"], None);
-    assert_ne!(off.code, 0);
-    assert!(off.err.contains("agent access is off"), "{}", off.err);
-
     // Every read was logged, without content.
     let log = std::fs::read_to_string(root.join("agent-access.log")).unwrap();
     assert!(log.lines().count() >= 8);
@@ -159,20 +159,13 @@ fn the_index_commands_answer_in_json() {
 #[test]
 fn config_keeps_types_and_hides_secrets() {
     let root = dir("config");
-    sokki_index::fixtures::write(&root, "off").unwrap();
+    sokki_index::fixtures::write(&root).unwrap();
     let path = root.join("settings_store.json");
     let mut v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v["settings"]["meetings"]["keep_audio_days"] = Value::from(7);
     v["settings"]["meetings"]["gmail_token"] = Value::from("abc");
     std::fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
-    // agent_access before the app wrote the key: off, and settable.
-    let mut v2: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    v2["settings"].as_object_mut().unwrap().remove("agent_access");
-    std::fs::write(&path, serde_json::to_string(&v2).unwrap()).unwrap();
-    assert_eq!(sokki(&root, &["config", "agent_access"], None).out.trim(), "\"off\"");
-    assert_ne!(sokki(&root, &["config", "agent_access", "all-of-it"], None).code, 0);
-    set_access(&root, "summaries");
-    assert_eq!(sokki(&root, &["config", "agent_access"], None).out.trim(), "\"summaries\"");
+    assert!(sokki(&root, &["config", "agent_access"], None).err.contains("no setting agent_access"));
     let all = sokki(&root, &["config"], None);
     assert!(all.out.contains("meetings.gmail_token = \"(hidden)\""), "{}", all.out);
     assert!(!all.out.contains("abc"));

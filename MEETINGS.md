@@ -575,9 +575,10 @@ behind an eval.
   all its rows in one transaction, with `secure_delete` on (SQLite and
   FTS5's own), and the write-ahead log is checkpointed. The sample meeting
   and the typing journal are never indexed.
-- **Who may read it:** `agent_access` (CONFIG.md), off by default:
-  `summaries` | `transcripts` | `dictations`. The app indexes either way
-  (the files are on disk already); the setting gates what `sokki` shows.
+- **Who may read it:** anyone on this Mac, with `sokki` or plain SQL
+  (`sokki sql`, `sqlite3 -readonly "$(sokki db path)"`; stable views in
+  CLI.md "SQL"). No setting gates it (Robin, 27.11.2026). Whatever a cloud
+  agent reads leaves the Mac.
 - **Hooks write back** through `sokki note append` (a section in the note)
   and `sokki item add` (a checked quote, kept in `items.jsonl`). CLI.md.
 
@@ -590,7 +591,7 @@ python3 -I testdata/generate.py                      # once: synthetic fixtures
 (cd crates/meeting-core   && CARGO_TARGET_DIR=/tmp/hm-target-core   cargo test)
 (cd crates/meeting-detect && CARGO_TARGET_DIR=/tmp/hm-target-detect cargo test)
 (cd crates/sokki-engine   && CARGO_TARGET_DIR=/tmp/hm-target-engine cargo test)
-(cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test)   # index: sync, search, deletes, write-back
+(cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test --features fixtures)   # index: sync, search, deletes, write-back, SQL, macOS sqlite3 during writes
 (cd crates/sokki          && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test)   # the CLI's JSON, on made-up data
 (cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test --test recall_eval -- --ignored --nocapture)  # recall, needs $SOKKI_EVALS
 scripts/test-cli.sh   # the CLI against a test app in headless test mode (build it first, see the script)

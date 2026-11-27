@@ -5,7 +5,7 @@ use meeting_core::note::{render_note, write_segment_lines, NoteOptions};
 use meeting_core::{ActionItem, MeetingMeta, MeetingNote, MeetingSummary, Segment, TrackKind, Transcript};
 use serde_json::Value;
 use sokki_index::query::{self, GetOpts, ListOpts, Mode, SearchOpts};
-use sokki_index::{sync, Index, Paths, Scope};
+use sokki_index::{sync, Index, Paths};
 use std::path::{Path, PathBuf};
 
 fn seg(t: f64, end: f64, track: TrackKind, sp: &str, text: &str) -> Segment {
@@ -178,11 +178,10 @@ fn opts(n: usize) -> ListOpts {
     ListOpts { n, max_tokens: 4000, ..Default::default() }
 }
 
-fn search(ix: &Index, q: &str, mode: Mode, scope: Scope) -> Value {
+fn search(ix: &Index, q: &str, mode: Mode) -> Value {
     query::search(
         ix,
         &SearchOpts { query: q.into(), kind: None, section: None, mode, list: opts(10) },
-        scope,
     )
     .unwrap()
 }
@@ -205,9 +204,9 @@ fn everything_end_to_end() {
     assert_eq!((again.added, again.updated, again.removed, again.unchanged), (0, 0, 0, 5));
 
     // A German compound: whole words miss it, trigrams find it.
-    let words = search(&ix, "Vertrag", Mode::Words, Scope::Dictations);
+    let words = search(&ix, "Vertrag", Mode::Words);
     assert!(cites(&words).is_empty(), "{words}");
-    let both = search(&ix, "Vertrag", Mode::Both, Scope::Dictations);
+    let both = search(&ix, "Vertrag", Mode::Both);
     let c = cites(&both);
     assert!(c.contains(&"m:meeting-20261103-100000-001@00:05".to_string()), "{c:?}");
     // The JSON shape.
@@ -223,15 +222,13 @@ fn everything_end_to_end() {
     assert_eq!(turn["end_ms"], 50000, "two segments of Jana: one paragraph");
 
     // Accents fold: "Kundigungsfrist" finds "Kündigungsfrist".
-    assert!(!cites(&search(&ix, "kundigungsfrist", Mode::Words, Scope::Transcripts)).is_empty());
+    assert!(!cites(&search(&ix, "kundigungsfrist", Mode::Words)).is_empty());
 
-    // Scope: summaries hide transcripts and dictations.
-    let s = search(&ix, "Druckerei", Mode::Both, Scope::Summaries);
-    assert!(s["results"].as_array().unwrap().iter().all(|r| r["section"] != "transcript"), "{s}");
-    assert!(!cites(&s).is_empty());
-    let d = search(&ix, "Steuererklärung", Mode::Both, Scope::Transcripts);
-    assert!(cites(&d).is_empty());
-    let d = search(&ix, "Steuererklärung", Mode::Both, Scope::Dictations);
+    // Everything is searchable: summaries, transcripts and dictations.
+    let s = search(&ix, "Druckerei", Mode::Both);
+    assert!(s["results"].as_array().unwrap().iter().any(|r| r["section"] == "transcript"), "{s}");
+    assert!(s["results"].as_array().unwrap().iter().any(|r| r["section"] == "summary"), "{s}");
+    let d = search(&ix, "Steuererklärung", Mode::Both);
     assert_eq!(cites(&d), vec!["d:1"], "only the dictation, not the file or the meeting piece: {d}");
     assert_eq!(d["results"][0]["app"], "Notes");
 
@@ -245,7 +242,6 @@ fn everything_end_to_end() {
             mode: Mode::Both,
             list: ListOpts { person: Some("me".into()), ..opts(10) },
         },
-        Scope::Transcripts,
     )
     .unwrap();
     assert!(p["results"].as_array().unwrap().iter().all(|r| r["person_id"] == "me"), "{p}");
@@ -259,7 +255,6 @@ fn everything_end_to_end() {
             mode: Mode::Both,
             list: ListOpts { app: Some("Zoom".into()), shown: vec![("app".into(), "Zoom".into())], ..opts(10) },
         },
-        Scope::Transcripts,
     )
     .unwrap();
     assert!(cites(&z).is_empty());
@@ -270,7 +265,6 @@ fn everything_end_to_end() {
         &ix,
         "m:meeting-20261103-100000-001@01:05",
         &GetOpts { window_ms: 10_000, max_tokens: 4000, ..Default::default() },
-        Scope::Transcripts,
     )
     .unwrap();
     let at = |g: &Value| -> Vec<String> {
@@ -281,27 +275,26 @@ fn everything_end_to_end() {
         &ix,
         "m:meeting-20261103-100000-001@01:05",
         &GetOpts { window_ms: 20_000, max_tokens: 4000, ..Default::default() },
-        Scope::Transcripts,
     )
     .unwrap();
     assert_eq!(at(&g), vec!["00:05", "01:05", "01:21"], "±20 s reaches Jana's turn (5–50 s) and 01:21");
-    let whole = query::get(&ix, "meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 4000, ..Default::default() }, Scope::Summaries).unwrap();
-    assert!(whole["results"].as_array().unwrap().is_empty(), "no transcript at summaries");
+    let whole = query::get(&ix, "meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 4000, ..Default::default() }).unwrap();
+    assert_eq!(whole["results"].as_array().unwrap().len(), 4, "the whole transcript");
     assert_eq!(whole["tasks"].as_array().unwrap().len(), 2);
-    assert!(whole["tasks"][0]["evidence"]["quote"].is_null(), "quotes are transcript text");
+    assert!(whole["tasks"][0]["evidence"]["quote"].is_string(), "with its quote");
     assert_eq!(whole["sections"]["summary"].as_array().unwrap().len(), 1);
 
     // Tasks with code-checked evidence.
-    let t = query::items(&ix, "task", Some("me"), Some("open"), None, &opts(10), Scope::Transcripts).unwrap();
+    let t = query::items(&ix, "task", Some("me"), Some("open"), None, &opts(10)).unwrap();
     let task = &t["results"][0];
     assert_eq!(task["text"], "Angebot der Druckerei prüfen");
     assert_eq!(task["evidence"]["cite"], "m:meeting-20261103-100000-001@01:05");
     assert_eq!(task["evidence"]["verified"], true);
     assert_eq!(task["evidence"]["origin"], "match");
     assert!(task["evidence"]["quote"].as_str().unwrap().contains("Angebot der Druckerei"));
-    let other = query::items(&ix, "task", None, Some("open"), None, &opts(10), Scope::Transcripts).unwrap();
+    let other = query::items(&ix, "task", None, Some("open"), None, &opts(10)).unwrap();
     assert_eq!(other["results"].as_array().unwrap().len(), 2);
-    let dec = query::items(&ix, "decision", None, None, None, &opts(10), Scope::Summaries).unwrap();
+    let dec = query::items(&ix, "decision", None, None, None, &opts(10)).unwrap();
     assert_eq!(dec["results"].as_array().unwrap().len(), 1);
 
     // Meetings and people.
@@ -317,16 +310,16 @@ fn everything_end_to_end() {
     assert!(!ids.iter().any(|i| i.contains("speaker")), "placeholders are no people");
 
     // Own notes.
-    let n = search(&ix, "Einschreiben", Mode::Both, Scope::Summaries);
+    let n = search(&ix, "Einschreiben", Mode::Both);
     assert_eq!(cites(&n), vec!["n:meeting-20261103-100000-001"]);
-    let n = search(&ix, "schriftlich", Mode::Both, Scope::Summaries);
+    let n = search(&ix, "schriftlich", Mode::Both);
     assert_eq!(cites(&n), vec!["n:meeting-20261103-100000-001@00:40"], "the typed line once, from notes.md");
-    let fax = search(&ix, "Fax", Mode::Both, Scope::Summaries);
+    let fax = search(&ix, "Fax", Mode::Both);
     assert_eq!(cites(&fax), vec!["m:meeting-20261103-100000-001@00:31"], "Sokki's addition, from the note");
 
     // Write-back: a section and a checked item.
     sokki_index::write::note_append(&ix, &f.paths, "m:meeting-20261103-100000-001", "CRM", "Kunde: Druckerei Muster", true).unwrap();
-    let crm = search(&ix, "Druckerei Muster", Mode::Both, Scope::Summaries);
+    let crm = search(&ix, "Druckerei Muster", Mode::Both);
     assert!(crm["results"].as_array().unwrap().iter().any(|r| r["section"] == "crm"), "{crm}");
     assert!(sokki_index::write::note_append(&ix, &f.paths, "m:meeting-20261103-100000-001", "Transkript", "x", false).is_err());
     assert!(
@@ -350,12 +343,12 @@ fn everything_end_to_end() {
         "das hat niemand gesagt", 10_000, None, "test-hook",
     )
     .is_err());
-    let got = query::get(&ix, "m:meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 8000, ..Default::default() }, Scope::Transcripts).unwrap();
+    let got = query::get(&ix, "m:meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 8000, ..Default::default() }).unwrap();
     assert_eq!(got["items"][0]["kind"], "custom:risk");
     assert_eq!(got["items"][0]["evidence"]["verified"], true);
     // A rebuild keeps the hook's item: it lives next to the meeting.
     sokki_index::rebuild(&ix, &f.paths).unwrap();
-    let got = query::get(&ix, "m:meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 8000, ..Default::default() }, Scope::Transcripts).unwrap();
+    let got = query::get(&ix, "m:meeting-20261103-100000-001", &GetOpts { window_ms: 0, max_tokens: 8000, ..Default::default() }).unwrap();
     assert_eq!(got["items"].as_array().unwrap().len(), 1);
 
     // An edit in Obsidian is picked up; marking a meeting private removes it.
@@ -364,12 +357,12 @@ fn everything_end_to_end() {
     std::fs::write(&note, md.replace("Landingpage", "Zielseite")).unwrap();
     let r = sync(&ix, &f.paths).unwrap();
     assert_eq!(r.updated, 1, "{r:?}");
-    assert!(!cites(&search(&ix, "Zielseite", Mode::Both, Scope::Transcripts)).is_empty());
+    assert!(!cites(&search(&ix, "Zielseite", Mode::Both)).is_empty());
     let md = std::fs::read_to_string(&note).unwrap();
     std::fs::write(&note, md.replacen("type: meeting\n", "type: meeting\nprivate: true\n", 1)).unwrap();
     let r = sync(&ix, &f.paths).unwrap();
     assert_eq!(r.private, 2, "{r:?}");
-    assert!(cites(&search(&ix, "Zielseite", Mode::Both, Scope::Transcripts)).is_empty());
+    assert!(cites(&search(&ix, "Zielseite", Mode::Both)).is_empty());
     let people = query::people(&ix, &opts(50)).unwrap();
     assert!(
         people["results"].as_array().unwrap().iter().all(|p| p["person_id"] != "tom-muster"),
@@ -384,7 +377,7 @@ fn everything_end_to_end() {
         .query_row("SELECT count(*) FROM segments s JOIN sources src ON src.id = s.source_id WHERE src.kind != 'dictation' AND src.kind != 'notes'", [], |r| r.get(0))
         .unwrap();
     assert_eq!(left, 0);
-    assert!(cites(&search(&ix, "Rahmenvertrag", Mode::Both, Scope::Transcripts)).is_empty());
+    assert!(cites(&search(&ix, "Rahmenvertrag", Mode::Both)).is_empty());
     let _ = std::fs::remove_dir_all(&f.root);
 }
 
@@ -403,7 +396,6 @@ fn the_token_budget_cuts_and_pages() {
                 mode: Mode::Both,
                 list: ListOpts { cursor, max_tokens: max, ..opts(10) },
             },
-            Scope::Transcripts,
         )
         .unwrap()
     };

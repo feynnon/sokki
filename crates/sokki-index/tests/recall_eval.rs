@@ -11,7 +11,7 @@ use meeting_core::note::{render_note, write_segment_lines, NoteOptions};
 use meeting_core::{MeetingMeta, MeetingNote, Segment, TrackKind, Transcript};
 use serde_json::{json, Value};
 use sokki_index::query::{self, ListOpts, Mode, SearchOpts};
-use sokki_index::{sync, Index, Paths, Scope};
+use sokki_index::{sync, Index, Paths};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -125,7 +125,6 @@ fn recall_by_mode() {
                     mode,
                     list: ListOpts { n: 10, max_tokens: 100_000, ..Default::default() },
                 },
-                Scope::Transcripts,
             )
             .unwrap();
             let cites: Vec<&str> = out["results"]

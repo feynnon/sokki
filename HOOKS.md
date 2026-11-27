@@ -264,8 +264,8 @@ sokki item add "m:$SOKKI_ID" --kind custom:crm --text "Vertrag läuft aus" --quo
 
 `note append` adds a section to the note (before the transcript; `--replace`
 so a second run doesn't repeat it). `item add` stores an item next to the
-meeting after checking its quote against the transcript; it needs
-`transcripts`. Both are searchable at once. Details: CLI.md, "Writing back".
+meeting after checking its quote against the transcript. Both are
+searchable at once. Details: CLI.md, "Writing back".
 
 ## Later
 

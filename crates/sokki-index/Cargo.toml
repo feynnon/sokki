@@ -13,6 +13,11 @@ fixtures = []
 name = "make_fixture"
 required-features = ["fixtures"]
 
+# macOS's own sqlite3 on the index (made-up data): cargo test --features fixtures
+[[test]]
+name = "sqlite_cli"
+required-features = ["fixtures"]
+
 [dependencies]
 meeting-core = { path = "../meeting-core" }
 anyhow = "1"

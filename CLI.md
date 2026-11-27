@@ -43,22 +43,12 @@ meeting its call audio).
 
 ### Searching what Sokki recorded
 
-Off until you allow it, because an agent in the cloud sends what it reads
-off this computer:
-
-```bash
-sokki config agent_access summaries     # meetings, summaries, decisions, tasks, own notes
-sokki config agent_access transcripts   # … plus the transcripts
-sokki config agent_access dictations    # … plus the dictations
-sokki config agent_access off           # nothing (the default)
-```
-
-`sokki config agent_access …` works only typed in a terminal: the setting
-is the person's consent, and an agent's shell has no terminal. On Linux:
-`access = "summaries"` under `[agents]` in
-`~/.config/sokki/sokki.toml`. The typing journal is never shared. Every read
-is logged locally in `agent-access.log` in the data folder (time, calling
-program, command, ids returned; no text).
+Everything Sokki indexed: meetings, summaries, decisions, tasks, own
+notes, transcripts and dictations (the typing journal is never indexed).
+No setting gates it (Robin, 27 Nov 2026: "as direct data access as
+possible"). Whatever a cloud agent reads leaves this Mac. Every read through
+`sokki` is logged locally in `agent-access.log` in the data folder (time,
+calling program, command, ids returned; no text).
 
 ```bash
 sokki search "Rahmenvertrag Kündigung" --since 30d --json
@@ -103,6 +93,68 @@ each would give back. Tasks and decisions carry `evidence` (`cite`,
 quote code found there word for word. For the summary's items it is code's
 best match (`origin: "match"`), a pointer, not proof (`KNOWN_ISSUES.md`).
 
+### SQL: the index directly
+
+`index.sqlite` is a plain SQLite file. Any SQLite 3.45 or newer reads it,
+FTS5 and trigram included (macOS's `/usr/bin/sqlite3` is 3.51). Read it,
+don't write it: it is rebuilt from the notes, so writes go through
+`sokki note append` and `sokki item add`.
+
+```bash
+sokki db path      # the file, brought up to date first
+sokki db schema    # every table and view with its columns
+sokki sql "SELECT id, title, started_at FROM meetings ORDER BY started_ms DESC LIMIT 5"
+sqlite3 -readonly "$(sokki db path)" "SELECT cite, speaker, text FROM turns WHERE person_id = 'me' LIMIT 20"
+```
+
+`sokki sql` brings the index up to date, runs one read-only statement and
+prints tab-separated rows (`--json`: `{columns, rows, row_count,
+truncated}`, at most `--max-rows`, default 500). A direct `sqlite3` reads
+the index as of its last sync: the app syncs after every note, rename,
+delete and dictation, and `sokki db path` syncs too. Reading works while
+the app writes (WAL; the index keeps its `-wal` and `-shm` files so
+read-only readers can always open it).
+
+The views are stable: within a schema version (`SELECT value FROM meta
+WHERE key = 'schema'`, now 2) tables and views keep their columns; a new
+version may add some.
+
+| View or table | One row per | Columns |
+|---|---|---|
+| `meetings` | meeting | `id`, `cite`, `title`, `started_at`, `started_ms`, `duration_s`, `app`, `note_path`, `has_audio`, `online` |
+| `turns` | speaker turn | `segment_id`, `meeting_id`, `cite` (`m:<id>@mm:ss`), `start_ms`, `end_ms`, `at_ms` (unix ms), `speaker`, `speaker_id`, `person_id` (`me`, the name as a slug, or NULL for "Speaker 2"), `name_confirmed`, `channel` (`mic` = this Mac's person, `system` = the call), `text`, `meeting_title`, `meeting_started_at`, `app` |
+| `tasks` | task | `item_id`, `meeting_id`, `meeting_title`, `meeting_started_at`, `text`, `owner`, `owner_person_id`, `status` (`open`, `done`), `evidence_ms`, `evidence_quote`, `quote_verified`, `evidence_origin` |
+| `decisions` | decision | as `tasks`, without owner and status |
+| `hook_items` | item a hook added | `item_id`, `meeting_id`, `kind`, `text`, `owner`, `evidence_ms`, `evidence_quote`, `quote_verified`, `added_by` |
+| `own_notes` | line of own notes | `segment_id`, `meeting_id`, `line`, `start_ms`, `typed` (1: the person's line, 0: Sokki's addition), `text` |
+| `dictations` (table) | dictation | `source_id` (`d:<n>`), `history_id`, `at`, `at_ms`, `target_app`, `raw`, `cleaned`, `language` |
+| `people` (table) | person | `person_id`, `name`, `is_me`, `meetings`, `talk_ms`, `first_ms`, `last_ms` |
+| `sources`, `segments`, `items`, `source_people` (tables) | the rows behind the views | `sokki db schema` |
+
+Full text: `segments_fts` (whole words, accents folded; `vertrag*` for a
+prefix) and `segments_tri` (three-letter pieces: words inside compounds).
+Both are keyed by `segments.id`, which is `turns.segment_id`:
+
+```sql
+-- "Vertrag" inside "Rahmenvertrag", best first
+SELECT t.cite, t.speaker, t.text FROM segments_tri
+  JOIN turns t ON t.segment_id = segments_tri.rowid
+ WHERE segments_tri MATCH 'vertrag' ORDER BY bm25(segments_tri) LIMIT 10;
+
+-- my open tasks, newest meeting first
+SELECT meeting_started_at, text, evidence_quote FROM tasks
+ WHERE owner_person_id = 'me' AND status = 'open' ORDER BY meeting_started_at DESC;
+
+-- who talked how much in the last 30 days
+SELECT speaker, sum(end_ms - start_ms) / 60000.0 AS minutes FROM turns
+ WHERE at_ms > (strftime('%s', 'now') - 30 * 86400) * 1000
+ GROUP BY speaker ORDER BY minutes DESC;
+
+-- dictations that went into Mail
+SELECT at, coalesce(cleaned, raw) AS text FROM dictations
+ WHERE target_app = 'Mail' ORDER BY at_ms DESC;
+```
+
 ### Writing back (hooks)
 
 ```bash
@@ -117,11 +169,9 @@ sokki item add m:ID --kind custom:crm --text "Vertrag läuft aus" --quote "läuf
 - `item add` checks the quote against the transcript within a minute of
   `--at`, word for word, and fails if it isn't there (saying where it is, if
   elsewhere); the item is stored at the turn where the quote is. `--text` is
-  the item in the hook's own words: it is shown at `summaries` access, the
-  quote only from `transcripts` on. The check itself reveals what was said,
-  so `item add` needs `transcripts`. Items are kept in `items.jsonl` in the
-  meeting's folder, so a rebuild keeps them. `SOKKI_HOOK` names the hook in
-  `added_by`.
+  the item in the hook's own words; the quote is its evidence. Items are
+  kept in `items.jsonl` in the meeting's folder, so a rebuild keeps them.
+  `SOKKI_HOOK` names the hook in `added_by`.
 
 ### Settings: `sokki config`
 
@@ -151,10 +201,9 @@ sokki config meetings.detection_enabled false
 | Variable | Default | For |
 |---|---|---|
 | `SOKKI_DATA_DIR` | `$SOKKI_APP_DATA` (set by the hooks runner for each hook), else `~/Library/Application Support/<the installed app's bundle id>` | everything on the Mac, `sokki hooks` included (tests: a made-up folder or a test app's) |
-| `SOKKI_SETTINGS` | `settings_store.json` in the data folder | `config`, `agent_access`, the model `ask` uses |
+| `SOKKI_SETTINGS` | `settings_store.json` in the data folder | `config`, the model `ask` uses |
 | `SOKKI_SOCKET` | `<data folder>/sokki.sock` (Linux: `$XDG_RUNTIME_DIR/sokki/sokki.sock`) | the local API |
 | `SOKKI_INDEX` | `index.sqlite` in the data folder | the search index |
-| `SOKKI_SCOPE` | — | narrows `agent_access` for one call (a hook's scope); never widens it |
 | `SOKKI_HOOK` | `cli` | who added an item or a section |
 | `SOKKI_MODEL` | `meetings.llm_model`, else `qwen3.5:9b` | `ask` |
 | `SOKKI_APP_BIN` | the installed app's binary | `transcribe` |

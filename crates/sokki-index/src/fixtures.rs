@@ -2,7 +2,7 @@
 //! tests and for trying `sokki search` without real data. Every name,
 //! company and sentence is invented.
 //!
-//! `cargo run -p sokki-index --example make_fixture --features fixtures -- DIR`
+//! `cargo run --example make_fixture --features fixtures -- DIR` in crates/sokki-index
 //! writes one to DIR; then `SOKKI_DATA_DIR=DIR sokki search Vertrag`.
 
 use anyhow::Result;
@@ -104,11 +104,10 @@ fn notes() -> Vec<(&'static str, &'static str, MeetingNote)> {
     ]
 }
 
-/// Writes the made-up data dir: `settings_store.json` (agent access set to
-/// `access`), `meetings/index.json` with each meeting's folder
+/// Writes the made-up data dir: `settings_store.json`, `meetings/index.json` with each meeting's folder
 /// (`segments.jsonl`, own notes for the first), `notes/*.md` and
 /// `history.db` with two dictations.
-pub fn write(root: &Path, access: &str) -> Result<()> {
+pub fn write(root: &Path) -> Result<()> {
     let meetings = root.join("meetings");
     let notes_dir = root.join("notes");
     std::fs::create_dir_all(&meetings)?;
@@ -137,7 +136,6 @@ pub fn write(root: &Path, access: &str) -> Result<()> {
     )?;
     let settings = json!({
         "settings": {
-            "agent_access": access,
             "meetings": {
                 "user_name": "Ich",
                 "notes_dir": notes_dir.to_string_lossy(),

@@ -69,8 +69,8 @@ Usage:
 ";
 
 /// The commands that read or write the index.
-const MEMORY: [&str; 9] = [
-    "search", "get", "meetings", "tasks", "decisions", "people", "index", "note", "item",
+const MEMORY: [&str; 11] = [
+    "search", "get", "meetings", "tasks", "decisions", "people", "index", "db", "sql", "note", "item",
 ];
 
 fn print_help() {
@@ -85,10 +85,6 @@ fn memory_env() -> Result<memory::Env> {
 #[cfg(target_os = "linux")]
 fn memory_env() -> Result<memory::Env> {
     let cfg = config::Config::load(&paths::config_file())?;
-    let mut scope = sokki_index::Scope::parse(&cfg.agents.access)?;
-    if let Some(s) = std::env::var("SOKKI_SCOPE").ok().filter(|s| !s.is_empty()) {
-        scope = scope.narrow(sokki_index::Scope::parse(&s)?);
-    }
     Ok(memory::Env {
         paths: sokki_index::Paths {
             index: paths::data_dir().join("index.sqlite"),
@@ -96,8 +92,6 @@ fn memory_env() -> Result<memory::Env> {
             history_db: None,
             user_name: cfg.meetings.user_name.clone(),
         },
-        scope,
-        how_to_allow: "set access = \"summaries\" (or transcripts, dictations) under [agents] in ~/.config/sokki/sokki.toml",
         audit_log: paths::data_dir().join("agent-access.log"),
     })
 }

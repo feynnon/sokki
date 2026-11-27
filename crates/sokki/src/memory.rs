@@ -1,16 +1,16 @@
 //! `sokki search`, `get`, `meetings`, `tasks`, `decisions`, `people`,
-//! `index`, `note append` and `item add`: everything Sokki recorded, for
-//! scripts, hooks and agents. They read `index.sqlite` directly (brought up
-//! to date first), so they work while Sokki is closed.
-//!
-//! Off until the person allows it (`agent_access`): what an agent reads may
-//! leave the computer when the agent runs in the cloud. Every read is
-//! logged locally (time, caller, command, ids returned; no content).
+//! `index`, `db`, `sql`, `note append` and `item add`: everything Sokki
+//! recorded, for scripts, hooks and agents, transcripts and dictations
+//! included. They read `index.sqlite` directly (brought up to date first),
+//! so they work while Sokki is closed; `sokki sql` and any `sqlite3` read it
+//! with plain SQL. Whatever a cloud agent reads leaves the computer. Every
+//! read through these commands is logged locally (time, caller, command,
+//! ids returned; no content).
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use sokki_index::query::{self, GetOpts, ListOpts, Mode, SearchOpts};
-use sokki_index::{Index, Paths, Scope};
+use sokki_index::{Index, Paths};
 use std::io::{IsTerminal, Read, Write};
 use std::path::PathBuf;
 
@@ -19,16 +19,12 @@ use crate::args::Args;
 /// What the platform provides.
 pub struct Env {
     pub paths: Paths,
-    /// The setting (`agent_access`), narrowed by `SOKKI_SCOPE` if set.
-    pub scope: Scope,
-    /// How to change the setting, for messages.
-    pub how_to_allow: &'static str,
     /// `agent-access.log`.
     pub audit_log: PathBuf,
 }
 
 pub const HELP: &str = "\
-Searching what Sokki recorded (off until you allow it: agent_access):
+Searching what Sokki recorded (everything, transcripts and dictations included):
   sokki search QUERY [--person P] [--since 14d|DATE] [--until DATE] [--kind meeting|notes|dictation]
                      [--app APP] [--section transcript|summary|decisions|tasks|notes|NAME]
                      [--mode both|words|trigram] [-n 10] [--max-tokens 4000] [--cursor C] [--json]
@@ -39,24 +35,14 @@ Searching what Sokki recorded (off until you allow it: agent_access):
   sokki decisions [--since …] [--query TEXT] [--person P] [--json]
   sokki people [--json]
   sokki index status|rebuild [--json]
+  sokki db path|schema [--json]                               the SQLite file, its tables and views
+  sokki sql \"SELECT …\" [--max-rows 500] [--json]            read-only SQL on it
 Writing back (for hooks):
   sokki note append ID --section NAME [--replace]          the text comes from stdin
   sokki item add ID --kind custom:NAME --text T --quote \"…\" --at mm:ss [--owner NAME] [--json]
 ";
 
 const LIST_FLAGS: [&str; 7] = ["--person", "--since", "--until", "--app", "-n", "--cursor", "--max-tokens"];
-
-fn scope_needed(env: &Env) -> Result<()> {
-    if env.scope == Scope::Off {
-        bail!(
-            "Sokki shares nothing with scripts and agents yet (agent access is off). The person allows it, typing in a terminal:\n  {}\n\
-             summaries: meetings, summaries, decisions, tasks, own notes; transcripts: plus transcripts; dictations: plus dictations.\n\
-             What an agent in the cloud reads leaves this computer.",
-            env.how_to_allow
-        );
-    }
-    Ok(())
-}
 
 fn open(env: &Env) -> Result<Index> {
     let ix = Index::open(&env.paths.index)?;
@@ -116,7 +102,6 @@ fn audit(env: &Env, cmd: &str, out: &Value) {
         "cmd": cmd,
         "query": out["query"],
         "filters": out["filters_applied"],
-        "scope": env.scope.as_str(),
         "ids": ids,
     });
     if let Ok(mut f) = std::fs::OpenOptions::new()
@@ -167,6 +152,8 @@ pub fn run(env: &Env, words: &[&str]) -> Result<()> {
         "decisions" => items(env, rest, "decision"),
         "people" => people(env, rest),
         "index" => index(env, rest),
+        "db" => db(env, rest),
+        "sql" => sql(env, rest),
         "note" => note(env, rest),
         "item" => item(env, rest),
         _ => bail!("unknown command {cmd}"),
@@ -177,7 +164,6 @@ fn search(env: &Env, words: &[&str]) -> Result<()> {
     let mut values: Vec<&str> = LIST_FLAGS.to_vec();
     values.extend(["--kind", "--section", "--mode"]);
     let a = Args::parse("search", words, &values, &["--json"])?;
-    scope_needed(env)?;
     let query = a.pos.join(" ");
     if query.trim().is_empty() {
         bail!("usage: sokki search QUERY [flags]   (sokki help)");
@@ -196,7 +182,7 @@ fn search(env: &Env, words: &[&str]) -> Result<()> {
         list: list_opts(&a, 10)?,
     };
     let ix = open(env)?;
-    let out = query::search(&ix, &o, env.scope)?;
+    let out = query::search(&ix, &o)?;
     audit(env, "search", &out);
     if a.on("--json") {
         return print_json(&out);
@@ -214,7 +200,6 @@ fn search(env: &Env, words: &[&str]) -> Result<()> {
 
 fn get(env: &Env, words: &[&str]) -> Result<()> {
     let a = Args::parse("get", words, &["--window", "--max-tokens", "--cursor"], &["--json"])?;
-    scope_needed(env)?;
     let [id] = a.pos.as_slice() else {
         bail!("usage: sokki get ID[@mm:ss] [--window 2m]   (ID from sokki search or sokki meetings)");
     };
@@ -225,7 +210,7 @@ fn get(env: &Env, words: &[&str]) -> Result<()> {
         cursor: a.number("--cursor", 0)?,
     };
     let ix = open(env)?;
-    let out = query::get(&ix, id, &o, env.scope)?;
+    let out = query::get(&ix, id, &o)?;
     audit(env, "get", &out);
     if a.on("--json") {
         return print_json(&out);
@@ -279,7 +264,6 @@ fn get(env: &Env, words: &[&str]) -> Result<()> {
 
 fn meetings(env: &Env, words: &[&str]) -> Result<()> {
     let a = Args::parse("meetings", words, &LIST_FLAGS, &["--json"])?;
-    scope_needed(env)?;
     if !a.pos.is_empty() {
         bail!("sokki meetings takes no words; to search: sokki search {}", a.pos.join(" "));
     }
@@ -319,7 +303,6 @@ fn items(env: &Env, words: &[&str], kind: &str) -> Result<()> {
     }
     let cmd = if kind == "task" { "tasks" } else { "decisions" };
     let a = Args::parse(cmd, words, &values, &["--json"])?;
-    scope_needed(env)?;
     if !a.pos.is_empty() {
         bail!("sokki {cmd} takes flags only (sokki help)");
     }
@@ -337,7 +320,6 @@ fn items(env: &Env, words: &[&str], kind: &str) -> Result<()> {
         status,
         a.get("--query"),
         &list_opts(&a, 50)?,
-        env.scope,
     )?;
     audit(env, cmd, &out);
     if a.on("--json") {
@@ -359,7 +341,6 @@ fn items(env: &Env, words: &[&str], kind: &str) -> Result<()> {
 
 fn people(env: &Env, words: &[&str]) -> Result<()> {
     let a = Args::parse("people", words, &["-n", "--cursor", "--max-tokens"], &["--json"])?;
-    scope_needed(env)?;
     let ix = open(env)?;
     let out = query::people(&ix, &list_opts(&a, 200)?)?;
     audit(env, "people", &out);
@@ -389,7 +370,6 @@ fn index(env: &Env, words: &[&str]) -> Result<()> {
         _ => bail!("usage: sokki index status|rebuild"),
     };
     let mut out = query::status(&ix)?;
-    out["agent_access"] = json!(env.scope.as_str());
     out["sync"] = serde_json::to_value(&report)?;
     if a.on("--json") {
         return print_json(&out);
@@ -418,6 +398,71 @@ fn index(env: &Env, words: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// `sokki db path|schema`: the index file (brought up to date), and its
+/// tables and views.
+fn db(env: &Env, words: &[&str]) -> Result<()> {
+    let a = Args::parse("db", words, &[], &["--json"])?;
+    let ix = open(env)?;
+    drop(ix);
+    match a.pos.first().map(String::as_str).unwrap_or("path") {
+        "path" => {
+            if a.on("--json") {
+                return print_json(&json!({
+                    "path": env.paths.index.to_string_lossy(),
+                    "schema": sokki_index::db::SCHEMA,
+                }));
+            }
+            println!("{}", env.paths.index.display());
+            Ok(())
+        }
+        "schema" => {
+            let out = sokki_index::sql::schema(&env.paths.index)?;
+            if a.on("--json") {
+                return print_json(&out);
+            }
+            println!("{}  (schema {})", str_of(&out["path"]), str_of(&out["schema"]));
+            for o in out["objects"].as_array().into_iter().flatten() {
+                let cols: Vec<&str> = o["columns"].as_array().into_iter().flatten().map(str_of).collect();
+                println!("{:<5} {:<14} {}", str_of(&o["type"]), str_of(&o["name"]), cols.join(", "));
+            }
+            Ok(())
+        }
+        other => bail!("usage: sokki db path|schema   (not {other:?})"),
+    }
+}
+
+/// `sokki sql`: one read-only statement on the index.
+fn sql(env: &Env, words: &[&str]) -> Result<()> {
+    let a = Args::parse("sql", words, &["--max-rows"], &["--json"])?;
+    let query = a.pos.join(" ");
+    if query.trim().is_empty() {
+        bail!("usage: sokki sql \"SELECT …\" [--json]   (sokki db schema lists the tables and views)");
+    }
+    drop(open(env)?);
+    let out = sokki_index::sql::run(&env.paths.index, &query, a.number("--max-rows", 500)?)?;
+    audit(env, "sql", &json!({ "query": query, "filters_applied": {}, "results": [] }));
+    if a.on("--json") {
+        return print_json(&out);
+    }
+    let cols: Vec<&str> = out["columns"].as_array().into_iter().flatten().map(str_of).collect();
+    println!("{}", cols.join("\t"));
+    for r in out["rows"].as_array().into_iter().flatten() {
+        let cells: Vec<String> = cols
+            .iter()
+            .map(|c| match &r[*c] {
+                Value::String(s) => one_line(s, 10_000),
+                Value::Null => String::new(),
+                v => v.to_string(),
+            })
+            .collect();
+        println!("{}", cells.join("\t"));
+    }
+    if out["truncated"] == true {
+        println!("… more rows: add --max-rows N");
+    }
+    Ok(())
+}
+
 fn stdin_text() -> Result<String> {
     if std::io::stdin().is_terminal() {
         bail!("pipe the text in: echo \"…\" | sokki note append ID --section NAME");
@@ -440,7 +485,6 @@ fn note(env: &Env, words: &[&str]) -> Result<()> {
     let ["append", id] = pos.as_slice() else {
         bail!("usage: echo TEXT | sokki note append ID --section NAME [--replace]");
     };
-    scope_needed(env)?;
     let section = a.get("--section").context("--section NAME is needed")?;
     let text = stdin_text()?;
     let ix = Index::open(&env.paths.index)?;
@@ -464,15 +508,6 @@ fn item(env: &Env, words: &[&str]) -> Result<()> {
     let ["add", id] = pos.as_slice() else {
         bail!("usage: sokki item add ID --kind custom:NAME --text T --quote \"…\" --at mm:ss");
     };
-    scope_needed(env)?;
-    // Checking a quote tells whether and when words were said: transcript
-    // access.
-    if !env.scope.transcripts() {
-        bail!(
-            "item add checks its quote against the transcript, which agent access '{}' doesn't share (needs transcripts)",
-            env.scope.as_str()
-        );
-    }
     let kind = a.get("--kind").context("--kind custom:NAME is needed")?;
     let text = a.get("--text").context("--text is needed: the item in your own words (the quote stays its evidence)")?;
     let quote = a.get("--quote").context("--quote is needed: the words from the transcript that back the item")?;

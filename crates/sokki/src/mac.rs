@@ -76,15 +76,6 @@ fn meeting_setting(s: &Value, key: &str, default: &str) -> String {
         .to_string()
 }
 
-/// The agent access setting, narrowed by `SOKKI_SCOPE` (a hook's scope).
-pub fn scope() -> Result<sokki_index::Scope> {
-    let set = sokki_index::Scope::parse(settings()["agent_access"].as_str().unwrap_or("off"))?;
-    Ok(match std::env::var("SOKKI_SCOPE").ok().filter(|s| !s.is_empty()) {
-        Some(s) => set.narrow(sokki_index::Scope::parse(&s)?),
-        None => set,
-    })
-}
-
 pub fn memory_env() -> Result<crate::memory::Env> {
     let data = data_dir();
     let s = settings();
@@ -95,8 +86,6 @@ pub fn memory_env() -> Result<crate::memory::Env> {
             history_db: Some(data.join("history.db")),
             user_name: meeting_setting(&s, "user_name", "Ich"),
         },
-        scope: scope()?,
-        how_to_allow: "sokki config agent_access summaries   (or transcripts, dictations)",
         audit_log: data.join("agent-access.log"),
     })
 }
@@ -337,15 +326,6 @@ pub fn config(args: &[&str]) -> Result<()> {
         }
         return Ok(());
     };
-    // agent_access before the app wrote it (an older app, or one not
-    // started since the update): its default is off, and it may be set.
-    if *key == "agent_access" && store["settings"].get("agent_access").is_none() {
-        store["settings"]["agent_access"] = Value::String("off".into());
-        if args.len() == 1 {
-            println!("\"off\"");
-            return Ok(());
-        }
-    }
     let parts: Vec<&str> = key.split('.').collect();
     let mut node = &mut store["settings"];
     for p in &parts[..parts.len() - 1] {
@@ -372,17 +352,6 @@ pub fn config(args: &[&str]) -> Result<()> {
                 bail!("{key} takes a whole number, not {raw:?}");
             }
             value = Value::from(f as i64);
-        }
-    }
-    if key == &"agent_access" {
-        sokki_index::Scope::parse(value.as_str().unwrap_or(""))?;
-        // The person's consent, not an agent's: only from a terminal a
-        // person types in (an agent's shell has none). Not a lock (the file
-        // is the person's), a stop for the easy path.
-        if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
-            bail!(
-                "agent_access is the person's choice: type `sokki config agent_access {raw}` in a terminal yourself"
-            );
         }
     }
     parent.insert(last.to_string(), value.clone());

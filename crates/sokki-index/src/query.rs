@@ -10,7 +10,6 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
 use crate::db::Index;
-use crate::scope::Scope;
 use crate::sync::slug;
 
 /// Which full-text table answers a search.
@@ -163,15 +162,6 @@ fn person_value(p: &str) -> (String, String) {
     (id, format!("%{}%", p.to_lowercase()))
 }
 
-fn scope_filter(w: &mut Where, scope: Scope) {
-    if !scope.transcripts() {
-        w.add("s.section != 'transcript'", vec![]);
-    }
-    if !scope.dictations() {
-        w.add("src.kind != 'dictation'", vec![]);
-    }
-}
-
 struct Filters<'a> {
     person: Option<&'a str>,
     since: Option<i64>,
@@ -181,9 +171,8 @@ struct Filters<'a> {
     section: Option<&'a str>,
 }
 
-fn search_where(f: &Filters, scope: Scope) -> Where {
+fn search_where(f: &Filters) -> Where {
     let mut w = Where::new();
-    scope_filter(&mut w, scope);
     if let Some(p) = f.person {
         let (id, like) = person_value(p);
         // A turn they said; in a summary, a meeting they were in.
@@ -276,7 +265,7 @@ fn fused(ix: &Index, q: &str, mode: Mode, w: &Where) -> Result<Vec<i64>> {
 }
 
 /// One citable result, as every command prints it.
-fn segment_json(ix: &Index, id: i64, scope: Scope) -> Result<Option<Value>> {
+fn segment_json(ix: &Index, id: i64) -> Result<Option<Value>> {
     let row = ix.conn.query_row(
         "SELECT s.source_id, src.kind, src.ref, s.section, s.start_ms, s.end_ms, s.speaker, s.speaker_id,
                 s.person_id, s.name_confirmed, s.channel, s.text, src.title, src.started_at, src.app
@@ -304,9 +293,6 @@ fn segment_json(ix: &Index, id: i64, scope: Scope) -> Result<Option<Value>> {
     )?;
     let (source, kind, rf, section, start, end, speaker, speaker_id, pid, confirmed, channel, text, title, started_at, app) =
         row;
-    if !scope.allows(&kind, &section) {
-        return Ok(None);
-    }
     Ok(Some(json!({
         "cite": unit_cite(&kind, &rf, &section, start),
         "source": source,
@@ -394,7 +380,7 @@ fn envelope(query: Value, shown: &[(String, String)], page: (Vec<Value>, Option<
 }
 
 /// `sokki search`.
-pub fn search(ix: &Index, o: &SearchOpts, scope: Scope) -> Result<Value> {
+pub fn search(ix: &Index, o: &SearchOpts) -> Result<Value> {
     if terms(&o.query).is_empty() {
         bail!("search needs words to look for, e.g. sokki search \"Rahmenvertrag Kündigung\"");
     }
@@ -406,10 +392,10 @@ pub fn search(ix: &Index, o: &SearchOpts, scope: Scope) -> Result<Value> {
         kind: o.kind.as_deref(),
         section: o.section.as_deref(),
     };
-    let ids = fused(ix, &o.query, o.mode, &search_where(&f, scope))?;
+    let ids = fused(ix, &o.query, o.mode, &search_where(&f))?;
     let mut items = Vec::with_capacity(ids.len());
     for id in ids {
-        if let Some(v) = segment_json(ix, id, scope)? {
+        if let Some(v) = segment_json(ix, id)? {
             items.push(v);
         }
     }
@@ -420,14 +406,14 @@ pub fn search(ix: &Index, o: &SearchOpts, scope: Scope) -> Result<Value> {
     );
     out["mode"] = Value::String(o.mode.as_str().into());
     if out["results"].as_array().is_some_and(|r| r.is_empty()) {
-        out["hint"] = Value::String(zero_hint(ix, o, &f, scope)?);
+        out["hint"] = Value::String(zero_hint(ix, o, &f)?);
     }
     Ok(out)
 }
 
 /// For zero results: which filter to drop, by how many results each one
 /// alone would give back.
-fn zero_hint(ix: &Index, o: &SearchOpts, f: &Filters, scope: Scope) -> Result<String> {
+fn zero_hint(ix: &Index, o: &SearchOpts, f: &Filters) -> Result<String> {
     let mut tips = Vec::new();
     let tries: [(&str, Filters); 6] = [
         ("--person", Filters { person: None, ..*f }),
@@ -449,16 +435,13 @@ fn zero_hint(ix: &Index, o: &SearchOpts, f: &Filters, scope: Scope) -> Result<St
         if !on {
             continue;
         }
-        let n = fused(ix, &o.query, o.mode, &search_where(without, scope))?.len();
+        let n = fused(ix, &o.query, o.mode, &search_where(without))?.len();
         if n > 0 {
             tips.push(format!("without {flag}: {n}"));
         }
     }
     if !tips.is_empty() {
         return Ok(format!("No results with these filters. Relax one: {}.", tips.join(", ")));
-    }
-    if !scope.transcripts() {
-        return Ok("No results. Transcripts are not searched: agent access is 'summaries'. Only the person can widen it (sokki config agent_access transcripts, typed in a terminal).".into());
     }
     let short = terms(&o.query).iter().any(|t| t.chars().count() < 3);
     Ok(if short {
@@ -534,7 +517,7 @@ fn people_of(ix: &Index, source: &str) -> Result<Vec<Value>> {
     Ok(rows)
 }
 
-fn items_of(ix: &Index, source: &str, kind_like: &str, scope: Scope) -> Result<Vec<Value>> {
+fn items_of(ix: &Index, source: &str, kind_like: &str) -> Result<Vec<Value>> {
     let mut stmt = ix.conn.prepare(
         "SELECT i.kind, i.text, i.owner, i.owner_person_id, i.status, i.evidence_ms, i.evidence_quote,
                 i.quote_verified, i.evidence_origin, i.added_by, src.ref
@@ -542,12 +525,12 @@ fn items_of(ix: &Index, source: &str, kind_like: &str, scope: Scope) -> Result<V
           WHERE i.source_id = ?1 AND i.kind LIKE ?2 ORDER BY i.ord",
     )?;
     let rows = stmt
-        .query_map(params![source, kind_like], |r| item_row(r, scope))?
+        .query_map(params![source, kind_like], item_row)?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     Ok(rows)
 }
 
-fn item_row(r: &rusqlite::Row, scope: Scope) -> rusqlite::Result<Value> {
+fn item_row(r: &rusqlite::Row) -> rusqlite::Result<Value> {
     let kind: String = r.get(0)?;
     let ev_ms: Option<i64> = r.get(5)?;
     let rf: String = r.get(10)?;
@@ -557,16 +540,12 @@ fn item_row(r: &rusqlite::Row, scope: Scope) -> rusqlite::Result<Value> {
         k => k,
     };
     let evidence = ev_ms.map(|ms| {
-        let mut e = json!({
+        json!({
             "cite": crate::cite("m", &rf, Some(ms)),
+            "quote": r.get::<_, Option<String>>(6).unwrap_or(None),
             "verified": r.get::<_, bool>(7).unwrap_or(false),
             "origin": r.get::<_, Option<String>>(8).unwrap_or(None),
-        });
-        // The quote is transcript text.
-        if scope.transcripts() {
-            e["quote"] = json!(r.get::<_, Option<String>>(6).unwrap_or(None));
-        }
-        e
+        })
     });
     Ok(json!({
         "cite": unit_cite("meeting", &rf, section, ev_ms),
@@ -581,17 +560,14 @@ fn item_row(r: &rusqlite::Row, scope: Scope) -> rusqlite::Result<Value> {
     }))
 }
 
-fn section_lines(ix: &Index, source: &str, scope: Scope, kind: &str) -> Result<Vec<(String, Value)>> {
+fn section_lines(ix: &Index, source: &str) -> Result<Vec<(String, Value)>> {
     let mut stmt = ix.conn.prepare("SELECT id, section FROM segments WHERE source_id = ?1 ORDER BY ord")?;
     let ids: Vec<(i64, String)> = stmt
         .query_map(params![source], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     let mut out = Vec::new();
     for (id, section) in ids {
-        if !scope.allows(kind, &section) {
-            continue;
-        }
-        if let Some(v) = segment_json(ix, id, scope)? {
+        if let Some(v) = segment_json(ix, id)? {
             out.push((section, v));
         }
     }
@@ -610,7 +586,7 @@ fn slim(mut v: Value) -> Value {
 }
 
 /// `sokki get`.
-pub fn get(ix: &Index, id: &str, o: &GetOpts, scope: Scope) -> Result<Value> {
+pub fn get(ix: &Index, id: &str, o: &GetOpts) -> Result<Value> {
     let (kind, rf, at_from_id) = parse_id(id)?;
     let at = o.at_ms.or(at_from_id);
     let prefix = match kind.as_str() {
@@ -619,9 +595,6 @@ pub fn get(ix: &Index, id: &str, o: &GetOpts, scope: Scope) -> Result<Value> {
         _ => "m",
     };
     let source = format!("{prefix}:{rf}");
-    if kind == "dictation" && !scope.dictations() {
-        bail!("dictations are not shared with agents: agent access is '{}'. Only the person can widen it (sokki config agent_access dictations, typed in a terminal).", scope.as_str());
-    }
     let meta = source_json(ix, &source)?.with_context(|| {
         format!("nothing indexed as {source}. `sokki meetings` lists the meetings; `sokki index status` shows what is indexed")
     })?;
@@ -648,7 +621,7 @@ pub fn get(ix: &Index, id: &str, o: &GetOpts, scope: Scope) -> Result<Value> {
         out["est_tokens"] = json!(est);
         return Ok(out);
     }
-    let lines = section_lines(ix, &source, scope, &kind)?;
+    let lines = section_lines(ix, &source)?;
     let (transcript, rest): (Vec<_>, Vec<_>) = lines.into_iter().partition(|(s, _)| s == "transcript");
     let mut transcript: Vec<Value> = transcript.into_iter().map(|(_, v)| slim(v)).collect();
     if let Some(t) = at {
@@ -672,15 +645,12 @@ pub fn get(ix: &Index, id: &str, o: &GetOpts, scope: Scope) -> Result<Value> {
     }
     if kind == "meeting" && at.is_none() {
         out["people"] = json!(people_of(ix, &source)?);
-        out["tasks"] = json!(items_of(ix, &source, "task", scope)?);
-        out["decisions"] = json!(items_of(ix, &source, "decision", scope)?);
-        out["items"] = json!(items_of(ix, &source, "custom:%", scope)?);
+        out["tasks"] = json!(items_of(ix, &source, "task")?);
+        out["decisions"] = json!(items_of(ix, &source, "decision")?);
+        out["items"] = json!(items_of(ix, &source, "custom:%")?);
         out["sections"] = Value::Object(sections);
     } else if kind == "notes" {
         out["sections"] = Value::Object(sections);
-    }
-    if !scope.transcripts() && kind == "meeting" {
-        out["transcript_hidden"] = json!("agent access is 'summaries': no transcript. Only the person can widen it (sokki config agent_access transcripts, typed in a terminal).");
     }
     let fixed = value_tokens(&out);
     let budget = o.max_tokens.saturating_sub(fixed).max(200);
@@ -767,7 +737,6 @@ pub fn items(
     status: Option<&str>,
     text: Option<&str>,
     o: &ListOpts,
-    scope: Scope,
 ) -> Result<Value> {
     let mut w = list_where(o);
     w.add("i.kind = ?", vec![Sql::Text(kind.to_string())]);
@@ -794,7 +763,7 @@ pub fn items(
     let mut stmt = ix.conn.prepare(&sql)?;
     let rows: Vec<Value> = stmt
         .query_map(params_from_iter(w.args.iter()), |r| {
-            let mut v = item_row(r, scope)?;
+            let mut v = item_row(r)?;
             v["title"] = json!(r.get::<_, Option<String>>(11)?);
             v["date"] = json!(r.get::<_, Option<String>>(12)?);
             Ok(v)

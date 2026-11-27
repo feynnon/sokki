@@ -131,8 +131,9 @@ without content).
 
 Searching is not part of the API: `sokki search`, `get`, `meetings`,
 `tasks` read `index.sqlite` directly (after bringing it up to date), so they
-work while Sokki is closed. They show nothing until the person turns on
-`agent_access`.
+work while Sokki is closed, and so does plain SQL on it (`sokki sql`, any
+`sqlite3`; CLI.md "SQL"). Everything indexed is readable, transcripts and
+dictations included.
 
 ## Testing
 
@@ -228,6 +229,14 @@ Short records of choices that are not obvious from the code.
   index is in the app's data folder, not the notes folder, so a synced
   notes folder never carries it. Vectors come after a private eval shows a
   gain.
+- **Direct data access, no gate.** Robin, 27 Nov 2026: "the relevant thing
+  is that Sokki has it indexed and queryable, and that claude code can just
+  run SQL commands in there … As direct data access as possible!!" So the
+  `agent_access` setting (off by default, with three levels) was removed a
+  day after it shipped: every `sokki` read returns everything, and
+  `index.sqlite` has stable views for plain SQL. Writes still go through
+  the CLI, because the index is rebuilt from the notes. Whatever a cloud
+  agent reads leaves the Mac.
 - **The Mac gets the Linux CLI, not its own.** The bash `scripts/sokki`
   had three commands and no events; the Rust binary gives both platforms
   the same commands. The app bundles it (`resources/bin/sokki`, built by

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Bump when a table changes; older indexes are rebuilt.
-pub const SCHEMA: i64 = 1;
+pub const SCHEMA: i64 = 2;
 
 const TABLES: &str = r#"
 CREATE TABLE IF NOT EXISTS meta (
@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE TABLE IF NOT EXISTS dictations (
     source_id   TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
     history_id  INTEGER NOT NULL,
+    at          TEXT,                  -- RFC 3339, local
     at_ms       INTEGER NOT NULL,
     target_app  TEXT,
     raw         TEXT NOT NULL,
@@ -126,7 +127,66 @@ CREATE TABLE IF NOT EXISTS items (
     added_by        TEXT               -- summary | hook name | cli
 );
 CREATE INDEX IF NOT EXISTS items_kind ON items(kind, status);
+
+-- Views for reading with SQL (CLI.md, "SQL"). Within a schema version
+-- (`meta.schema`) tables and views keep their columns; a new version may
+-- add some. `cite` is what `sokki get` takes.
+CREATE VIEW IF NOT EXISTS meetings AS
+SELECT ref AS id, 'm:' || ref AS cite, title, started_at, started_ms, duration_s,
+       app, path AS note_path, has_audio, online
+  FROM sources WHERE kind = 'meeting';
+
+CREATE VIEW IF NOT EXISTS turns AS
+SELECT s.id AS segment_id, src.ref AS meeting_id,
+       'm:' || src.ref || '@' || (CASE WHEN (s.start_ms + 500) / 1000 >= 3600
+            THEN printf('%d:%02d:%02d', (s.start_ms + 500) / 3600000, ((s.start_ms + 500) / 60000) % 60, ((s.start_ms + 500) / 1000) % 60)
+            ELSE printf('%02d:%02d', (s.start_ms + 500) / 60000, ((s.start_ms + 500) / 1000) % 60) END) AS cite,
+       s.start_ms, s.end_ms, src.started_ms + s.start_ms AS at_ms,
+       s.speaker, s.speaker_id, s.person_id, s.name_confirmed, s.channel, s.text,
+       src.title AS meeting_title, src.started_at AS meeting_started_at, src.app
+  FROM segments s JOIN sources src ON src.id = s.source_id
+ WHERE src.kind = 'meeting' AND s.section = 'transcript';
+
+CREATE VIEW IF NOT EXISTS tasks AS
+SELECT i.id AS item_id, src.ref AS meeting_id, src.title AS meeting_title,
+       src.started_at AS meeting_started_at, i.text, i.owner, i.owner_person_id, i.status,
+       i.evidence_ms, i.evidence_quote, i.quote_verified, i.evidence_origin
+  FROM items i JOIN sources src ON src.id = i.source_id WHERE i.kind = 'task';
+
+CREATE VIEW IF NOT EXISTS decisions AS
+SELECT i.id AS item_id, src.ref AS meeting_id, src.title AS meeting_title,
+       src.started_at AS meeting_started_at, i.text,
+       i.evidence_ms, i.evidence_quote, i.quote_verified, i.evidence_origin
+  FROM items i JOIN sources src ON src.id = i.source_id WHERE i.kind = 'decision';
+
+CREATE VIEW IF NOT EXISTS hook_items AS
+SELECT i.id AS item_id, src.ref AS meeting_id, i.kind, i.text, i.owner,
+       i.evidence_ms, i.evidence_quote, i.quote_verified, i.added_by
+  FROM items i JOIN sources src ON src.id = i.source_id WHERE i.kind LIKE 'custom:%';
+
+CREATE VIEW IF NOT EXISTS own_notes AS
+SELECT s.id AS segment_id, src.ref AS meeting_id, s.ord AS line, s.start_ms,
+       s.person_id IS 'me' AS typed, s.text
+  FROM segments s JOIN sources src ON src.id = s.source_id WHERE src.kind = 'notes';
 "#;
+
+/// Keeps the `-wal` and `-shm` files when the last connection closes.
+/// Without them a read-only reader (`sqlite3 -readonly`, `sokki sql`) can't
+/// open a WAL database at all ("unable to open database file"), and the app
+/// opens the index only for a moment, so that is the usual state.
+fn persist_wal(conn: &Connection) {
+    let mut on: std::os::raw::c_int = 1;
+    // SAFETY: a valid open handle, the "main" schema, and a pointer to an
+    // int, as SQLITE_FCNTL_PERSIST_WAL expects.
+    unsafe {
+        rusqlite::ffi::sqlite3_file_control(
+            conn.handle(),
+            c"main".as_ptr(),
+            rusqlite::ffi::SQLITE_FCNTL_PERSIST_WAL,
+            &mut on as *mut std::os::raw::c_int as *mut std::ffi::c_void,
+        );
+    }
+}
 
 /// An open index.
 pub struct Index {
@@ -150,6 +210,7 @@ impl Index {
              PRAGMA foreign_keys = ON;
              PRAGMA synchronous = NORMAL;",
         )?;
+        persist_wal(&conn);
         let index = Index {
             conn,
             path: path.to_path_buf(),
@@ -207,7 +268,13 @@ impl Index {
 
     fn drop_all(&self) -> Result<()> {
         self.conn.execute_batch(
-            "DROP TRIGGER IF EXISTS segments_ai;
+            "DROP VIEW IF EXISTS meetings;
+             DROP VIEW IF EXISTS turns;
+             DROP VIEW IF EXISTS tasks;
+             DROP VIEW IF EXISTS decisions;
+             DROP VIEW IF EXISTS hook_items;
+             DROP VIEW IF EXISTS own_notes;
+             DROP TRIGGER IF EXISTS segments_ai;
              DROP TRIGGER IF EXISTS segments_ad;
              DROP TABLE IF EXISTS segments_fts;
              DROP TABLE IF EXISTS segments_tri;
@@ -332,7 +399,7 @@ mod tests {
             .query_row("SELECT count(*) FROM sources", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, 0);
-        assert_eq!(ix.meta("schema").as_deref(), Some("1"));
+        assert_eq!(ix.meta("schema").as_deref(), Some(SCHEMA.to_string().as_str()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -18,6 +18,10 @@
 //! loses all its rows in one transaction, with `secure_delete` on.
 //!
 //! Never indexed: the typing journal, the sample meeting, private meetings.
+//!
+//! Everything indexed is readable: by the `sokki` commands, and with plain
+//! SQL ([`sql`], the views in [`db`]); whatever a cloud agent reads leaves
+//! the computer.
 
 pub mod db;
 #[cfg(feature = "fixtures")]
@@ -25,14 +29,13 @@ pub mod fixtures;
 pub mod items;
 pub mod parse;
 pub mod query;
-pub mod scope;
+pub mod sql;
 pub mod sync;
 pub mod time;
 pub mod write;
 
 pub use db::Index;
 pub use query::{GetOpts, ListOpts, Mode, SearchOpts};
-pub use scope::Scope;
 pub use sync::{rebuild, sync, sync_meeting, Paths, SyncReport};
 
 /// "mm:ss" or "h:mm:ss" for a time in ms, as in the notes.

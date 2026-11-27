@@ -1,5 +1,5 @@
 //! What `sokki hooks …` does, shared by every host's command line: list,
-//! allow, run one by hand, test all on made-up data, read the log.
+//! run one by hand, test all on made-up data, read the log.
 
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
@@ -12,36 +12,9 @@ use super::exec::{self, Outcome};
 use super::store::{Run, Store};
 use super::{Gate, Paths};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Approval {
-    Allowed,
-    /// Allowed once, changed since.
-    Changed,
-    New,
-}
-
-impl Approval {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Approval::Allowed => "allowed",
-            Approval::Changed => "changed, needs allow",
-            Approval::New => "new, needs allow",
-        }
-    }
-}
-
 pub struct HookInfo {
     pub hook: Hook,
-    pub approval: Approval,
     pub last: Option<Run>,
-}
-
-pub fn approval(store: &Store, hook: &Hook, dir: &Path) -> Result<Approval> {
-    Ok(match store.allowed_hash(&hook.name)? {
-        Some(h) if h == hook.fingerprint(dir) => Approval::Allowed,
-        Some(_) => Approval::Changed,
-        None => Approval::New,
-    })
 }
 
 pub fn list(paths: &Paths) -> Result<(Config, Vec<HookInfo>)> {
@@ -50,30 +23,11 @@ pub fn list(paths: &Paths) -> Result<(Config, Vec<HookInfo>)> {
     let mut out = Vec::new();
     for hook in &cfg.hooks {
         out.push(HookInfo {
-            approval: approval(&store, hook, &cfg.dir)?,
             last: store.runs(Some(&hook.name), 1)?.into_iter().next(),
             hook: hook.clone(),
         });
     }
     Ok((cfg, out))
-}
-
-/// Pins the hook as it is now. Returns it and the files whose content was
-/// pinned, so the caller can show what was approved.
-pub fn allow(paths: &Paths, name: &str) -> Result<(Hook, Vec<PathBuf>)> {
-    let cfg = config::load(&paths.config_dir)?;
-    let hook = cfg
-        .get(name)
-        .with_context(|| format!("no hook {name:?} in {}", paths.config_file().display()))?
-        .clone();
-    let store = Store::open(&paths.state_dir)?;
-    store.allow(&hook.name, &hook.fingerprint(&cfg.dir))?;
-    let files = hook.script_files(&cfg.dir);
-    Ok((hook, files))
-}
-
-pub fn revoke(paths: &Paths, name: &str) -> Result<bool> {
-    Store::open(&paths.state_dir)?.revoke(name)
 }
 
 pub fn runs(paths: &Paths, hook: Option<&str>, limit: usize) -> Result<Vec<Run>> {
@@ -143,8 +97,7 @@ pub struct Ran {
 }
 
 /// Runs `name` on `event` now, outside the queue, and logs it like any run.
-/// A run by hand needs no `allow` (you start it yourself), but gets only
-/// its scope. Waits while a meeting records or is processed.
+/// It gets what its scope names, as in a run on an event. Waits while a meeting records or is processed.
 pub fn run_once(
     paths: &Paths,
     name: &str,
@@ -218,27 +171,6 @@ mod tests {
             config_dir: root.join("config"),
             state_dir: root.join("state"),
         }
-    }
-
-    #[test]
-    fn allow_pins_until_the_script_changes() {
-        let p = paths("allow");
-        std::fs::write(
-            p.config_file(),
-            "[[hook]]\nname = \"a\"\non = \"meeting.note_ready\"\nrun = \"./a.sh\"\nscope = [\"tasks\"]\n",
-        )
-        .unwrap();
-        std::fs::write(p.config_dir.join("a.sh"), "#!/bin/sh\ncat\n").unwrap();
-        let (_, infos) = list(&p).unwrap();
-        assert_eq!(infos[0].approval, Approval::New);
-        let (hook, files) = allow(&p, "a").unwrap();
-        assert_eq!(hook.name, "a");
-        assert_eq!(files, vec![p.config_dir.join("a.sh")]);
-        assert_eq!(list(&p).unwrap().1[0].approval, Approval::Allowed);
-        std::fs::write(p.config_dir.join("a.sh"), "#!/bin/sh\ncurl evil\n").unwrap();
-        assert_eq!(list(&p).unwrap().1[0].approval, Approval::Changed);
-        assert!(allow(&p, "nope").is_err());
-        let _ = std::fs::remove_dir_all(p.config_dir.parent().unwrap());
     }
 
     #[test]

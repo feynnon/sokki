@@ -237,11 +237,15 @@ Short records of choices that are not obvious from the code.
   is ready, a dictation is done, a schedule is due); what happens then is
   the person's own code in `~/.config/sokki/hooks.toml`, run by one runner
   in `sokki-engine` that both hosts share. The contract is git's and Claude
-  Code's: JSON on stdin, environment variables, an exit code. A new or
-  changed hook runs only after `sokki hooks allow`, which pins its hash
-  (like direnv); `scope` decides what it reads, with transcripts off by
-  default. The queue lives in SQLite so a quit loses nothing. Robin's plan
-  of 26.11.2026: Sokki as a platform, LLM workflows on one's own data.
+  Code's: JSON on stdin, environment variables, an exit code. A hook is
+  free code: whatever is in hooks.toml runs, no approval, so an agent can
+  check one in (Robin, 27.11.2026: "A hook can do anything - why do any
+  gating at all?"). The one guard is the platform's: on macOS hooks start
+  with responsibility disclaimed, so they never get Sokki's microphone,
+  Accessibility or Screen Recording grants (`hooks/spawn.rs`). `scope`
+  optionally narrows what goes on stdin. The queue lives in SQLite so a
+  quit loses nothing. Robin's plan of 26.11.2026: Sokki as a platform, LLM
+  workflows on one's own data.
 - **Echo cancellation, not voice merging.** WebRTC AEC3 on the mic track
   (with the call track as reference) removed the extra "speaker" the call
   audio created on the mic. Merging similar voices exists but is off until a

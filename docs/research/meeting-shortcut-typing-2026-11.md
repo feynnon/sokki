@@ -125,3 +125,11 @@ must stay under 6 s); headless test `scripts/test-typing-no-meeting.sh`
 Not covered headless: real keyboards on real microphones (the made-up clicks
 stand in), and the browser rule in the running app (unit-tested; the Core
 Audio part needs a real browser holding the mic).
+
+**Installed app, 0.2.36 (2026-11-27 14:47 UTC):** a headless test Chrome
+(own profile, `open -g -n`, a local page holding the mic with
+getUserMedia, nothing playing) held the mic for about 30 s. Core Audio: Chrome
+in the mic list at every poll, nothing in the playing list. sokki.log:
+"Google Chrome holds the mic but plays nothing; not a call yet" 7 s in, no
+`meeting event: Started`, no prompt. Still to see: the next real browser call
+prompting as before.

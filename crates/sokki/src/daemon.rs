@@ -374,9 +374,6 @@ impl Daemon {
                     Report::Failed { hook, what, log } => {
                         self.error(format!("Hook {hook} {what}. Log: {}", log.display()))
                     }
-                    Report::NotAllowed { hook } => self.error(format!(
-                        "Hook {hook} is new or changed. To let it run: sokki hooks allow {hook}"
-                    )),
                     Report::ConfigInvalid { error } => {
                         self.error(format!("Hooks paused, hooks.toml has a mistake: {error}"))
                     }

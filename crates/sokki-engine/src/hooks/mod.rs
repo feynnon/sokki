@@ -10,9 +10,11 @@
 //!   ([`store`]): one hook at a time, one retry, a log file per run. A
 //!   meeting outranks every hook: none starts while one records or is
 //!   processed, and a running one is paused until it is over ([`exec`]).
-//! - **Safety:** a new or changed hook runs only after
-//!   `sokki hooks allow NAME`, which pins its hash ([`config::Hook::fingerprint`]),
-//!   like `direnv allow`. `scope` limits what it reads ([`content`]).
+//! - **Free code:** a hook in hooks.toml runs; there is no approval. An
+//!   agent adds one by writing hooks.toml and its script. On macOS a hook
+//!   runs apart from Sokki, so it never gets Sokki's privacy grants
+//!   ([`spawn`]). `scope` optionally narrows what goes on stdin
+//!   ([`content`]); without one a hook gets everything.
 //!
 //! The synchronous `dictation.transform` hook (the text about to be pasted
 //! in, other text out) stays where it was: `<app data>/hooks/transcription`
@@ -24,6 +26,7 @@ pub mod cron;
 pub mod event;
 pub mod exec;
 mod runner;
+pub mod spawn;
 pub mod store;
 pub mod tools;
 
@@ -90,8 +93,6 @@ pub enum Report {
         what: String,
         log: PathBuf,
     },
-    /// The hook is new or changed since `sokki hooks allow`.
-    NotAllowed { hook: String },
     /// `hooks.toml` has a mistake; no hook runs until it is fixed.
     ConfigInvalid { error: String },
     /// The hook ran fine (a notice about it can go).

@@ -561,3 +561,36 @@ fn an_accent_typed_with_a_dead_key_keeps_the_word_typed() {
         }]
     );
 }
+
+#[test]
+fn a_key_the_count_missed_keeps_the_word_typed() {
+    // the hook's count misses a key now and then: one counted key brings two characters
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("net.whatsapp.WhatsApp");
+    type_in(&mut ac, &f, "Ich habe das ni");
+    f.put("h"); // typed, not counted
+    let got = type_in(&mut ac, &f, "ct gesehen");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+}
+
+#[test]
+fn a_short_paste_with_one_key_still_is_no_typing() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich habe das ");
+    f.put("nih"); // three characters, one key (a paste)
+    f.keys.set(f.keys.get() + 1);
+    ac.on_key(&f, &|| f.keys.get());
+    let got = type_in(&mut ac, &f, "ct ");
+    assert!(
+        got.iter().all(|o| !matches!(o, Outcome::Fixed { .. })),
+        "{got:?}"
+    );
+}

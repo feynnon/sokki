@@ -259,11 +259,13 @@ impl Autocorrect {
         let changed = prev.as_ref().is_some_and(|p| !same_text(&p.text, &text));
         // an edit at the cursor that added no more characters than keys were pressed (typing,
         // Backspace, both between two looks, a word deleted with one key): where it starts.
-        // Keys the last read counted but the app didn't show yet count here too: T3 Code often
-        // shows a key only with the next one, two characters for one key (27 Nov 2026).
-        let allowed = prev
+        // Keys the last read counted but the app didn't show yet count here too, and one
+        // character more than keys once a key was pressed: the key count misses about 1 key in
+        // 40 in every app (the journal, 27 Nov 2026), so one key often brought two characters.
+        let (pressed, owed_before) = prev
             .as_ref()
-            .map_or(0, |p| keys_at_read.saturating_sub(p.keys) + p.owed);
+            .map_or((0, 0), |p| (keys_at_read.saturating_sub(p.keys), p.owed));
+        let allowed = pressed + owed_before + u64::from(pressed > 0);
         let edit = prev
             .as_ref()
             .and_then(|p| edit_at_cursor(&p.text, p.cursor, &text, cursor))
@@ -271,7 +273,11 @@ impl Autocorrect {
         let edit_from = edit.map(|(from, _)| from);
         // keys still to show up, at most a few (a key that typed nothing must not open the
         // door to a paste later)
-        let owed = edit.map_or(0, |(_, added)| (allowed - added as u64).min(MAX_OWED));
+        let owed = edit.map_or(0, |(_, added)| {
+            (pressed + owed_before)
+                .saturating_sub(added as u64)
+                .min(MAX_OWED)
+        });
         let run = match (&prev, edit_from) {
             // the first character in an empty field (a new message, a sent one cleared): first,
             // as the old text may begin with the same letter. Without this the first word of a

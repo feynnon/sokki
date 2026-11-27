@@ -70,10 +70,6 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
     title: "errors.hookFailedTitle",
     explanation: (t) => t("errors.hookFailed"),
   },
-  HookNotAllowed: {
-    title: "errors.hookNotAllowedTitle",
-    explanation: (t) => t("errors.hookNotAllowed"),
-  },
   HooksConfigInvalid: {
     title: "errors.hooksConfigInvalidTitle",
     explanation: (t) => t("errors.hooksConfigInvalid"),

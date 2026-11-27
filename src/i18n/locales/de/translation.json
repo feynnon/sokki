@@ -1033,8 +1033,6 @@
     "meetingStopFailed": "Die Aufnahme wurde beendet, konnte aber nicht zur Verarbeitung gespeichert werden.",
     "hookFailedTitle": "Hook fehlgeschlagen",
     "hookFailed": "Er ist zweimal nacheinander fehlgeschlagen. Sein Protokoll sagt, warum.",
-    "hookNotAllowedTitle": "Hook braucht dein OK",
-    "hookNotAllowed": "Er ist neu oder hat sich geändert, seit du ihn erlaubt hast. Damit er läuft, gib das im Terminal ein:",
     "hooksConfigInvalidTitle": "Hooks pausiert",
     "hooksConfigInvalid": "hooks.toml enthält einen Fehler. Kein Hook läuft, bis er behoben ist."
   },

@@ -33,8 +33,6 @@ fn events_reach_hooks_through_the_runner_thread() {
          [[hook]]\nname = \"own\"\non = \"own_notes.saved\"\nrun = \"cat >> own.jsonl\"\nscope = [\"own_notes\"]\n",
     )
     .unwrap();
-    tools::allow(&paths, "note").unwrap();
-    tools::allow(&paths, "own").unwrap();
 
     let gate = Arc::new(AtomicU8::new(1)); // a meeting records
     let reports: Arc<Mutex<Vec<Report>>> = Arc::default();

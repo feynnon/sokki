@@ -41,10 +41,8 @@
 #                                                      # Robin's Sokki records that test call.
 #   CALENDAR=events.json scripts/test-meeting.sh ...  # a made-up calendar (SOKKI_TEST_CALENDAR)
 #   HOOKS=dir scripts/test-meeting.sh ...             # run the hooks in dir/hooks.toml (HOOKS.md);
-#                                                     # without it the test app runs none. Allow
-#                                                     # them first, for the test app:
-#                                                     # SOKKI_DATA_DIR="$HOME/Library/Application Support/org.sokki.test" SOKKI_HOOKS_DIR=dir \
-#                                                     #   sokki hooks allow NAME
+#                                                     # without it the test app runs none; its
+#                                                     # own notes rest 2 s, not 30 s
 #   OWN_NOTES="12=Budget?|40=Druckerei bis Fr" TITLE_AFTER=600 scripts/test-meeting.sh ...
 #                                                     # type own notes during the call (at 12 s,
 #                                                     # 40 s); logs the note's "Meine Notizen"

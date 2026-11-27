@@ -6,7 +6,7 @@
 //! on      = "meeting.note_ready"
 //! run     = "./tasks-to-reminders.sh"     # /bin/sh -c, in this folder
 //! match   = { app = ["Zoom", "Teams"], person = "Anna" }   # optional
-//! scope   = ["summary", "tasks"]          # what the hook may read
+//! scope   = ["summary", "tasks"]          # optional: only these on stdin
 //! timeout = "5m"
 //!
 //! [[hook]]
@@ -18,7 +18,6 @@
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -30,16 +29,16 @@ pub const CONFIG_FILE: &str = "hooks.toml";
 /// Unless the hook sets its own.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// What a hook may read. Without a scope it gets the event and its meta
-/// (title, time, app, participants) only.
+/// What goes on a hook's stdin besides the event and its meta. Without a
+/// `scope` a hook gets all of it; a scope narrows that, e.g. for a hook
+/// that hands its input to a cloud model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Scope {
     /// A meeting's summary and decisions.
     Summary,
     /// A meeting's action items.
     Tasks,
-    /// A meeting's transcript. Off unless named: it is everything anyone
-    /// said, and untrusted input.
+    /// A meeting's transcript: everything anyone said, so untrusted input.
     Transcript,
     /// The text of a dictation.
     Dictations,
@@ -121,117 +120,6 @@ impl Hook {
     pub fn has(&self, scope: Scope) -> bool {
         self.scope.contains(&scope)
     }
-
-    /// `SOKKI_SCOPE` for the `sokki` command the hook may call: its access
-    /// levels each include the one before (off < summaries < transcripts <
-    /// dictations), so this is the widest one the scope fully covers. It
-    /// only narrows the person's own `agent_access`, never widens it.
-    pub fn cli_scope(&self) -> &'static str {
-        let (s, t, d) = (
-            self.has(Scope::Summary),
-            self.has(Scope::Transcript),
-            self.has(Scope::Dictations),
-        );
-        match (s, t, d) {
-            (true, true, true) => "dictations",
-            (true, true, false) => "transcripts",
-            (true, false, _) => "summaries",
-            _ => "off",
-        }
-    }
-
-    /// Files the `run` line names, which [`Hook::fingerprint`] pins. System
-    /// and package folders are left out (an OS update would otherwise ask
-    /// for approval again).
-    pub fn script_files(&self, dir: &Path) -> Vec<PathBuf> {
-        const SYSTEM: [&str; 9] = [
-            "/usr/",
-            "/bin/",
-            "/sbin/",
-            "/opt/homebrew/",
-            "/nix/",
-            "/System/",
-            "/Library/",
-            "/Applications/",
-            "/etc/",
-        ];
-        let mut files: Vec<PathBuf> = Vec::new();
-        // A redirection's file is data the hook reads or writes, not code:
-        // pinning `cat >> log.jsonl` would block the hook after its first
-        // run.
-        let is_redirect = |t: &str| {
-            let t = t.trim_start_matches(|c: char| c.is_ascii_digit() || c == '&');
-            t.starts_with('>') || t.starts_with('<')
-        };
-        let mut after_redirect = false;
-        for raw in self.run.split_whitespace() {
-            let redirect_target = std::mem::take(&mut after_redirect);
-            if is_redirect(raw) {
-                // ">" alone: the next word is the file; ">out.txt": this one.
-                after_redirect = raw
-                    .trim_start_matches(|c: char| {
-                        c.is_ascii_digit() || c == '&' || c == '>' || c == '<' || c == '|'
-                    })
-                    .is_empty();
-                continue;
-            }
-            let token = raw.trim_matches(|c| c == '"' || c == '\'' || c == ';' || c == '&');
-            if redirect_target || token.is_empty() || token.starts_with('-') || token.contains('$')
-            {
-                continue;
-            }
-            let path = if let Some(rest) = token.strip_prefix("~/") {
-                crate::process::expand_home(&format!("~/{rest}"))
-            } else if Path::new(token).is_absolute() {
-                PathBuf::from(token)
-            } else {
-                dir.join(token)
-            };
-            // "dir/./x.sh" → "dir/x.sh"
-            let path: PathBuf = path.components().collect();
-            let shown = path.to_string_lossy().into_owned();
-            if SYSTEM.iter().any(|s| shown.starts_with(s))
-                && !shown.starts_with(&*dir.to_string_lossy())
-            {
-                continue;
-            }
-            if path.is_file() && !files.contains(&path) {
-                files.push(path);
-            }
-        }
-        files.sort();
-        files
-    }
-
-    /// The hash `sokki hooks allow` pins: this entry of hooks.toml and the
-    /// content of every file the `run` line names. Any change (a wider
-    /// scope, an edited script) needs a new `allow`.
-    pub fn fingerprint(&self, dir: &Path) -> String {
-        let mut h = Sha256::new();
-        h.update(b"sokki-hook-v1\n");
-        let entry = serde_json::json!({
-            "name": self.name,
-            "on": self.on,
-            "run": self.run,
-            "cron": self.cron.as_ref().map(|c| c.text.clone()),
-            "app": self.matches.app,
-            "person": self.matches.person,
-            "scope": self.scope.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-            "timeout_s": self.timeout.as_secs(),
-        });
-        h.update(entry.to_string().as_bytes());
-        for file in self.script_files(dir) {
-            h.update(b"\nfile ");
-            h.update(file.to_string_lossy().as_bytes());
-            h.update(b"\n");
-            match std::fs::read(&file) {
-                Ok(bytes) => h.update(&bytes),
-                Err(_) => h.update(b"<unreadable>"),
-            }
-        }
-        let digest = h.finalize();
-        digest.iter().map(|b| format!("{b:02x}")).collect()
-    }
 }
 
 /// The whole file, checked.
@@ -308,8 +196,7 @@ struct RawHook {
     cron: Option<String>,
     #[serde(rename = "match")]
     matches: Option<RawMatch>,
-    #[serde(default)]
-    scope: Vec<String>,
+    scope: Option<Vec<String>>,
     timeout: Option<RawTimeout>,
     enabled: Option<bool>,
 }
@@ -375,8 +262,12 @@ pub fn parse(text: &str, dir: &Path) -> Result<Config> {
         if r.run.trim().is_empty() {
             bail!("hook {name:?}: run is empty");
         }
+        // No scope: everything.
         let mut scope = Vec::new();
-        for s in &r.scope {
+        let named = r
+            .scope
+            .unwrap_or_else(|| Scope::ALL.iter().map(|s| s.as_str().to_string()).collect());
+        for s in &named {
             let parsed = Scope::parse(s).with_context(|| {
                 format!(
                     "hook {name:?}: unknown scope {s:?}; one of {}",
@@ -475,7 +366,7 @@ enabled = false
         let w = &c.hooks[1];
         assert_eq!(w.cron.as_ref().unwrap().text, "0 17 * * fri");
         assert_eq!(w.timeout, Duration::from_secs(90));
-        assert!(w.scope.is_empty(), "no scope means meta only");
+        assert_eq!(w.scope, Scope::ALL.to_vec(), "no scope means everything");
         assert!(!c.hooks[2].enabled);
     }
 
@@ -520,31 +411,6 @@ enabled = false
     }
 
     #[test]
-    fn the_cli_level_never_exceeds_the_scope() {
-        let with = |scope: &[Scope]| Hook {
-            name: "h".into(),
-            on: "meeting.note_ready".into(),
-            run: "x".into(),
-            cron: None,
-            matches: Match::default(),
-            scope: scope.to_vec(),
-            timeout: DEFAULT_TIMEOUT,
-            enabled: true,
-        };
-        use Scope::*;
-        assert_eq!(with(&[]).cli_scope(), "off");
-        assert_eq!(with(&[Tasks]).cli_scope(), "off");
-        assert_eq!(with(&[Summary, Tasks]).cli_scope(), "summaries");
-        assert_eq!(with(&[Summary, Dictations]).cli_scope(), "summaries");
-        assert_eq!(with(&[Transcript]).cli_scope(), "off");
-        assert_eq!(with(&[Summary, Transcript]).cli_scope(), "transcripts");
-        assert_eq!(
-            with(&[Summary, Transcript, Dictations]).cli_scope(),
-            "dictations"
-        );
-    }
-
-    #[test]
     fn durations() {
         assert_eq!(parse_duration("30s"), Some(Duration::from_secs(30)));
         assert_eq!(parse_duration("5m"), Some(Duration::from_secs(300)));
@@ -584,53 +450,5 @@ enabled = false
             ..Default::default()
         };
         assert!(umlaut.matches(&meta(None, &["Jörg"])));
-    }
-
-    #[test]
-    fn fingerprint_pins_the_entry_and_the_script() {
-        let dir = std::env::temp_dir().join(format!("sokki-hooks-fp-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("tasks.sh"), "echo one\n").unwrap();
-        let c = parse(EXAMPLE, &dir).unwrap();
-        let hook = c.get("tasks-to-reminders").unwrap();
-        assert_eq!(hook.script_files(&dir), vec![dir.join("tasks.sh")]);
-        let before = hook.fingerprint(&dir);
-        assert_eq!(before, hook.fingerprint(&dir), "stable");
-        // The script changed.
-        std::fs::write(dir.join("tasks.sh"), "echo two\n").unwrap();
-        let edited = hook.fingerprint(&dir);
-        assert_ne!(before, edited);
-        // A wider scope.
-        let mut wider = hook.clone();
-        wider.scope.push(Scope::Transcript);
-        assert_ne!(wider.fingerprint(&dir), edited);
-        // Files a redirection reads or writes are not pinned.
-        std::fs::write(dir.join("log.jsonl"), "{}\n").unwrap();
-        std::fs::write(dir.join("in.txt"), "x").unwrap();
-        for run in [
-            "cat >> log.jsonl",
-            "cat >log.jsonl",
-            "./tasks.sh 2> log.jsonl < in.txt",
-            "./tasks.sh &>log.jsonl",
-            "./tasks.sh > \"$SOKKI_HOOKS_DIR/log.jsonl\"",
-        ] {
-            let h = Hook {
-                run: run.into(),
-                ..hook.clone()
-            };
-            let expected = if run.starts_with("cat") {
-                vec![]
-            } else {
-                vec![dir.join("tasks.sh")]
-            };
-            assert_eq!(h.script_files(&dir), expected, "{run}");
-        }
-        // System binaries are not pinned.
-        let sys = Hook {
-            run: "/usr/bin/osascript ./tasks.sh".into(),
-            ..hook.clone()
-        };
-        assert_eq!(sys.script_files(&dir), vec![dir.join("tasks.sh")]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

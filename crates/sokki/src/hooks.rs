@@ -12,8 +12,6 @@ sokki hooks: your own commands, run by Sokki on events (HOOKS.md).
 
 Usage:
   sokki hooks list [--json]              Hooks in ~/.config/sokki/hooks.toml, and whether each may run
-  sokki hooks allow NAME                 Let a new or changed hook run (pins its hash)
-  sokki hooks revoke NAME                Stop a hook from running until it is allowed again
   sokki hooks run NAME [--event E] [--id ID | --note FILE | --text TEXT]
                                          Run a hook now; without --id on a made-up meeting
   sokki hooks test [NAME]                Run every hook (or one) on made-up data, SOKKI_HOOK_TEST=1
@@ -79,15 +77,6 @@ pub fn main(args: &[&str]) -> Result<()> {
     let paths = paths();
     match words.as_slice() {
         ["list"] | [] => list(&paths, json),
-        ["allow", name] => allow(&paths, name),
-        ["revoke", name] => {
-            if tools::revoke(&paths, name)? {
-                println!("{name} no longer runs until you allow it again.");
-            } else {
-                println!("{name} was not allowed.");
-            }
-            Ok(())
-        }
         ["run", name] => run(&paths, name, args),
         ["test"] => test(&paths, None),
         ["test", name] => test(&paths, Some(name)),
@@ -112,6 +101,8 @@ fn when(ms: i64) -> String {
 fn scope_text(scope: &[Scope]) -> String {
     if scope.is_empty() {
         "meta only".into()
+    } else if scope.len() == Scope::ALL.len() {
+        "everything".into()
     } else {
         scope
             .iter()
@@ -134,8 +125,6 @@ fn list(paths: &Paths, json: bool) -> Result<()> {
                     "run": i.hook.run,
                     "scope": i.hook.scope.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
                     "enabled": i.hook.enabled,
-                    "allowed": i.approval == tools::Approval::Allowed,
-                    "approval": i.approval.as_str(),
                     "last_run": i.last.as_ref().map(|r| serde_json::json!({
                         "status": r.status, "exit_code": r.exit_code,
                         "started_ms": r.started_ms, "log": r.log_path,
@@ -165,11 +154,7 @@ fn list(paths: &Paths, json: bool) -> Result<()> {
             Some(c) => format!("schedule \"{}\"", c.text),
             None => i.hook.on.clone(),
         };
-        let state = if i.hook.enabled {
-            i.approval.as_str()
-        } else {
-            "off"
-        };
+        let state = if i.hook.enabled { "on" } else { "off" };
         let last = i
             .last
             .as_ref()
@@ -178,37 +163,6 @@ fn list(paths: &Paths, json: bool) -> Result<()> {
         println!("  {:<24} {:<32} {}", i.hook.name, on, state);
         println!("  {:<24} scope: {}; {last}", "", scope_text(&i.hook.scope));
     }
-    if infos
-        .iter()
-        .any(|i| i.hook.enabled && i.approval != tools::Approval::Allowed)
-    {
-        println!("Let one run: sokki hooks allow NAME");
-    }
-    Ok(())
-}
-
-fn allow(paths: &Paths, name: &str) -> Result<()> {
-    let (hook, files) = tools::allow(paths, name)?;
-    println!("Allowed {}:", hook.name);
-    match &hook.cron {
-        Some(c) => println!("  on       schedule \"{}\"", c.text),
-        None => println!("  on       {}", hook.on),
-    }
-    println!("  run      {}", hook.run);
-    println!("  in       {}", paths.config_dir.display());
-    println!("  scope    {}", scope_text(&hook.scope));
-    for f in &files {
-        println!("  pinned   {}", f.display());
-    }
-    if hook.has(Scope::Transcript) {
-        println!(
-            "It reads transcripts: everything anyone said in a call. Treat that text as untrusted input."
-        );
-    }
-    println!(
-        "If this entry or a pinned file changes, it waits for another `sokki hooks allow {}`.",
-        hook.name
-    );
     Ok(())
 }
 

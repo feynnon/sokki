@@ -1,6 +1,5 @@
-//! The hooks' state in `<state dir>/hooks.sqlite`: the approved hashes, the
-//! queue (it survives a restart), one row per run, and when each schedule
-//! last came due. The app and the `sokki` command share it (WAL, a busy
+//! The hooks' state in `<state dir>/hooks.sqlite`: the queue (it survives
+//! a restart), one row per run, and when each schedule last came due. The app and the `sokki` command share it (WAL, a busy
 //! timeout).
 
 use anyhow::{Context, Result};
@@ -60,11 +59,6 @@ pub fn now_ms() -> i64 {
 }
 
 const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS allowed (
-    name TEXT PRIMARY KEY,
-    hash TEXT NOT NULL,
-    at_ms INTEGER NOT NULL
-);
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY,
     hook TEXT NOT NULL,
@@ -130,33 +124,6 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.execute_batch(SCHEMA)?;
         Ok(Store { conn })
-    }
-
-    // ------------------------------------------------------------ approval
-
-    pub fn allowed_hash(&self, name: &str) -> Result<Option<String>> {
-        Ok(self
-            .conn
-            .query_row("SELECT hash FROM allowed WHERE name = ?1", [name], |r| {
-                r.get(0)
-            })
-            .optional()?)
-    }
-
-    pub fn allow(&self, name: &str, hash: &str) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO allowed (name, hash, at_ms) VALUES (?1, ?2, ?3)
-             ON CONFLICT(name) DO UPDATE SET hash = excluded.hash, at_ms = excluded.at_ms",
-            params![name, hash, now_ms()],
-        )?;
-        Ok(())
-    }
-
-    pub fn revoke(&self, name: &str) -> Result<bool> {
-        Ok(self
-            .conn
-            .execute("DELETE FROM allowed WHERE name = ?1", [name])?
-            > 0)
     }
 
     // ---------------------------------------------------------------- queue
@@ -312,7 +279,7 @@ impl Store {
         Ok(())
     }
 
-    /// The job will not run (the hook is gone, off or not approved).
+    /// The job will not run (the hook is gone or off).
     pub fn skip(&self, job: &Job) -> Result<()> {
         self.conn.execute(
             "UPDATE jobs SET status = 'skipped', payload = '' WHERE id = ?1",
@@ -427,19 +394,6 @@ mod tests {
             std::env::temp_dir().join(format!("sokki-hooks-store-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
-    }
-
-    #[test]
-    fn approval_is_per_name_and_hash() {
-        let d = temp("allow");
-        let s = Store::open(&d).unwrap();
-        assert_eq!(s.allowed_hash("a").unwrap(), None);
-        s.allow("a", "h1").unwrap();
-        s.allow("a", "h2").unwrap();
-        assert_eq!(s.allowed_hash("a").unwrap().as_deref(), Some("h2"));
-        assert!(s.revoke("a").unwrap());
-        assert_eq!(s.allowed_hash("a").unwrap(), None);
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

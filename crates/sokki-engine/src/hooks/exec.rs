@@ -7,10 +7,12 @@
 //!   time does not count towards the timeout.
 //! - At the timeout the hook's whole process group gets SIGTERM, then
 //!   SIGKILL after a grace period.
+//! - On macOS it runs apart from Sokki, without Sokki's privacy grants
+//!   ([`super::spawn`]).
 
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::config::Hook;
@@ -129,48 +131,42 @@ pub fn run(
         super::event::now(),
         hook.run
     );
-    let (out, err) = match (log.try_clone(), log.try_clone()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Outcome::Error("log file".into()),
-    };
-    let mut cmd = Command::new("/bin/sh");
-    cmd.arg("-c")
-        .arg(&hook.run)
-        .current_dir(dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::from(out))
-        .stderr(Stdio::from(err))
-        .env("PATH", path_env())
-        .env("SOKKI_EVENT", &event.event)
-        .env("SOKKI_ID", &event.id)
-        .env("SOKKI_HOOK", &hook.name)
-        .env("SOKKI_SCOPE", hook.cli_scope())
-        .env("SOKKI_HOOKS_DIR", dir);
+    let mut env: Vec<(OsString, OsString)> = vec![
+        ("PATH".into(), path_env().into()),
+        ("SOKKI_EVENT".into(), event.event.clone().into()),
+        ("SOKKI_ID".into(), event.id.clone().into()),
+        ("SOKKI_HOOK".into(), hook.name.clone().into()),
+        ("SOKKI_HOOKS_DIR".into(), dir.as_os_str().to_owned()),
+    ];
     if let Some(p) = &event.note_path {
-        cmd.env("SOKKI_NOTE_PATH", p);
+        env.push(("SOKKI_NOTE_PATH".into(), p.clone().into()));
     }
     for (k, v) in extra_env {
-        cmd.env(k, v);
+        env.push((k.into(), v.into()));
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
-    let mut child = match cmd.spawn() {
+    let spawned = super::spawn::spawn(&super::spawn::Spec {
+        program: "/bin/sh",
+        args: &["-c", &hook.run],
+        env: &env,
+        cwd: dir,
+        stdout: &log,
+        stderr: &log,
+    });
+    let (mut child, mut stdin) = match spawned {
         Ok(c) => c,
-        Err(e) => return Outcome::Error(e.to_string()),
+        Err(e) => {
+            let _ = writeln!(log, "# sokki: could not start: {e}");
+            return Outcome::Error(e.to_string());
+        }
     };
     let pgid = child.id();
     // Written from a thread: a hook that never reads stdin must not block
     // the runner, and a big payload must not fill the pipe.
-    if let Some(mut stdin) = child.stdin.take() {
-        let json = event.to_json();
-        std::thread::spawn(move || {
-            let _ = stdin.write_all(json.as_bytes());
-            let _ = stdin.write_all(b"\n");
-        });
-    }
+    let json = event.to_json();
+    std::thread::spawn(move || {
+        let _ = stdin.write_all(json.as_bytes());
+        let _ = stdin.write_all(b"\n");
+    });
 
     let mut ran = Duration::ZERO;
     let mut last = Instant::now();
@@ -178,14 +174,14 @@ pub fn run(
     let mut killed_at: Option<Instant> = None;
     let outcome = loop {
         match child.try_wait() {
-            Ok(Some(status)) => {
+            Ok(Some(exit)) => {
                 if killed_at.is_some() {
                     break Outcome::TimedOut;
                 }
-                break if status.success() {
+                break if exit.success() {
                     Outcome::Ok
                 } else {
-                    Outcome::Failed(status.code())
+                    Outcome::Failed(exit.code)
                 };
             }
             Ok(None) => {}
@@ -200,7 +196,7 @@ pub fn run(
             if now - at > GRACE {
                 #[cfg(unix)]
                 signal_group(pgid, libc::SIGKILL);
-                let _ = child.kill();
+                child.kill();
             }
         } else if ran > hook.timeout {
             let _ = writeln!(log, "\n# sokki: stopped after {}", human(hook.timeout));
@@ -210,7 +206,7 @@ pub fn run(
                 signal_group(pgid, libc::SIGCONT);
             }
             #[cfg(not(unix))]
-            let _ = child.kill();
+            child.kill();
             paused = false;
             killed_at = Some(now);
         } else {
@@ -289,7 +285,7 @@ mod tests {
         let free = || Gate::Free;
         let ok = run(
             &hook(
-                "cat > got.json; echo \"$SOKKI_EVENT $SOKKI_ID $EXTRA scope=$SOKKI_SCOPE\"",
+                "cat > got.json; echo \"$SOKKI_EVENT $SOKKI_ID $EXTRA\"",
                 5000,
             ),
             &d,
@@ -303,7 +299,7 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(d.join("got.json")).unwrap()).unwrap();
         assert_eq!(got.id, "m1");
         let text = std::fs::read_to_string(&log).unwrap();
-        assert!(text.contains("meeting.note_ready m1 x scope=off"), "{text}");
+        assert!(text.contains("meeting.note_ready m1 x"), "{text}");
         assert!(text.contains("# sokki: done"), "{text}");
         let failed = run(
             &hook("echo broken >&2; exit 3", 5000),

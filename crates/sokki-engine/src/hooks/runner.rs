@@ -2,7 +2,6 @@
 //! fires schedules, and runs one job at a time whenever no meeting needs
 //! the computer.
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
@@ -22,8 +21,6 @@ const BUSY_WAIT: Duration = Duration::from_secs(5);
 struct Runner {
     host: Host,
     store: Store,
-    /// Reported once per hook and hash, not at every event.
-    told_not_allowed: HashSet<(String, String)>,
     told_config: Option<String>,
     last_schedule_check: Option<Instant>,
     runs_since_prune: usize,
@@ -62,7 +59,6 @@ pub(super) fn run(host: Host, store: Store, shared: Arc<Shared>) {
     let mut r = Runner {
         host,
         store,
-        told_not_allowed: HashSet::new(),
         told_config: None,
         last_schedule_check: None,
         runs_since_prune: 0,
@@ -231,38 +227,6 @@ impl Runner {
             let _ = self.store.skip(&job);
             return;
         };
-        let fingerprint = hook.fingerprint(&cfg.dir);
-        let allowed = self.store.allowed_hash(&hook.name).ok().flatten();
-        if allowed.as_deref() != Some(fingerprint.as_str()) {
-            log::warn!(
-                "Hooks: {} is {} and needs `sokki hooks allow {}`; job {} skipped",
-                hook.name,
-                if allowed.is_some() { "changed" } else { "new" },
-                hook.name,
-                job.id
-            );
-            if let Ok(run) = self.store.begin_run(
-                Some(job.id),
-                &job.hook,
-                &job.event,
-                &job.subject,
-                job.attempts + 1,
-                "event",
-                None,
-            ) {
-                let _ =
-                    self.store
-                        .end_run(run, "not_allowed", None, Some("needs sokki hooks allow"));
-            }
-            let _ = self.store.skip(&job);
-            if self
-                .told_not_allowed
-                .insert((hook.name.clone(), fingerprint))
-            {
-                (self.host.report)(Report::NotAllowed { hook: hook.name });
-            }
-            return;
-        }
         let event: HookEvent = match serde_json::from_str(&job.payload) {
             Ok(e) => e,
             Err(e) => {
@@ -352,7 +316,6 @@ mod tests {
         let r = Runner {
             host,
             store,
-            told_not_allowed: HashSet::new(),
             told_config: None,
             last_schedule_check: None,
             runs_since_prune: 0,
@@ -372,28 +335,8 @@ mod tests {
     const TOML: &str = "[[hook]]\nname = \"zoom-only\"\non = \"meeting.note_ready\"\nrun = \"cat > out-$SOKKI_HOOK.json; echo $SOKKI_NOTES_DIR\"\nmatch = { app = \"Zoom\", person = \"Anna Beispiel\" }\nscope = [\"summary\"]\n\n[[hook]]\nname = \"fails\"\non = \"meeting.note_ready\"\nrun = \"exit 4\"\n";
 
     #[test]
-    fn queue_match_approval_retry_and_reports() {
+    fn queue_match_retry_and_reports() {
         let (mut r, reports, paths) = runner("flow", TOML);
-        // Not allowed yet: skipped and reported once.
-        r.queue(vec![note_ready(&paths, "Zoom")]);
-        while let Some(job) = r.store.next_due(now_ms()).unwrap() {
-            r.run_job(job);
-        }
-        assert!(!paths.config_dir.join("out-zoom-only.json").exists());
-        assert_eq!(
-            *reports.lock().unwrap(),
-            vec![
-                Report::NotAllowed {
-                    hook: "zoom-only".into()
-                },
-                Report::NotAllowed {
-                    hook: "fails".into()
-                }
-            ]
-        );
-        reports.lock().unwrap().clear();
-        tools::allow(&paths, "zoom-only").unwrap();
-        tools::allow(&paths, "fails").unwrap();
         // Teams does not match zoom-only; "fails" has no filter.
         r.queue(vec![
             note_ready(&paths, "Teams"),
@@ -433,21 +376,11 @@ mod tests {
             log.contains("/notes"),
             "the host's env reaches the hook: {log}"
         );
-        // The script changed: back to not allowed.
-        std::fs::write(paths.config_file(), TOML.replace("exit 4", "exit 5")).unwrap();
-        reports.lock().unwrap().clear();
-        r.queue(vec![note_ready(&paths, "Zoom")]);
-        while let Some(job) = r.store.next_due(later).unwrap() {
-            r.run_job(job);
-        }
-        assert!(reports.lock().unwrap().contains(&Report::NotAllowed {
-            hook: "fails".into()
-        }));
     }
 
     #[test]
-    fn dictation_text_is_queued_only_for_hooks_that_may_read_it() {
-        let toml = "[[hook]]\nname = \"reads\"\non = \"dictation.done\"\nrun = \"x\"\nscope = [\"dictations\"]\n\n[[hook]]\nname = \"blind\"\non = \"dictation.done\"\nrun = \"x\"\n";
+    fn dictation_text_is_queued_only_for_hooks_whose_scope_has_it() {
+        let toml = "[[hook]]\nname = \"reads\"\non = \"dictation.done\"\nrun = \"x\"\n\n[[hook]]\nname = \"blind\"\non = \"dictation.done\"\nrun = \"x\"\nscope = [\"summary\"]\n";
         let (mut r, _reports, _paths) = runner("dictation", toml);
         r.queue(vec![HookEvent::dictation(5, "Geheim", Meta::default())]);
         let mut stored = Vec::new();
@@ -464,7 +397,6 @@ mod tests {
     #[test]
     fn a_broken_config_is_reported_once_and_jobs_wait() {
         let (mut r, reports, paths) = runner("broken", TOML);
-        tools::allow(&paths, "fails").unwrap();
         r.queue(vec![note_ready(&paths, "Zoom")]);
         std::fs::write(paths.config_file(), "[[hook]]\nname = 1\n").unwrap();
         let job = r.store.next_due(now_ms()).unwrap().unwrap();
@@ -493,7 +425,6 @@ mod tests {
         r.schedules();
         r.schedules();
         assert_eq!(r.store.pending().unwrap(), 1, "missed runs fire once");
-        tools::allow(&paths, "every-minute").unwrap();
         let job = r.store.next_due(now_ms()).unwrap().unwrap();
         r.run_job(job);
         let seen: HookEvent = serde_json::from_str(

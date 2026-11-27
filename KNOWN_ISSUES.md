@@ -336,6 +336,7 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | M3 | Third-party apps built on Apple's text fields (not Chromium/Electron) get macOS's autocorrect and Sokki's: two correctors on one word | exclude them once a real case shows up |
 | M4 | The same open cases as the phone (K2–K5): two plausible fixes are left alone, the user's own names can get changed until undone once | as K4, K5 |
 | M6 | A German noun + s that is a real genitive stays as typed, also where the plural was meant ("die Transkripts" for Transkripte); the English "transcripts" is one slip away too (`docs/research/mac-autocorrect-2026-11.md`, "The user's own words as fixes") | an -s form after "die" competes with the -e plural, once more real cases show up; needs the sentence's language to outweigh the English word |
+| M7 | The key count (`sokki-keys`, `note_key_down`) is about 2–3 % short of the characters typed, in every app (journal 26–27 Nov: 1 of 33 in T3 Code, 1 of 50 in the Claude app, 1 of 60 in WhatsApp). Cause not found: the hook re-posts nothing and counts every key-down not posted by Sokki. Autocorrect and the journal each allow one character more than keys pressed, so a word stays typed; two missed keys in one word still lose it | find which key-downs the tap doesn't see (a tap disabled by timeout, a key while the callback waits on its lock); count them in the log |
 
 ## Usage data, "Help improve Sokki" (2026-11-24)
 
@@ -380,7 +381,7 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | IX9 | `sokki ask` on the Mac talks to `meetings.llm_base_url` (Ollama) only, as the old script did: with the built-in model selected it fails unless Ollama runs | `llm_provider: builtin` | start the built-in model for one question through `sokki_engine::llm::open` |
 | IX10 | The Linux build of `crates/sokki` after the split into macOS and Linux parts | – | fixed 27.11.: `cargo check --all-targets` and `cargo test` in the Arch box (`packaging/docker`, aarch64) without a warning; not yet run in the Omarchy VM |
 | IX11 | No item changes over time (`valid_from`/`invalid_at`): a task closed in a later meeting stays open in the index until the note's checkbox is ticked | – | as in the research, once a real case needs it |
-| IX12 | Hooks need `agent_access` on: the runner passes each hook's scope as `SOKKI_SCOPE`, which only narrows the setting | a CRM hook with access off gets "agent access is off" | Robin's call: a per-run grant from the runner for approved hooks (e.g. `SOKKI_HOOK_GRANT`) |
+| IX12 | Hooks needed `agent_access` on to read through `sokki` | – | fixed 27.11.: no gate, a hook reads everything through `sokki` (its `scope` still decides what it gets on stdin) |
 | IX13 | Quitting by signal (SIGTERM, as the test scripts do) skips `RunEvent::Exit`, so `sokki.sock` stays as a file; clients then say "not running", and the next start replaces it (tested 26.11.) | – | none needed; a quit from the menu removes it |
 | IX14 | Own notes were in the index twice: the typed lines from `notes.md` and again from the note's "Meine Notizen" section | – | fixed 27.11.: with a `notes.md`, the note's section adds only Sokki's additions |
 
@@ -393,9 +394,10 @@ Measured on Robin's writing (47k words, `mobile/keyboard/tools/robin_eval.py`, 2
 | H3 | Linux dictation ids are times, not history ids | `d:1764194412000` | once Linux keeps a dictation history |
 | H4 | `sokki hooks` on the Mac needed the repository's build of `crates/sokki` | – | fixed 27.11.: the app bundles the Rust CLI (`resources/bin/sokki`, `scripts/build-sokki-cli.sh`), `install.sh` links it; `scripts/sokki` runs it |
 | H5 | A hook paused for a meeting (SIGSTOP) can lose a network call | a hook halfway through an HTTP request when a recording starts may get a timeout from the server after the meeting | the retry runs it again; if a real case shows up, let a hook opt out of pausing |
-| H6 | Approval pins only the files the `run` line names | a script that sources `lib.sh` can change `lib.sh` without a new allow | documented; pin the whole hooks folder if a real case shows up |
+| H6 | Gone 27.11.2026: hooks need no approval any more (Robin: free code execution), so nothing is pinned | – | – |
 | H7 | `meeting.note_ready` can fire more than once per meeting | after a reprocess; once more when a summary that waited for the model lands | by design (the note changed); hooks dedupe, as the Reminders example does |
 | H8 | Not tried for real: whether Reminders shows its window when the example hook starts it | tested only in test mode, which leaves Reminders alone | try it once on a Mac nobody is using; it quits Reminders again if it started it |
 | H9 | Hooks have no Settings page yet | allowing and the log are CLI-only; the notice names the command | four designs on the canvas first (Robin's rule) |
 | H10 | A schedule runs only while Sokki runs | Friday 17:00 with the app closed runs at the next start, once | by design (anacron-like), documented |
+| H12 | Not tried with a hook that really asks for a grant: what macOS shows when a disclaimed hook first uses the microphone, Accessibility or Apple Events (Reminders) | the 27.11. test checked only, without prompting, that a hook no longer inherits its parent's microphone grant and answers for itself | try it once on a Mac nobody is using |
 | H11 | A hook running when Sokki quits keeps running, and runs again at the next start | the run counts as cut off (`recover`), so a slow hook can do its step twice | stop the hook's process group at quit, if a real case shows up |

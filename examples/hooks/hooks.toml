@@ -1,9 +1,8 @@
 # Example hooks for Sokki. HOOKS.md explains every field.
 #
 # Use them: copy this folder to ~/.config/sokki/ (or keep ~/.config/sokki in
-# git), then let each hook you want run once:
-#
-#   sokki hooks allow tasks-to-reminders
+# git). Every hook in this file runs on its event; delete or switch off
+# (enabled = false) the ones you don't want.
 #
 # Try them on a made-up meeting first; nothing leaves the Mac and Reminders
 # stays untouched in a test:

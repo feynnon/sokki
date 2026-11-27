@@ -105,14 +105,6 @@ fn show(app: &AppHandle, report: Report) {
                     .with_detail(format!("{hook} {what}. Log: {}", log.display())),
             );
         }
-        Report::NotAllowed { hook } => {
-            set_notice_for(Some(hook.clone()));
-            notices::raise(
-                app,
-                Notice::new(NoticeCode::HookNotAllowed, NoticeSource::Hooks)
-                    .with_detail(format!("sokki hooks allow {hook}")),
-            );
-        }
         Report::ConfigInvalid { error } => {
             set_notice_for(None);
             notices::raise(

@@ -57,7 +57,6 @@ pub enum NoticeCode {
     MeetingStartFailed,
     MeetingStopFailed,
     HookFailed,
-    HookNotAllowed,
     HooksConfigInvalid,
 }
 
@@ -80,7 +79,6 @@ impl NoticeCode {
             Self::PostProcessFailed
             | Self::FilePostProcessFailed
             | Self::HookFailed
-            | Self::HookNotAllowed
             | Self::HooksConfigInvalid => NoticeLevel::Warning,
         }
     }
@@ -103,7 +101,6 @@ impl NoticeCode {
             Self::MeetingStartFailed => &strings.meeting_start_failed_title,
             Self::MeetingStopFailed => &strings.meeting_stop_failed_title,
             Self::HookFailed => &strings.hook_failed_title,
-            Self::HookNotAllowed => &strings.hook_not_allowed_title,
             Self::HooksConfigInvalid => &strings.hooks_config_invalid_title,
         }
     }

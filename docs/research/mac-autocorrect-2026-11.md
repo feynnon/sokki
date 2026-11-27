@@ -248,6 +248,13 @@ Task: count fixes and misses in Robin's own typing from 0.2.26's install (26 Nov
   - Pastes (up to 21,681 characters with one key) and about 20 rare shapes (none over 7): left as they are.
 - Fix: keys a read counted but the field didn't show yet carry over to the next read, at most 2, so a key that typed nothing can't let a paste pass as typed. An edit now counts only the characters it added. The first letter in an empty field starts a run even when the old text began with the same letter. 22 typing tests pass, 4 of them new; the lag test fails without the fix.
 
+### The late-key fix didn't explain it (27 Nov 2026, afternoon, 0.2.36/0.2.37)
+
+Task: Robin asked for results after 0.2.36 shipped the fix above. From 0.2.36 (14:28 UTC) to 15:15 UTC: 13 fixed, 1 undone, 8 missed. The running app was the new build (started 15:56 local), and 9 more typed runs were lost as two characters for one key with no key owed. So the app didn't show a key late: the key was never counted.
+- The journal (`typing_log/`, the same key count) shows it in every app: about 1 in 40 typed characters falls outside a typed range as a single untyped character (T3 Code 30 per 1000 typed, Slack 25, Claude 20, WhatsApp 17). These characters are ordinary letters (825) and spaces (289), not punctuation or pastes. The journal allows one character more than keys, which is why it keeps these words.
+- Fix: autocorrect allows the same: up to one character more than keys pressed, only when a key was pressed (a change with no key stays "not typed"). A 3-character paste with one key is still no typing. 25 typing tests pass; the new one fails without the change.
+- Open: why the hook misses about 1 key in 40 (KNOWN_ISSUES M7).
+
 ## Open questions
 
 - Not yet tested in the installed app by a person (first release with these fixes: 0.2.15).

@@ -58,6 +58,9 @@ path = "tests/macos_ipc_quiescence.rs"
 name = "synthetic_input"
 path = "tests/synthetic_input.rs"
 
+[dependencies.log]
+version = "0.4"
+
 [dependencies.bitflags]
 version = "2"
 features = ["serde"]

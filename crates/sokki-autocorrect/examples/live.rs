@@ -65,6 +65,12 @@ fn main() {
         std::fs::write(&a[4], [o.stdout, o.stderr].concat()).unwrap();
         return;
     }
+    if a.get(1).map(|s| s.as_str()) == Some("race") {
+        // fast typing while a word is swapped, with the lab's grant
+        let exe = std::env::current_exe().unwrap().with_file_name("race");
+        let _ = std::process::Command::new(exe).args(&a[2..]).status();
+        return;
+    }
     if a.get(1).map(|s| s.as_str()) == Some("paste-edit") {
         // the instant paste's lab test, with the lab's grant
         let exe = std::env::current_exe()

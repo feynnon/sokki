@@ -394,8 +394,22 @@ impl Field for AxField {
         true
     }
 
-    fn settle(&self, ok: &dyn Fn(&str) -> bool) -> bool {
-        let until = std::time::Instant::now() + SETTLE;
+    /// The keyboard hook holds the user's keys (`sokki_keys::hold`) and later sends them to
+    /// this app, after Sokki's typed fix.
+    fn hold_keys(&self) -> Option<crate::Held> {
+        let h = sokki_keys::hold_keys(self.pid)?;
+        Some(crate::Held {
+            keys: h.keys,
+            since_last_key_ms: h.since_last_key.as_millis().min(u64::MAX as u128) as u64,
+        })
+    }
+
+    fn release_keys(&self) {
+        sokki_keys::release_keys();
+    }
+
+    fn settle_within(&self, ms: u64, ok: &dyn Fn(&str) -> bool) -> bool {
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(ms);
         loop {
             if self.value().is_some_and(|v| ok(&v)) {
                 return true;

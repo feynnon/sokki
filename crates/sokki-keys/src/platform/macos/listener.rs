@@ -215,6 +215,7 @@ impl PressBlocking {
 fn posted_by_this_process(event: &CGEvent) -> bool {
     CGEvent::integer_value_field(Some(event), CGEventField::EventSourceUnixProcessID)
         == i64::from(std::process::id())
+        || crate::hold::reposted(event)
 }
 
 /// Context handed to the event tap callback through the refcon pointer.
@@ -530,6 +531,19 @@ unsafe extern "C-unwind" fn event_tap_callback(
         }
     }
 
+    // Autocorrect holds the user's keys while it swaps a word (`crate::hold`).
+    if !should_block
+        && matches!(event_type, CGEventType::KeyDown | CGEventType::KeyUp)
+        && !posted_by_this_process(cg_event)
+        && crate::hold::on_key_event(
+            cg_event,
+            event_type == CGEventType::KeyDown,
+            flags.intersects(CGEventFlags::MaskCommand | CGEventFlags::MaskControl),
+        )
+    {
+        return std::ptr::null_mut();
+    }
+
     if should_block {
         // Block the event from reaching other applications
         std::ptr::null_mut()
@@ -648,6 +662,7 @@ fn run_event_tap(
     // without a stop request; bail out if the tap's port died (e.g. the
     // accessibility permission was revoked) so we don't spin on a dead
     // source.
+    crate::hold::set_running(true);
     while running.load(std::sync::atomic::Ordering::SeqCst) {
         CFRunLoop::run();
 
@@ -657,6 +672,7 @@ fn run_event_tap(
     }
 
     // Cleanup
+    crate::hold::set_running(false);
     run_loop.remove_source(Some(&source), unsafe {
         objc2_core_foundation::kCFRunLoopCommonModes
     });

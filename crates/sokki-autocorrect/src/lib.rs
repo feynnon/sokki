@@ -55,8 +55,31 @@ pub trait Field {
     fn insert(&self, text: &str) -> bool;
     /// Waits briefly until the field's text passes `ok` (apps may show a change a few ms late).
     fn settle(&self, ok: &dyn Fn(&str) -> bool) -> bool {
+        self.settle_within(250, ok)
+    }
+    /// [`Field::settle`], waiting at most `ms`.
+    fn settle_within(&self, ms: u64, ok: &dyn Fn(&str) -> bool) -> bool {
+        let _ = ms;
         self.value().is_some_and(|v| ok(&v))
     }
+    /// Keeps the user's keys from reaching the app until [`Field::release_keys`], so none
+    /// lands while a word is swapped: the hook holds them and sends them on, in order.
+    /// `None`: this field can't hold keys.
+    fn hold_keys(&self) -> Option<Held> {
+        None
+    }
+    /// Sends the held keys on to the app, in the order they were typed.
+    fn release_keys(&self) {}
+}
+
+/// What [`Field::hold_keys`] knows when the hold starts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Held {
+    /// The key count: keys counted up to it went to the app, later ones are held.
+    pub keys: u64,
+    /// How long ago the last key went to the app, ms. A key that went just now may not show
+    /// in the field yet (Chrome shows keys a few ms late).
+    pub since_last_key_ms: u64,
 }
 
 /// Apps where Sokki never fixes: macOS already does (Apple's own apps), a typo fix would
@@ -408,6 +431,13 @@ impl Autocorrect {
         keys_at_read: u64,
     ) -> Outcome {
         let len = u16_len(typed);
+        // Hold the user's keys while the word is swapped, so none lands in the middle of it
+        // (Robin, 27 Nov 2026: a letter typed during a fix ended up after the wrong word).
+        if let Some(held) = field.hold_keys() {
+            let out = self.replace_holding(field, text, start, typed, fix, cursor, held);
+            field.release_keys();
+            return out;
+        }
         // read again: still the same text and cursor, and no key since
         if field.value().as_deref() != Some(text) || field.selection() != Some((cursor, 0)) {
             return Outcome::Skipped("field changed");
@@ -496,6 +526,83 @@ impl Autocorrect {
         }
     }
 
+    /// The swap while the hook holds the user's keys. Keys that went to the app just before
+    /// the hold may still be on their way: wait until they must show, read the field again,
+    /// and go on only if all that changed since `text` is characters typed at the cursor.
+    /// Then select the word and everything typed after it, and type the fix and that text
+    /// again: nothing the user types lands in between, and the cursor ends where it was.
+    #[allow(clippy::too_many_arguments)]
+    fn replace_holding(
+        &mut self,
+        field: &dyn Field,
+        text: &str,
+        start: usize,
+        typed: &str,
+        fix: &str,
+        cursor: usize,
+        held: Held,
+    ) -> Outcome {
+        let len = u16_len(typed);
+        let Some((now, coming)) = calm_field(field, text, cursor, held) else {
+            self.stale = true;
+            return Outcome::Skipped("field changed");
+        };
+        let end = cursor + coming;
+        // what the user typed after the word: the character that ended it, maybe more
+        let after_word = String::from_utf16_lossy(
+            &now.encode_utf16()
+                .skip(start + len)
+                .take(end - start - len)
+                .collect::<Vec<u16>>(),
+        );
+        if !field.select(start, end - start) {
+            leave_cursor(field, end);
+            return Outcome::Skipped("can't select");
+        }
+        if !field.insert(&format!("{fix}{after_word}")) {
+            leave_cursor(field, end);
+            return Outcome::Skipped("can't type the fix");
+        }
+        let expected = text::replace_u16(&now, start, len, fix);
+        let after = end + u16_len(fix) - len;
+        if !field.settle(&|v| same_text(v, &expected)) {
+            // the typed fix never arrived (the app wasn't taking keys): never leave the word
+            // selected when the keys go on
+            let left = field.value().is_some_and(|v| same_text(&v, &now));
+            leave_cursor(field, if left { end } else { after });
+            self.reset();
+            return Outcome::Skipped(if left {
+                "the fix didn't arrive"
+            } else {
+                "the fix didn't arrive, field changed"
+            });
+        }
+        let typed_after = u16_len(&after_word);
+        self.last = Some(Last {
+            app: field.app().to_string(),
+            text: field.value().unwrap_or_else(|| expected.clone()),
+            cursor: after,
+            // the held keys come next, as typed
+            keys: held.keys,
+            owed: 0,
+            run: typed_after,
+        });
+        // Backspace right after the fix brings the word back; not once the user typed on
+        self.done = (end == cursor).then(|| Done {
+            app: field.app().to_string(),
+            start,
+            typed: typed.to_string(),
+            fix: fix.to_string(),
+            text: expected,
+            cursor: after,
+        });
+        Outcome::Fixed {
+            typed: typed.to_string(),
+            fix: fix.to_string(),
+            exact: true,
+        }
+    }
+
     fn undo(
         &mut self,
         field: &dyn Field,
@@ -505,18 +612,28 @@ impl Autocorrect {
         keys_at_read: u64,
     ) -> Outcome {
         let flen = u16_len(&d.fix);
-        if keys() != keys_at_read || !field.select(d.start, flen) || !field.insert(&d.typed) {
+        // hold the user's keys, as for a fix; a key already on its way leaves the fix alone
+        let held = field.hold_keys();
+        let calm = match held {
+            Some(h) => calm_field(field, text, d.cursor - 1, h).is_some_and(|(_, k)| k == 0),
+            None => keys() == keys_at_read,
+        };
+        if !calm || !field.select(d.start, flen) || !field.insert(&d.typed) {
+            leave_cursor(field, d.cursor - 1);
+            field.release_keys();
             return Outcome::Skipped("can't undo");
         }
         let after = d.start + u16_len(&d.typed);
         let restored = text::replace_u16(text, d.start, flen, &d.typed);
         // typing over the selection already leaves the cursor after the word
         field.settle(&|v| v == restored);
+        let now = field.value().unwrap_or(restored);
+        field.release_keys();
         self.last = Some(Last {
             app: d.app.clone(),
-            text: field.value().unwrap_or(restored),
+            text: now,
             cursor: after,
-            keys: keys(),
+            keys: held.map_or_else(keys, |h| h.keys),
             owed: 0,
             run: 0,
         });
@@ -581,6 +698,46 @@ fn edit_at_cursor(
         .take_while(|(&x, &y)| same(x, y))
         .count();
     Some((from, cursor - from))
+}
+
+/// How long after a key went to the app the field surely shows it. Chrome shows a key a few
+/// ms late (`docs/research/autocorrect-typing-race-2026-11.md`).
+const KEY_SHOWS_MS: u64 = 40;
+
+/// With the keys held: waits until the last key that went to the app shows, then reads the
+/// field. Returns its text and how many UTF-16 units were typed at `cursor` since `text`, if
+/// that is all that changed and the cursor is after them.
+fn calm_field(field: &dyn Field, text: &str, cursor: usize, held: Held) -> Option<(String, usize)> {
+    let wait = KEY_SHOWS_MS.saturating_sub(held.since_last_key_ms);
+    if wait > 0 {
+        field.settle_within(wait, &|_| false);
+    }
+    let (now, sel) = (field.value()?, field.selection()?);
+    let k = inserted_at(text, cursor, &now)?;
+    (sel == (cursor + k, 0)).then_some((now, k))
+}
+
+/// How many UTF-16 units `new` has inserted at `at` of `old`, if that is the only change
+/// (a no-break space counts as a space).
+fn inserted_at(old: &str, at: usize, new: &str) -> Option<usize> {
+    let a: Vec<u16> = old.encode_utf16().collect();
+    let b: Vec<u16> = new.encode_utf16().collect();
+    if at > a.len() || b.len() < a.len() {
+        return None;
+    }
+    let same = |x: &u16, y: &u16| x == y || (is_space(*x) && is_space(*y));
+    let k = b.len() - a.len();
+    let ok = a[..at].iter().zip(&b[..at]).all(|(x, y)| same(x, y))
+        && a[at..].iter().zip(&b[at + k..]).all(|(x, y)| same(x, y));
+    ok.then_some(k)
+}
+
+/// Puts the cursor at `at` with nothing selected, before held keys go on, so none of them
+/// types over a selected word.
+fn leave_cursor(field: &dyn Field, at: usize) {
+    if field.selection().is_some_and(|(_, l)| l > 0) {
+        field.select(at, 0);
+    }
 }
 
 fn is_space(u: u16) -> bool {

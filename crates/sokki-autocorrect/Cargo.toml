@@ -9,3 +9,6 @@ publish = false
 [dependencies]
 sokki-typos = { path = "../sokki-typos" }
 log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sokki-keys = { path = "../sokki-keys" }

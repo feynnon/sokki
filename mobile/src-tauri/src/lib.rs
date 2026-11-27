@@ -32,6 +32,9 @@ pub fn run() {
             link::link_upload,
             link::link_status,
             link::link_send_journal,
+            link::link_live_start,
+            link::link_live_part,
+            link::link_live_end,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

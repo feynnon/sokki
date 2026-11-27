@@ -15,6 +15,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `data/cleanup_latency.json` | Wait after the speaker stops, per setup and dictation id; llama-server read/write speed and MTP acceptance. |
 | `data/summary_runs_and_ratings.json` | Every summary run (time, tokens, counts) and the second blind rating, per model and meeting. |
 | `android-phone-transcript-2026-11.md` | Meeting transcript on the phone without a Mac (Pixel 7): 30 minutes in 12.6 minutes, about 7 % battery, 3 % word errors; stops while the app is not on screen. Led to: no meeting transcripts on the phone (Robin, 26 Nov 2026). |
+| `phone-live-meetings-2026-11.md` | Phone meetings sent to the Mac while they record: streamed WebM decoding equals the file, the real Mac pipeline live vs after the stop (3-minute meeting), link behaviour (bitrate, kept connection, fresh pairing, Mac paused or restarted, older Mac). |
 | `live-vs-final-2026-11.md` | Live text vs. pasted transcript on 34 real dictations, with Whisper large-v3 and Canary 1B v2 as tie-breakers; the live dictation cleanup in four rounds (what it cleans while you speak, redo, wait). |
 | `word-learning-2026-11.md` | The word list and word learning: what the swap fixes and breaks, the language model as word judge, how other dictation apps learn words, the typed-text journal tests. |
 | `data/live_vs_final.json` | Per dictation and round: word differences, distances to both references, cleanup steps, redo and wait. |

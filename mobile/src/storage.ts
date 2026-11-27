@@ -5,6 +5,7 @@ export interface Recording {
   startedAt: string; // ISO
   durationS: number;
   remoteId: string | null; // the Mac's meeting id once uploaded
+  liveId?: string | null; // sent to the Mac while recording: the rest goes there at the end
   state: "waiting" | "uploading" | "processing" | "done" | "failed";
   stage: string | null;
   progress?: number | null; // 0–1 within the Mac's current stage

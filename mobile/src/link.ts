@@ -54,4 +54,40 @@ export async function upload(audio: Blob, startedAt: Date): Promise<string> {
   });
 }
 
+async function base64(audio: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(audio);
+  });
+}
+
+/** A meeting sent as it records, so the Mac transcribes it live and the
+ * note is ready soon after the stop (src-tauri/src/link.rs, Mac:
+ * meeting/phone_live.rs). Returns the Mac's meeting id; an older Mac
+ * answers an error, and the recording goes whole after the stop. */
+export const liveStart = (startedAt: Date, mime: string) =>
+  invoke<string>("link_live_start", {
+    startedAt: startedAt.toISOString(),
+    mime: mime || "audio/webm",
+  });
+
+/** The recording's bytes from `offset`; returns the bytes the Mac has. */
+export const livePart = async (id: string, offset: number, audio: Blob) =>
+  invoke<number>("link_live_part", { id, offset, audio: await base64(audio) });
+
+/** The recording is complete at `total` bytes; the Mac processes it once
+ * it has them all (`have === total`). */
+export const liveEnd = (id: string, total: number) =>
+  invoke<{ have: number; id?: string }>("link_live_end", { id, total });
+
+/** The Mac no longer knows this live meeting (it restarted, or gave up). */
+export const liveLost = (e: unknown) => String(e).includes("No such live meeting");
+
+/** The link failed on the way (no answer in time, the Mac not reachable),
+ * as opposed to the Mac refusing: worth trying again. */
+export const linkFailed = (e: unknown) =>
+  /no answer in time|Can't reach the Mac|connection|timed out/i.test(String(e));
+
 export const status = (id: string) => invoke<RemoteStatus>("link_status", { id });

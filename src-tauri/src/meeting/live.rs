@@ -29,6 +29,25 @@ impl Live {
     /// Starts the session; `with_system`: system audio is recorded too.
     /// `dir`: the meeting's folder (scratch space for speaker detection).
     pub fn start(app: &AppHandle, with_system: bool, dir: &std::path::Path) -> Option<Self> {
+        Self::start_timed(
+            app,
+            with_system,
+            dir,
+            Box::new(|| TrackTiming {
+                mic_first_us: super::MIC_FIRST_US.load(Ordering::Relaxed),
+                system_first_us: super::SYSTEM_FIRST_US.load(Ordering::Relaxed),
+            }),
+        )
+    }
+
+    /// The same for a microphone that isn't this Mac's recorder (a meeting
+    /// the phone sends as it records): `timing` gives its start.
+    pub fn start_timed(
+        app: &AppHandle,
+        with_system: bool,
+        dir: &std::path::Path,
+        timing: Box<dyn Fn() -> TrackTiming + Send>,
+    ) -> Option<Self> {
         let transcriber = Arc::new(EngineTranscriber::new(app));
         // Speakers too, window by window, in the same worker process as
         // after the call. Off when speaker separation is off.
@@ -39,10 +58,7 @@ impl Live {
             .flatten();
         let options = LiveOptions {
             with_system,
-            timing: Box::new(|| TrackTiming {
-                mic_first_us: super::MIC_FIRST_US.load(Ordering::Relaxed),
-                system_first_us: super::SYSTEM_FIRST_US.load(Ordering::Relaxed),
-            }),
+            timing,
             on_start: Box::new(lower_priority),
             now_us: Box::new(|| {
                 std::time::SystemTime::now()

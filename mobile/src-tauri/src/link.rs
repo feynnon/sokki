@@ -47,7 +47,8 @@ async fn endpoint<'a>(app: &AppHandle, link: &'a Link) -> Result<&'a Endpoint, S
                 Some(k) => k,
                 None => {
                     let k = sokki_link::new_secret();
-                    std::fs::write(&path, sokki_link::secret_to_hex(&k)).map_err(|e| e.to_string())?;
+                    std::fs::write(&path, sokki_link::secret_to_hex(&k))
+                        .map_err(|e| e.to_string())?;
                     k
                 }
             };
@@ -56,9 +57,17 @@ async fn endpoint<'a>(app: &AppHandle, link: &'a Link) -> Result<&'a Endpoint, S
         .await
 }
 
-async fn call(app: &AppHandle, link: &Link, request: Request, body: &[u8]) -> Result<Value, String> {
+async fn call(
+    app: &AppHandle,
+    link: &Link,
+    request: Request,
+    body: &[u8],
+) -> Result<Value, String> {
     let pairing = load_pairing(app).ok_or("Not paired with a Mac yet.")?;
-    let mac: EndpointId = pairing.mac.parse().map_err(|_| "The pairing is damaged; pair again.")?;
+    let mac: EndpointId = pairing
+        .mac
+        .parse()
+        .map_err(|_| "The pairing is damaged; pair again.")?;
     let ep = endpoint(app, link).await?;
     sokki_link::call(ep, mac, &request, body)
         .await
@@ -130,7 +139,10 @@ pub async fn link_upload(
         .decode(audio)
         .map_err(|e| format!("The recording is damaged: {e}"))?;
     let v = call(&app, &link, Request::Upload { started_at, mime }, &audio).await?;
-    v["id"].as_str().map(str::to_string).ok_or("The Mac sent no id.".into())
+    v["id"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or("The Mac sent no id.".into())
 }
 
 /// One day of the keyboard's journal to the Mac (developer page "Keep what I write").
@@ -145,6 +157,79 @@ pub async fn link_send_journal(
 }
 
 #[tauri::command]
-pub async fn link_status(app: AppHandle, link: State<'_, Link>, id: String) -> Result<Value, String> {
+pub async fn link_status(
+    app: AppHandle,
+    link: State<'_, Link>,
+    id: String,
+) -> Result<Value, String> {
     call(&app, &link, Request::Status { id }, &[]).await
+}
+
+/// How long one live request may take. On a fresh app the first requests
+/// after pairing sometimes got no answer for minutes (emulator, 26 Nov
+/// 2026) while the Mac had answered; a new attempt on a new connection is
+/// better than waiting. The page tries again next round.
+const LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(12);
+
+async fn call_live(
+    app: &AppHandle,
+    link: &Link,
+    request: Request,
+    body: &[u8],
+) -> Result<Value, String> {
+    tokio::time::timeout(LIVE_TIMEOUT, call(app, link, request, body))
+        .await
+        .map_err(|_| LIVE_TIMED_OUT.to_string())?
+}
+
+/// The error a live request gives when it took too long (the page retries).
+const LIVE_TIMED_OUT: &str = "live: no answer in time";
+
+/// Starts sending a meeting as it records (`LiveStart`): the Mac
+/// transcribes it live. Each piece is a request of its own, on a new
+/// connection like every other call: a connection kept open for the meeting
+/// stopped carrying requests after the first on the emulator (26 Nov 2026),
+/// while new ones answered in 16 ms. Returns the Mac's meeting id. A Mac without this
+/// answers an error; the recording is then sent whole after the stop.
+#[tauri::command]
+pub async fn link_live_start(
+    app: AppHandle,
+    link: State<'_, Link>,
+    started_at: String,
+    mime: String,
+) -> Result<String, String> {
+    let v = call_live(&app, &link, Request::LiveStart { started_at, mime }, &[]).await?;
+    v["id"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or("The Mac sent no id.".into())
+}
+
+/// The recording's bytes from `offset` (base64). Returns the bytes the Mac has.
+#[tauri::command]
+pub async fn link_live_part(
+    app: AppHandle,
+    link: State<'_, Link>,
+    id: String,
+    offset: u64,
+    audio: String,
+) -> Result<u64, String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(audio)
+        .map_err(|e| format!("The recording is damaged: {e}"))?;
+    let v = call_live(&app, &link, Request::LivePart { id, offset }, &bytes).await?;
+    v["have"].as_u64().ok_or("The Mac sent no length.".into())
+}
+
+/// The recording is complete at `total` bytes: `{have}`; the Mac processes
+/// it once `have == total`.
+#[tauri::command]
+pub async fn link_live_end(
+    app: AppHandle,
+    link: State<'_, Link>,
+    id: String,
+    total: u64,
+) -> Result<Value, String> {
+    call_live(&app, &link, Request::LiveEnd { id, total }, &[]).await
 }

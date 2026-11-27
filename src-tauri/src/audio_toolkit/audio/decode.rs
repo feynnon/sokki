@@ -122,6 +122,84 @@ pub fn decode_audio_file(path: &Path) -> Result<Vec<f32>> {
     resampled.finish()
 }
 
+/// Decodes audio while it arrives: `source` blocks until more bytes come
+/// and ends with the stream (a meeting the phone sends as it records,
+/// `meeting/phone_live.rs`). Hands each packet's samples to `out` as mono
+/// at the stream's own rate, decoded exactly as [`decode_audio_file`] does,
+/// so through a [`LiveResampler`] they match decoding the finished file
+/// sample for sample (checked with Chromium's MediaRecorder WebM, sent in
+/// pieces down to 333 bytes, 26 Nov 2026). Returns the seconds decoded.
+pub fn decode_stream(
+    source: Box<dyn symphonia::core::io::MediaSource>,
+    extension: &str,
+    mut out: impl FnMut(&[f32], u32),
+) -> Result<f64> {
+    let source = MediaSourceStream::new(source, Default::default());
+    let mut hint = Hint::new();
+    hint.with_extension(extension);
+    let mut format = symphonia::default::get_probe()
+        .format(
+            &hint,
+            source,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|e| anyhow!("Not a supported audio stream: {}", e))?
+        .format;
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or_else(|| anyhow!("The stream has no audio track"))?;
+    let track_id = track.id;
+    let mut decoder = codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|e| anyhow!("The stream's audio format is not supported: {}", e))?;
+    let mut buffer: Option<SampleBuffer<f32>> = None;
+    let mut mono = Vec::new();
+    let mut seconds = 0.0;
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(SymphoniaError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                break
+            }
+            Err(e) => return Err(anyhow!("Failed to read the stream: {}", e)),
+        };
+        if packet.track_id() != track_id {
+            continue;
+        }
+        let decoded = match decoder.decode(&packet) {
+            Ok(decoded) => decoded,
+            Err(SymphoniaError::DecodeError(e)) => {
+                warn!("Skipping an undecodable packet: {}", e);
+                continue;
+            }
+            Err(e) => return Err(anyhow!("Failed to decode the stream: {}", e)),
+        };
+        let spec = *decoded.spec();
+        let channels = spec.channels.count().max(1);
+        if buffer
+            .as_ref()
+            .is_none_or(|b| b.capacity() < decoded.capacity() * channels)
+        {
+            buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
+        }
+        let buffer = buffer.as_mut().expect("buffer was just sized");
+        buffer.copy_interleaved_ref(decoded);
+        mono.clear();
+        mono.extend(
+            buffer
+                .samples()
+                .chunks_exact(channels)
+                .map(|frame| frame.iter().sum::<f32>() / channels as f32),
+        );
+        seconds += mono.len() as f64 / spec.rate as f64;
+        out(&mono, spec.rate);
+    }
+    Ok(seconds)
+}
+
 /// Mono audio at `rate` in, 16 kHz out, as it arrives: the resampler
 /// [`decode_audio_file`] uses, so audio resampled while it is recorded
 /// matches what decoding its file gives later, sample for sample (all but
@@ -370,5 +448,48 @@ mod tests {
         let path = dir.path().join("notes.txt");
         std::fs::write(&path, "not audio at all").unwrap();
         assert!(decode_audio_file(&path).is_err());
+    }
+
+    /// A meeting the phone sends as it records arrives in pieces; decoded
+    /// as it comes and resampled live, it gives what decoding the finished
+    /// file gives (all but the resampler's last few milliseconds). The
+    /// fixture is Chromium's MediaRecorder WebM (as Android's WebView
+    /// writes it): 20 s of a tone, 32 kbit/s Opus, written in 5 s pieces.
+    #[test]
+    fn a_stream_in_pieces_decodes_like_the_file() {
+        use std::io::Read;
+        struct Pieces(Vec<u8>, usize);
+        impl Read for Pieces {
+            fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+                // At most 333 bytes per read, as a slow link delivers them.
+                let n = out.len().min(333).min(self.0.len() - self.1);
+                out[..n].copy_from_slice(&self.0[self.1..self.1 + n]);
+                self.1 += n;
+                Ok(n)
+            }
+        }
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/mediarecorder_tone_20s.webm");
+        let whole = decode_audio_file(&path).unwrap();
+        let source =
+            symphonia::core::io::ReadOnlySource::new(Pieces(std::fs::read(&path).unwrap(), 0));
+        let mut resampler: Option<LiveResampler> = None;
+        let mut live = Vec::new();
+        let seconds = decode_stream(Box::new(source), "webm", |samples, rate| {
+            let r = resampler.get_or_insert_with(|| LiveResampler::new(rate).unwrap());
+            live.extend(r.push(samples).unwrap());
+        })
+        .unwrap();
+        assert!((19.0..21.0).contains(&seconds), "{seconds} s");
+        assert!(
+            live.len() <= whole.len() && whole.len() - live.len() < 800,
+            "{} vs {}",
+            live.len(),
+            whole.len()
+        );
+        assert!(
+            live[..] == whole[..live.len()],
+            "the stream differs from the file"
+        );
     }
 }

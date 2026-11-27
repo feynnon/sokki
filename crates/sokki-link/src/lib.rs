@@ -57,6 +57,28 @@ pub enum Request {
     Status {
         id: String,
     },
+    /// A meeting the phone sends while it records, so the Mac transcribes
+    /// it live and the note is ready soon after the stop. Returns `{id}`.
+    /// A Mac without this answers an error, and the phone sends the
+    /// recording whole after the stop (`Upload`).
+    LiveStart {
+        started_at: String,
+        mime: String,
+    },
+    /// The recording's next bytes (the body), from byte `offset`. The Mac
+    /// keeps only bytes that continue what it has; returns `{have}`, the
+    /// bytes it has, so the phone resends from there after a gap.
+    LivePart {
+        id: String,
+        offset: u64,
+    },
+    /// The recording is complete at `total` bytes. Returns `{have}`; when
+    /// `have == total` the Mac processes the meeting (`Status` follows it),
+    /// otherwise the phone sends the rest and ends again.
+    LiveEnd {
+        id: String,
+        total: u64,
+    },
     /// The body is one day of the phone keyboard's journal (JSONL), from the
     /// developer page "Keep what I write"; `file` is `journal-YYYY-MM-DD.jsonl`.
     Journal {

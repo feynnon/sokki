@@ -54,6 +54,18 @@ const notes = () =>
       };
     }
   ).SokkiNotes;
+/** Ends a meeting sent while it recorded: sends what the Mac doesn't have
+ * yet (from the byte it reports), until it has all of `audio` and starts
+ * the note. Returns the Mac's meeting id. */
+async function finishLive(id: string, audio: Blob): Promise<string> {
+  for (let round = 0; round < 5; round++) {
+    const { have } = await link.liveEnd(id, audio.size);
+    if (have >= audio.size) return id;
+    await link.livePart(id, have, audio.slice(have));
+  }
+  throw new Error("The Mac didn't take the end of the recording.");
+}
+
 /** The note is on screen, so "Note ready" isn't needed (and is taken
  * back). Not while the app is out of sight: Android also runs the page's
  * checks when it wakes the app for NoteJob, and the notification must stay. */
@@ -63,6 +75,8 @@ function seenIfShown(remoteId: string) {
 /** While the app is open: the Mac's progress every few seconds, and an
  * unsent recording tried again every minute. */
 const POLL_MS = 4000;
+/** While recording with a Mac: the new audio goes over this often. */
+const LIVE_EVERY_MS = 5000;
 const RESEND_MS = 60_000;
 import { Format, scan } from "@tauri-apps/plugin-barcode-scanner";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -277,7 +291,18 @@ export default function App() {
         }
         update(r.localId, { state: "uploading", error: null });
         try {
-          const id = await link.upload(audio, new Date(r.startedAt));
+          let id: string | null = null;
+          if (r.liveId) {
+            try {
+              id = await finishLive(r.liveId, audio);
+            } catch (e) {
+              // The Mac lost the live meeting (it restarted, or gave up):
+              // the recording goes whole. Anything else waits and retries.
+              if (!link.liveLost(e)) throw e;
+              update(r.localId, { liveId: null });
+            }
+          }
+          id ??= await link.upload(audio, new Date(r.startedAt));
           update(r.localId, {
             state: "processing",
             remoteId: id,
@@ -302,12 +327,18 @@ export default function App() {
   /** A finished recording: keep it on the phone, then send it to the Mac
    * (without a Mac it waits until one is connected). */
   const add = useCallback(
-    async (audio: Blob, startedAt: Date, durationS: number) => {
+    async (
+      audio: Blob,
+      startedAt: Date,
+      durationS: number,
+      liveId: string | null = null,
+    ) => {
       const r: Recording = {
         localId: `${Date.now()}`,
         startedAt: startedAt.toISOString(),
         durationS,
         remoteId: null,
+        liveId,
         state: "waiting",
         stage: null,
         error: null,
@@ -404,6 +435,24 @@ export default function App() {
         return add(new Blob([bytes], { type }), new Date(), durationS);
       },
       list: () => listRef.current,
+      // Records a file as if it were the microphone, in real time, and
+      // stops at its end: the whole recording path, live sending included.
+      recordFile: async (b64: string) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const ctx = new AudioContext();
+        const buffer = await ctx.decodeAudioData(bytes.buffer);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const dest = ctx.createMediaStreamDestination();
+        src.connect(dest);
+        src.onended = () => {
+          controls.current.stop();
+          void ctx.close();
+        };
+        await controls.current.start(dest.stream);
+        src.start();
+        return buffer.duration;
+      },
       checkAgain: () => refresh(true),
       pair: (ticket: string) => link.pair(ticket).then((p) => (setPairing(p), p)),
     };
@@ -428,27 +477,96 @@ export default function App() {
     };
   }, [recording]);
 
-  const start = async () => {
+  /** The meeting being sent to the paired Mac while it records: the Mac
+   * transcribes it live, so the note is ready soon after the stop. `sent`:
+   * the bytes the Mac has. `off`: sent whole after the stop instead (no
+   * Mac, an older Mac, or it lost the meeting). */
+  const live = useRef<{
+    id: string | null;
+    started: Date;
+    off: boolean;
+    busy: boolean;
+    sent: number;
+    chunks: Blob[];
+    mime: string;
+  } | null>(null);
+  const pumpLive = useCallback(async () => {
+    const l = live.current;
+    if (!l || l.off || l.busy) return;
+    l.busy = true;
+    try {
+      if (!l.id) {
+        // Started at the first round, and again while the link fails.
+        l.id = await link.liveStart(l.started, l.mime);
+        return;
+      }
+      const all = new Blob(l.chunks, { type: l.mime });
+      if (all.size > l.sent)
+        l.sent = await link.livePart(l.id, l.sent, all.slice(l.sent));
+    } catch (e) {
+      // The link failed: next round again (from what the Mac has). The Mac
+      // refused (an older Mac) or lost the meeting: sent whole after the stop.
+      if (!link.linkFailed(e)) l.off = true;
+    } finally {
+      l.busy = false;
+    }
+  }, []);
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => void pumpLive(), LIVE_EVERY_MS);
+    return () => clearInterval(t);
+  }, [recording, pumpLive]);
+
+  /** `from`: a stream instead of the microphone (tests: a file played in
+   * real time, `__verbatim.recordFile`). */
+  const start = async (from?: MediaStream) => {
     if (recorder.current || starting.current) return;
     starting.current = true;
     setMicError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream =
+        from ?? (await navigator.mediaDevices.getUserMedia({ audio: true }));
       const type = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "";
-      const rec = new MediaRecorder(stream, type ? { mimeType: type } : {});
+      // 32 kbit/s Opus: plenty for speech (the transcript measurement used
+      // it), and a quarter of the browser's default, so the audio keeps up
+      // with the link while it's sent live (the emulator's relay managed
+      // ~5 KB/s; 128 kbit/s needs 16).
+      const rec = new MediaRecorder(stream, {
+        ...(type ? { mimeType: type } : {}),
+        audioBitsPerSecond: 32_000,
+      });
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((tr) => tr.stop());
         const at = started.current ?? new Date();
         const dur = (Date.now() - at.getTime()) / 1000;
-        void add(new Blob(chunks, { type: rec.mimeType }), at, dur);
+        const l = live.current;
+        live.current = null;
+        void add(
+          new Blob(chunks, { type: rec.mimeType }),
+          at,
+          dur,
+          l && l.id && !l.off ? l.id : null,
+        );
       };
       started.current = new Date();
       setElapsed(0);
       rec.start(1000);
+      if (pairingRef.current) {
+        live.current = {
+          id: null,
+          started: started.current,
+          off: false,
+          busy: false,
+          sent: 0,
+          chunks,
+          mime: rec.mimeType,
+        };
+        void pumpLive();
+      }
       recorder.current = rec;
       setRecording(true);
     } catch (e) {
@@ -589,7 +707,7 @@ export default function App() {
           <section className="recorder">
             <button
               className={`rec ${recording ? "on" : ""}`}
-              onClick={recording ? stop : start}
+              onClick={recording ? stop : () => void start()}
               aria-label={recording ? "Stop recording" : "Start recording"}
             >
               <span className="rec-inner" />

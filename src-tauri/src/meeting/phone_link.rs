@@ -32,7 +32,7 @@ use super::store::{MeetingRecord, MeetingStatus, MeetingStore};
 use crate::managers::transcription::TranscriptionManager;
 
 const STATE_FILE: &str = "phone_link.json";
-const PHONE_TRACK: &str = "mic.phone";
+pub(super) const PHONE_TRACK: &str = "mic.phone";
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 /// Serialises read-modify-write of the state file.
@@ -287,6 +287,17 @@ impl Handler for MacHandler {
             Request::Journal { file } => save_phone_journal(&self.app, &file, &body)
                 .map(|saved| json!({ "saved": saved }))
                 .map_err(|e| format!("{e:#}")),
+            Request::LiveStart { started_at, mime } => {
+                super::phone_live::start(&self.app, &started_at, &mime)
+                    .map(|id| json!({ "id": id }))
+                    .map_err(|e| format!("{e:#}"))
+            }
+            Request::LivePart { id, offset } => super::phone_live::part(&id, offset, &body)
+                .map(|have| json!({ "have": have }))
+                .map_err(|e| format!("{e:#}")),
+            Request::LiveEnd { id, total } => {
+                super::phone_live::end(&self.app, &id, total).map_err(|e| format!("{e:#}"))
+            }
             Request::Dictate => Err("Dictation is a stream.".into()),
         }
     }
@@ -621,27 +632,14 @@ fn is_journal_name(file: &str) -> bool {
         })
 }
 
-/// Stores the audio as a new meeting and starts processing it.
-fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Result<String> {
-    use anyhow::Context;
-    if audio.len() < 1024 {
-        anyhow::bail!("The recording is empty.");
-    }
-    let store = app.state::<Arc<MeetingStore>>();
-    let now = chrono::Local::now();
-    let id = format!("meeting-{}-phone", now.format("%Y%m%d-%H%M%S-%3f"));
-    let dir = store.audio_dir(&id);
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(PHONE_TRACK);
-    std::fs::write(&path, audio)?;
-    let samples = crate::audio_toolkit::audio::decode_audio_file(&path)
-        .context("The recording could not be read")?;
-    let record = MeetingRecord {
-        id: id.clone(),
+/// The record of a meeting from the phone, being processed.
+pub(super) fn phone_record(id: &str, started_at: &str, duration_s: f64) -> MeetingRecord {
+    MeetingRecord {
+        id: id.to_string(),
         started_at: chrono::DateTime::parse_from_rfc3339(started_at)
             .map(|t| t.to_rfc3339())
-            .unwrap_or_else(|_| now.to_rfc3339()),
-        duration_s: samples.len() as f64 / 16_000.0,
+            .unwrap_or_else(|_| chrono::Local::now().to_rfc3339()),
+        duration_s,
         status: MeetingStatus::Processing {
             stage: "waiting".into(),
             progress: None,
@@ -659,7 +657,25 @@ fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Res
         title_provisional: false,
         sample: false,
         mailed: None,
-    };
+    }
+}
+
+/// Stores the audio as a new meeting and starts processing it.
+fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Result<String> {
+    use anyhow::Context;
+    if audio.len() < 1024 {
+        anyhow::bail!("The recording is empty.");
+    }
+    let store = app.state::<Arc<MeetingStore>>();
+    let now = chrono::Local::now();
+    let id = format!("meeting-{}-phone", now.format("%Y%m%d-%H%M%S-%3f"));
+    let dir = store.audio_dir(&id);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(PHONE_TRACK);
+    std::fs::write(&path, audio)?;
+    let samples = crate::audio_toolkit::audio::decode_audio_file(&path)
+        .context("The recording could not be read")?;
+    let record = phone_record(&id, started_at, samples.len() as f64 / 16_000.0);
     store.insert(record)?;
     log::info!(
         "Phone link: meeting {id} received ({} KB, {:.0} s)",

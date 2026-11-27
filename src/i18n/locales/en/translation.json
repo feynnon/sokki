@@ -1237,15 +1237,16 @@
     "screenVideo": "Screen video",
     "screenNotAllowed": "Allow Screen Recording for Sokki in System Settings, then reopen Sokki.",
     "prompt": {
+      "now": "now",
       "autoTitle": "Recording on its own",
       "autoSwitch": "Auto start",
       "close": "Close",
-      "startedTitle": "{{app}} meeting started",
+      "startedTitle": "Call in {{app}}",
       "startedHint": "Tell everyone you're recording.",
       "screen": "Record screen too",
       "notNow": "Not now",
       "record": "Record",
-      "endedTitle": "{{app}} meeting ended",
+      "endedTitle": "Call in {{app}} ended",
       "endedHint": "Stop recording?",
       "keep": "Keep recording",
       "stop": "Stop"

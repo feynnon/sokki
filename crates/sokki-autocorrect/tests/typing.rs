@@ -469,3 +469,95 @@ fn a_line_break_the_app_adds_after_the_cursor_keeps_the_word_typed() {
     assert_eq!(got.len(), 1, "{got:?}");
     assert_eq!(f.text.borrow().as_str(), "Das ist nicht \n");
 }
+
+#[test]
+fn an_app_that_shows_a_key_only_with_the_next_keeps_the_word_typed() {
+    // T3 Code: a read counts two keys but shows one; the next read shows two characters for
+    // one key
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.t3tools.t3code");
+    type_in(&mut ac, &f, "Ich habe das ni");
+    f.key('h');
+    f.keys.set(f.keys.get() + 1); // 'c' counted, not shown yet
+    assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
+    f.put("c");
+    let got = type_in(&mut ac, &f, "t gesehen");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+    assert_eq!(f.text.borrow().as_str(), "Ich habe das nicht gesehen");
+}
+
+#[test]
+fn a_key_that_typed_nothing_does_not_let_a_paste_pass_as_typed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich habe das ");
+    // two keys that typed nothing (arrows at the end), then a paste of a word
+    f.keys.set(f.keys.get() + 2);
+    assert_eq!(ac.on_key(&f, &|| f.keys.get()), Outcome::Nothing);
+    f.put("nihct");
+    f.keys.set(f.keys.get() + 1);
+    ac.on_key(&f, &|| f.keys.get());
+    let got = type_in(&mut ac, &f, " ");
+    assert!(
+        got.iter().all(|o| !matches!(o, Outcome::Fixed { .. })),
+        "{got:?}"
+    );
+}
+
+#[test]
+fn a_word_deleted_with_one_key_keeps_the_text_before_it_typed() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich habe das nihctfalsch");
+    // one key deletes "falsch" (Option-Backspace after selecting it, or an editor's own
+    // word delete)
+    let n = u16_len(&f.text.borrow());
+    f.sel.set((n - 6, 6));
+    f.put("");
+    f.keys.set(f.keys.get() + 1);
+    ac.on_key(&f, &|| f.keys.get());
+    let got = type_in(&mut ac, &f, " gesehen");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+}
+
+#[test]
+fn an_accent_typed_with_a_dead_key_keeps_the_word_typed() {
+    // a dead key shows its accent, the next key replaces it with the accented letter
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich habe das nih");
+    f.key('´');
+    ac.on_key(&f, &|| f.keys.get());
+    let n = u16_len(&f.text.borrow());
+    f.sel.set((n - 1, 1));
+    f.key('e'); // replaces the accent: one key, one deleted, one added
+    ac.on_key(&f, &|| f.keys.get());
+    // the run survived the swap: the field still counts the whole word as typed
+    f.sel.set((n - 1, 1));
+    f.put("c");
+    f.keys.set(f.keys.get() + 1);
+    ac.on_key(&f, &|| f.keys.get());
+    let got = type_in(&mut ac, &f, "t gesehen");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
+    );
+}

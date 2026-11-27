@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { useTranslation } from "react-i18next";
-import { Monitor, Users } from "lucide-react";
+import { Monitor } from "lucide-react";
 import "@/i18n";
 import { commands } from "@/bindings";
 import { SokkiMark } from "@/components/icons/SokkiLogo";
+import appIcon from "@/assets/sokki-app-icon.png";
 import "./prompt.css";
 
 const params = new URLSearchParams(window.location.search);
@@ -90,16 +91,19 @@ const Prompt: React.FC = () => {
   );
   return (
     <div className="prompt" role="dialog" aria-labelledby="prompt-title">
+      {/* Who asks, like a macOS notification: app icon and name first
+          (Robin, 2026-11-27: "Da muss unbedingt unser Icon rein, und sokki
+          mit Namen, sonst checkt man das nicht!"; canvas Prompt-Sokki-1). */}
+      <div className="sender">
+        <img src={appIcon} width={16} height={16} alt="" />
+        <span>{"Sokki"}</span>
+        <span className="when">{t("meetings.prompt.now")}</span>
+      </div>
       <div className="head">
-        <span className="logo" aria-hidden>
-          <Users width={16} height={16} />
-        </span>
-        <div>
-          <div className="title" id="prompt-title">
-            {title}
-          </div>
-          <div className="hint">{hint}</div>
+        <div className="title" id="prompt-title">
+          {title}
         </div>
+        <div className="hint">{hint}</div>
       </div>
       {started && offerScreen && (
         <div className="option">

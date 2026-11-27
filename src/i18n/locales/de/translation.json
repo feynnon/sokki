@@ -1237,15 +1237,16 @@
     "screenVideo": "Bildschirmvideo",
     "screenNotAllowed": "Erlaube Sokki die Bildschirmaufnahme in den Systemeinstellungen und öffne Sokki dann neu.",
     "prompt": {
+      "now": "jetzt",
       "autoTitle": "Von selbst aufgenommen",
       "autoSwitch": "Auto-Start",
       "close": "Schließen",
-      "startedTitle": "{{app}}-Meeting gestartet",
+      "startedTitle": "Call in {{app}}",
       "startedHint": "Sag allen, dass du aufnimmst.",
       "screen": "Bildschirm auch aufnehmen",
       "notNow": "Nicht jetzt",
       "record": "Aufnehmen",
-      "endedTitle": "{{app}}-Meeting beendet",
+      "endedTitle": "Call in {{app}} beendet",
       "endedHint": "Aufnahme beenden?",
       "keep": "Weiter aufnehmen",
       "stop": "Beenden"

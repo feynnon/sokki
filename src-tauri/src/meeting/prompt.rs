@@ -87,9 +87,9 @@ pub fn ask_checked(
         Kind::Started { screen } => (
             format!("kind=started&screen={}", screen as u8),
             WIDTH,
-            if screen { 168.0 } else { 124.0 },
+            if screen { 192.0 } else { 148.0 },
         ),
-        Kind::Ended => ("kind=ended".to_string(), WIDTH, 124.0),
+        Kind::Ended => ("kind=ended".to_string(), WIDTH, 148.0),
         // A 345 x 52 card with room for the X over its corner and its shadow.
         Kind::AutoStarted => ("kind=auto".to_string(), AUTO_WIDTH, 92.0),
     };

@@ -122,6 +122,8 @@ struct Last {
     cursor: usize,
     /// key presses counted at this read
     keys: u64,
+    /// keys counted by now that the text doesn't show yet (the app is behind)
+    owed: u64,
     /// UTF-16 units typed in a row, key by key, ending at the cursor
     run: usize,
 }
@@ -156,6 +158,9 @@ pub struct Autocorrect {
 
 /// Characters that end a word. U+00A0: rich editors in browsers (Slack, Claude, Gmail) show a
 /// space typed at the end of a line as a no-break space.
+/// How many key presses the app may show late, carried from one read to the next.
+const MAX_OWED: u64 = 2;
+
 const WORD_END: &[char] = &[' ', '\u{a0}', '.', ',', '!', '?', ';', ':'];
 
 impl Autocorrect {
@@ -252,19 +257,31 @@ impl Autocorrect {
         let prev = self.last.take().filter(|p| p.app == app);
         // the text changed since the last look in this field (not a move, not a new field)
         let changed = prev.as_ref().is_some_and(|p| !same_text(&p.text, &text));
-        // an edit at the cursor with no more characters added and deleted than keys were
-        // pressed (typing, Backspace, or both between two looks): where it starts
-        let edit_from = prev.as_ref().and_then(|p| {
-            edit_at_cursor(&p.text, p.cursor, &text, cursor)
-                .filter(|&(_, n)| n <= keys_at_read.saturating_sub(p.keys) as usize)
-                .map(|(from, _)| from)
-        });
+        // an edit at the cursor that added no more characters than keys were pressed (typing,
+        // Backspace, both between two looks, a word deleted with one key): where it starts.
+        // Keys the last read counted but the app didn't show yet count here too: T3 Code often
+        // shows a key only with the next one, two characters for one key (27 Nov 2026).
+        let allowed = prev
+            .as_ref()
+            .map_or(0, |p| keys_at_read.saturating_sub(p.keys) + p.owed);
+        let edit = prev
+            .as_ref()
+            .and_then(|p| edit_at_cursor(&p.text, p.cursor, &text, cursor))
+            .filter(|&(_, added)| added as u64 <= allowed);
+        let edit_from = edit.map(|(from, _)| from);
+        // keys still to show up, at most a few (a key that typed nothing must not open the
+        // door to a paste later)
+        let owed = edit.map_or(0, |(_, added)| (allowed - added as u64).min(MAX_OWED));
         let run = match (&prev, edit_from) {
+            // the first character in an empty field (a new message, a sent one cleared): first,
+            // as the old text may begin with the same letter. Without this the first word of a
+            // message was never fixed.
+            _ if cursor == 1 && u16_len(&text) == 1 => 1,
             // the run keeps its start, or starts where the edit did if that was before it
             (Some(p), Some(from)) => cursor - from.min(p.cursor - p.run),
             // a run starts with one typed character: the last read's text plus that character
             // just before the cursor (after a click elsewhere in the text, or a key the last
-            // read missed) ...
+            // read missed)
             (Some(p), None)
                 if cursor > 0
                     && keys_at_read > p.keys
@@ -272,9 +289,6 @@ impl Autocorrect {
             {
                 1
             }
-            // ... or the first character in an empty field (a new message, a sent one cleared).
-            // Without this the first word of a message was never fixed.
-            _ if cursor == 1 && u16_len(&text) == 1 => 1,
             _ => 0,
         };
         // A typed run broke although keys were pressed: say how, in numbers only (no text), to
@@ -310,6 +324,7 @@ impl Autocorrect {
             text: text.clone(),
             cursor,
             keys: keys_at_read,
+            owed,
             run,
         });
         if sel != 0 {
@@ -457,6 +472,7 @@ impl Autocorrect {
             text: field.value().unwrap_or_else(|| expected.clone()),
             cursor: field.selection().map(|s| s.0).unwrap_or(after),
             keys: keys(),
+            owed: 0,
             run: 0,
         });
         self.done = exact.then(|| Done {
@@ -495,6 +511,7 @@ impl Autocorrect {
             text: field.value().unwrap_or(restored),
             cursor: after,
             keys: keys(),
+            owed: 0,
             run: 0,
         });
         self.keep(&d.typed);
@@ -530,7 +547,7 @@ impl Autocorrect {
 /// end of a line as U+00A0 and turn it into a plain space once the next character comes.
 /// The edit that turned `old` (cursor `old_cursor`) into `new` (cursor `cursor`), if it happened
 /// at the cursor: the text after the cursor is unchanged. Returns where the edit starts and how
-/// many characters it added and deleted (UTF-16 units, as the cursor).
+/// many characters it added (UTF-16 units, as the cursor). Deleting adds nothing untyped.
 fn edit_at_cursor(
     old: &str,
     old_cursor: usize,
@@ -557,7 +574,7 @@ fn edit_at_cursor(
         .zip(&b[..cursor])
         .take_while(|(&x, &y)| same(x, y))
         .count();
-    Some((from, (old_cursor - from) + (cursor - from)))
+    Some((from, cursor - from))
 }
 
 fn is_space(u: u16) -> bool {

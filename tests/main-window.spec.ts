@@ -614,18 +614,22 @@ test.describe("call window", () => {
         theme: "dark",
         path: "/src/meeting-prompt/index.html?kind=started&screen=1&app=Zoom",
       });
-      await page.setViewportSize({ width: 360, height: 168 });
+      await page.setViewportSize({ width: 360, height: 192 });
       await expect(page.getByRole("dialog")).toBeVisible();
+      // Who asks: Sokki's app icon and name (Robin, 2026-11-27).
+      await expect(page.locator(".sender img")).toBeVisible();
+      await expect(page.locator(".sender")).toContainText("Sokki");
+      await expect(page.locator("#prompt-title")).toHaveText("Call in Zoom");
       await expect(
         page.getByText("Zoom", { exact: false }).first(),
       ).toBeVisible();
-      // Everything fits in the window Rust opens (360 × 168).
+      // Everything fits in the window Rust opens (360 × 192).
       const size = await page.evaluate(() => ({
         w: document.documentElement.scrollWidth,
         h: document.documentElement.scrollHeight,
       }));
       expect(size.w).toBeLessThanOrEqual(360);
-      expect(size.h).toBeLessThanOrEqual(168);
+      expect(size.h).toBeLessThanOrEqual(192);
       await shot(page, `prompt-started-${lang}`);
       await page.getByRole("switch").click();
       await expect(page.getByRole("switch")).toHaveAttribute(
@@ -649,16 +653,17 @@ test.describe("call window", () => {
     await expect.poll(() => answers(page)).toEqual(["record", "not_now"]);
   });
 
-  test("call ended: Keep recording or Stop, in 360 × 124", async ({ page }) => {
+  test("call ended: Keep recording or Stop, in 360 × 148", async ({ page }) => {
     await open(page, {
       lang: "en",
       theme: "dark",
       path: "/src/meeting-prompt/index.html?kind=ended&app=Google%20Meet",
     });
-    await page.setViewportSize({ width: 360, height: 124 });
+    await page.setViewportSize({ width: 360, height: 148 });
     await expect(page.getByRole("switch")).toHaveCount(0);
+    await expect(page.locator(".sender")).toContainText("Sokki");
     const h = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(h).toBeLessThanOrEqual(124);
+    expect(h).toBeLessThanOrEqual(148);
     await shot(page, "prompt-ended-en");
     await page.getByRole("button", { name: "Keep recording" }).click();
     await page.getByRole("button", { name: "Stop" }).click();

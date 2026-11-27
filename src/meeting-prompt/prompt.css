@@ -20,20 +20,24 @@
   -webkit-user-select: none;
   cursor: default;
 }
-.head {
+.sender {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #c9cbd0;
 }
-.logo {
-  display: grid;
-  place-items: center;
+.sender img {
+  display: block;
   flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(53, 103, 204, 0.25);
-  color: #8ab4ff;
+}
+.sender .when {
+  margin-left: auto;
+  font-weight: 400;
+  color: #8e9096;
 }
 .title {
   font-size: 15px;

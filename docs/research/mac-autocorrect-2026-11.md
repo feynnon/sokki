@@ -234,6 +234,20 @@ Task: the count from 20:30 to 23:00. Result: 17 fixed, 1 undone, 2 skipped, 4 mi
 - The other three: cause not known from the counts. One possible cause is fixed in the code and covered by a test: whitespace at the very end of the field that comes or goes without a key (rich editors show an empty last line) made the edit not fit, so the word's run was lost. That the Claude app does this is not proven.
 - To find the rest: a debug log line, numbers only (lengths, cursor before and after, keys pressed, same start and end), whenever a typed run of more than one character breaks although keys were pressed.
 
+### The first day on 0.2.26 (27 Nov 2026)
+
+Task: count fixes and misses in Robin's own typing from 0.2.26's install (26 Nov, 23:41) to 27 Nov, 15:00, and sum up the debug lines on lost typed runs. Numbers only.
+
+- Fix list: 100 fixed (T3 Code 83, Slack 11, WhatsApp 5, Chrome 1), 5 undone, 65 missed (T3 Code 57, Slack 8). Of the missed, 47 were "edit not seen typed", 14 "start of the word not seen typed" and 5 "word not seen typed".
+- Vocabulary words: 6 typos fixed to one of Robin's 26 own words, 5 more listed as missed (lost runs, below). No own word was changed.
+- Night run in Chrome (01:00, 12 runs, slow and fast typing, three kinds of field): 36 of 36 typos fixed, none skipped.
+- Lost typed runs (324 debug lines in the logs of 25 to 27 Nov, by shape):
+  - 152: two characters at the cursor for one key. The app showed a key only with the next one: the read before counted a key whose character wasn't there yet. Then the next read had one character more than keys pressed, and the run broke.
+  - 80: field cleared or a new message (right to start again).
+  - 40: a word or more deleted with one key (1 to 66 characters), or one key replacing the character before it (a dead-key accent). Deleting was counted as if it added characters.
+  - Pastes (up to 21,681 characters with one key) and about 20 rare shapes (none over 7): left as they are.
+- Fix: keys a read counted but the field didn't show yet carry over to the next read, at most 2, so a key that typed nothing can't let a paste pass as typed. An edit now counts only the characters it added. The first letter in an empty field starts a run even when the old text began with the same letter. 22 typing tests pass, 4 of them new; the lag test fails without the fix.
+
 ## Open questions
 
 - Not yet tested in the installed app by a person (first release with these fixes: 0.2.15).

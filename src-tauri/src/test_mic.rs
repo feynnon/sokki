@@ -27,6 +27,18 @@
 //! (`meeting::system_tap`, `FakeTap`). `SOKKI_TEST_PILL_CLICK_AT_S=<s>`
 //! clicks the recording pill then, in each test meeting
 //! ([`click_pill_later`]).
+//!
+//! `SOKKI_TEST_PROMPTS=<n>` (`scripts/test-meeting-prompt.sh`) asks "record
+//! this call?" n times in a row, as call detection does for one call after
+//! another (Slack, Google Meet, Zoom, …), each answered "not now" after a
+//! second, and logs whether each window came up. The window is built hidden,
+//! so nothing shows on the developer's screen.
+//!
+//! `SOKKI_TEST_CALL_ENDS=<hand|prompt|keep>` (`scripts/test-call-end.sh`,
+//! with `SOKKI_TEST_MEETING=1`) simulates a Zoom call that starts and, 8 s
+//! after the recording, ends: the recording is started by hand during the
+//! call ("hand"), from the prompt ("prompt"), or by hand and kept with "Keep
+//! recording" when the call ends ("keep"). Logs whether and when it stopped.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -218,10 +230,21 @@ pub fn drive(app: &tauri::AppHandle) {
         std::thread::spawn(move || drive_sample(&app));
         return;
     }
+    if let Some(n) = std::env::var("SOKKI_TEST_PROMPTS")
+        .ok()
+        .and_then(|s| s.parse::<u32>().ok())
+    {
+        std::thread::spawn(move || drive_prompts(&app, n));
+        return;
+    }
     if std::env::var_os("SOKKI_TEST_AUTO").is_some_and(|v| !v.is_empty()) {
         // `scripts/test-auto-meeting.sh`: nothing is pressed; the
         // auto-meeting listener (`meeting::auto`) decides by itself.
         info!("Test mode: auto meeting, the listener decides");
+        return;
+    }
+    if let Ok(mode) = std::env::var("SOKKI_TEST_CALL_ENDS") {
+        std::thread::spawn(move || drive_call_end(&app, &mode));
         return;
     }
     if meeting() {
@@ -235,6 +258,107 @@ pub fn drive(app: &tauri::AppHandle) {
         std::thread::sleep(Duration::from_secs_f64(hold));
         crate::signal_handle::send_transcription_input(&app, "transcribe", "test");
     });
+}
+
+/// `SOKKI_TEST_PROMPTS`: n call prompts in a row, each answered "not now"
+/// after a second. Logs "Test mode: prompt i/n (app): shown|not shown".
+fn drive_prompts(app: &tauri::AppHandle, n: u32) {
+    use crate::meeting::prompt::{self, Kind};
+    const APPS: [&str; 4] = ["Slack", "Google Meet", "Zoom", "Microsoft Teams"];
+    std::thread::sleep(Duration::from_secs(3));
+    let mut shown = 0;
+    for i in 0..n {
+        let name = APPS[i as usize % APPS.len()];
+        let kind = Kind::Started { screen: true };
+        std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_secs(1));
+            prompt::answer("not_now".to_string());
+        });
+        let (ok, answer) = prompt::ask_checked(app, kind, name, Duration::from_secs(5));
+        shown += ok as u32;
+        info!(
+            "Test mode: prompt {}/{n} ({name}): {}, answer {answer:?}",
+            i + 1,
+            if ok { "shown" } else { "not shown" }
+        );
+        // Between two calls, as in real use.
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    info!("Test mode: prompts done, {shown}/{n} shown");
+}
+
+/// `SOKKI_TEST_CALL_ENDS`: a simulated call starts, a recording runs, the
+/// call ends. Logs "Test mode: call end (<mode>): stopped <s> s after the
+/// call ended" or "… still recording <s> s after the call ended".
+fn drive_call_end(app: &tauri::AppHandle, mode: &str) {
+    use crate::meeting::prompt;
+    use meeting_detect::{AppKind, MatchedBy, MeetingApp, MeetingEvent};
+    use tauri::Manager;
+    let call = MeetingApp {
+        id: "zoom",
+        name: "Zoom",
+        kind: AppKind::Native,
+        pid: std::process::id(),
+        bundle_id: Some("us.zoom.xos".into()),
+        exe_path: None,
+        matched_by: MatchedBy::BundleId,
+        call: None,
+    };
+    let manager = || app.state::<std::sync::Arc<crate::meeting::MeetingManager>>();
+    std::thread::sleep(Duration::from_secs(3));
+    info!("Test mode: call end ({mode}): the call starts");
+    let answer = if mode == "prompt" {
+        "record"
+    } else {
+        "not_now"
+    };
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(1));
+        prompt::answer(answer.to_string());
+    });
+    crate::meeting::detect::simulate(app, MeetingEvent::Started { app: call.clone() });
+    std::thread::sleep(Duration::from_secs(3));
+    if mode != "prompt" {
+        if let Err(e) = crate::meeting::start_meeting(app, Some("Test".into())) {
+            warn!("Test mode: call end: the meeting didn't start: {e}");
+            return;
+        }
+    }
+    let Some(id) = manager().active_id() else {
+        warn!("Test mode: call end ({mode}): nothing records");
+        return;
+    };
+    std::thread::sleep(Duration::from_secs(8));
+    info!("Test mode: call end ({mode}): the call ends");
+    if mode == "keep" {
+        std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_secs(2));
+            prompt::answer("keep".to_string());
+        });
+    }
+    let ended = Instant::now();
+    crate::meeting::detect::simulate(
+        app,
+        MeetingEvent::Ended {
+            app: call,
+            after: Duration::from_secs(11),
+        },
+    );
+    while ended.elapsed() < Duration::from_secs(30) {
+        if manager().active_id().as_deref() != Some(id.as_str()) {
+            info!(
+                "Test mode: call end ({mode}): stopped {:.1} s after the call ended",
+                ended.elapsed().as_secs_f64()
+            );
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    info!(
+        "Test mode: call end ({mode}): still recording {:.1} s after the call ended",
+        ended.elapsed().as_secs_f64()
+    );
+    let _ = crate::meeting::stop_meeting(app);
 }
 
 /// A second meeting right after the first, while the first is processed

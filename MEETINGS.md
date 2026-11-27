@@ -70,7 +70,10 @@ Icons are drawn as SVG in
    - Recording code from [Mandy](https://github.com/yuri-research-ai/Mandy) (MIT).
 3. **Meeting detection** – when Zoom, Teams, Meet in a browser, FaceTime,
    Slack, … start using the mic, a dialog asks whether to record. When the
-   call ends, the recording stops after 20 s unless you say otherwise.
+   call ends (the app has let go of the mic for 20 s), a window asks Keep
+   recording / Stop, and the recording stops 20 s later unless you say
+   otherwise. This holds for a recording started from the dialog and for
+   one started by hand while the call ran, not for one started before it.
    Approach from [Lark](https://github.com/bkoleo/lark) (MIT).
    - **Notice in the meeting chat** (`meeting/chat_notice.rs`, crate
      `meeting-chat`; switch `meetings.chat_notice_enabled`, off by default):
@@ -581,6 +584,8 @@ python3 -I testdata/generate.py                      # once: synthetic fixtures
 (cd crates/sokki          && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test)   # the CLI's JSON, on made-up data
 (cd crates/sokki-index    && CARGO_TARGET_DIR=/tmp/hm-target-cli    cargo test --test recall_eval -- --ignored --nocapture)  # recall, needs $SOKKI_EVALS
 scripts/test-cli.sh   # the CLI against a test app in headless test mode (build it first, see the script)
+scripts/test-meeting-prompt.sh   # "record this call?" asked 4 calls in a row, hidden window, in a test app (see the script)
+scripts/test-call-end.sh   # a simulated call ends: the recording stops by itself, or "Keep recording" keeps it (see the script)
 (cd crates/diarize        && CARGO_TARGET_DIR=/tmp/hm-target-diarize cargo test --release)
 (cd crates/meeting-e2e    && CARGO_TARGET_DIR=/tmp/hm-target-e2e    cargo test --release -- --nocapture --test-threads=1)
 

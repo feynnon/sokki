@@ -67,6 +67,16 @@ pub enum Kind {
 /// Shows the window and waits for the answer, at most `timeout`. `None`
 /// when nobody answered.
 pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) -> Option<String> {
+    ask_checked(app, kind, meeting_app, timeout).1
+}
+
+/// [`ask`], and whether the window came up. Not shown: no answer, at once.
+pub fn ask_checked(
+    app: &AppHandle,
+    kind: Kind,
+    meeting_app: &str,
+    timeout: Duration,
+) -> (bool, Option<String>) {
     let round = {
         let mut p = PENDING.lock().unwrap_or_else(|e| e.into_inner());
         p.round += 1;
@@ -87,7 +97,9 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         "src/meeting-prompt/index.html?{query}&app={}",
         encode(meeting_app)
     );
-    show(app, url, width, height, kind != Kind::AutoStarted);
+    if !show(app, url, width, height, kind != Kind::AutoStarted) {
+        return (false, None);
+    }
     if matches!(kind, Kind::Started { .. }) {
         let now = unix_ms();
         *ASKING.lock().unwrap_or_else(|e| e.into_inner()) = Some(Asking {
@@ -119,7 +131,7 @@ pub fn ask(app: &AppHandle, kind: Kind, meeting_app: &str, timeout: Duration) ->
         *ASKING.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
     hide(app);
-    answer
+    (true, answer)
 }
 
 /// The page's answer.
@@ -130,13 +142,21 @@ pub fn answer(value: String) {
 }
 
 /// `glass`: macOS's frosted glass behind the whole window. Off for a page
-/// that draws its own card inside a clear window.
-fn show(app: &AppHandle, url: String, width: f64, height: f64, glass: bool) {
+/// that draws its own card inside a clear window. True once the window is
+/// up. Called off the main thread (it waits for it). In test mode the
+/// window is built hidden.
+fn show(app: &AppHandle, url: String, width: f64, height: f64, glass: bool) -> bool {
     let handle = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if let Some(w) = handle.get_webview_window(LABEL) {
-            let _ = w.close();
-        }
+    let (tx, rx) = std::sync::mpsc::channel::<bool>();
+    let visible = !crate::test_mic::active();
+    // A window left from the last question goes first; a new one with the
+    // same label can't be built until it is gone.
+    destroy(app);
+    let gone_by = Instant::now() + Duration::from_secs(2);
+    while app.get_webview_window(LABEL).is_some() && Instant::now() < gone_by {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let sent = app.run_on_main_thread(move || {
         let (x, y) = position(&handle, width);
         let mut builder = WebviewWindowBuilder::new(&handle, LABEL, WebviewUrl::App(url.into()))
             .title(crate::brand::app_name())
@@ -161,18 +181,36 @@ fn show(app: &AppHandle, url: String, width: f64, height: f64, glass: bool) {
             .skip_taskbar(true)
             .focused(false)
             .accept_first_mouse(true)
+            .visible(visible)
             .build();
-        if let Err(e) = built {
-            log::warn!("Meeting prompt could not be shown: {e}");
+        match built {
+            Ok(_) => {
+                log::info!("Meeting prompt shown");
+                let _ = tx.send(true);
+            }
+            Err(e) => {
+                log::warn!("Meeting prompt could not be shown: {e}");
+                let _ = tx.send(false);
+            }
         }
     });
+    sent.is_ok() && rx.recv_timeout(Duration::from_secs(5)).unwrap_or(false)
 }
 
 fn hide(app: &AppHandle) {
+    destroy(app);
+}
+
+/// Removes the window for good. Not `close()`: the app's close handler
+/// (`lib.rs`, meant for the main window) turns every close into a hide, so
+/// the hidden window stayed, and every later question failed with "a webview
+/// with label `meeting_prompt` already exists". Only the first call after a
+/// launch got its question, from 2026-11-24 on (KNOWN_ISSUES.md).
+fn destroy(app: &AppHandle) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(w) = handle.get_webview_window(LABEL) {
-            let _ = w.close();
+            let _ = w.destroy();
         }
     });
 }

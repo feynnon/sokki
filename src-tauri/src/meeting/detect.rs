@@ -33,11 +33,25 @@ impl DetectState {
 }
 
 /// A recording started (from the prompt, a shortcut or the window): if a
-/// call is running, Sokki says so in its chat (`chat_notice`).
+/// call is running, Sokki says so in its chat (`chat_notice`), and the
+/// recording belongs to that call: when the call ends, Sokki offers to stop
+/// and stops by itself (see `MeetingEvent::Ended` in [`on_event`]). Before
+/// 2026-11-27 only a recording started from the prompt did; one started by
+/// hand during a call ran on after it (KNOWN_ISSUES.md X18).
 pub fn recording_started(app: &AppHandle, meeting_id: &str) {
     let Some(state) = app.try_state::<Arc<DetectState>>() else {
         return;
     };
+    let detected = state
+        .current
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(call) = detected {
+        log::info!("Meeting {meeting_id} records the {call} call; it stops when the call ends");
+        *state.started.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some((call, meeting_id.to_string()));
+    }
     let call = state
         .current
         .lock()
@@ -75,6 +89,14 @@ pub fn sync_with_settings(app: &AppHandle) {
             }
         }
         _ => {}
+    }
+}
+
+/// Test mode (`SOKKI_TEST_CALL_ENDS`): a call event as the watcher would
+/// send it, without a real call.
+pub fn simulate(app: &AppHandle, event: MeetingEvent) {
+    if crate::test_mic::active() {
+        on_event(app, event);
     }
 }
 
@@ -166,8 +188,14 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
             }
             let handle = app.clone();
             let name = meeting.name.to_string();
+            log::info!(
+                "Meeting {meeting_id}: the {name} call ended; asking, stopping in 20 s without an answer"
+            );
             std::thread::spawn(move || {
                 // No answer within 20 s counts as "stop": the call is over.
+                // The watcher already waited 20 s (`end_after`) for the app to
+                // take the microphone back, so a reconnect or another Meet tab
+                // doesn't end the recording.
                 let keep = super::prompt::ask(
                     &handle,
                     super::prompt::Kind::Ended,
@@ -176,7 +204,9 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                 )
                 .as_deref()
                     == Some("keep");
-                if !keep {
+                if keep {
+                    log::info!("Meeting {meeting_id}: kept recording after the {name} call");
+                } else {
                     let still_ours = handle.state::<Arc<MeetingManager>>().active_id().as_deref()
                         == Some(meeting_id.as_str());
                     if still_ours {

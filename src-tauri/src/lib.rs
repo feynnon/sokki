@@ -1191,7 +1191,7 @@ pub fn run(cli_args: CliArgs) {
             // The test copy only ever runs in test mode: started normally it
             // would show setup and macOS's permission windows on the
             // developer's screen.
-            if app.config().identifier == "org.sokki.test" && !test_mic::active() {
+            if app.config().identifier.starts_with("org.sokki.test") && !test_mic::active() {
                 log::warn!("Sokki Test starts only in test mode (SOKKI_TEST_MIC); quitting");
                 std::process::exit(0);
             }

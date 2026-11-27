@@ -996,6 +996,11 @@
       "dark": "Fosc"
     }
   },
+  "meetingPill": {
+    "open": "Obre la reunió",
+    "stop": "Atura la gravació",
+    "stopping": "S'està aturant"
+  },
   "overlay": {
     "transcribing": "S'està transcrivint...",
     "processing": "S'està processant...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Escriu les teves notes. Sokki hi afegeix el que s'ha dit.",
       "live": "Text en directe",
       "listening": "Escoltant …",
+      "jumpToLatest": "Al més recent",
       "combinedHint": "Les teves línies tal com les vas escriure. En gris: el que Sokki afegeix de la conversa.",
       "views": "Vistes",
       "view": {

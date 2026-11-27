@@ -131,12 +131,71 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
 export const recordingMeeting = (meetings: MeetingRecord[]) =>
   meetings.find((m) => m.status.kind === "recording") ?? null;
 
-/** Shows a meeting in Meetings (App switches section on this event). */
+/** Shows a meeting in Meetings (App switches section on this event, and
+ * Meetings leaves its settings for the list on "sokki-open-meeting"). */
 export function openMeeting(id: string) {
   useMeetingStore.getState().select(id);
+  window.dispatchEvent(new CustomEvent("sokki-open-meeting", { detail: id }));
   window.dispatchEvent(
     new CustomEvent("sokki-open-section", { detail: "meetings" }),
   );
+}
+
+/** What Rust sends when a click on the recording pill opens a meeting
+ * (`meeting::indicator::open_meeting`). */
+export interface OpenMeetingEvent {
+  id: string | null;
+  source: string;
+  clicked_at_ms: number;
+}
+
+/** What is on screen: the section (App's `data-section`) and the meeting
+ * page (the reader's `data-meeting-page`). */
+export function shownPage(doc: Document = document): {
+  section: string;
+  shown: string | null;
+} {
+  const section =
+    doc.querySelector<HTMLElement>("[data-section]")?.dataset.section ?? "";
+  const shown =
+    doc.querySelector<HTMLElement>("[data-meeting-page]")?.dataset
+      .meetingPage ?? null;
+  return { section, shown };
+}
+
+/** Gives up waiting for the page after this long and reports what shows. */
+const SHOWN_TIMEOUT_MS = 3000;
+
+/** Opens the meeting at once, then reports (and Rust logs) how long from
+ * the click until its page was on screen. */
+export function onOpenMeeting(e: OpenMeetingEvent) {
+  if (e.id) openMeeting(e.id);
+  else
+    window.dispatchEvent(
+      new CustomEvent("sokki-open-section", { detail: "meetings" }),
+    );
+  const started = Date.now();
+  const check = () => {
+    const page = shownPage();
+    const done = page.section === "meetings" && page.shown === e.id;
+    if (!done && Date.now() - started < SHOWN_TIMEOUT_MS) {
+      // A hidden window gets no animation frames (test mode, a window
+      // still coming up); a timer still runs there.
+      if (document.visibilityState === "visible") requestAnimationFrame(check);
+      else window.setTimeout(check, 16);
+      return;
+    }
+    void commands.meetingPageShown(
+      e.source,
+      e.id,
+      page.section,
+      page.shown,
+      Date.now() - e.clicked_at_ms,
+    );
+  };
+  requestAnimationFrame(check);
+  // In case no frame comes (hidden window), the timer path starts it.
+  if (document.visibilityState !== "visible") window.setTimeout(check, 16);
 }
 
 /** Follows the app: meeting changes and, while recording, the levels.
@@ -146,6 +205,10 @@ export function watchMeetings(): () => void {
   void store.getState().reload();
   const offChanged = events.meetingChanged.listen(
     () => void store.getState().reload(),
+  );
+  // A click on the recording pill.
+  const offOpen = listen<OpenMeetingEvent>("open-meeting", (e) =>
+    onOpenMeeting(e.payload),
   );
   const offLevel = listen<{
     mic: number;
@@ -169,6 +232,7 @@ export function watchMeetings(): () => void {
   });
   return () => {
     offChanged.then((fn) => fn());
+    offOpen.then((fn) => fn());
     offLevel.then((fn) => fn());
   };
 }

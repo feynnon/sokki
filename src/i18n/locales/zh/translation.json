@@ -996,6 +996,11 @@
       "dark": "深色"
     }
   },
+  "meetingPill": {
+    "open": "打开会议",
+    "stop": "停止录制",
+    "stopping": "正在停止"
+  },
   "overlay": {
     "transcribing": "正在转录...",
     "processing": "处理中...",
@@ -1161,6 +1166,7 @@
       "placeholder": "输入笔记，Sokki 会补充所说的内容。",
       "live": "实时文字",
       "listening": "正在聆听 …",
+      "jumpToLatest": "跳到最新",
       "combinedHint": "你输入的原文。灰色：Sokki 根据对话补充的内容。",
       "views": "视图",
       "view": {

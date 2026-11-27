@@ -26,6 +26,44 @@
   -webkit-user-select: none;
 }
 
+/* Waveform and time: one button that opens the meeting (a drag moves the
+   pill instead). It looks like plain content; its hover lightens the whole
+   pill, as the app reports hover the same way as for stop. */
+.body {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.body:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.pill {
+  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pill:has(.body:hover),
+.pill:has(.body.is-hover) {
+  background: rgba(64, 66, 74, 0.42);
+}
+
+.pill:has(.body.is-down) {
+  background: rgba(80, 82, 90, 0.5);
+  transition: none;
+}
+
 .wave {
   flex: none;
   display: flex;
@@ -138,6 +176,11 @@
   animation: tip-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* "Meeting öffnen": under the middle of the pill, not under stop. */
+.tip-open {
+  align-self: center;
+}
+
 @keyframes tip-in {
   from {
     opacity: 0;
@@ -147,7 +190,8 @@
 @media (prefers-reduced-motion: reduce) {
   .stop,
   .square,
-  .time {
+  .time,
+  .pill {
     transition-duration: 1ms;
   }
   .spin {

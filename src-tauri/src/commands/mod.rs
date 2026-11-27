@@ -139,6 +139,16 @@ pub fn check_apple_intelligence_available() -> bool {
     }
 }
 
+/// Whether this app runs in test mode (`SOKKI_TEST_MIC`, test_mic.rs). Its
+/// window stays hidden and it needs no permissions, so the page skips the
+/// permissions screen and shows the app, which a test can then drive (the
+/// recording pill's click, `SOKKI_TEST_PILL_CLICK_AT_S`).
+#[specta::specta]
+#[tauri::command]
+pub fn test_mode() -> bool {
+    crate::test_mic::active()
+}
+
 /// Try to initialize Enigo (keyboard/mouse simulation).
 /// On macOS, this will return an error if accessibility permissions are not granted.
 #[specta::specta]

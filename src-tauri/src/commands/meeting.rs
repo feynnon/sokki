@@ -128,6 +128,41 @@ pub async fn stop_meeting_recording(app: AppHandle) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// A click on the recording pill: Sokki's window comes forward on the
+/// meeting's page (the one recording, else the newest).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub fn open_meeting_from_pill(app: AppHandle) {
+    meeting::indicator::open_meeting(&app, "pill");
+}
+
+/// The page reports that it shows what `open-meeting` asked for: logs the
+/// time from the click to the page on screen, and what is on screen
+/// (`section`, the meeting `shown`), so a test can check it. Over 300 ms
+/// is slow (CLAUDE.md, "Every action feels instant").
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_page_shown(
+    source: String,
+    asked: Option<String>,
+    section: String,
+    shown: Option<String>,
+    ms: f64,
+) {
+    let what = format!(
+        "Meeting page on screen {ms:.0} ms after the {source} click: section {section}, \
+         meeting {} (asked for {})",
+        shown.as_deref().unwrap_or("none"),
+        asked.as_deref().unwrap_or("none")
+    );
+    if ms > 300.0 || shown != asked {
+        log::warn!("{what}");
+    } else {
+        log::info!("{what}");
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
@@ -714,14 +749,14 @@ pub struct LiveLine {
     pub text: String,
 }
 
-/// What the running meeting's live transcript has heard so far, in order.
-/// Empty when nothing records.
+/// What meeting `id`'s live transcript has heard so far, in order. Empty
+/// unless `id` is the meeting recording now.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
-pub fn meeting_live_transcript(app: AppHandle) -> Vec<LiveLine> {
+pub fn meeting_live_transcript(app: AppHandle, id: String) -> Vec<LiveLine> {
     app.state::<Arc<MeetingManager>>()
-        .heard()
+        .heard_for(&id)
         .map(|h| {
             h.lines()
                 .into_iter()
@@ -931,6 +966,11 @@ pub fn stop_meeting_recording() -> Result<String, String> {
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 #[specta::specta]
+pub fn open_meeting_from_pill() {}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
 pub fn is_meeting_recording() -> bool {
     false
 }
@@ -1115,7 +1155,8 @@ pub fn stop_sample_meeting() -> Result<(), String> {
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 #[specta::specta]
-pub fn meeting_live_transcript() -> Vec<LiveLine> {
+pub fn meeting_live_transcript(id: String) -> Vec<LiveLine> {
+    let _ = id;
     Vec::new()
 }
 

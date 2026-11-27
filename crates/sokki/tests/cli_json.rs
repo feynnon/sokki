@@ -28,6 +28,7 @@ fn sokki(root: &Path, args: &[&str], stdin: Option<&str>) -> Run {
         .env("SOKKI_SOCKET", root.join("no.sock"))
         .env_remove("SOKKI_SCOPE")
         .env_remove("SOKKI_HOOK")
+        .env_remove("SOKKI_APP_DATA")
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

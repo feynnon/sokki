@@ -24,7 +24,9 @@
 //! `SOKKI_TEST_SYSTEM_DEAD_AT_S=<s>` makes the played system audio go dead
 //! (exact zeros) then, until the tap's watchdog rebuilds it;
 //! `SOKKI_TEST_OUTPUT_CHANGE_AT_S=<s>` changes the default output then
-//! (`meeting::system_tap`, `FakeTap`).
+//! (`meeting::system_tap`, `FakeTap`). `SOKKI_TEST_PILL_CLICK_AT_S=<s>`
+//! clicks the recording pill then, in each test meeting
+//! ([`click_pill_later`]).
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -283,6 +285,29 @@ fn type_own_notes(app: &tauri::AppHandle, id: &str) {
     });
 }
 
+/// `SOKKI_TEST_PILL_CLICK_AT_S=<s>`: clicks the recording pill this many
+/// seconds into each test meeting, the way the pill's click does. The
+/// hidden window's page then logs what it shows ("Meeting page on screen …")
+/// and the test checks it is the meeting that records (`which`, `id`).
+fn click_pill_later(app: &tauri::AppHandle, which: &'static str, id: &str) {
+    let Some(at) = std::env::var("SOKKI_TEST_PILL_CLICK_AT_S")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok())
+    else {
+        return;
+    };
+    let app = app.clone();
+    let id = id.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs_f64(at));
+        let open = crate::meeting::indicator::open_meeting(&app, "pill");
+        info!(
+            "Test mode: pill clicked {at:.0}s into the {which} meeting ({id}); it opens {}",
+            open.id.as_deref().unwrap_or("none")
+        );
+    });
+}
+
 /// Logs the finished note's "Meine Notizen" section (made-up test lines).
 fn log_own_notes(store: &crate::meeting::store::MeetingStore, id: &str) {
     if std::env::var_os("SOKKI_TEST_OWN_NOTES").is_none() {
@@ -412,6 +437,7 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         return;
     };
     type_own_notes(app, &id);
+    click_pill_later(app, "first", &id);
     std::thread::sleep(Duration::from_secs_f64(hold));
     log_title(app, &id, "before the stop");
     let stopped = Instant::now();
@@ -424,6 +450,7 @@ fn drive_meeting(app: &tauri::AppHandle, hold: f64) {
         let Some(second) = start_timed(app, "second") else {
             return;
         };
+        click_pill_later(app, "second", &second);
         std::thread::sleep(Duration::from_secs_f64(length));
         let second_stopped = Instant::now();
         if let Err(e) = crate::meeting::stop_meeting(app) {
@@ -599,7 +626,16 @@ fn drive_sample(app: &tauri::AppHandle) {
     let mut stopped: Option<Instant> = None;
     loop {
         std::thread::sleep(Duration::from_millis(250));
-        if let Some(lines) = meetings.heard().map(|h| h.lines()) {
+        // Read as the meeting page does: by the meeting's id.
+        if let Some(lines) = meetings.heard_for(&id).map(|h| h.lines()) {
+            if heard == 0 && !lines.is_empty() {
+                info!(
+                    "Test mode: live text for another id: {} line(s)",
+                    meetings
+                        .heard_for("not-this-meeting")
+                        .map_or(0, |h| h.lines().len())
+                );
+            }
             for (at, text) in lines.iter().skip(heard) {
                 info!(
                     "Test mode: sample live at {:.1}s: [{at:.1}] {text}",

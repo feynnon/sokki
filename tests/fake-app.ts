@@ -384,7 +384,8 @@ export async function open(page: Page, s: Scenario) {
           (w.__notes ??= {})[a.id] = a.text;
           return null;
         },
-        meeting_live_transcript: () => [],
+        // Live text per meeting id; a test pushes lines into `__live`.
+        meeting_live_transcript: (a) => (w.__live ?? {})[a.id] ?? [],
         voice_data_stats: () => data.stats,
         voice_data_community: () => ({ donors: 0, notice: null }),
         usage_totals: () => data.totals,

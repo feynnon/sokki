@@ -78,6 +78,74 @@ pub fn hide(app: &AppHandle) {
     });
 }
 
+/// What the main window gets when it is asked to show a meeting's page
+/// (`open-meeting`).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct OpenMeeting {
+    /// The meeting to show; `None` when Sokki has none at all.
+    pub id: Option<String>,
+    /// What asked: "pill" (a click on this pill) or "test".
+    pub source: &'static str,
+    /// When the click happened, ms since 1970, so the page can log how long
+    /// it took from the click to the page on screen.
+    pub clicked_at_ms: u64,
+}
+
+/// The meeting a click on the pill opens: the one recording now, else the
+/// newest (the pill can still be up for a moment after a stop, and the
+/// meeting it showed is then the newest). With two meetings, one recording
+/// and one being processed, this is the recording one.
+pub fn pill_meeting(
+    active: Option<String>,
+    meetings: &[super::store::MeetingRecord],
+) -> Option<String> {
+    active.or_else(|| {
+        meetings
+            .iter()
+            .max_by(|a, b| a.started_at.cmp(&b.started_at))
+            .map(|m| m.id.clone())
+    })
+}
+
+/// Brings Sokki's window forward on the meeting's page (Robin, 2026-11-27:
+/// "When clicking on the meeting in progress pill … end up on the page for
+/// the meeting"). The page is asked first and the window shown right
+/// after, both at once: the page switches while the window comes up. The
+/// page logs when it is on screen (`meeting_page_shown`).
+pub fn open_meeting(app: &AppHandle, source: &'static str) -> OpenMeeting {
+    use tauri::Emitter;
+    let clicked_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let active = app
+        .state::<std::sync::Arc<super::MeetingManager>>()
+        .active_id();
+    let id = pill_meeting(
+        active.clone(),
+        &app.state::<std::sync::Arc<super::store::MeetingStore>>()
+            .list(),
+    );
+    log::info!(
+        "Meeting page asked for by the {source}: meeting {} ({})",
+        id.as_deref().unwrap_or("none"),
+        if active.is_some() {
+            "recording"
+        } else {
+            "nothing records, the newest"
+        }
+    );
+    let open = OpenMeeting {
+        id,
+        source,
+        clicked_at_ms,
+    };
+    let _ = app.emit_to("main", "open-meeting", open.clone());
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || crate::show_main_window(&handle));
+    open
+}
+
 /// Top centre of the monitor with the cursor, just below the menu bar.
 fn position(app: &AppHandle) -> (f64, f64) {
     let monitor = app
@@ -442,20 +510,24 @@ fn add_glass(window: &tauri::WebviewWindow) {
     content.addSubview_positioned_relativeTo(&glass, NSWindowOrderingMode::Below, None);
 }
 
-/// Whether the mouse is over the stop button: tells the page (it shows the
-/// hover look and the tooltip) and shows the pointing hand. Called by the
-/// ticker while the meeting records.
+/// Whether the mouse is over the stop button or the rest of the pill: tells
+/// the page (it shows the hover look and the tooltip, "Aufnahme beenden"
+/// or "Meeting öffnen") and shows the pointing hand over both, since a
+/// click on either does something. Called by the ticker while the meeting
+/// records.
 #[cfg(target_os = "macos")]
 fn track_hover(app: &AppHandle) {
     use objc2_app_kit::{NSCursor, NSEvent, NSWindow};
     use std::sync::atomic::{AtomicBool, Ordering};
     use tauri::Emitter;
     static OVER: AtomicBool = AtomicBool::new(false);
+    static OVER_PILL: AtomicBool = AtomicBool::new(false);
 
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let Some(window) = handle.get_webview_window(LABEL) else {
             OVER.store(false, Ordering::Relaxed);
+            OVER_PILL.store(false, Ordering::Relaxed);
             return;
         };
         let Ok(ptr) = window.ns_window() else {
@@ -472,14 +544,25 @@ fn track_hover(app: &AppHandle) {
             && mouse.x <= right - STOP_INSET
             && mouse.y <= top - (HEIGHT - STOP) / 2.0
             && mouse.y >= top - (HEIGHT + STOP) / 2.0;
-        if over {
+        // The pill: the window's top 40 px, minus the stop button.
+        let in_pill = mouse.x >= frame.origin.x
+            && mouse.x <= right
+            && mouse.y <= top
+            && mouse.y >= top - HEIGHT;
+        let over_pill = in_pill && !over;
+        if over || over_pill {
             NSCursor::pointingHandCursor().set();
         }
-        if OVER.swap(over, Ordering::Relaxed) != over {
-            if !over {
-                NSCursor::arrowCursor().set();
-            }
+        let was_over = OVER.swap(over, Ordering::Relaxed);
+        let was_pill = OVER_PILL.swap(over_pill, Ordering::Relaxed);
+        if (was_over || was_pill) && !over && !over_pill {
+            NSCursor::arrowCursor().set();
+        }
+        if was_over != over {
             let _ = handle.emit_to(LABEL, "meeting-indicator-hover", over);
+        }
+        if was_pill != over_pill {
+            let _ = handle.emit_to(LABEL, "meeting-indicator-hover-pill", over_pill);
         }
     });
 }
@@ -489,6 +572,38 @@ mod tests {
     use super::*;
 
     const S: u64 = 1_000_000;
+
+    fn record(id: &str, started_at: &str) -> crate::meeting::store::MeetingRecord {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "started_at": started_at,
+            "duration_s": 60.0,
+            "status": {"kind": "processing", "stage": "waiting"},
+            "tracks": [],
+            "speakers": [],
+            "warnings": [],
+            "audio_deleted": false,
+        }))
+        .expect("a minimal meeting record")
+    }
+
+    #[test]
+    fn the_pill_opens_the_recording_meeting_else_the_newest() {
+        let older = record("older", "2026-11-27T09:00:00+01:00");
+        let newer = record("newer", "2026-11-27T10:00:00+01:00");
+        let both = [older.clone(), newer.clone()];
+        // Two meetings: one recording, one processed; the recording one wins.
+        assert_eq!(
+            pill_meeting(Some("older".into()), &both).as_deref(),
+            Some("older")
+        );
+        // Just stopped: nothing records, so the newest.
+        assert_eq!(
+            pill_meeting(None, &[newer, older]).as_deref(),
+            Some("newer")
+        );
+        assert_eq!(pill_meeting(None, &[]), None);
+    }
 
     #[test]
     fn logs_a_zero_stretch_once_and_its_end() {

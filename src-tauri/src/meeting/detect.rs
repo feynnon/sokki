@@ -91,6 +91,8 @@ fn on_event(app: &AppHandle, event: MeetingEvent) {
                 #[cfg(target_os = "macos")]
                 super::call_speakers::recording_started(app, &recording, meeting.id);
                 super::chat_notice::recording_started(app, &recording, meeting.id);
+                // And its huddle thread, as for a recording started with it.
+                super::slack::recording_started(app, &recording, meeting.id);
                 return;
             }
             let handle = app.clone();

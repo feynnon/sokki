@@ -36,17 +36,11 @@ fn state_dir() -> PathBuf {
     app_data().join("hooks")
 }
 
-/// The app's data folder: on the Mac the app's (`SOKKI_APP_ID` if set,
-/// else the CLI's own, which follows `SOKKI_DATA_DIR` and the installed
-/// app's bundle id), on Linux `~/.local/share/sokki`.
+/// The app's data folder: on the Mac the CLI's own (`SOKKI_DATA_DIR` for a
+/// test app, else the installed app's), on Linux `~/.local/share/sokki`.
 fn app_data() -> PathBuf {
     #[cfg(target_os = "macos")]
-    {
-        if let Some(id) = std::env::var("SOKKI_APP_ID").ok().filter(|i| !i.is_empty()) {
-            return crate::paths::expand(&format!("~/Library/Application Support/{id}"));
-        }
-        crate::mac::data_dir()
-    }
+    return crate::mac::data_dir();
     #[cfg(not(target_os = "macos"))]
     crate::paths::data_dir()
 }

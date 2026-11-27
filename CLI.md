@@ -150,7 +150,7 @@ sokki config meetings.detection_enabled false
 
 | Variable | Default | For |
 |---|---|---|
-| `SOKKI_DATA_DIR` | `~/Library/Application Support/<the installed app's bundle id>` | everything on the Mac (tests: a made-up folder) |
+| `SOKKI_DATA_DIR` | `$SOKKI_APP_DATA` (set by the hooks runner for each hook), else `~/Library/Application Support/<the installed app's bundle id>` | everything on the Mac, `sokki hooks` included (tests: a made-up folder or a test app's) |
 | `SOKKI_SETTINGS` | `settings_store.json` in the data folder | `config`, `agent_access`, the model `ask` uses |
 | `SOKKI_SOCKET` | `<data folder>/sokki.sock` (Linux: `$XDG_RUNTIME_DIR/sokki/sokki.sock`) | the local API |
 | `SOKKI_INDEX` | `index.sqlite` in the data folder | the search index |

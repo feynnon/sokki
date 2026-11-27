@@ -30,9 +30,9 @@ pub mod live;
 pub mod mail;
 pub mod memguard;
 pub mod mic;
-pub mod own_notes;
 #[cfg(target_os = "macos")]
 pub(crate) mod notify_macos;
+pub mod own_notes;
 pub mod phone_link;
 pub mod phone_live;
 pub mod preload;
@@ -295,6 +295,17 @@ impl MeetingManager {
     pub fn heard(&self) -> Option<sokki_engine::live::Heard> {
         self.lock()
             .as_ref()
+            .and_then(|m| m.live.as_ref())
+            .map(|l| l.heard())
+    }
+
+    /// What meeting `id`'s live transcript has heard so far; `None` unless
+    /// `id` is the meeting recording now, so a page never shows another
+    /// meeting's text.
+    pub fn heard_for(&self, id: &str) -> Option<sokki_engine::live::Heard> {
+        self.lock()
+            .as_ref()
+            .filter(|m| m.meeting_id == id)
             .and_then(|m| m.live.as_ref())
             .map(|l| l.heard())
     }

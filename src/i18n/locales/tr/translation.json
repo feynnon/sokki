@@ -996,6 +996,11 @@
       "dark": "Koyu"
     }
   },
+  "meetingPill": {
+    "open": "Toplantıyı Aç",
+    "stop": "Kaydı Durdur",
+    "stopping": "Durduruluyor"
+  },
   "overlay": {
     "transcribing": "Transkribe ediliyor...",
     "processing": "İşleniyor...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Notlarını yaz. Sokki söyleneni ekler.",
       "live": "Canlı metin",
       "listening": "Dinliyor …",
+      "jumpToLatest": "En yeniye git",
       "combinedHint": "Satırların yazdığın gibi. Gri: Sokki'nin konuşmadan eklediği.",
       "views": "Görünümler",
       "view": {

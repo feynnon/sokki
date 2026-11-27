@@ -23,7 +23,7 @@ LOG="$HOME/Library/Logs/$ID/sokki.log"
 REAL_ID="$(defaults read /Applications/Sokki.app/Contents/Info.plist CFBundleIdentifier 2>/dev/null || echo org.sokki.app)"
 REAL="${SOKKI_SETTINGS:-$HOME/Library/Application Support/$REAL_ID/settings_store.json}"
 export SOKKI_DATA_DIR="$DATA"
-unset SOKKI_SOCKET SOKKI_SCOPE SOKKI_HOOK
+unset SOKKI_SOCKET SOKKI_SCOPE SOKKI_HOOK SOKKI_APP_DATA
 fails=0
 ok() { echo "  ok    $*"; }
 bad() { echo "  FAIL  $*"; fails=$((fails + 1)); }

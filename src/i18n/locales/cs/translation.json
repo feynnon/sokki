@@ -996,6 +996,11 @@
       "dark": "Tmavý"
     }
   },
+  "meetingPill": {
+    "open": "Otevřít schůzku",
+    "stop": "Zastavit nahrávání",
+    "stopping": "Zastavuje se"
+  },
   "overlay": {
     "transcribing": "Přepisuji...",
     "processing": "Zpracovávám...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Piš poznámky. Sokki doplní, co zaznělo.",
       "live": "Živý text",
       "listening": "Poslouchá …",
+      "jumpToLatest": "Na nejnovější",
       "combinedHint": "Tvoje řádky, jak jsi je napsal. Šedě: co Sokki doplní z hovoru.",
       "views": "Zobrazení",
       "view": {

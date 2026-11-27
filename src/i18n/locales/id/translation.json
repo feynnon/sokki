@@ -996,6 +996,11 @@
       "dark": "Gelap"
     }
   },
+  "meetingPill": {
+    "open": "Buka Rapat",
+    "stop": "Hentikan Rekaman",
+    "stopping": "Menghentikan"
+  },
   "overlay": {
     "transcribing": "Mentranskripsikan...",
     "processing": "Memproses...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Ketik catatanmu. Sokki menambahkan yang dikatakan.",
       "live": "Teks langsung",
       "listening": "Mendengarkan …",
+      "jumpToLatest": "Ke yang terbaru",
       "combinedHint": "Barismu seperti yang kamu ketik. Abu-abu: tambahan Sokki dari percakapan.",
       "views": "Tampilan",
       "view": {

@@ -42,7 +42,15 @@ Icons are drawn as SVG in
 1. **Dictation** – as in upstream Handy.
 2. **Meeting recording** – shortcut ⌥M, tray item, the Meetings page, or
    automatically (see 3). A small pill at the top of the screen shows a
-   waveform, the time and a stop button.
+   waveform, the time and a stop button. A click on the waveform or the
+   time opens Sokki's window on the meeting's page (the one recording,
+   else the newest; `meeting::indicator::open_meeting`); a drag of 4 px
+   or more moves the pill instead. The log says how long from the click to
+   the page ("Meeting page on screen … ms"); `PILL_CLICK_AT=5
+   scripts/test-meeting.sh` tests it headless.
+   - ⌥M starts when ⌥ is released, and only if no other key went down in
+     between, so typing "mö" on the US layout (⌥U umlauts) never starts one
+     (`docs/research/meeting-shortcut-typing-2026-11.md`).
    - Two tracks: microphone and system audio (the remote side of a call on
      this Mac). Without system audio (no permission, no call) the meeting
      is mic-only; this is detected automatically.
@@ -141,10 +149,14 @@ Icons are drawn as SVG in
      `files.getUploadURLExternal` + `files.completeUploadExternal` with
      `thread_ts` and the summary as `initial_comment` (Markdown turned into
      Slack's mrkdwn). Once per meeting (`slack.json` records the post). A
-     banner says when it's posted or why not. Only in builds made with the
-     Slack app's client id (`SOKKI_SLACK_CLIENT_ID`, see
-     `crates/sokki-slack/SLACK_APP.md`); releases leave it out until the
-     app is publicly distributed. Test by hand without Sokki:
+     banner says when it's posted or why not. The Slack app's client id is
+     built in (`sokki_slack::CLIENT_ID`, see `crates/sokki-slack/SLACK_APP.md`;
+     `SOKKI_SLACK_CLIENT_ID` at build time replaces it). Until 2026-11-27
+     releases left it out, so they showed no Slack row and never posted.
+     A recording that was already running when the huddle began watches
+     the huddle too. Test without a workspace:
+     `SLACK_FAKE=1 scripts/test-meeting.sh mic.wav system.wav` (a fake
+     Slack, `scripts/fake-slack.py`); by hand without Sokki:
      `cargo run --example slack` in `crates/sokki-slack`.
 4. **During the recording** (`sokki-engine/src/live.rs`): both tracks go,
    sample for sample as written to their files, to one worker at low
@@ -444,6 +456,12 @@ left (focused, saved as you type) and the live transcript on the right
 `meetings/<id>/notes.md`, each line with `<!-- t=hh:mm:ss -->`, its time
 into the recording (`meeting-core/src/own_notes.rs`, host
 `src-tauri/src/meeting/own_notes.rs`). Deleting the audio keeps them.
+
+The live transcript opens at its newest line and follows new lines like a
+chat; scrolling up to read stops that, and "Jump to latest" or scrolling
+back down resumes it (`followEnd.ts`, Robin 2026-11-27). It asks for its own
+meeting's lines (`meeting_live_transcript(id)`), so a page never shows
+another meeting's text (`tests/live-tail.spec.ts`).
 
 After the stop, processing hands the lines to the engine
 (`sokki_engine::OwnNotes`). With the summary model loaded, a second request

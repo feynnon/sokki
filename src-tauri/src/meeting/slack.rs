@@ -90,18 +90,32 @@ pub struct HuddlePerson {
     pub email: Option<String>,
 }
 
-/// Sokki's Slack app, if this build has it. Its client id comes in at
-/// build time (`SOKKI_SLACK_CLIENT_ID`, value in
-/// `crates/sokki-slack/SLACK_APP.md`), like Gmail's: a build without it shows
-/// no Slack row. Releases leave it out until the Slack app is publicly
-/// distributed; until then only its own workspace could connect. In test
-/// mode the same variable at run time stands in (scripts/test-meeting.sh).
+/// Sokki's Slack app. Its client id is built in ([`sokki_slack::CLIENT_ID`]);
+/// `SOKKI_SLACK_CLIENT_ID` at build time replaces it (another Slack app), and
+/// in test mode at run time too (scripts/test-meeting.sh). Until 2026-11-27
+/// releases were built without it and showed no Slack row, so the notes
+/// never reached a huddle's thread.
 fn client_id() -> Option<String> {
     std::env::var("SOKKI_SLACK_CLIENT_ID")
         .ok()
         .filter(|_| crate::test_mic::active())
         .or_else(|| option_env!("SOKKI_SLACK_CLIENT_ID").map(str::to_string))
         .filter(|id| !id.is_empty())
+        .or_else(|| Some(sokki_slack::CLIENT_ID.to_string()))
+}
+
+/// A Slack client for `token`. In test mode `SOKKI_TEST_SLACK_API` (e.g.
+/// `http://127.0.0.1:8765/api/`) points it at a fake Slack
+/// (scripts/fake-slack.py), so the post can be tested without a workspace.
+fn slack_client(token: &str) -> Client {
+    match crate::test_mic::active()
+        .then(|| std::env::var("SOKKI_TEST_SLACK_API").ok())
+        .flatten()
+        .filter(|b| !b.is_empty())
+    {
+        Some(base) => Client::with_base(token, &base),
+        None => Client::new(token),
+    }
 }
 
 fn auth_path(app: &AppHandle) -> Option<PathBuf> {
@@ -252,7 +266,7 @@ pub fn cancel_connect(app: &AppHandle) {
 /// Ends the sign-in, on Slack's side too.
 pub fn disconnect(app: &AppHandle) -> SlackStatus {
     if let Some(auth) = load_auth(app) {
-        if let Err(e) = Client::new(&auth.access_token).revoke() {
+        if let Err(e) = slack_client(&auth.access_token).revoke() {
             log::info!("Slack: revoking the token failed ({e}); forgetting it anyway");
         }
     }
@@ -336,7 +350,7 @@ fn watch_huddle(app: &AppHandle, meeting_id: &str) {
     let mut last_look: Option<std::time::Instant> = None;
     while recording() {
         let seen = fresh_auth(app).map_err(|e| e.to_string()).and_then(|a| {
-            Client::new(&a.access_token)
+            slack_client(&a.access_token)
                 .huddle_state()
                 .map_err(|e| e.to_string())
         });
@@ -447,7 +461,7 @@ fn merge_participants(all: &mut Vec<String>, new: &[String]) {
 /// are dropped.
 fn lookup_people(app: &AppHandle, participants: &[String]) -> Result<Vec<HuddlePerson>, String> {
     let auth = fresh_auth(app).map_err(|e| format!("{e:#}"))?;
-    let client = Client::new(&auth.access_token);
+    let client = slack_client(&auth.access_token);
     let mut people = Vec::new();
     for id in participants.iter().filter(|id| **id != auth.user_id) {
         let p = client.user(id).map_err(|e| e.to_string())?;
@@ -532,7 +546,7 @@ fn find_huddle_now(app: &AppHandle, file: &HuddleFile) -> Option<huddle::Huddle>
     let auth = fresh_auth(app).ok()?;
     let now = oauth::now_unix();
     match huddle::locate(
-        &Client::new(&auth.access_token),
+        &slack_client(&auth.access_token),
         &file.channel_id,
         file.call_id.as_deref(),
         (now, now),
@@ -646,7 +660,7 @@ fn post(app: &AppHandle, meeting_id: &str, file: HuddleFile) -> Result<()> {
     let post = mrkdwn::compose(&title, summary, line, &parts.transcript, german);
 
     let auth = fresh_auth(app)?;
-    let client = Client::new(&auth.access_token);
+    let client = slack_client(&auth.access_token);
     let started = chrono::DateTime::parse_from_rfc3339(&record.started_at)
         .map(|t| t.timestamp().max(0) as u64)
         .unwrap_or_else(|_| oauth::now_unix());
@@ -796,6 +810,13 @@ mod tests {
         assert_eq!(to, ["jonas@example.com"], "{list:?}");
         assert_eq!(list.skipped.len(), 3, "objected, no address, me: {list:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 2026-11-27: releases were built without the client id, so the Slack
+    /// row was hidden, nobody could connect, and no huddle was posted.
+    #[test]
+    fn every_build_has_the_slack_app() {
+        assert_eq!(client_id().as_deref(), Some(sokki_slack::CLIENT_ID));
     }
 
     #[test]

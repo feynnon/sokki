@@ -1058,6 +1058,11 @@
       "dark": "Dark"
     }
   },
+  "meetingPill": {
+    "open": "Open Meeting",
+    "stop": "Stop Recording",
+    "stopping": "Stopping"
+  },
   "overlay": {
     "transcribing": "Transcribing...",
     "processing": "Processing...",
@@ -1323,6 +1328,7 @@
       "placeholder": "Type your notes. Sokki adds what was said.",
       "live": "Live text",
       "listening": "Listening …",
+      "jumpToLatest": "Jump to latest",
       "combinedHint": "Your lines as you typed them. Grey: what Sokki adds from the conversation.",
       "views": "Views",
       "view": {

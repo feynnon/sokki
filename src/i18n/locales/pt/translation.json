@@ -996,6 +996,11 @@
       "dark": "Escuro"
     }
   },
+  "meetingPill": {
+    "open": "Abrir reunião",
+    "stop": "Parar gravação",
+    "stopping": "Parando"
+  },
   "overlay": {
     "transcribing": "Transcrevendo...",
     "processing": "Processando...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Digite suas notas. O Sokki adiciona o que foi dito.",
       "live": "Texto ao vivo",
       "listening": "Ouvindo …",
+      "jumpToLatest": "Ir para o mais recente",
       "combinedHint": "Suas linhas como você as digitou. Em cinza: o que o Sokki adiciona da conversa.",
       "views": "Visualizações",
       "view": {

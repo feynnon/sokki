@@ -40,10 +40,13 @@ fn app_id() -> String {
     plist("CFBundleIdentifier").unwrap_or_else(|| sokki_api::MAC_APP_ID.to_string())
 }
 
-/// `~/Library/Application Support/org.sokki.app` (`SOKKI_DATA_DIR` for
-/// tests).
+/// `~/Library/Application Support/org.sokki.app`: `SOKKI_DATA_DIR` for
+/// tests, else `SOKKI_APP_DATA` (set by the hooks runner, so a hook a test
+/// app runs reads that app's data), else the installed app's.
 pub fn data_dir() -> PathBuf {
-    env_path("SOKKI_DATA_DIR").unwrap_or_else(|| home().join("Library/Application Support").join(app_id()))
+    env_path("SOKKI_DATA_DIR")
+        .or_else(|| env_path("SOKKI_APP_DATA"))
+        .unwrap_or_else(|| home().join("Library/Application Support").join(app_id()))
 }
 
 pub fn settings_file() -> PathBuf {

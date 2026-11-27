@@ -170,6 +170,14 @@ impl NativeKeysState {
                         "native keys event: binding={}, hotkey={}, state={:?}",
                         binding_id, hotkey_string, event.state
                     );
+                    if event.state == HotkeyState::Ignored {
+                        info!(
+                            "Shortcut {} ({}) not used: another key went down before it \
+                             was released (typing, not the shortcut)",
+                            binding_id, hotkey_string
+                        );
+                        continue;
+                    }
                     let is_pressed = event.state == HotkeyState::Pressed;
                     handle_shortcut_event(&app, binding_id, hotkey_string, is_pressed);
                 }
@@ -234,9 +242,12 @@ impl NativeKeysState {
             .parse()
             .map_err(|e| format!("Failed to parse hotkey '{}': {}", hotkey_string, e))?;
 
-        let id = manager
-            .register(hotkey)
-            .map_err(|e| format!("Failed to register hotkey: {}", e))?;
+        let id = if fires_on_clean_release(binding_id) {
+            manager.register_on_clean_release(hotkey)
+        } else {
+            manager.register(hotkey)
+        }
+        .map_err(|e| format!("Failed to register hotkey: {}", e))?;
 
         binding_to_hotkey.insert(binding_id.to_string(), id);
         hotkey_to_binding.insert(id, (binding_id.to_string(), hotkey_string.to_string()));
@@ -422,6 +433,16 @@ impl Drop for NativeKeysState {
 }
 
 /// Convert sokki-keys Modifiers to a list of strings
+/// Bindings that fire when their keys are released, and only if no other
+/// key was pressed in between (see `HotkeyManager::register_on_clean_release`).
+///
+/// The meeting toggle: typing "mö" or "mü" on the US layout (Option+U is the
+/// umlaut dead key) rolls over Option+M and started meetings nobody asked for
+/// (2026-11-26 and 27). Dictation keys stay on press: holding them records.
+fn fires_on_clean_release(binding_id: &str) -> bool {
+    binding_id == "meeting"
+}
+
 fn modifiers_to_strings(modifiers: sokki_keys::Modifiers) -> Vec<String> {
     let mut result = Vec::new();
 
@@ -589,4 +610,23 @@ pub fn stop_native_keys_recording(app: AppHandle) -> Result<(), String> {
     let result = state.stop_recording();
     super::resume_all_shortcuts(&app);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fires_on_clean_release;
+
+    #[test]
+    fn meeting_shortcut_fires_only_on_a_clean_release() {
+        // A meeting must never start from typing that rolls over its keys.
+        assert!(fires_on_clean_release("meeting"));
+    }
+
+    #[test]
+    fn dictation_shortcuts_fire_on_press() {
+        // Hold-to-talk needs the press at once.
+        for id in ["transcribe", "transcribe_with_post_process", "cancel"] {
+            assert!(!fires_on_clean_release(id), "{id}");
+        }
+    }
 }

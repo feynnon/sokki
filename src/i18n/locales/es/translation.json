@@ -996,6 +996,11 @@
       "dark": "Oscuro"
     }
   },
+  "meetingPill": {
+    "open": "Abrir reunión",
+    "stop": "Detener grabación",
+    "stopping": "Deteniendo"
+  },
   "overlay": {
     "transcribing": "Transcribiendo...",
     "processing": "Procesando...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Escribe tus notas. Sokki añade lo que se dijo.",
       "live": "Texto en vivo",
       "listening": "Escuchando …",
+      "jumpToLatest": "Ir a lo último",
       "combinedHint": "Tus líneas tal como las escribiste. En gris: lo que Sokki añade de la conversación.",
       "views": "Vistas",
       "view": {

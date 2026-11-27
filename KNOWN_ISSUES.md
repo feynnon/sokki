@@ -121,6 +121,7 @@ Test set: 15 of Robin's dictations with his own ideal corrections (texts private
 | X13 | Call audio went silent mid-call: in the 2026-11-24 09:30 call the system track turned to exact zeros at 10:02:20, during a coreaudiod IO overload (other jobs were running sessions' model tests), and stayed silent for the last 13 min although the other side was talking. The tap kept delivering callbacks, just zeros. The afternoon meetings 14:19–15:20 (all system tracks silent) were mostly a session's own test calls with no far side, so they prove nothing either way. Sokki ran without restart from 2026-11-23 16:12 until the 0.2.12 install on 2026-11-24 15:42 | detect stuck zeros while an output runs and rebuild the tap, warn if that fails (board card "Anrufton darf nicht still wegbleiben", `src-tauri/swift/system_audio_tap.swift`); check the next real call after the restart |
 | X14 | Not a bug, for the record: 7 desktop meetings ended with an empty note and the title "Meeting <date> <time>" (17.11. 15:32/15:42, 19.11. 21:02/21:08, 24.11. 14:42/14:43/14:51). None had speech: 0 words from Parakeet on each track, also 25 dB louder; mic never above -40 dB for a second, system track zeros. The note said "Keine Sprache erkannt" | **fixed** (2026-11-25): a meeting without a word on any track gets no note; its audio goes to the Trash and the record bar says "No speech, nothing saved." (`sokki_engine::NoSpeech`). At start, older meetings whose note is only "Keine Sprache erkannt" go to the Trash with their audio (`meeting/store.rs` `trash_no_speech`) |
 | X15 | A timing test fails under load: `live::tests::turns_transcribed_during_the_call_give_the_same_note_with_fewer_calls_after` (sokki-engine) failed once on 2026-11-27 while release tests ran (66 s run), and passed twice alone (8.6 s). It needs its worker to keep up in real time | give it more slack, or run it only without other heavy jobs |
+| X16 | **Fixed 2026-11-27:** meetings started while typing. The meeting shortcut Option+M fired on typing "mö"/"mü" on the US layout (Option+U is the umlaut dead key, Option goes down before M). 4 starts on 26–27 Nov. The swallowed M is still missing from the typed word (Option was down, so it would have been "µ" anyway) | the meeting shortcut fires on release, only with no other key in the chord (`register_on_clean_release`, `docs/research/meeting-shortcut-typing-2026-11.md`) |
 
 ## Found in the first real call (2026-11-17)
 
@@ -253,6 +254,17 @@ Chrome (posted in 2.1 s; "stop" → same).
   Fix idea: post the chat notice ("Ich schreibe lokal mit Sokki mit …")
   into the thread while the huddle runs; that keeps the thread and tells
   everyone.
+- **Fixed 2026-11-27:** no huddle was ever posted from a release. Releases
+  were built without the Slack app's client id, so Settings › Meetings
+  showed no "Connect Slack" row, nobody could connect, and
+  `slack::recording_started` returned at once (no `Slack:` line in the
+  log; the huddle at 10:08 on 27.11. was detected and recorded). Now the id
+  is built in. Robin still has to connect once.
+- The Slack app isn't publicly distributed: the "Connect Slack" row shows
+  in every release, but only members of the app's own workspace can
+  connect; anyone else presumably gets an error from Slack at sign-in (not
+  tried) and Sokki waits out its 5 minutes. Fix: public distribution (api.slack.com, needs
+  Robin's login), see `crates/sokki-slack/SLACK_APP.md`.
 - Only a huddle Sokki detected as a Slack call is posted; a recording
   started by hand during a huddle has no channel. Fix idea: ask the
   profile on a manual start too.

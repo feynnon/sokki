@@ -15,6 +15,13 @@ struct ManagerState {
     next_id: u32,
     /// Track which hotkeys are currently pressed
     pressed_hotkeys: HashSet<HotkeyId>,
+    /// Hotkeys that fire only on a clean release (see
+    /// [`HotkeyManager::register_on_clean_release`]).
+    clean_release: HashSet<HotkeyId>,
+    /// Chords of `clean_release` hotkeys in progress: their key went down
+    /// with the right modifiers, and they wait for the modifiers' release.
+    /// The value is false once another key went down during the chord.
+    chords: HashMap<HotkeyId, bool>,
 }
 
 impl ManagerState {
@@ -23,12 +30,77 @@ impl ManagerState {
             hotkeys: HashMap::new(),
             next_id: 0,
             pressed_hotkeys: HashSet::new(),
+            clean_release: HashSet::new(),
+            chords: HashMap::new(),
+        }
+    }
+
+    /// Advance the chords of `clean_release` hotkeys. Returns their events.
+    ///
+    /// Typing on a layout whose dead keys use Option (US: Option+U then a
+    /// vowel types an umlaut) presses Option a moment before the key it
+    /// follows: typing "mö" fast is Option down, M down, U down. That is
+    /// Option+M, Sokki's meeting shortcut, and it started meetings nobody
+    /// asked for (2026-11-26 and 27, four times, each while "mö"/"mü" was
+    /// typed). A deliberate shortcut is the modifiers and its one key, and
+    /// nothing else, so a chord fires when its modifiers are released, and
+    /// only if no other key went down in between.
+    fn process_chords(&mut self, event: &KeyEvent, results: &mut Vec<HotkeyEvent>) {
+        for &id in &self.clean_release {
+            let Some(hotkey) = self.hotkeys.get(&id) else {
+                continue;
+            };
+            let matches = hotkey.modifiers.matches(event.modifiers);
+            match self.chords.get(&id).copied() {
+                None => {
+                    if event.is_key_down && matches && event.key == hotkey.key {
+                        self.chords.insert(id, true);
+                    }
+                }
+                Some(clean) => {
+                    let other_key_down =
+                        event.is_key_down && event.key.is_some() && event.key != hotkey.key;
+                    // The chord ends when its modifiers no longer match: on a
+                    // modifier's release it fires, on an extra modifier's
+                    // press it was something else. A key-only hotkey ends
+                    // with its own key's release. A key going down without
+                    // the modifiers means their release was missed.
+                    let ends = if hotkey.modifiers.is_empty() {
+                        !event.is_key_down && event.key == hotkey.key
+                    } else {
+                        !matches && (event.key.is_none() || event.is_key_down)
+                    };
+                    if other_key_down {
+                        self.chords.insert(id, false);
+                    }
+                    if ends {
+                        self.chords.remove(&id);
+                        let fire = clean && !other_key_down && !event.is_key_down;
+                        if fire {
+                            results.push(HotkeyEvent {
+                                id,
+                                state: HotkeyState::Pressed,
+                            });
+                            results.push(HotkeyEvent {
+                                id,
+                                state: HotkeyState::Released,
+                            });
+                        } else {
+                            results.push(HotkeyEvent {
+                                id,
+                                state: HotkeyState::Ignored,
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 
     /// Process a key event and return any matching hotkey events
     fn process_event(&mut self, event: &KeyEvent) -> Vec<HotkeyEvent> {
         let mut results = Vec::new();
+        self.process_chords(event, &mut results);
 
         if event.is_key_down {
             // Check for hotkeys that should be pressed
@@ -36,7 +108,8 @@ impl ManagerState {
                 .hotkeys
                 .iter()
                 .filter(|(&id, hotkey)| {
-                    hotkey.modifiers.matches(event.modifiers)
+                    !self.clean_release.contains(&id)
+                        && hotkey.modifiers.matches(event.modifiers)
                         && hotkey.key == event.key
                         && !self.pressed_hotkeys.contains(&id)
                 })
@@ -220,6 +293,24 @@ impl HotkeyManager {
         Ok(id)
     }
 
+    /// Register a hotkey that fires only when its chord is released clean:
+    /// its modifiers and its key went down, then the modifiers came up, and
+    /// no other key went down in between. It then reports `Pressed` and
+    /// `Released` together, on the release. A chord with another key in it
+    /// (typing that rolled over the shortcut) reports `Ignored` instead.
+    ///
+    /// For toggles a stray keystroke must never trigger, such as starting a
+    /// meeting recording. Not for hold-to-talk keys, which need the press at
+    /// once. A modifier-only hotkey registers as with [`Self::register`].
+    pub fn register_on_clean_release(&self, hotkey: Hotkey) -> Result<HotkeyId> {
+        let id = self.register(hotkey)?;
+        if hotkey.key.is_some() {
+            let mut state = self.state.lock().map_err(|_| Error::MutexPoisoned)?;
+            state.clean_release.insert(id);
+        }
+        Ok(id)
+    }
+
     /// Unregister a hotkey by its ID
     ///
     /// Returns an error if the hotkey ID is not found.
@@ -227,6 +318,8 @@ impl HotkeyManager {
         let mut state = self.state.lock().map_err(|_| Error::MutexPoisoned)?;
 
         let hotkey = state.hotkeys.remove(&id);
+        state.clean_release.remove(&id);
+        state.chords.remove(&id);
         if hotkey.is_none() {
             return Err(Error::HotkeyNotFound(id));
         }
@@ -606,6 +699,185 @@ mod tests {
             let results = state.process_event(&event);
             assert_eq!(results.len(), 1);
             assert_eq!(results[0].state, HotkeyState::Pressed);
+        }
+
+        /// The meeting shortcut, Option+M, registered to fire on a clean release.
+        fn clean_release_option_m() -> (ManagerState, HotkeyId) {
+            let mut state = ManagerState::new();
+            let id = HotkeyId(0);
+            state
+                .hotkeys
+                .insert(id, Hotkey::new(Modifiers::OPT, Key::M).unwrap());
+            state.clean_release.insert(id);
+            (state, id)
+        }
+
+        fn opt_down() -> KeyEvent {
+            make_modifier_event(Modifiers::OPT_LEFT, true, Modifiers::OPT_LEFT)
+        }
+
+        fn opt_up() -> KeyEvent {
+            make_modifier_event(Modifiers::empty(), false, Modifiers::OPT_LEFT)
+        }
+
+        fn run(state: &mut ManagerState, events: &[KeyEvent]) -> Vec<HotkeyEvent> {
+            events.iter().flat_map(|e| state.process_event(e)).collect()
+        }
+
+        #[test]
+        fn typing_an_umlaut_after_m_does_not_fire_option_m() {
+            // The real case (2026-11-27): typing "mö" fast on the US layout.
+            // Option goes down for Option+U (the umlaut dead key) before M
+            // is down, so M arrives as Option+M, then U while Option is held.
+            let (mut state, id) = clean_release_option_m();
+            let opt = Modifiers::OPT_LEFT;
+            let events = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    make_key_event(opt, Some(Key::M), false),
+                    make_key_event(opt, Some(Key::U), true),
+                    make_key_event(opt, Some(Key::U), false),
+                    opt_up(),
+                    make_key_event(Modifiers::empty(), Some(Key::O), true),
+                ],
+            );
+            assert!(
+                !events.iter().any(|e| e.state == HotkeyState::Pressed),
+                "typing must not start a meeting: {events:?}"
+            );
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].id, id);
+            assert_eq!(events[0].state, HotkeyState::Ignored);
+        }
+
+        #[test]
+        fn plain_registration_fires_on_the_typed_umlaut() {
+            // What happened before: a hotkey registered the usual way fires
+            // the moment M goes down, in the middle of the word.
+            let mut state = ManagerState::new();
+            state
+                .hotkeys
+                .insert(HotkeyId(0), Hotkey::new(Modifiers::OPT, Key::M).unwrap());
+            let events = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(Modifiers::OPT_LEFT, Some(Key::M), true),
+                ],
+            );
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].state, HotkeyState::Pressed);
+        }
+
+        #[test]
+        fn deliberate_option_m_fires_when_option_is_released() {
+            let (mut state, id) = clean_release_option_m();
+            let opt = Modifiers::OPT_LEFT;
+            // Nothing while the chord is held, autorepeat included.
+            let held = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    make_key_event(opt, Some(Key::M), true),
+                    make_key_event(opt, Some(Key::M), false),
+                ],
+            );
+            assert!(held.is_empty(), "{held:?}");
+            let released = state.process_event(&opt_up());
+            assert_eq!(released.len(), 2);
+            assert_eq!(released[0].id, id);
+            assert_eq!(released[0].state, HotkeyState::Pressed);
+            assert_eq!(released[1].state, HotkeyState::Released);
+            // The next press is a new chord.
+            let again = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    opt_up(),
+                ],
+            );
+            assert_eq!(again.len(), 2);
+            assert_eq!(again[0].state, HotkeyState::Pressed);
+        }
+
+        #[test]
+        fn option_m_fires_when_m_is_still_down_at_the_release() {
+            let (mut state, _) = clean_release_option_m();
+            let events = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(Modifiers::OPT_LEFT, Some(Key::M), true),
+                    opt_up(),
+                    make_key_event(Modifiers::empty(), Some(Key::M), false),
+                ],
+            );
+            assert_eq!(events.len(), 2);
+            assert_eq!(events[0].state, HotkeyState::Pressed);
+        }
+
+        #[test]
+        fn extra_modifier_during_the_chord_ignores_it() {
+            let (mut state, _) = clean_release_option_m();
+            let opt = Modifiers::OPT_LEFT;
+            let events = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    make_modifier_event(opt | Modifiers::SHIFT_LEFT, true, Modifiers::SHIFT_LEFT),
+                    make_modifier_event(opt, false, Modifiers::SHIFT_LEFT),
+                    opt_up(),
+                ],
+            );
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].state, HotkeyState::Ignored);
+        }
+
+        #[test]
+        fn missed_option_release_does_not_leave_the_chord_open() {
+            let (mut state, _) = clean_release_option_m();
+            let opt = Modifiers::OPT_LEFT;
+            let missed = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    // Option's release never arrived; the next key has none.
+                    make_key_event(Modifiers::empty(), Some(Key::A), true),
+                ],
+            );
+            assert_eq!(missed.len(), 1);
+            assert_eq!(missed[0].state, HotkeyState::Ignored);
+            // A fresh, clean chord fires again.
+            let events = run(
+                &mut state,
+                &[
+                    opt_down(),
+                    make_key_event(opt, Some(Key::M), true),
+                    opt_up(),
+                ],
+            );
+            assert_eq!(events[0].state, HotkeyState::Pressed);
+        }
+
+        #[test]
+        fn m_without_option_is_no_chord() {
+            let (mut state, _) = clean_release_option_m();
+            let events = run(
+                &mut state,
+                &[
+                    make_key_event(Modifiers::empty(), Some(Key::M), true),
+                    opt_down(),
+                    make_key_event(Modifiers::OPT_LEFT, Some(Key::U), true),
+                    opt_up(),
+                ],
+            );
+            assert!(events.is_empty(), "{events:?}");
         }
 
         #[test]

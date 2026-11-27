@@ -996,6 +996,11 @@
       "dark": "Mörkt"
     }
   },
+  "meetingPill": {
+    "open": "Öppna mötet",
+    "stop": "Stoppa inspelningen",
+    "stopping": "Stoppar"
+  },
   "overlay": {
     "transcribing": "Transkriberar...",
     "processing": "Bearbetar...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Skriv dina anteckningar. Sokki fyller i det som sades.",
       "live": "Live-text",
       "listening": "Lyssnar …",
+      "jumpToLatest": "Till det senaste",
       "combinedHint": "Dina rader som du skrev dem. Grått: det Sokki lägger till från samtalet.",
       "views": "Vyer",
       "view": {

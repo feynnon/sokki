@@ -30,6 +30,9 @@
 #                                                      # TITLE_AFTER for a summary to post.
 #                                                      # SLACK_THREAD=C…/ts: no huddle needed,
 #                                                      # post into that existing test thread.
+#   SLACK_FAKE=1 scripts/test-meeting.sh ...           # the same against a fake Slack on localhost
+#                                                      # (scripts/fake-slack.py): no workspace, no
+#                                                      # real post; checks the notes reach the thread
 #   CHAT=zoom scripts/test-meeting.sh ...              # post the chat notice into the running
 #                                                      # Zoom (or teams, chrome, arc, edge, brave)
 #                                                      # call and watch it for "stop"; your own
@@ -40,13 +43,17 @@
 #   HOOKS=dir scripts/test-meeting.sh ...             # run the hooks in dir/hooks.toml (HOOKS.md);
 #                                                     # without it the test app runs none. Allow
 #                                                     # them first, for the test app:
-#                                                     # SOKKI_APP_ID=org.sokki.test SOKKI_HOOKS_DIR=dir \
+#                                                     # SOKKI_DATA_DIR="$HOME/Library/Application Support/org.sokki.test" SOKKI_HOOKS_DIR=dir \
 #                                                     #   sokki hooks allow NAME
 #   OWN_NOTES="12=Budget?|40=Druckerei bis Fr" TITLE_AFTER=600 scripts/test-meeting.sh ...
 #                                                     # type own notes during the call (at 12 s,
 #                                                     # 40 s); logs the note's "Meine Notizen"
 #                                                     # section. TITLE_AFTER turns the language
 #                                                     # model on, for Sokki's additions.
+#   PILL_CLICK_AT=5 scripts/test-meeting.sh ...       # click the recording pill 5 s into each
+#                                                     # test meeting; logs which meeting page the
+#                                                     # hidden window shows and how fast
+#                                                     # ("Meeting page on screen … ms")
 #   KEEP_MEETINGS=1 scripts/test-meeting.sh ...       # keep the test app's earlier meetings
 #                                                     # (voices across meetings)
 #   CALL_SPEAKERS=spans.json scripts/test-meeting.sh ... # who spoke when, as Meet's captions
@@ -107,6 +114,17 @@ HOLD="${3:-$(echo "$LENGTH + 1" | bc)}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+if [[ -n "${SLACK_FAKE:-}" ]]; then
+  # A made-up sign-in and thread; every Slack call goes to the fake.
+  FAKE_PORT="${FAKE_PORT:-47899}"
+  FAKE_LOG="$WORK/fake-slack.jsonl"
+  python3 -I "$(dirname "$0")/fake-slack.py" "$FAKE_PORT" "$FAKE_LOG" &
+  FAKEPID=$!
+  printf '{"team_id":"T0FAKE","team_name":"Test Team","user_id":"U0FAKE","access_token":"xoxp-fake-test-token","refreshed_at":%s}\n' "$(date +%s)" > "$WORK/fake-auth.json"
+  SLACK="$WORK/fake-auth.json"
+  SLACK_THREAD="${SLACK_THREAD:-C0FAKE/1764230000.000100}"
+  SLACK_API="http://127.0.0.1:$FAKE_PORT/api/"
+fi
 mkdir -p "$DATA"
 # Robin's settings, minus everything that reaches outside the test app.
 jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --arg slack "${SLACK:-}" --arg dry "${MAIL_DRY:-}" '.settings.onboarding_completed = true
@@ -125,7 +143,8 @@ jq --arg notes "$WORK/notes" --arg chat "${CHAT:-}" --arg mail "${MAIL_TO:-}" --
 rm -f "$DATA/slack_auth.json"
 if [[ -n "${SLACK:-}" ]]; then
   install -m 600 "$SLACK" "$DATA/slack_auth.json"
-  # Releases leave Slack out; the test app gets the client id at run time.
+  # The client id is built in (sokki_slack::CLIENT_ID); passing it keeps
+  # older test builds working.
   SLACK_ID="$(sed -n 's/^Client ID: `\(.*\)`$/\1/p' "$(dirname "$0")/../crates/sokki-slack/SLACK_APP.md")"
 fi
 if [[ -n "${TITLE_AFTER:-}" || -n "${MAIL_TO:-}" || -n "${MAIL_DRY:-}" ]]; then
@@ -189,11 +208,11 @@ sleep 1
 [[ -n "${KEEP_MEETINGS:-}" ]] || rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="Hook|own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
+PATTERN="Hook|own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|Meeting page|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
-trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null || true; rm -rf "$WORK"' EXIT
+trap '{ kill $TAILPID ${FAKEPID:-}; wait $TAILPID ${FAKEPID:-}; } 2>/dev/null || true; rm -rf "$WORK"' EXIT
 sleep 1
 echo "Recording a ${HOLD}s meeting (live transcript ${NO_LIVE:+off}${NO_LIVE:-on})…"
 open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
@@ -202,11 +221,12 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${DEAD_AT:+--env SOKKI_TEST_SYSTEM_DEAD_AT_S=$DEAD_AT} ${OUTPUT_CHANGE_AT:+--env SOKKI_TEST_OUTPUT_CHANGE_AT_S=$OUTPUT_CHANGE_AT} \
   ${SECOND_S:+--env SOKKI_TEST_SECOND_S="$SECOND_S"} ${GAP_S:+--env SOKKI_TEST_GAP_S="$GAP_S"} \
   ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} ${TITLE_AFTER:+--env SOKKI_TEST_TITLE_AFTER_S="$TITLE_AFTER"} \
-  ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
+  ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} ${SLACK_API:+--env SOKKI_TEST_SLACK_API="$SLACK_API"} \
   ${HOOKS:+--env SOKKI_HOOKS_DIR="$(abs "$HOOKS")" --env SOKKI_TEST_OWN_NOTES_QUIET_S=2} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
-  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} ${OWN_NOTES:+--env SOKKI_TEST_OWN_NOTES="$OWN_NOTES"} -a "$TESTAPP"
+  ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} ${OWN_NOTES:+--env SOKKI_TEST_OWN_NOTES="$OWN_NOTES"} \
+  ${PILL_CLICK_AT:+--env SOKKI_TEST_PILL_CLICK_AT_S="$PILL_CLICK_AT"} -a "$TESTAPP"
 
 # Sample the app (and its model workers) every 5 s until processing is done.
 SAMPLES="$WORK/samples.txt"
@@ -235,6 +255,15 @@ for _ in $(seq 1 "$LIMIT"); do
 done
 sleep 1
 grep -E "$PATTERN" "$WORK/log.txt" | grep -v "Loaded settings" || true
+if [[ -n "${SLACK_FAKE:-}" ]]; then
+  echo "--- fake Slack received:"
+  jq -c 'if .method == "files.completeUploadExternal" then {method, authed, channel: .body.channel_id, thread: .body.thread_ts, file: .body.files[0].title, comment_chars: (.body.initial_comment | length)} elif .method == "upload" then {method, bytes, first_line} else {method, authed} end' "$FAKE_LOG" 2>/dev/null || echo "(nothing)"
+  if jq -e -s --arg t "${SLACK_THREAD#*/}" 'any(.method == "files.completeUploadExternal" and .authed and .body.thread_ts == $t and .body.channel_id == "C0FAKE")' "$FAKE_LOG" >/dev/null 2>&1; then
+    echo "SLACK_FAKE: PASS, the notes went into thread ${SLACK_THREAD#*/}"
+  else
+    echo "SLACK_FAKE: FAIL, no post into the thread"; FAKE_FAILED=1
+  fi
+fi
 if [[ -n "${HOOKS:-}" ]]; then
   # Each run's log: the hook's own output (the test's made-up data only).
   for f in "$DATA/hooks/logs/"*; do
@@ -251,3 +280,4 @@ if [[ -s "$SAMPLES" && -n "$STARTED" ]]; then
       if (pn) printf "After the stop:  CPU mean %.0f%%, max %.0f%%; memory max %d MB (%d samples)\n", pc/pn, pcmax, pmmax, pn }' "$SAMPLES"
 fi
 quit_test_app
+[[ -z "${FAKE_FAILED:-}" ]]

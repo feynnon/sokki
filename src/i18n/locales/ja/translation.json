@@ -996,6 +996,11 @@
       "dark": "ダーク"
     }
   },
+  "meetingPill": {
+    "open": "会議を開く",
+    "stop": "録音を停止",
+    "stopping": "停止中"
+  },
   "overlay": {
     "transcribing": "文字起こし中…",
     "processing": "処理中…",
@@ -1161,6 +1166,7 @@
       "placeholder": "メモを入力。発言内容は Sokki が補います。",
       "live": "ライブテキスト",
       "listening": "聞いています …",
+      "jumpToLatest": "最新へ",
       "combinedHint": "入力したままのあなたの行。グレー：会話から Sokki が補った内容。",
       "views": "表示",
       "view": {

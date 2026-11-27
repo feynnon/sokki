@@ -154,7 +154,7 @@ export const LiveTranscript: React.FC<{ record: MeetingRecord }> = ({
   useEffect(() => {
     let live = true;
     const read = () =>
-      void commands.meetingLiveTranscript().then((l) => {
+      void commands.meetingLiveTranscript(record.id).then((l) => {
         if (live) setLines(l);
       });
     read();

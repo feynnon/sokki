@@ -664,7 +664,7 @@ const Reader: React.FC<{
   const shown = error ?? noteError;
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col">
+    <div className="flex-1 min-w-0 flex flex-col" data-meeting-page={record.id}>
       {rec ? (
         <div className="h-[52px] shrink-0" />
       ) : (
@@ -774,6 +774,12 @@ export const MeetingsSettings: React.FC = () => {
   const [view, setView] = useState<"list" | "settings">("list");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
   const meetingSettings = settings?.meetings as MeetingSettingsType | undefined;
+  // Opening a meeting (a click on the recording pill) leaves the settings.
+  useEffect(() => {
+    const toList = () => setView("list");
+    window.addEventListener("sokki-open-meeting", toList);
+    return () => window.removeEventListener("sokki-open-meeting", toList);
+  }, []);
 
   useEffect(() => {
     if (view !== "list") return;

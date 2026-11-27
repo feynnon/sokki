@@ -727,6 +727,15 @@ async initializeEnigo() : Promise<Result<null, string>> {
 }
 },
 /**
+ * Whether this app runs in test mode (`SOKKI_TEST_MIC`, test_mic.rs). Its
+ * window stays hidden and it needs no permissions, so the page skips the
+ * permissions screen and shows the app, which a test can then drive (the
+ * recording pill's click, `SOKKI_TEST_PILL_CLICK_AT_S`).
+ */
+async testMode() : Promise<boolean> {
+    return await TAURI_INVOKE("test_mode");
+},
+/**
  * Initialize keyboard shortcuts.
  * On macOS, this should be called after accessibility permissions are granted.
  * This is idempotent - calling it multiple times is safe.
@@ -891,6 +900,22 @@ async stopMeetingRecording() : Promise<Result<string, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * A click on the recording pill: Sokki's window comes forward on the
+ * meeting's page (the one recording, else the newest).
+ */
+async openMeetingFromPill() : Promise<void> {
+    await TAURI_INVOKE("open_meeting_from_pill");
+},
+/**
+ * The page reports that it shows what `open-meeting` asked for: logs the
+ * time from the click to the page on screen, and what is on screen
+ * (`section`, the meeting `shown`), so a test can check it. Over 300 ms
+ * is slow (CLAUDE.md, "Every action feels instant").
+ */
+async meetingPageShown(source: string, asked: string | null, section: string, shown: string | null, ms: number) : Promise<void> {
+    await TAURI_INVOKE("meeting_page_shown", { source, asked, section, shown, ms });
 },
 async isMeetingRecording() : Promise<boolean> {
     return await TAURI_INVOKE("is_meeting_recording");
@@ -1551,11 +1576,11 @@ async stopSampleMeeting() : Promise<Result<null, string>> {
 }
 },
 /**
- * What the running meeting's live transcript has heard so far, in order.
- * Empty when nothing records.
+ * What meeting `id`'s live transcript has heard so far, in order. Empty
+ * unless `id` is the meeting recording now.
  */
-async meetingLiveTranscript() : Promise<LiveLine[]> {
-    return await TAURI_INVOKE("meeting_live_transcript");
+async meetingLiveTranscript(id: string) : Promise<LiveLine[]> {
+    return await TAURI_INVOKE("meeting_live_transcript", { id });
 },
 /**
  * Renames a speaker of a processed meeting in its note. With `remember`,

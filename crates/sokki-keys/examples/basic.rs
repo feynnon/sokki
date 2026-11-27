@@ -86,6 +86,7 @@ fn main() -> Result<()> {
         let state_str = match event.state {
             HotkeyState::Pressed => "PRESSED",
             HotkeyState::Released => "RELEASED",
+            HotkeyState::Ignored => "IGNORED",
         };
         if let Some(hotkey) = manager.get_hotkey(event.id) {
             log(&format!("[{}] {} (id: {:?})", state_str, hotkey, event.id));

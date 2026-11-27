@@ -996,6 +996,11 @@
       "dark": "Mørk"
     }
   },
+  "meetingPill": {
+    "open": "Åbn møde",
+    "stop": "Stop optagelse",
+    "stopping": "Stopper"
+  },
   "overlay": {
     "transcribing": "Transskriberer...",
     "processing": "Behandler...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Skriv dine noter. Sokki tilføjer det, der blev sagt.",
       "live": "Live-tekst",
       "listening": "Lytter …",
+      "jumpToLatest": "Til det nyeste",
       "combinedHint": "Dine linjer, som du skrev dem. Gråt: det Sokki tilføjer fra samtalen.",
       "views": "Visninger",
       "view": {

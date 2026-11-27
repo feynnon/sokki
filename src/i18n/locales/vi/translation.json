@@ -996,6 +996,11 @@
       "dark": "Tối"
     }
   },
+  "meetingPill": {
+    "open": "Mở cuộc họp",
+    "stop": "Dừng ghi",
+    "stopping": "Đang dừng"
+  },
   "overlay": {
     "transcribing": "Đang chuyển đổi...",
     "processing": "Đang xử lý...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Gõ ghi chú. Sokki bổ sung những gì đã nói.",
       "live": "Văn bản trực tiếp",
       "listening": "Đang nghe …",
+      "jumpToLatest": "Đến mới nhất",
       "combinedHint": "Các dòng của bạn đúng như bạn gõ. Màu xám: Sokki bổ sung từ cuộc trò chuyện.",
       "views": "Chế độ xem",
       "view": {

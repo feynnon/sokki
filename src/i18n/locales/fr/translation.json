@@ -996,6 +996,11 @@
       "dark": "Sombre"
     }
   },
+  "meetingPill": {
+    "open": "Ouvrir la réunion",
+    "stop": "Arrêter l'enregistrement",
+    "stopping": "Arrêt en cours"
+  },
   "overlay": {
     "transcribing": "Transcription...",
     "processing": "Traitement...",
@@ -1161,6 +1166,7 @@
       "placeholder": "Tape tes notes. Sokki ajoute ce qui a été dit.",
       "live": "Texte en direct",
       "listening": "À l’écoute …",
+      "jumpToLatest": "Aller au plus récent",
       "combinedHint": "Tes lignes telles que tu les as tapées. En gris : ce que Sokki ajoute de la conversation.",
       "views": "Vues",
       "view": {

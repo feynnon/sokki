@@ -42,6 +42,12 @@ pub use api::{Client, Error, HuddleState, Person};
 pub use huddle::Huddle;
 pub use oauth::{Auth, OAuthApp};
 
+/// The client id of Sokki's Slack app (App ID A0CLJ17EX45, `SLACK_APP.md`).
+/// A client id is public: PKCE needs no secret. Built into every build since
+/// 2026-11-27: releases without it showed no Slack row, so nobody could
+/// connect and no huddle was ever posted.
+pub const CLIENT_ID: &str = "5519147795124.12698041507141";
+
 /// The port of the sign-in redirect. Slack wants the redirect URL to match
 /// the one registered in the app exactly, so it is fixed.
 pub const REDIRECT_PORT: u16 = 47821;

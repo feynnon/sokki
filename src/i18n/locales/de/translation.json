@@ -1058,6 +1058,11 @@
       "dark": "Dunkel"
     }
   },
+  "meetingPill": {
+    "open": "Meeting öffnen",
+    "stop": "Aufnahme beenden",
+    "stopping": "Wird beendet"
+  },
   "overlay": {
     "transcribing": "Transkribiere...",
     "processing": "Verarbeite...",
@@ -1323,6 +1328,7 @@
       "placeholder": "Notizen tippen. Sokki ergänzt, was gesagt wurde.",
       "live": "Live-Text",
       "listening": "Hört zu …",
+      "jumpToLatest": "Zum Neuesten",
       "combinedHint": "Deine Zeilen, wie du sie getippt hast. Grau: was Sokki aus dem Gespräch ergänzt.",
       "views": "Ansichten",
       "view": {

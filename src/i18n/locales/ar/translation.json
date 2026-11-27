@@ -996,6 +996,11 @@
       "dark": "داكن"
     }
   },
+  "meetingPill": {
+    "open": "فتح الاجتماع",
+    "stop": "إيقاف التسجيل",
+    "stopping": "جارٍ الإيقاف"
+  },
   "overlay": {
     "transcribing": "جاري التفريغ...",
     "processing": "جاري المعالجة...",
@@ -1161,6 +1166,7 @@
       "placeholder": "اكتب ملاحظاتك. يضيف Sokki ما قيل.",
       "live": "نص مباشر",
       "listening": "يستمع …",
+      "jumpToLatest": "إلى الأحدث",
       "combinedHint": "سطورك كما كتبتها. بالرمادي: ما يضيفه Sokki من المحادثة.",
       "views": "طرق العرض",
       "view": {

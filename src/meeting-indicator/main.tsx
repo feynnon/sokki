@@ -6,8 +6,12 @@ import {
   LogicalPosition,
   LogicalSize,
 } from "@tauri-apps/api/window";
+import { useTranslation } from "react-i18next";
 import { commands, events } from "@/bindings";
+import "@/i18n";
+import { syncLanguageFromSettings } from "@/i18n";
 import { Wave } from "./Wave";
+import { pressOutcome, type Point } from "./press";
 import "./indicator.css";
 
 /** The pill's height; the window grows by TIP_SPACE below it for the tooltip. */
@@ -59,14 +63,22 @@ async function fitWindow(width: number, height: number) {
  * Floating pill while a meeting records (after Superwhisper's mini window):
  * the live waveform shows the microphone and system audio are picked up,
  * then the time and the stop button. The window is as wide as the pill.
+ * A click on the waveform or the time opens the meeting in Sokki's window
+ * (design "Pille öffnen 3", 2026-11-27); dragging them moves the pill.
  */
 const Indicator: React.FC = () => {
+  const { t } = useTranslation();
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [stopping, setStopping] = useState(false);
   const [hover, setHover] = useState(false);
   const [tip, setTip] = useState(false);
   const [pressed, setPressed] = useState(false);
+  // The rest of the pill: hover (from the app, as for stop) and its tooltip.
+  const [hoverBody, setHoverBody] = useState(false);
+  const [openTip, setOpenTip] = useState(false);
+  const [bodyDown, setBodyDown] = useState(false);
+  const press = useRef<Point | null>(null);
   const level = useRef(0);
   const pill = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -88,6 +100,7 @@ const Indicator: React.FC = () => {
       }
     };
     void load();
+    void syncLanguageFromSettings();
     const offChanged = events.meetingChanged.listen(() => void load());
     const offLevel = listen<{ mic: number; system: number }>(
       "meeting-level",
@@ -101,10 +114,14 @@ const Indicator: React.FC = () => {
     const offHover = listen<boolean>("meeting-indicator-hover", (e) =>
       setHover(e.payload),
     );
+    const offHoverBody = listen<boolean>("meeting-indicator-hover-pill", (e) =>
+      setHoverBody(e.payload),
+    );
     return () => {
       offChanged.then((fn) => fn());
       offLevel.then((fn) => fn());
       offHover.then((fn) => fn());
+      offHoverBody.then((fn) => fn());
     };
   }, []);
 
@@ -126,6 +143,17 @@ const Indicator: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [hover, stopping]);
 
+  // "Meeting öffnen" after the same half second over the rest of the pill.
+  useEffect(() => {
+    if (!hoverBody) {
+      setOpenTip(false);
+      setBodyDown(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setOpenTip(true), TIP_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hoverBody]);
+
   useLayoutEffect(() => {
     const el = pill.current;
     if (!el) return;
@@ -138,10 +166,11 @@ const Indicator: React.FC = () => {
 
   useEffect(() => {
     if (width > 0)
-      void fitWindow(width, PILL_HEIGHT + (tip ? TIP_SPACE : 0)).catch((e) =>
-        console.warn("Fitting the pill window failed:", e),
-      );
-  }, [width, tip]);
+      void fitWindow(
+        width,
+        PILL_HEIGHT + (tip || openTip ? TIP_SPACE : 0),
+      ).catch((e) => console.warn("Fitting the pill window failed:", e));
+  }, [width, tip, openTip]);
 
   const stop = async () => {
     setStopping(true);
@@ -149,6 +178,43 @@ const Indicator: React.FC = () => {
     // Failed: the button must work again.
     if (r.status !== "ok") setStopping(false);
   };
+
+  // A press on the waveform or the time: a click opens the meeting, a drag
+  // of 4 px or more moves the pill (macOS then owns the mouse until it is
+  // let go, so no mouseup arrives for a drag).
+  const onBodyDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    press.current = { x: e.screenX, y: e.screenY };
+    setBodyDown(true);
+  };
+  const onBodyMove = (e: React.MouseEvent) => {
+    const from = press.current;
+    if (!from || (e.buttons & 1) === 0) return;
+    if (pressOutcome(from, { x: e.screenX, y: e.screenY }) === "drag") {
+      press.current = null;
+      setBodyDown(false);
+      void getCurrentWindow()
+        .startDragging()
+        .catch((err) => console.warn("Moving the pill failed:", err));
+    }
+  };
+  const onBodyUp = (e: React.MouseEvent) => {
+    const from = press.current;
+    press.current = null;
+    setBodyDown(false);
+    if (!from || pressOutcome(from, { x: e.screenX, y: e.screenY }) !== "click")
+      return;
+    setOpenTip(false);
+    void commands.openMeetingFromPill();
+  };
+
+  const bodyClass = [
+    "body",
+    hoverBody ? "is-hover" : "",
+    bodyDown ? "is-down" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const stopClass = [
     "stop",
@@ -160,17 +226,32 @@ const Indicator: React.FC = () => {
 
   return (
     <div className="frame">
-      <div
-        ref={pill}
-        className={stopping ? "pill is-stopping" : "pill"}
-        data-tauri-drag-region
-      >
-        <div className="wave" data-tauri-drag-region>
-          <Wave levelRef={level} dim={stopping} />
-        </div>
-        <span className="time" data-tauri-drag-region>
-          {startedAt ? elapsed(now - startedAt) : "0:00"}
-        </span>
+      <div ref={pill} className={stopping ? "pill is-stopping" : "pill"}>
+        <button
+          type="button"
+          className={bodyClass}
+          aria-label={t("meetingPill.open")}
+          onMouseDown={onBodyDown}
+          onMouseMove={onBodyMove}
+          onMouseUp={onBodyUp}
+          onMouseLeave={() => {
+            press.current = null;
+            setBodyDown(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              void commands.openMeetingFromPill();
+            }
+          }}
+        >
+          <span className="wave">
+            <Wave levelRef={level} dim={stopping} />
+          </span>
+          <span className="time">
+            {startedAt ? elapsed(now - startedAt) : "0:00"}
+          </span>
+        </button>
         <button
           type="button"
           className={stopClass}
@@ -178,12 +259,17 @@ const Indicator: React.FC = () => {
           onMouseDown={() => setPressed(true)}
           onMouseUp={() => setPressed(false)}
           disabled={stopping}
-          aria-label={stopping ? "Wird beendet" : "Aufnahme beenden"}
+          aria-label={
+            stopping ? t("meetingPill.stopping") : t("meetingPill.stop")
+          }
         >
           {stopping ? <span className="spin" /> : <span className="square" />}
         </button>
       </div>
-      {tip && <div className="tip">Aufnahme beenden</div>}
+      {tip && <div className="tip">{t("meetingPill.stop")}</div>}
+      {openTip && !tip && (
+        <div className="tip tip-open">{t("meetingPill.open")}</div>
+      )}
     </div>
   );
 };

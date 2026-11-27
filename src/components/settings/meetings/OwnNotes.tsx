@@ -1,6 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowDown } from "lucide-react";
 import { commands, type LiveLine, type MeetingRecord } from "@/bindings";
+import { useFollowEnd } from "./followEnd";
 
 /** Waits this long after the last key before saving (ms). */
 const SAVE_DELAY = 400;
@@ -91,17 +93,18 @@ function clock(s: number): string {
     : `${String(m).padStart(2, "0")}:${sec}`;
 }
 
-/** What the live transcript has heard so far, newest at the bottom. */
+/** What the live transcript has heard so far, newest at the bottom. Opens
+ * at the end and follows it; scrolling up to read stops that, and "Zum
+ * Neuesten" (or scrolling back down) resumes it (Robin, 2026-11-27). */
 export const LiveColumn: React.FC<{ record: MeetingRecord }> = ({ record }) => {
   const { t } = useTranslation();
   const [lines, setLines] = useState<LiveLine[]>([]);
-  const end = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLDivElement>(null);
+  const { box, onScroll, reading, jump } = useFollowEnd(lines.length);
 
   useEffect(() => {
     let live = true;
     const read = () =>
-      void commands.meetingLiveTranscript().then((l) => {
+      void commands.meetingLiveTranscript(record.id).then((l) => {
         if (live) setLines(l);
       });
     read();
@@ -111,15 +114,6 @@ export const LiveColumn: React.FC<{ record: MeetingRecord }> = ({ record }) => {
       clearInterval(timer);
     };
   }, [record.id]);
-
-  // Follows the newest line unless the person scrolled up to read.
-  useEffect(() => {
-    const b = box.current;
-    if (!b) return;
-    if (b.scrollHeight - b.scrollTop - b.clientHeight < 80) {
-      end.current?.scrollIntoView({ block: "end" });
-    }
-  }, [lines.length]);
 
   return (
     <div className="flex min-h-0 flex-col gap-3" data-live-column>
@@ -131,24 +125,38 @@ export const LiveColumn: React.FC<{ record: MeetingRecord }> = ({ record }) => {
         />
         {t("meetings.notes.live")}
       </div>
-      <div
-        ref={box}
-        className="min-h-0 flex-1 overflow-y-auto pe-1 flex flex-col gap-3 text-[14px] leading-[21px] text-ink-2 select-text"
-        aria-live="polite"
-      >
-        {lines.length === 0 ? (
-          <p className="text-ink-3">{t("meetings.notes.listening")}</p>
-        ) : (
-          lines.map((l, i) => (
-            <div key={i} className="flex gap-3">
-              <span className="w-[42px] shrink-0 pt-px font-mono text-[12px] text-ink-3">
-                {clock(l.start_s)}
-              </span>
-              <span>{l.text}</span>
-            </div>
-          ))
+      <div className="relative min-h-0 flex-1 flex flex-col">
+        <div
+          ref={box}
+          onScroll={onScroll}
+          data-live-lines
+          className="min-h-0 flex-1 overflow-y-auto pe-1 flex flex-col gap-3 text-[14px] leading-[21px] text-ink-2 select-text"
+          aria-live="polite"
+        >
+          {lines.length === 0 ? (
+            <p className="text-ink-3">{t("meetings.notes.listening")}</p>
+          ) : (
+            lines.map((l, i) => (
+              <div key={i} className="flex gap-3">
+                <span className="w-[42px] shrink-0 pt-px font-mono text-[12px] text-ink-3">
+                  {clock(l.start_s)}
+                </span>
+                <span>{l.text}</span>
+              </div>
+            ))
+          )}
+        </div>
+        {reading && (
+          <button
+            type="button"
+            onClick={jump}
+            data-jump-latest
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 h-7 ps-2.5 pe-3 rounded-full border border-line bg-[var(--vb-segment)] text-[12.5px] font-medium text-text shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer whitespace-nowrap hover:bg-wash focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+          >
+            <ArrowDown width={14} height={14} aria-hidden="true" />
+            {t("meetings.notes.jumpToLatest")}
+          </button>
         )}
-        <div ref={end} />
       </div>
     </div>
   );

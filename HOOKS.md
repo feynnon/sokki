@@ -193,8 +193,9 @@ yourself.
 The state lives in Sokki's data folder: on the Mac
 `~/Library/Application Support/org.sokki.app/hooks/` (`hooks.sqlite`,
 `logs/`), on Linux `~/.local/share/sokki/hooks/`. `SOKKI_HOOKS_STATE`
-points somewhere else for tests, and `SOKKI_APP_ID` names another Mac app
-(`org.sokki.test`).
+points somewhere else for tests, and `SOKKI_DATA_DIR` another Mac app's data
+folder (`~/Library/Application Support/org.sokki.test`), as for every `sokki`
+command (CLI.md).
 
 ## `dictation.transform`: changing a dictation before it is pasted
 

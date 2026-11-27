@@ -255,6 +255,11 @@ pub enum HotkeyState {
     Pressed,
     /// The hotkey was just released
     Released,
+    /// A hotkey registered with [`crate::HotkeyManager::register_on_clean_release`]
+    /// was pressed, but another key went down before its modifiers were
+    /// released, so it was not fired: the user was typing, not using the
+    /// shortcut. Reported so the caller can log it.
+    Ignored,
 }
 
 /// Event emitted when a hotkey is pressed or released

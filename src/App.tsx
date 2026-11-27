@@ -228,7 +228,9 @@ function App() {
         );
         setMigrationModelId(retiredModelId);
 
-        if (currentPlatform === "macos") {
+        // Test mode: hidden window, no permissions needed (test_mic.rs).
+        const testMode = await commands.testMode().catch(() => false);
+        if (currentPlatform === "macos" && !testMode) {
           try {
             const granted = async () => {
               const [accessibility, microphone] = await Promise.all([
@@ -386,8 +388,12 @@ function App() {
             activeSection={currentSection}
             onSectionChange={setCurrentSection}
           />
-          {/* Content above the recording bar, which every view shares. */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Content above the recording bar, which every view shares.
+              data-section: what a pill click checks it opened. */}
+          <div
+            className="flex-1 min-w-0 flex flex-col overflow-hidden"
+            data-section={currentSection}
+          >
             {currentSection === "meetings" || currentSection === "speakers" ? (
               // Meetings and Speakers are split views: list and reader
               // scroll apart.

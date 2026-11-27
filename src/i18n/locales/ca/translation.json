@@ -1002,7 +1002,13 @@
   "overlay": {
     "transcribing": "S'està transcrivint...",
     "processing": "S'està processant...",
-    "loadingModel": "S'està carregant el model..."
+    "loadingModel": "S'està carregant el model...",
+    "wordOffer": "Add <b>{{word}}</b> to Vocabulary?",
+    "wordAdded": "<b>{{word}}</b> is in Vocabulary",
+    "wordKept": "<b>{{word}}</b> stays, now in Vocabulary",
+    "wordAdd": "Add",
+    "wordUndo": "Undo",
+    "wordDecline": "Don't add"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} pot estar blocant 1 drecera",
@@ -1231,7 +1237,9 @@
       "basedOn": "based on Handy",
       "version": "Sokki {{version}}",
       "sharing": "Compartir",
-      "sharers": "{{people}}+ persones comparteixen les seves gravacions."
+      "sharers": "{{people}}+ persones comparteixen les seves gravacions.",
+      "autocorrectAddWords": "Offer typed words for Vocabulary",
+      "autocorrectAddWordsDescription": "After a word the Mac underlines, a small pill offers to add it (or press ⌃⌥W). Words in Vocabulary are never underlined or changed again, in any app."
     },
     "sound": {
       "title": "Sound",

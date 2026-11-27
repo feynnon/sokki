@@ -98,7 +98,8 @@ fn line(at: SystemTime, app: &str, outcome: &Outcome, took: Duration) -> Option<
         )
     };
     let body = match outcome {
-        Outcome::Nothing => return None,
+        // words left as typed stay out of the list: it holds only what Sokki changed
+        Outcome::Nothing | Outcome::Typed { .. } => return None,
         Outcome::Fixed {
             typed,
             fix,

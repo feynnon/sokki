@@ -1002,7 +1002,13 @@
   "overlay": {
     "transcribing": "Đang chuyển đổi...",
     "processing": "Đang xử lý...",
-    "loadingModel": "Đang tải mô hình..."
+    "loadingModel": "Đang tải mô hình...",
+    "wordOffer": "Add <b>{{word}}</b> to Vocabulary?",
+    "wordAdded": "<b>{{word}}</b> is in Vocabulary",
+    "wordKept": "<b>{{word}}</b> stays, now in Vocabulary",
+    "wordAdd": "Add",
+    "wordUndo": "Undo",
+    "wordDecline": "Don't add"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} có thể đang chặn 1 phím tắt",
@@ -1231,7 +1237,9 @@
       "basedOn": "based on Handy",
       "version": "Sokki {{version}}",
       "sharing": "Chia sẻ",
-      "sharers": "{{people}}+ người chia sẻ bản ghi của họ."
+      "sharers": "{{people}}+ người chia sẻ bản ghi của họ.",
+      "autocorrectAddWords": "Offer typed words for Vocabulary",
+      "autocorrectAddWordsDescription": "After a word the Mac underlines, a small pill offers to add it (or press ⌃⌥W). Words in Vocabulary are never underlined or changed again, in any app."
     },
     "sound": {
       "title": "Sound",

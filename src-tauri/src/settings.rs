@@ -587,6 +587,15 @@ pub struct AppSettings {
     /// in the app data folder (typed word and fix only, stays on this Mac).
     #[serde(default)]
     pub autocorrect_enabled: bool,
+    /// After a word typed key by key that the Mac's spell checker doesn't
+    /// know and autocorrect leaves, a small pill offers to add it to the
+    /// Wörterbuch (click or ⌃⌥W while it shows; once per word). A fix undone
+    /// with Backspace goes to the Wörterbuch too. Wörterbuch words (the
+    /// meeting glossary) are also taught to the Mac's spell checker, so no
+    /// app underlines them. macOS only. Off by default: Robin tries it first
+    /// (27.11.2026), then it may go to everyone.
+    #[serde(default)]
+    pub autocorrect_add_words: bool,
     #[serde(default)]
     pub custom_filler_words: Option<Vec<String>>,
     /// Fresh installs default from the OS locale; existing stores are migrated
@@ -1437,6 +1446,7 @@ pub fn get_default_settings() -> AppSettings {
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         dictation_cleanup_enabled: default_dictation_cleanup_enabled(),
         autocorrect_enabled: false,
+        autocorrect_add_words: false,
         custom_filler_words: None,
         chinese_script: default_chinese_script(),
         transcribe_accelerator: TranscribeAcceleratorSetting::default(),

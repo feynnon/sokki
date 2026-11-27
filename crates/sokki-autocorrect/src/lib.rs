@@ -130,6 +130,9 @@ pub enum Outcome {
     },
     /// Backspace right after a fix: the typed word is back and kept from now on.
     Undone { typed: String, fix: String },
+    /// A word typed key by key that Sokki leaves as it is (no fix for it). The host may offer
+    /// to add it to the user's dictionary when the Mac's spell checker doesn't know it.
+    Typed { word: String },
     /// The model has a fix, but Sokki didn't see every letter of the word typed (a paste,
     /// dictation, or a read it missed), so it left the word. Recorded to find such losses.
     Missed {
@@ -391,14 +394,18 @@ impl Autocorrect {
             return Outcome::Nothing;
         }
         let prev_refs: Vec<&str> = prevs.iter().map(|s| s.as_str()).collect();
-        let Some(fix) = self.typos.correction(&word, &prev_refs, None) else {
-            return Outcome::Nothing;
-        };
+        // every letter of the word and the character after it were typed
+        let typed_whole = run >= cursor - start;
+        let fix = self.typos.correction(&word, &prev_refs, None);
         // the model also answers with the typed word itself (heißt -> heißt: about half of its
         // answers on edited German text); retyping it would only touch the field
-        if fix == word {
-            return Outcome::Nothing;
-        }
+        let Some(fix) = fix.filter(|f| *f != word) else {
+            return if typed_whole {
+                Outcome::Typed { word }
+            } else {
+                Outcome::Nothing
+            };
+        };
         // every letter of the word and the character after it were typed; else leave it, and
         // say so in the fix list
         if run < cursor - start {

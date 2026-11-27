@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import "./RecordingOverlay.css";
 import { commands, events } from "@/bindings";
 import type {
@@ -22,7 +22,19 @@ type OverlayState =
   | "transcribing"
   | "processing"
   | "notice"
-  | "live_notice";
+  | "live_notice"
+  | "word";
+
+/** The dictionary pill (src-tauri/src/dictionary.rs): offer a typed word the
+ * Mac underlines, or show it added. */
+interface WordPill {
+  kind: "offer" | "added" | "kept";
+  word: string;
+}
+
+/** Adds the offered word while its pill shows (caught by Sokki's keyboard
+ * hook only then). */
+const ADD_WORD_KEYS = "⌃⌥W";
 
 const isNoticeState = (state: OverlayState) =>
   state === "notice" || state === "live_notice";
@@ -80,6 +92,7 @@ const RecordingOverlay: React.FC = () => {
   // while overflowing, so the resting first line stays crisp flush under the pill.
   const [overflowing, setOverflowing] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [wordPill, setWordPill] = useState<WordPill | null>(null);
   const [noticeWidth, setNoticeWidth] = useState<number>();
   const noticeProbeRef = useRef<HTMLSpanElement>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -97,6 +110,11 @@ const RecordingOverlay: React.FC = () => {
       const unlistenNotice = await listen<Notice>("overlay-notice", (event) => {
         clearTimeout(fadeTimerRef.current);
         setNotice(event.payload);
+      });
+
+      const unlistenWord = await listen<WordPill>("overlay-word", (event) => {
+        clearTimeout(fadeTimerRef.current);
+        setWordPill(event.payload);
       });
 
       const unlistenShow = await listen("show-overlay", async (event) => {
@@ -205,6 +223,7 @@ const RecordingOverlay: React.FC = () => {
 
       return () => {
         unlistenNotice();
+        unlistenWord();
         unlistenShow();
         unlistenHide();
         unlistenReady();
@@ -431,6 +450,81 @@ const RecordingOverlay: React.FC = () => {
                   true,
                 )
               : listeningRow(open, true)}
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Dictionary pill: a typed word the Mac underlines, offered for the
+  // Wörterbuch, or shown as added with an Undo. One click does it.
+  if (state === "word" && wordPill) {
+    const w = wordPill.word;
+    const label = (
+      <Trans
+        i18nKey={
+          wordPill.kind === "offer"
+            ? "overlay.wordOffer"
+            : wordPill.kind === "kept"
+              ? "overlay.wordKept"
+              : "overlay.wordAdded"
+        }
+        values={{ word: w }}
+        components={{ b: <b className="wword" /> }}
+      />
+    );
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className="scard compact cword" data-testid="word-pill">
+          <div className="sbase swordrow">
+            {wordPill.kind !== "offer" && (
+              <svg className="wcheck" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M3.5 8.5 L6.5 11.5 L12.5 4.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+            <span className="wlabel">{label}</span>
+            {wordPill.kind === "offer" ? (
+              <>
+                <kbd className="wkeys">{ADD_WORD_KEYS}</kbd>
+                <button
+                  className="wbtn go"
+                  onClick={() => commands.dictionaryAddWord(w)}
+                >
+                  {t("overlay.wordAdd")}
+                </button>
+                <button
+                  className="sx"
+                  aria-label={t("overlay.wordDecline")}
+                  onClick={() => commands.dictionaryDeclineWord(w)}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M4 4 L12 12 M12 4 L4 12"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <button
+                className="wbtn"
+                onClick={() => commands.dictionaryRemoveWord(w)}
+              >
+                {t("overlay.wordUndo")}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

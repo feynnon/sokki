@@ -190,6 +190,22 @@ pub enum Read {
     NoAnswer,
 }
 
+/// Teaches the Mac's spell checker `word` (`learn`) or takes it back: every
+/// app stops (or starts again) underlining it. The words live in the system's
+/// spelling service, shared by all apps. Never call it in a test: it changes
+/// the real Mac's dictionary.
+pub fn spell_teach(word: &str, learn: bool) {
+    use objc2_app_kit::NSSpellChecker;
+    use objc2_foundation::NSString;
+    let checker = NSSpellChecker::sharedSpellChecker();
+    let w = NSString::from_str(word);
+    if learn {
+        checker.learnWord(&w);
+    } else {
+        checker.unlearnWord(&w);
+    }
+}
+
 /// Whether the Mac's spell checker knows `word` in any of `languages`
 /// ("de", "en", …; empty: the user's own languages). Names it doesn't know
 /// are what Sokki may learn.

@@ -15,6 +15,7 @@ mod clipboard;
 mod commands;
 mod config_watch;
 mod dictation_cleanup;
+mod dictionary;
 pub mod engine_supervisor;
 mod helpers;
 mod hooks;
@@ -976,6 +977,10 @@ pub fn run(cli_args: CliArgs) {
             dictation_cleanup::download_dictation_cleanup_model,
             dictation_cleanup::change_dictation_cleanup_setting,
             autocorrect::change_autocorrect_setting,
+            autocorrect::change_autocorrect_add_words_setting,
+            dictionary::dictionary_add_word,
+            dictionary::dictionary_remove_word,
+            dictionary::dictionary_decline_word,
             commands::meeting::summary_model_setup,
             commands::meeting::start_sample_meeting,
             commands::meeting::stop_sample_meeting,
@@ -1372,6 +1377,8 @@ pub fn run(cli_args: CliArgs) {
             learn_words::start(&app_handle);
             // Fixes typos as you type; idle until its switch is on.
             autocorrect::start(&app_handle);
+            // Teaches the Mac's spell checker the Wörterbuch; idle until its switch is on.
+            dictionary::start(&app_handle);
 
             // Populate the overlay-enabled cache from initial settings so the
             // audio path (overlay::emit_levels, called ~24 Hz during recording)

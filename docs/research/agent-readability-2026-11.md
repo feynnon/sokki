@@ -120,3 +120,21 @@ Repeat the five searches above about 4 weeks after the site goes live
 (late December 2026) and after launch day; note whether Sokki is named.
 Search engines pick up new pages faster once sokki.org is verified in
 Google Search Console and Bing Webmaster Tools (needs Robin's login).
+
+## Search engines (27 Nov 2026, after the site went live)
+
+- **Google Search Console:** property `https://sokki.org/` verified by the
+  HTML file `website/googleee2b472ac5e3bae1.html` (keep it on the site).
+  Owners: the work Google account that verified it, and the private Google
+  account that owns Cloudflare (added as owner). Sitemap submitted;
+  indexing requested for `/` and `/facts/`. Google had already found
+  `/facts/` through the sitemap ("discovered, not indexed yet").
+  A domain property (DNS TXT) would need a Cloudflare login; not needed.
+- **Bing and other IndexNow engines:** key file
+  `website/2eb85e1705d1029f0f414e31b21831a5.txt` (keep it). Pinged
+  `api.indexnow.org` (202) and `bing.com/indexnow` (200) with the site's
+  eight URLs. After a site change, ping again:
+  `curl -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json' -d '{"host":"sokki.org","key":"<key>","keyLocation":"https://sokki.org/<key>.txt","urlList":["https://sokki.org/…"]}'`.
+  Bing Webmaster Tools itself was not set up: its sign-in opens a pop-up
+  the background browser can't use. IndexNow and the sitemap in robots.txt
+  cover what it would add for discovery.

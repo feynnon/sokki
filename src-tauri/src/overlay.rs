@@ -69,6 +69,12 @@ pub fn set_tall_live(tall: bool) {
 }
 
 const NOTICE_STATE: &str = "notice";
+/// The dictionary pill after a typed word (`dictionary.rs`): a little wider than
+/// the compact pill, for the word and its button.
+const WORD_STATE: &str = "word";
+const OVERLAY_WORD_WIDTH: f64 = 400.0;
+/// How long the dictionary pill holds before it fades.
+pub const WORD_HOLD: Duration = Duration::from_secs(4);
 const LIVE_NOTICE_STATE: &str = "live_notice";
 
 /// How long a notice holds before the overlay fades it.
@@ -97,6 +103,8 @@ fn overlay_dimensions(state: &str) -> (f64, f64) {
             OVERLAY_STREAM_HEIGHT
         };
         (OVERLAY_STREAM_WIDTH, height)
+    } else if state == WORD_STATE {
+        (OVERLAY_WORD_WIDTH, OVERLAY_HEIGHT)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
     }
@@ -716,6 +724,38 @@ pub fn show_overlay_notice(app_handle: &AppHandle, notice: &Notice) {
             }
         });
     });
+}
+
+/// What the dictionary pill shows: `offer` ("add Quorbit?"), `added` or `kept`
+/// (a fix undone with Backspace, the word now in the Wörterbuch).
+#[derive(Clone, serde::Serialize)]
+pub struct WordPill {
+    pub kind: &'static str,
+    pub word: String,
+}
+
+/// Shows the dictionary pill where the dictation pill sits, for [`WORD_HOLD`].
+/// Never over a dictation, with the overlay off, or in test mode. Returns
+/// whether it shows.
+pub fn show_word_pill(app_handle: &AppHandle, pill: WordPill) -> bool {
+    if !OVERLAY_ENABLED.load(Ordering::Relaxed) || is_session_showing() || crate::test_mic::active()
+    {
+        return false;
+    }
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let _ = handle.emit_to("recording_overlay", "overlay-word", pill);
+        show_overlay_state_on_main(&handle, WORD_STATE);
+        let generation = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
+        OVERLAY_NOTICE_GENERATION.store(generation, Ordering::SeqCst);
+        std::thread::spawn(move || {
+            std::thread::sleep(WORD_HOLD);
+            if OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst) == generation {
+                hide_recording_overlay(&handle);
+            }
+        });
+    });
+    true
 }
 
 /// Hides the notice early, unless a new session has replaced it.

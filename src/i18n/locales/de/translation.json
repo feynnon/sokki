@@ -1064,7 +1064,13 @@
   "overlay": {
     "transcribing": "Transkribiere...",
     "processing": "Verarbeite...",
-    "loadingModel": "Modell wird geladen..."
+    "loadingModel": "Modell wird geladen...",
+    "wordOffer": "<b>{{word}}</b> ins Wörterbuch?",
+    "wordAdded": "<b>{{word}}</b> im Wörterbuch",
+    "wordKept": "<b>{{word}}</b> bleibt so, im Wörterbuch",
+    "wordAdd": "Hinzufügen",
+    "wordUndo": "Rückgängig",
+    "wordDecline": "Nicht hinzufügen"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blockiert möglicherweise 1 Tastenkürzel",
@@ -1395,7 +1401,9 @@
       "basedOn": "basiert auf Handy",
       "version": "Sokki {{version}}",
       "sharing": "Teilen",
-      "sharers": "{{people}}+ Personen teilen ihre Aufnahmen."
+      "sharers": "{{people}}+ Personen teilen ihre Aufnahmen.",
+      "autocorrectAddWords": "Getippte Wörter fürs Wörterbuch anbieten",
+      "autocorrectAddWordsDescription": "Nach einem Wort, das der Mac unterringelt, bietet eine kleine Pille an, es aufzunehmen (oder ⌃⌥W). Wörter im Wörterbuch werden in keiner App mehr unterringelt oder geändert."
     },
     "sound": {
       "title": "Ton",

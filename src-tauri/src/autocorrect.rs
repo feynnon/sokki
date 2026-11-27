@@ -87,6 +87,7 @@ pub fn start(app: &AppHandle) {
         let settings_app = app.clone();
         let keyboard_app = app.clone();
         let words_app = app.clone();
+        let dict_app = app.clone();
         runner::start(runner::Options {
             keyboard: Box::new(move || keyboard_rows(&keyboard_app)),
             load: Box::new(move || sokki_typos::Typos::load(&tables, &lexicon)),
@@ -101,6 +102,15 @@ pub fn start(app: &AppHandle) {
             }),
             front: front_app,
             report: Box::new(move |app, outcome, took| {
+                // the dictionary pill (dictionary.rs), when its switch is on
+                match outcome {
+                    Outcome::Typed { word } => {
+                        crate::dictionary::offer(&dict_app, word);
+                        return;
+                    }
+                    Outcome::Undone { typed, .. } => crate::dictionary::kept(&dict_app, typed),
+                    _ => {}
+                }
                 if let Some(fixes) = &fixes {
                     if let Err(e) = fixes.record(app, outcome, took) {
                         log::warn!("autocorrect: can't add to the list of fixes: {e}");
@@ -115,7 +125,7 @@ pub fn start(app: &AppHandle) {
                     Outcome::Skipped(why) | Outcome::Missed { why, .. } => {
                         format!("left a word: {why}")
                     }
-                    Outcome::Nothing => return,
+                    Outcome::Nothing | Outcome::Typed { .. } => return,
                 };
                 log::info!("autocorrect: {app}: {what} ({} ms)", took.as_millis());
             }),
@@ -130,6 +140,15 @@ pub fn start(app: &AppHandle) {
 pub fn change_autocorrect_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = crate::settings::get_settings(&app);
     settings.autocorrect_enabled = enabled;
+    crate::settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_autocorrect_add_words_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = crate::settings::get_settings(&app);
+    settings.autocorrect_add_words = enabled;
     crate::settings::write_settings(&app, settings);
     Ok(())
 }

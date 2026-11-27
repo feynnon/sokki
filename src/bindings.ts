@@ -1540,6 +1540,47 @@ async changeAutocorrectSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: e  as any };
 }
 },
+async changeAutocorrectAddWordsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_autocorrect_add_words_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The pill's button: add the offered word.
+ */
+async dictionaryAddWord(word: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dictionary_add_word", { word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The pill's Undo: take the word out again.
+ */
+async dictionaryRemoveWord(word: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dictionary_remove_word", { word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The pill's X: never offer this word again.
+ */
+async dictionaryDeclineWord(word: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dictionary_decline_word", { word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Memory, the built-in summary model's state, and its download, for
  * setup's summary screen. Cheap: no model is loaded.
@@ -2115,7 +2156,17 @@ dictation_cleanup_enabled?: boolean;
  * editors, password managers or password fields. macOS only. Off until
  * the user turns it on (Robin, 25.11.2026: for everyone, off by default).
  */
-autocorrect_enabled?: boolean; custom_filler_words?: string[] | null; 
+autocorrect_enabled?: boolean; 
+/**
+ * After a word typed key by key that the Mac's spell checker doesn't
+ * know and autocorrect leaves, a small pill offers to add it to the
+ * Wörterbuch (click or ⌃⌥W while it shows; once per word). A fix undone
+ * with Backspace goes to the Wörterbuch too. Wörterbuch words (the
+ * meeting glossary) are also taught to the Mac's spell checker, so no
+ * app underlines them. macOS only. Off by default: Robin tries it first
+ * (27.11.2026), then it may go to everyone.
+ */
+autocorrect_add_words?: boolean; custom_filler_words?: string[] | null; 
 /**
  * Fresh installs default from the OS locale; existing stores are migrated
  * in `apply_settings_migrations`.

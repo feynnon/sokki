@@ -143,7 +143,7 @@ mod platform;
 mod types;
 
 pub use error::{Error, Result};
-pub use hold::{hold_keys, release_keys};
+pub use hold::{catch_key, hold_keys, release_keys, stop_catching};
 pub use key_count::key_downs;
 pub use listener::{BlockingHotkeys, KeyboardListener};
 pub use manager::HotkeyManager;

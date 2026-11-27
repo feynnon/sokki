@@ -537,8 +537,9 @@ unsafe extern "C-unwind" fn event_tap_callback(
         && !posted_by_this_process(cg_event)
         && crate::hold::on_key_event(
             cg_event,
+            CGEvent::integer_value_field(Some(cg_event), CGEventField::KeyboardEventKeycode) as u16,
+            flags.0,
             event_type == CGEventType::KeyDown,
-            flags.intersects(CGEventFlags::MaskCommand | CGEventFlags::MaskControl),
         )
     {
         return std::ptr::null_mut();

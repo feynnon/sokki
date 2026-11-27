@@ -56,15 +56,27 @@ fn main() -> Result<()> {
             let auth = oauth::sign_in(
                 &app,
                 |url| {
-                    println!("Opening {url}");
-                    std::process::Command::new("open").arg(url).status()?;
+                    // `SOKKI_SLACK_OPEN=<program>`: opens the URL instead of
+                    // `open` (e.g. a script that opens it in one Chrome
+                    // profile, in the background).
+                    let opener =
+                        std::env::var("SOKKI_SLACK_OPEN").unwrap_or_else(|_| "open".into());
+                    println!("Opening the sign-in page with {opener}");
+                    std::process::Command::new(opener).arg(url).status()?;
                     Ok(())
                 },
                 &page,
-                Duration::from_secs(300),
+                // `SOKKI_SLACK_LOGIN_WAIT_S`: how long to wait for the click
+                // on "Allow" (default 5 minutes).
+                Duration::from_secs(
+                    std::env::var("SOKKI_SLACK_LOGIN_WAIT_S")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(300),
+                ),
                 &AtomicBool::new(false),
             )?;
-            println!("Signed in: {auth:?}");
+            println!("Signed in to {} as {}", auth.team_name, auth.user_id);
             save(&auth)?;
         }
         Some("refresh") => {

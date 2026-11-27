@@ -1002,7 +1002,13 @@
   "overlay": {
     "transcribing": "텍스트로 변환 중...",
     "processing": "처리 중...",
-    "loadingModel": "모델 로딩 중..."
+    "loadingModel": "모델 로딩 중...",
+    "wordOffer": "Add <b>{{word}}</b> to Vocabulary?",
+    "wordAdded": "<b>{{word}}</b> is in Vocabulary",
+    "wordKept": "<b>{{word}}</b> stays, now in Vocabulary",
+    "wordAdd": "Add",
+    "wordUndo": "Undo",
+    "wordDecline": "Don't add"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}}이(가) 단축키 1개를 차단하고 있을 수 있습니다",
@@ -1231,7 +1237,9 @@
       "basedOn": "based on Handy",
       "version": "Sokki {{version}}",
       "sharing": "공유",
-      "sharers": "{{people}}+명이 녹음을 공유하고 있습니다."
+      "sharers": "{{people}}+명이 녹음을 공유하고 있습니다.",
+      "autocorrectAddWords": "Offer typed words for Vocabulary",
+      "autocorrectAddWordsDescription": "After a word the Mac underlines, a small pill offers to add it (or press ⌃⌥W). Words in Vocabulary are never underlined or changed again, in any app."
     },
     "sound": {
       "title": "Sound",

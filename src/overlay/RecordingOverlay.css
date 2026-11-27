@@ -475,3 +475,59 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Dictionary pill (dictionary.rs): hugs its word and buttons. The window is
+   OVERLAY_WORD_WIDTH (400) wide in overlay.rs; a long word is cut off. */
+.scard.compact.cword {
+  width: max-content;
+  max-width: 396px;
+  border-radius: 24px;
+}
+.sbase.swordrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 14px;
+}
+.wcheck {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--color-success, #2f9e6b);
+}
+.wlabel {
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.wword {
+  font-weight: 650;
+}
+.wkeys {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--s-muted);
+  flex: none;
+}
+.wbtn {
+  flex: none;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+  background: var(--s-hair);
+}
+.wbtn.go {
+  color: #fff;
+  background: var(--s-accent);
+}
+.wbtn:active {
+  transform: scale(0.97);
+}

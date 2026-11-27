@@ -1002,7 +1002,13 @@
   "overlay": {
     "transcribing": "Transcriberen...",
     "processing": "Verwerken...",
-    "loadingModel": "Model laden..."
+    "loadingModel": "Model laden...",
+    "wordOffer": "Add <b>{{word}}</b> to Vocabulary?",
+    "wordAdded": "<b>{{word}}</b> is in Vocabulary",
+    "wordKept": "<b>{{word}}</b> stays, now in Vocabulary",
+    "wordAdd": "Add",
+    "wordUndo": "Undo",
+    "wordDecline": "Don't add"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",
@@ -1231,7 +1237,9 @@
       "basedOn": "based on Handy",
       "version": "Sokki {{version}}",
       "sharing": "Delen",
-      "sharers": "{{people}}+ mensen delen hun opnames."
+      "sharers": "{{people}}+ mensen delen hun opnames.",
+      "autocorrectAddWords": "Offer typed words for Vocabulary",
+      "autocorrectAddWordsDescription": "After a word the Mac underlines, a small pill offers to add it (or press ⌃⌥W). Words in Vocabulary are never underlined or changed again, in any app."
     },
     "sound": {
       "title": "Sound",

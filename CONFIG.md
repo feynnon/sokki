@@ -54,6 +54,7 @@ Most useful keys:
 | Developer mode: Keep what I write | `keep_what_i_write`, `learn_words` |
 | Clean up dictations | `dictation_cleanup_enabled` |
 | Fix typos as you type (macOS) | `autocorrect_enabled` |
+| Offer typed words for Vocabulary (macOS) | `autocorrect_add_words` |
 
 
 ## Meeting settings (`meetings.*`)
@@ -156,6 +157,7 @@ Most useful keys:
 | `filler_word_removal_enabled` | `bool` | `true` | Remove ähm/um from dictation. |
 | `dictation_cleanup_enabled` | `bool` | `false` | Clean up each dictation with the built-in cleanup model before it is pasted (`dictation_cleanup`): fillers, repetitions and self-corrections out, misheard words and grammar fixed, paragraphs and lists in. Only while the model is downloaded. Off until Robin has tried it (release manager, 25.11.2026). |
 | `autocorrect_enabled` | `bool` | `false` | Fix typos as you type, in the apps where macOS doesn't (Chrome, Slack, Claude …), with the phone keyboard's model (`autocorrect`). Backspace right after a fix undoes it. Never in Apple's apps, terminals, code editors, password managers or password fields. macOS only. Off until the user turns it on (Robin, 25.11.2026: for everyone, off by default). Each fix, undo and skipped fix is listed in `autocorrect_fixes.jsonl` in the app data folder (typed word and fix only, stays on this Mac). |
+| `autocorrect_add_words` | `bool` | `false` | After a word typed key by key that the Mac's spell checker doesn't know and autocorrect leaves, a small pill offers to add it to the Wörterbuch (click or ⌃⌥W while it shows; once per word). A fix undone with Backspace goes to the Wörterbuch too. Wörterbuch words (the meeting glossary) are also taught to the Mac's spell checker, so no app underlines them. macOS only. Off by default: Robin tries it first (27.11.2026), then it may go to everyone. |
 | `custom_filler_words` | `Option<Vec<String>>` | `null` | Your own filler words; `null` = built-in list. |
 | `chinese_script` | `ChineseScript` | `"simplified"` | Fresh installs default from the OS locale; existing stores are migrated in `apply_settings_migrations`. |
 | `transcribe_accelerator` | `TranscribeAcceleratorSetting` | `"auto"` | `auto`, `cpu` or `gpu`. |

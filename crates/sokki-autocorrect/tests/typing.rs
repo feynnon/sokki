@@ -124,7 +124,8 @@ fn type_in(ac: &mut Autocorrect, f: &Fake, s: &str) -> Vec<Outcome> {
     for c in s.chars() {
         f.key(c);
         let o = ac.on_key(f, &|| f.keys.get());
-        if o != Outcome::Nothing {
+        // words left as typed are for the dictionary offer, tested on their own
+        if o != Outcome::Nothing && !matches!(o, Outcome::Typed { .. }) {
             out.push(o);
         }
     }
@@ -293,7 +294,7 @@ fn fixes_in_a_rich_editor_with_no_break_spaces() {
         *f.text.borrow_mut() = t;
         f.key(if c == ' ' { '\u{a0}' } else { c });
         let o = ac.on_key(&f, &|| f.keys.get());
-        if o != Outcome::Nothing {
+        if o != Outcome::Nothing && !matches!(o, Outcome::Typed { .. }) {
             got.push(o);
         }
     }
@@ -624,4 +625,26 @@ fn a_key_the_app_shows_between_text_and_cursor_reads_keeps_the_word_typed() {
             exact: true
         }]
     );
+}
+
+#[test]
+fn a_word_typed_key_by_key_with_no_fix_is_reported_for_the_dictionary_offer() {
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    let mut typed = Vec::new();
+    for c in "Ruf Quorbitzel an ".chars() {
+        f.key(c);
+        if let Outcome::Typed { word } = ac.on_key(&f, &|| f.keys.get()) {
+            typed.push(word);
+        }
+    }
+    assert_eq!(typed, vec!["Ruf", "Quorbitzel", "an"]);
+    // a pasted word is never offered
+    let g = Fake::new("com.google.Chrome");
+    g.put("Quorbitzel");
+    g.keys.set(g.keys.get() + 1);
+    ac.reset();
+    ac.on_key(&g, &|| g.keys.get());
+    g.key(' ');
+    assert_eq!(ac.on_key(&g, &|| g.keys.get()), Outcome::Nothing);
 }

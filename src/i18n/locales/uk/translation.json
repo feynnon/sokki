@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "Прослухати",
+      "citeStop": "Стоп",
+      "citeShow": "Показати в розшифровці",
+      "citeAt": "Сказано о {{time}}"
     },
     "phone": {
       "title": "Phone",

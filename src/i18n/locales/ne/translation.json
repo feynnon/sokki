@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "सुन्नुहोस्",
+      "citeStop": "रोक्नुहोस्",
+      "citeShow": "ट्रान्सक्रिप्टमा देखाउनुहोस्",
+      "citeAt": "{{time}} मा भनिएको"
     },
     "phone": {
       "title": "Phone",

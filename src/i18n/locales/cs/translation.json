@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "Poslechnout",
+      "citeStop": "Zastavit",
+      "citeShow": "Zobrazit v přepisu",
+      "citeAt": "Řečeno v {{time}}"
     },
     "phone": {
       "title": "Phone",

@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "استمع",
+      "citeStop": "إيقاف",
+      "citeShow": "اعرض في النص",
+      "citeAt": "قيل عند {{time}}"
     },
     "phone": {
       "title": "Phone",

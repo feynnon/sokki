@@ -197,6 +197,26 @@ struct Msg {
 /// list is joined into "- " lines in code.
 const JSON_SHAPE: &str = r#"{"title": "...", "summary": ["...", "..."], "decisions": ["..."], "action_items": [{"owner": "..." or null, "text": "..."}]}"#;
 
+/// The reply shape for a meeting read in one pass: every point names the
+/// numbered transcript lines it comes from. Asking for them made the points
+/// themselves more reliable (90 % fully supported against 83 %, real
+/// meetings 83 % against 71 %; `docs/research/summary-citations-2026-11.md`).
+/// The app shows citations found by word matching on the points
+/// (`crate::cite`), which hit the right lines more often than these.
+const JSON_SHAPE_CITED: &str = r#"{"title": "...", "summary": [{"text": "...", "cites": [12, 13]}], "decisions": [{"text": "...", "cites": [40]}], "action_items": [{"owner": "..." or null, "text": "...", "cites": [41]}]}"#;
+
+/// The rule that comes with [`JSON_SHAPE_CITED`].
+const CITE_RULE: &str = "- Every transcript line starts with its number, like #12. For every point, decision and task, list in \"cites\" the numbers of the 1 to 4 lines that state it most directly. Cite only lines that really say it.\n";
+
+/// "[00:03] Anna: Hi." lines as "#1 [00:03] Anna: Hi.", for [`JSON_SHAPE_CITED`].
+fn number_lines(text: &str) -> String {
+    text.lines()
+        .enumerate()
+        .map(|(i, l)| format!("#{} {l}", i + 1))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// At most this many facts under one of the person's own note lines.
 pub const MAX_ADDED: usize = 3;
 
@@ -311,7 +331,7 @@ impl LlmSummarizer {
             },
         ];
         let mut stats = SummaryStats::default();
-        let reply = self.chat(&msgs, &mut stats)?;
+        let reply = self.chat(&msgs, &mut stats, &summary_schema())?;
         Ok(strip_fences(&strip_think(&reply)))
     }
 
@@ -371,10 +391,10 @@ impl LlmSummarizer {
                 },
                 Msg {
                     role: "user",
-                    content: format!("Transcript:\n\n{text}"),
+                    content: format!("Transcript:\n\n{}", number_lines(&text)),
                 },
             ];
-            self.ask_json(&msgs, &mut stats)?
+            self.ask_json(&msgs, &mut stats, true)?
         } else {
             stats.map_reduce = true;
             let chunks = chunk_lines(
@@ -404,7 +424,7 @@ impl LlmSummarizer {
                     },
                 ];
                 let part = self
-                    .ask_json(&msgs, &mut stats)
+                    .ask_json(&msgs, &mut stats, false)
                     .with_context(|| format!("summarising part {} of {}", i + 1, chunks.len()))?;
                 partials.push((span_label(chunk), part));
             }
@@ -528,7 +548,7 @@ impl LlmSummarizer {
                     },
                 ];
                 return self
-                    .ask_json(&msgs, stats)
+                    .ask_json(&msgs, stats, false)
                     .context("combining partial notes");
             }
             // Too long: combine neighbouring partials in groups first.
@@ -580,7 +600,7 @@ impl LlmSummarizer {
                 ];
                 next.push((
                     span,
-                    self.ask_json(&msgs, stats)
+                    self.ask_json(&msgs, stats, false)
                         .context("combining partial notes")?,
                 ));
             }
@@ -643,18 +663,25 @@ impl LlmSummarizer {
                 glossary.join(", ")
             ));
         }
+        if matches!(mode, Mode::Final) {
+            p.push_str(CITE_RULE);
+        }
         if matches!(mode, Mode::Reduce | Mode::ReduceIntermediate) {
             p.push_str("- Merge duplicates. Keep every decision and task unless a later part explicitly changed or cancelled it; then keep only the final state.\n");
         }
         p.push_str("\nAnswer with one JSON object in exactly this shape:\n");
-        p.push_str(JSON_SHAPE);
+        p.push_str(if matches!(mode, Mode::Final) {
+            JSON_SHAPE_CITED
+        } else {
+            JSON_SHAPE
+        });
         p.push_str("\n\n");
         match mode {
             Mode::Final => {
                 p.push_str(
                     "- \"title\": a short title for the meeting, at most 8 words, no date.\n",
                 );
-                p.push_str("- \"summary\": list of 3 to 8 short bullet points (strings) covering the main topics and outcomes.\n");
+                p.push_str("- \"summary\": list of 3 to 8 short bullet points (objects with \"text\" and \"cites\") covering the main topics and outcomes.\n");
             }
             Mode::Reduce => {
                 p.push_str(
@@ -667,15 +694,34 @@ impl LlmSummarizer {
                 p.push_str("- \"summary\": list of up to 12 bullet points (strings) with all topics, facts, numbers, dates and open questions of this part.\n");
             }
         }
-        p.push_str("- \"decisions\": list of strings, what the participants agreed to do or not to do, including agreeing to wait for something. [] if nothing was agreed.\n");
-        p.push_str("- \"action_items\": list of objects; \"owner\" is the person who committed to or was assigned the task (speaker label or name), or null if not clear; \"text\" is the task, including its deadline if one was stated. [] if none.\n");
+        p.push_str(if matches!(mode, Mode::Final) {
+            "- \"decisions\": list of objects with \"text\" and \"cites\","
+        } else {
+            "- \"decisions\": list of strings,"
+        });
+        p.push_str(" what the participants agreed to do or not to do, including agreeing to wait for something. [] if nothing was agreed.\n");
+        p.push_str("- \"action_items\": list of objects; \"owner\" is the person who committed to or was assigned the task (speaker label or name), or null if not clear; \"text\" is the task, including its deadline if one was stated");
+        if matches!(mode, Mode::Final) {
+            p.push_str("; \"cites\" as above");
+        }
+        p.push_str(". [] if none.\n");
         p.push_str("\nReturn only the JSON object, no other text.");
         p
     }
 
     /// Sends the messages, parses the reply; on a parse failure asks once more.
-    fn ask_json(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<MeetingSummary> {
-        let reply = self.chat(msgs, stats)?;
+    fn ask_json(
+        &self,
+        msgs: &[Msg],
+        stats: &mut SummaryStats,
+        cited: bool,
+    ) -> Result<MeetingSummary> {
+        let (schema, shape) = if cited {
+            (summary_schema_cited(), JSON_SHAPE_CITED)
+        } else {
+            (summary_schema(), JSON_SHAPE)
+        };
+        let reply = self.chat(msgs, stats, &schema)?;
         debug_reply(&reply);
         match parse_summary_json(&reply) {
             Ok(s) => Ok(s),
@@ -686,10 +732,10 @@ impl LlmSummarizer {
                 let mut retry = msgs.to_vec();
                 if let Some(last) = retry.iter_mut().rev().find(|m| m.role == "user") {
                     last.content.push_str(&format!(
-                        "\n\nNote: a previous answer to this was not valid JSON ({first}). Answer with only one valid JSON object in exactly this shape: {JSON_SHAPE}"
+                        "\n\nNote: a previous answer to this was not valid JSON ({first}). Answer with only one valid JSON object in exactly this shape: {shape}"
                     ));
                 }
-                let reply2 = self.chat(&retry, stats)?;
+                let reply2 = self.chat(&retry, stats, &schema)?;
                 debug_reply(&reply2);
                 parse_summary_json(&reply2).map_err(|second| {
                     anyhow!(
@@ -701,11 +747,11 @@ impl LlmSummarizer {
         }
     }
 
-    fn chat(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<String> {
+    fn chat(&self, msgs: &[Msg], stats: &mut SummaryStats, schema: &Value) -> Result<String> {
         match self.cfg.backend {
-            Backend::Ollama => self.chat_ollama(msgs, stats),
-            Backend::OpenAiCompatible => self.chat_openai(msgs, stats),
-            Backend::Anthropic => self.chat_anthropic(msgs, stats),
+            Backend::Ollama => self.chat_ollama(msgs, stats, schema),
+            Backend::OpenAiCompatible => self.chat_openai(msgs, stats, schema),
+            Backend::Anthropic => self.chat_anthropic(msgs, stats, schema),
         }
     }
 
@@ -764,7 +810,12 @@ impl LlmSummarizer {
             .max(Duration::from_secs(60) + Duration::from_millis(prompt))
     }
 
-    fn chat_ollama(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<String> {
+    fn chat_ollama(
+        &self,
+        msgs: &[Msg],
+        stats: &mut SummaryStats,
+        schema: &Value,
+    ) -> Result<String> {
         let url = format!("{}/api/chat", self.cfg.base_url.trim_end_matches('/'));
         loop {
             let mut body = json!({
@@ -788,7 +839,7 @@ impl LlmSummarizer {
             }
             let format = self.ollama_format.load(Ordering::Relaxed);
             match format {
-                0 => body["format"] = summary_schema(),
+                0 => body["format"] = schema.clone(),
                 1 => body["format"] = json!("json"),
                 _ => {}
             }
@@ -828,7 +879,12 @@ impl LlmSummarizer {
         }
     }
 
-    fn chat_openai(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<String> {
+    fn chat_openai(
+        &self,
+        msgs: &[Msg],
+        stats: &mut SummaryStats,
+        schema: &Value,
+    ) -> Result<String> {
         let url = format!(
             "{}/chat/completions",
             self.cfg.base_url.trim_end_matches('/')
@@ -857,7 +913,7 @@ impl LlmSummarizer {
                 0 => {
                     body["response_format"] = json!({
                         "type": "json_schema",
-                        "json_schema": { "name": "meeting_summary", "schema": summary_schema() },
+                        "json_schema": { "name": "meeting_summary", "schema": schema },
                     })
                 }
                 1 => body["response_format"] = json!({ "type": "json_object" }),
@@ -901,7 +957,12 @@ impl LlmSummarizer {
 }
 
 impl LlmSummarizer {
-    fn chat_anthropic(&self, msgs: &[Msg], stats: &mut SummaryStats) -> Result<String> {
+    fn chat_anthropic(
+        &self,
+        msgs: &[Msg],
+        stats: &mut SummaryStats,
+        schema: &Value,
+    ) -> Result<String> {
         let url = format!("{}/messages", self.cfg.base_url.trim_end_matches('/'));
         let system: Vec<&str> = msgs
             .iter()
@@ -927,7 +988,7 @@ impl LlmSummarizer {
             }
             if format == 0 {
                 body["output_config"] =
-                    json!({ "format": { "type": "json_schema", "schema": summary_schema() } });
+                    json!({ "format": { "type": "json_schema", "schema": schema } });
             }
             if fallback {
                 // If a safety check declines, the API retries on another model.
@@ -1017,6 +1078,41 @@ pub fn summary_schema() -> Value {
                         "text": { "type": "string" }
                     },
                     "required": ["owner", "text"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["title", "summary", "decisions", "action_items"],
+        "additionalProperties": false
+    })
+}
+
+/// [`summary_schema`] with every point, decision and task an object with
+/// the transcript lines it comes from ([`JSON_SHAPE_CITED`]).
+pub fn summary_schema_cited() -> Value {
+    let cites = json!({ "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 1, "maxItems": 4 });
+    let point = json!({
+        "type": "object",
+        "properties": { "text": { "type": "string" }, "cites": cites },
+        "required": ["text", "cites"],
+        "additionalProperties": false
+    });
+    json!({
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "summary": { "type": "array", "items": point },
+            "decisions": { "type": "array", "items": point },
+            "action_items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "owner": { "type": ["string", "null"] },
+                        "text": { "type": "string" },
+                        "cites": cites
+                    },
+                    "required": ["owner", "text", "cites"],
                     "additionalProperties": false
                 }
             }

@@ -733,7 +733,23 @@ const NoteViews: React.FC<{
     return hasNotes ? "combined" : "summary";
   };
   const [view, setView] = useState<NoteView>(pick);
-  useEffect(() => setView(pick()), [record.id, hasNotes]);
+  /** Transcript lines a summary point jumped to, highlighted there. */
+  const [focus, setFocus] = useState<number[] | null>(null);
+  useEffect(() => {
+    setView(pick());
+    setFocus(null);
+  }, [record.id, hasNotes]);
+  const cites = {
+    meetingId: record.id,
+    cites: parts.cites ?? [],
+    transcript: parts.transcript,
+    audio: !record.audio_deleted,
+    onJump: (lines: number[]) => {
+      // Not remembered: the next meeting opens where the person left it.
+      setFocus(lines);
+      setView("transcript");
+    },
+  };
   return (
     <div className="mt-3 flex flex-col gap-4">
       <ViewSwitch
@@ -741,6 +757,7 @@ const NoteViews: React.FC<{
         views={views}
         onChange={(v) => {
           setView(v);
+          setFocus(null);
           rememberView(v);
         }}
       />
@@ -748,13 +765,15 @@ const NoteViews: React.FC<{
       {view === "combined" && <CombinedView markdown={combined} />}
       {view === "summary" &&
         (parts.summary ? (
-          <SummaryView markdown={parts.summary} />
+          <SummaryView markdown={parts.summary} cites={cites} />
         ) : (
           <p className="text-[13px] text-ink-3">
             {t("meetings.details.noSummary")}
           </p>
         ))}
-      {view === "transcript" && <TranscriptView text={parts.transcript} />}
+      {view === "transcript" && (
+        <TranscriptView text={parts.transcript} focus={focus} />
+      )}
     </div>
   );
 };

@@ -1213,7 +1213,11 @@
       "saved": "Gespeichert",
       "copied": "Kopiert",
       "transcript": "Transkript",
-      "noSummary": "Dieses Meeting hat keine Zusammenfassung."
+      "noSummary": "Dieses Meeting hat keine Zusammenfassung.",
+      "citeListen": "Anhören",
+      "citeStop": "Stopp",
+      "citeShow": "Im Transkript zeigen",
+      "citeAt": "Gesagt um {{time}}"
     },
     "phone": {
       "title": "Telefon",

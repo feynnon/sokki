@@ -124,6 +124,7 @@ to `$SOKKI_EVALS/runs/typing` and stay private.
 | `dictation-live-vs-final` | private | 34 Mac dictations: recordings, live text, pasted text, two reference transcripts, the test app's logs per cleanup round | Only on the maintainer's Mac | `crates/meeting-e2e/examples/reference_transcripts.rs`, `scripts/test-dictation.sh`, analysis scripts in the set | `research/live-vs-final-2026-11.md`, `research/data/live_vs_final.json` |
 | `dictation-cleanup-2026-11-24` | private | 38 dictations (30–484 words), ideal corrections, blind ratings, model and summary runs of 23–24 Nov 2026 | Only on the maintainer's Mac | scripts in the set | `research/dictation-formatting-and-cleanup-2026-11.md`, `research/muesli-and-cleanup-log-2026-11.md`, `research/meeting-summaries-2026-11.md`, `research/data/` (ratings, latency, summary runs) |
 | `real-calls` | private | Two real calls: uncorrected transcripts per speech model, hand labels (misheard words, words that must stay), old correction runs | Only on the maintainer's Mac | `scripts/correction_eval.py`, `crates/meeting-e2e/examples/summary_eval.rs`, `raw_transcript.rs` (writes `raw.json`) | `MEETINGS.md` (real-call evaluation), `KNOWN_ISSUES.md` F4 |
+| `summary-citations-made-up` | public | 4 made-up meetings (German and English, 8–26 min, 110–211 turns) with decisions, tasks, changing numbers, a revisited topic | `$SOKKI_EVALS/summary-citations-made-up/` (made by hand, no generator; sha256 in its README) | `scripts/summary-citations/` | `research/summary-citations-2026-11.md` |
 | `screen-capture-made-up` | public | Four made-up Retina screens (slide, code editor, document in 11/12 pt, a web page four screens high) and the small text on each, for the size and readability of "Meeting with screen" | `python3 scripts/screen-eval/make_screens.py` (fixed seed, headless Chrome) | `scripts/screen-eval/bench.swift`, `run.sh` | `research/screen-recording-size-2026-11.md` |
 | `memory-search-de` | public | 10 made-up German (and one English) meeting transcripts, 46 turns, and 36 keyword queries with the turns that answer them: compound parts, whole words, inflections, no umlauts, English↔German | `$SOKKI_EVALS/memory-search-de/make.py` writes it (made up by hand, 26 Nov 2026); sha256 in its README | `crates/sokki-index/tests/recall_eval.rs` (`cargo test --test recall_eval -- --ignored`) | `research/memory-index-recall-2026-11.md` |
 | `typing-noise-made-up` | public | Made-up keyboard sound (no speech) at two typing speeds, and a made-up own voice (macOS Anna) with a control talk | Generated: `scripts/test-typing-no-meeting.sh` (`scripts/make-typing-wav.py`, seeded; `say -v Anna`) | `scripts/test-typing-no-meeting.sh`; generator mirrored in `meeting/auto.rs` `typing_is_not_speech` | `research/meeting-shortcut-typing-2026-11.md` |
@@ -135,7 +136,8 @@ Some evals read the installed app's own data in `~/Library/Application Support/o
 
 - `meetings/`: real meetings, used by `crates/meeting-e2e/examples/live_eval.rs` (one meeting
   folder), `research/speaker-names-call-apps-2026-11.md` (46 meetings) and
-  `research/meeting-summaries-2026-11.md` (4 meetings).
+  `research/meeting-summaries-2026-11.md` (4 meetings) and `research/summary-citations-2026-11.md`
+  (the same 4 and 2 more).
 - `history.db`, `voice-data/`: dictation history, the source of the dictation sets above.
 
 ### Made-up data in the repo

@@ -10,8 +10,10 @@ import {
   Loader2,
   Monitor,
   MoreHorizontal,
+  Play,
   RotateCcw,
   Send,
+  Square,
   Trash2,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -22,6 +24,7 @@ import {
   type MailPreview,
   type MeetingNoteParts,
   type MeetingRecord,
+  type SummaryCite,
   type VideoMeta,
 } from "@/bindings";
 import { usePressAway } from "@/hooks/usePressAway";
@@ -45,8 +48,220 @@ function inline(text: string): React.ReactNode[] {
     );
 }
 
-/** The note's summary part: headings, bullets, tasks, plain lines. */
-export const SummaryView: React.FC<{ markdown: string }> = ({ markdown }) => {
+/** "[00:03] Speaker 2: Hi." → its parts; null for any other line. */
+export function parseTranscriptLine(
+  line: string,
+): { stamp: string; speaker: string; text: string } | null {
+  const m = line.match(/^\[([\d:]+)\]\s+([^:]{1,60}):\s?(.*)$/);
+  return m ? { stamp: m[1], speaker: m[2], text: m[3] } : null;
+}
+
+/** 75 → "01:15", 3723 → "1:02:03", as the transcript writes its stamps. */
+export function formatStamp(s: number): string {
+  const t = Math.max(0, Math.floor(s));
+  const p = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  return h ? `${h}:${p(m)}:${p(t % 60)}` : `${p(m)}:${p(t % 60)}`;
+}
+
+/** Where a summary's points were said, for its time marks, quotes and
+ * jumps (Robin, 2026-11-27: versions 2 + 3 + 1 of "Belege"). */
+export type SummaryCites = {
+  meetingId: string;
+  cites: SummaryCite[];
+  /** The note's plain transcript, the lines `cites` point into. */
+  transcript: string;
+  /** The recording is still there, so a quote can be played. */
+  audio: boolean;
+  /** Show these transcript lines (indexes into `transcript`). */
+  onJump: (lines: number[]) => void;
+};
+
+/** One clip at a time across the app. */
+let playingClip: HTMLAudioElement | null = null;
+
+/** How long the pointer rests on a point before its quote shows. */
+const QUOTE_DELAY_MS = 350;
+
+/** A cited point: its time mark, the quote on hover, a click jumps. */
+const CitedItem: React.FC<{
+  cite: SummaryCite;
+  ctx: SummaryCites;
+  marker: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ cite, ctx, marker, children }) => {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [playing, setPlaying] = useState<"loading" | "on" | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const mine = useRef<HTMLAudioElement | null>(null);
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      mine.current?.pause();
+    },
+    [],
+  );
+  const all = ctx.transcript.split("\n");
+  const quoted = cite.lines
+    .map((i) => parseTranscriptLine(all[i] ?? ""))
+    .filter((q): q is NonNullable<typeof q> => !!q);
+  const at = formatStamp(cite.start_s[0] ?? 0);
+  const show = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setOpen(true), QUOTE_DELAY_MS);
+  };
+  const hide = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setOpen(false), 150);
+  };
+  const jump = () => {
+    setOpen(false);
+    ctx.onJump(cite.lines);
+  };
+  const listen = async () => {
+    if (playing) {
+      mine.current?.pause();
+      setPlaying(null);
+      return;
+    }
+    playingClip?.pause();
+    // Shown at once; the sound follows.
+    setPlaying("loading");
+    const last = Math.max(...cite.lines);
+    const next = all
+      .slice(last + 1)
+      .map(parseTranscriptLine)
+      .find(Boolean);
+    const start = cite.start_s[0] ?? 0;
+    const lastStart = Math.max(...cite.start_s);
+    const end = next ? stampSeconds(next.stamp) : lastStart + 20;
+    const r = await commands.meetingClip(
+      ctx.meetingId,
+      start,
+      Math.max(end, start + 3),
+    );
+    if (r.status !== "ok") return setPlaying(null);
+    const audio = new Audio(r.data);
+    playingClip = audio;
+    mine.current = audio;
+    audio.onended = () => setPlaying(null);
+    audio.onpause = () => setPlaying(null);
+    try {
+      await audio.play();
+      setPlaying("on");
+    } catch {
+      setPlaying(null);
+    }
+  };
+  const btn =
+    "h-7 inline-flex items-center gap-1.5 rounded-lg border border-line bg-background px-2.5 text-[12.5px] font-medium text-text hover:bg-wash cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary";
+  return (
+    <li
+      data-cited
+      className="relative flex gap-2 rounded-lg -mx-2 px-2 hover:bg-wash cursor-pointer"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onClick={(e) => {
+        // Selecting text to copy it is not a click on the point.
+        if (window.getSelection()?.toString()) return;
+        if ((e.target as HTMLElement).closest("[data-quote]")) return;
+        jump();
+      }}
+    >
+      {marker}
+      <span>
+        {children}
+        <button
+          type="button"
+          data-cite-mark
+          title={t("meetings.details.citeAt", { time: at })}
+          aria-label={t("meetings.details.citeAt", { time: at })}
+          onClick={(e) => {
+            e.stopPropagation();
+            jump();
+          }}
+          className="ms-1.5 inline-flex h-[19px] items-center rounded-md bg-[color-mix(in_srgb,var(--color-text)_7%,transparent)] px-1.5 align-[1px] font-mono text-[11.5px] leading-none text-ink-3 hover:text-logo-primary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+        >
+          {at}
+        </button>
+      </span>
+      {open && quoted.length > 0 && (
+        <div
+          data-quote
+          role="dialog"
+          onMouseEnter={show}
+          onMouseLeave={hide}
+          className="absolute start-6 top-full z-30 mt-1 w-[min(440px,90%)] cursor-default rounded-xl border border-line bg-background p-3.5 shadow-lg flex flex-col gap-2.5"
+        >
+          {quoted.map((q, i) => (
+            <div key={i} className="flex flex-col gap-0.5">
+              <span className="font-mono text-[11.5px] text-ink-3">
+                {q.stamp} · {q.speaker}
+              </span>
+              <span className="text-[14px] leading-[21px] text-text select-text">
+                „{q.text}“
+              </span>
+            </div>
+          ))}
+          <div className="flex gap-2 pt-0.5">
+            {ctx.audio && (
+              <button
+                type="button"
+                data-cite-listen
+                className={btn}
+                onClick={() => void listen()}
+              >
+                {playing === "loading" ? (
+                  <Loader2 width={12} height={12} className="animate-spin" />
+                ) : playing ? (
+                  <Square width={11} height={11} />
+                ) : (
+                  <Play width={12} height={12} />
+                )}
+                {playing
+                  ? t("meetings.details.citeStop")
+                  : t("meetings.details.citeListen")}
+              </button>
+            )}
+            <button type="button" data-cite-show className={btn} onClick={jump}>
+              {t("meetings.details.citeShow")}
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+};
+
+/** "01:15" or "1:02:03" → seconds. */
+function stampSeconds(stamp: string): number {
+  return stamp.split(":").reduce((s, p) => s * 60 + Number(p), 0);
+}
+
+/** The note's summary part: headings, bullets, tasks, plain lines. With
+ * `cites`, every cited point gets its time mark, quote and jump. */
+export const SummaryView: React.FC<{
+  markdown: string;
+  cites?: SummaryCites;
+}> = ({ markdown, cites }) => {
+  const byLine = new Map((cites?.cites ?? []).map((c) => [c.line, c]));
+  const item = (i: number, marker: React.ReactNode, body: React.ReactNode) => {
+    const c = byLine.get(i);
+    if (c && cites)
+      return (
+        <CitedItem key={i} cite={c} ctx={cites} marker={marker}>
+          {body}
+        </CitedItem>
+      );
+    return (
+      <li key={i} className="flex gap-2">
+        {marker}
+        <span>{body}</span>
+      </li>
+    );
+  };
   const blocks: React.ReactNode[] = [];
   let list: React.ReactNode[] = [];
   const flush = () => {
@@ -77,24 +292,26 @@ export const SummaryView: React.FC<{ markdown: string }> = ({ markdown }) => {
     const task = line.match(/^- \[( |x)\] (.*)$/);
     if (task) {
       list.push(
-        <li key={i} className="flex gap-2">
+        item(
+          i,
           <span
             aria-hidden="true"
             className={`mt-[5px] size-3.5 shrink-0 rounded-[4px] border ${task[1] === "x" ? "bg-logo-primary border-logo-primary" : "border-line-strong"}`}
-          />
-          <span>{inline(task[2])}</span>
-        </li>,
+          />,
+          inline(task[2]),
+        ),
       );
       return;
     }
     if (line.startsWith("- ")) {
       list.push(
-        <li key={i} className="flex gap-2">
+        item(
+          i,
           <span aria-hidden="true" className="text-ink-3">
             •
-          </span>
-          <span>{inline(line.slice(2))}</span>
-        </li>,
+          </span>,
+          inline(line.slice(2)),
+        ),
       );
       return;
     }
@@ -113,24 +330,49 @@ export const SummaryView: React.FC<{ markdown: string }> = ({ markdown }) => {
   );
 };
 
-/** "[00:03] Speaker 2: Hi." lines, time and name set apart. */
-export const TranscriptView: React.FC<{ text: string }> = ({ text }) => (
-  <div className="flex flex-col gap-1.5 font-mono text-[13px] leading-[1.7] text-ink-2 select-text">
-    {text
-      .split("\n")
-      .filter((l) => l.trim())
-      .map((line, i) => {
-        const m = line.match(/^(\[[\d:]+\])\s+([^:]{1,60}):\s?(.*)$/);
-        if (!m) return <div key={i}>{line}</div>;
+/** "[00:03] Speaker 2: Hi." lines, time and name set apart. `focus`
+ * (indexes into `text`'s lines) is highlighted and scrolled into view. */
+export const TranscriptView: React.FC<{
+  text: string;
+  focus?: number[] | null;
+}> = ({ text, focus }) => {
+  const first = useRef<HTMLDivElement>(null);
+  const hit = new Set(focus ?? []);
+  const top = focus?.length ? Math.min(...focus) : -1;
+  useLayoutEffect(() => {
+    first.current?.scrollIntoView({ block: "center" });
+  }, [focus]);
+  return (
+    <div className="flex flex-col gap-1.5 font-mono text-[13px] leading-[1.7] text-ink-2 select-text">
+      {text.split("\n").map((line, i) => {
+        if (!line.trim()) return null;
+        const m = parseTranscriptLine(line);
+        const on = hit.has(i);
         return (
-          <div key={i}>
-            <span className="text-ink-3">{m[1]}</span>{" "}
-            <b className="font-semibold text-text">{m[2]}:</b> {m[3]}
+          <div
+            key={i}
+            ref={i === top ? first : undefined}
+            data-focused={on || undefined}
+            className={
+              on
+                ? "-mx-2.5 rounded-lg px-2.5 py-1 bg-[color-mix(in_srgb,var(--color-logo-primary)_12%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-logo-primary)_35%,transparent)]"
+                : undefined
+            }
+          >
+            {m ? (
+              <>
+                <span className="text-ink-3">[{m.stamp}]</span>{" "}
+                <b className="font-semibold text-text">{m.speaker}:</b> {m.text}
+              </>
+            ) : (
+              line
+            )}
           </div>
         );
       })}
-  </div>
-);
+    </div>
+  );
+};
 
 /** A finished meeting's note, loaded when shown or changed. */
 export function useMeetingNote(record: MeetingRecord | null) {

@@ -220,8 +220,22 @@ Icons are drawn as SVG in
       memory pressure it is stopped and loads for the summary as before; the
       dictionary is in its prompt, so names come out spelled right. The
       transcript stays as recognised: a separate correction pass cost a
-      whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17);
+      whole model round and was removed on 2026-11-20 (KNOWN_ISSUES R17).
+      Since 27.11.2026 a meeting read in one pass goes with numbered lines
+      and every point must cite them (`summary.rs`, `JSON_SHAPE_CITED`):
+      that made points more reliable (83 % instead of 71 % fully supported
+      on real meetings) for 3–8 s more. Long meetings read in parts keep
+      the old prompt;
    7. Markdown note in the notes folder.
+   8. **Where a point was said** (`meeting_core::cite`, `get_meeting_note`):
+      when a note is shown, each summary point is matched to the transcript
+      lines it comes from by its words (no model, under a millisecond; the
+      right lines for 78 % of points against 59 % for the model's own
+      citations). The reader shows the time at every point, the quoted
+      lines on hover with "Listen" (`meeting_clip`, all tracks mixed, only
+      while the recording exists) and "Show in transcript", and a click
+      jumps to the highlighted lines. Works on old and edited notes too.
+      Measurements: `docs/research/summary-citations-2026-11.md`.
 6. **Name and list row** (`meeting/title.rs`, `meetings/meetingDates.ts`):
    the summary's title names the meeting. Built but switched off
    (`title::DURING_RECORDING`, on only in the test app): five minutes into

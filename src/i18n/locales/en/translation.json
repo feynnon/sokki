@@ -1213,7 +1213,11 @@
       "saved": "Saved",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "Listen",
+      "citeStop": "Stop",
+      "citeShow": "Show in transcript",
+      "citeAt": "Said at {{time}}"
     },
     "phone": {
       "title": "Phone",

@@ -998,6 +998,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meeting::person_emails,
             commands::meeting::set_person_emails,
             commands::meeting::speaker_clip,
+            commands::meeting::meeting_clip,
             commands::audio::get_microphone_mode,
             commands::audio::get_windows_microphone_permission_status,
             commands::audio::open_microphone_privacy_settings,

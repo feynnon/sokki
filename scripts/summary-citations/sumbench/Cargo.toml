@@ -1,0 +1,9 @@
+[package]
+name = "sumbench"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+meeting-core = { path = "../../../crates/meeting-core" }
+anyhow = "1"
+serde_json = "1"
+[workspace]

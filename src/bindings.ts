@@ -1753,6 +1753,18 @@ async speakerClip(id: string, speaker: string, startS: number | null) : Promise<
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The meeting from `start_s` to `end_s`, all tracks mixed, as a WAV data
+ * URL ("listen" on a summary point's quote).
+ */
+async meetingClip(id: string, startS: number, endS: number) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_clip", { id, startS, endS }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteVoiceProfile(name: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_voice_profile", { name }) };
@@ -2878,7 +2890,13 @@ export type MeetingNoteParts = { summary: string; transcript: string;
  * The person's own lines with Sokki's additions under them (the
  * note's "Meine Notizen" section, Markdown), empty without notes.
  */
-combined: string }
+combined: string; 
+/**
+ * Where each point of `summary` was said: the transcript lines it
+ * comes from, found by word matching (`meeting_core::cite`). Points
+ * with no match are left out.
+ */
+cites: SummaryCite[] }
 /**
  * What the settings page shows for pairing.
  */
@@ -3148,6 +3166,22 @@ export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * Why a done meeting's note has no summary although summaries are on.
  */
+/**
+ * One point of the summary and the transcript lines it comes from.
+ */
+export type SummaryCite = { 
+/**
+ * The point's line in `summary` (0-based, split on newlines).
+ */
+line: number; 
+/**
+ * The cited lines' indexes in `transcript` (split on newlines).
+ */
+lines: number[]; 
+/**
+ * Their start times in seconds, as in their "[mm:ss]" stamps.
+ */
+start_s: number[] }
 export type SummaryMissing = 
 /**
  * The language model wasn't ready; the summary is added once it is.

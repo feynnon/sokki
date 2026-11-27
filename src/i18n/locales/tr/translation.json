@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "Dinle",
+      "citeStop": "Durdur",
+      "citeShow": "Transkriptte göster",
+      "citeAt": "{{time}} anında söylendi"
     },
     "phone": {
       "title": "Phone",

@@ -197,8 +197,42 @@ fn malformed_reply_is_fixed_on_retry() {
     assert_eq!(msgs.len(), 2, "retry is a fresh request, not a replay");
     let u = retry.user();
     assert!(u.contains("not valid JSON"), "{u}");
-    assert!(u.contains(r#""summary": ["...", "..."]"#), "{u}");
+    assert!(
+        u.contains(r#""summary": [{"text": "...", "cites": [12, 13]}]"#),
+        "{u}"
+    );
     assert!(u.starts_with(&reqs[0].user()));
+}
+
+/// A meeting read in one pass: numbered lines, a schema with "cites", and a
+/// cited reply reads like a plain one (the citations shown come from word
+/// matching, `meeting_core::cite`).
+#[test]
+fn single_pass_asks_for_cited_points() {
+    let cited = r#"{"title":"Herbstkampagne und Budget","summary":[{"text":"Kosten pro Lead bei 18 Euro","cites":[3]},{"text":"Budget Dezember auf 12.500 Euro erhöht","cites":[5,6]}],"decisions":[{"text":"Dezember-Budget auf 12.500 Euro erhöht","cites":[6]}],"action_items":[{"owner":"Speaker 2","text":"Relaunch der Landingpage bis Freitag","cites":[8]}]}"#;
+    let server = MockServer::scripted(vec![(200, ollama_reply(cited))]);
+    let s = LlmSummarizer::new(ollama_cfg(&server));
+    let (sum, _) = s
+        .summarize_with_stats(&load_fixture("de_team_meeting.txt"))
+        .unwrap();
+    assert_eq!(
+        sum.summary,
+        "- Kosten pro Lead bei 18 Euro\n- Budget Dezember auf 12.500 Euro erhöht"
+    );
+    assert_eq!(
+        sum.decisions,
+        vec!["Dezember-Budget auf 12.500 Euro erhöht"]
+    );
+    assert_eq!(sum.action_items[0].owner.as_deref(), Some("Speaker 2"));
+    let r = &server.requests()[0];
+    let u = r.user();
+    assert!(u.starts_with("Transcript:\n\n#1 ["), "{u}");
+    assert!(u.contains("\n#2 ["), "{u}");
+    let sys = r.system();
+    assert!(sys.contains("starts with its number, like #12"), "{sys}");
+    assert!(sys.contains(r#""cites": [12, 13]"#), "{sys}");
+    let point = &r.body["format"]["properties"]["summary"]["items"];
+    assert_eq!(point["required"], json!(["text", "cites"]));
 }
 
 #[test]

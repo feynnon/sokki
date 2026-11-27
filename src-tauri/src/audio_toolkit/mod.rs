@@ -8,7 +8,7 @@ pub mod utils;
 pub mod vad;
 
 pub use audio::{
-    decode_audio_file, list_output_devices, read_wav_samples, save_wav_file, verify_wav_file,
+    decode_audio_file, decode_audio_span, list_output_devices, read_wav_samples, save_wav_file, verify_wav_file,
     CaptureSink, CaptureVad, VadPolicy,
 };
 pub use lang_id::detect_output_language;

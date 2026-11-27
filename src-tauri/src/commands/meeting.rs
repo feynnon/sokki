@@ -22,6 +22,21 @@ pub struct MeetingNoteParts {
     /// The person's own lines with Sokki's additions under them (the
     /// note's "Meine Notizen" section, Markdown), empty without notes.
     pub combined: String,
+    /// Where each point of `summary` was said: the transcript lines it
+    /// comes from, found by word matching (`meeting_core::cite`). Points
+    /// with no match are left out.
+    pub cites: Vec<SummaryCite>,
+}
+
+/// One point of the summary and the transcript lines it comes from.
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+pub struct SummaryCite {
+    /// The point's line in `summary` (0-based, split on newlines).
+    pub line: u32,
+    /// The cited lines' indexes in `transcript` (split on newlines).
+    pub lines: Vec<u32>,
+    /// Their start times in seconds, as in their "[mm:ss]" stamps.
+    pub start_s: Vec<f64>,
 }
 
 /// A QR code (SVG) for a link the app hands out, e.g. sokki.org/get.
@@ -226,10 +241,21 @@ pub fn get_meeting_note(
     let md = std::fs::read_to_string(&path)
         .map_err(|e| format!("The note could not be read ({path}): {e}"))?;
     let p = meeting_core::note::split_note(&md);
+    let t0 = std::time::Instant::now();
+    let cites = meeting_core::cite::cite_note(&p.summary, &p.transcript)
+        .into_iter()
+        .map(|c| SummaryCite {
+            line: c.line,
+            lines: c.lines,
+            start_s: c.start_s,
+        })
+        .collect::<Vec<_>>();
+    log::debug!("summary citations: {} in {:?}", cites.len(), t0.elapsed());
     Ok(MeetingNoteParts {
         summary: p.summary,
         transcript: p.transcript,
         combined: p.own_notes,
+        cites,
     })
 }
 
@@ -952,6 +978,23 @@ pub async fn speaker_clip(
     .map_err(|e| format!("{e:#}"))
 }
 
+/// The meeting from `start_s` to `end_s`, all tracks mixed, as a WAV data
+/// URL ("listen" on a summary point's quote).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_clip(
+    app: AppHandle,
+    id: String,
+    start_s: f64,
+    end_s: f64,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || meeting::voices::span(&app, &id, start_s, end_s))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("{e:#}"))
+}
+
 // ------------------------------------------------------------ other OSes
 
 #[cfg(not(target_os = "macos"))]
@@ -1247,6 +1290,13 @@ pub fn person_emails(_name: String) -> Vec<String> {
 #[tauri::command]
 #[specta::specta]
 pub fn set_person_emails(_name: String, _emails: Vec<String>) -> Result<(), String> {
+    Err(UNAVAILABLE.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_clip(_id: String, _start_s: f64, _end_s: f64) -> Result<String, String> {
     Err(UNAVAILABLE.to_string())
 }
 

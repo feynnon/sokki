@@ -8,6 +8,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 |---|---|
 | `dictation-formatting-and-cleanup-2026-11.md` | Dictation layout with Qwen3.5 (0.8B–9B), voting, live chunking, forward-pass timing. Then word cleanup with Gemma 4 E4B, the model comparison, latency in MLX and in Sokki's llama-server (plain, n-gram, MTP), and the shipped setup rated blind. |
 | `meeting-summaries-2026-11.md` | Meeting summaries: Qwen3.5 4B and Gemma 4 E4B against Sokki's Qwen3.5 9B. Speed, memory, two blind rating rounds. |
+| `summary-citations-2026-11.md` | Citations in meeting summaries: the model's own cites, a follow-up question and word matching without a model, on 6 real and 5 made-up meetings. Content, reliability (blind LLM judges), latency. |
 | `muesli-and-cleanup-log-2026-11.md` | Running log of the Müsli tests (Sokki's own 0.8B/2B cleanup models) and the later Qwen/Gemma rounds. |
 | `phone-dictation-latency-2026-11.md` | Live dictation on the phone: Parakeet Ultra vs Nemotron Streaming on the Pixel 7, dictating through the Mac, newer phones' CPU. |
 | `data/results.json`, `data/forward_pass_timing.json` | Layout rounds and read/write speed per model. |

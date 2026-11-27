@@ -880,6 +880,91 @@ pub fn clip(app: &AppHandle, id: &str, speaker: &str, start_s: Option<f64>) -> R
     wav_data_url(part)
 }
 
+/// At most this much audio for a cited stretch of a meeting.
+const SPAN_MAX_S: f64 = 60.0;
+
+/// The meeting from `start_s` to `end_s` (at most [`SPAN_MAX_S`]), every
+/// track mixed, as a WAV data URL: "listen from here" on a summary point.
+pub fn span(app: &AppHandle, id: &str, start_s: f64, end_s: f64) -> Result<String> {
+    let store = store(app);
+    let r = store.get(id).context("Meeting not found")?;
+    if r.audio_deleted || !has_audio(&store, &r) {
+        bail!("The audio of this meeting is deleted.");
+    }
+    let start = start_s.max(0.0);
+    let end = end_s.clamp(start + 1.0, start + SPAN_MAX_S);
+    let dir = store.audio_dir(id);
+    let timing = std::fs::read_to_string(dir.join(super::TIMING_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str::<super::TrackTiming>(&t).ok())
+        .and_then(|t| sokki_engine::tracks::track_pads(t.mic_first_us, t.system_first_us));
+    let files: Vec<(std::path::PathBuf, usize)> = r
+        .tracks
+        .iter()
+        .map(|file| {
+            let pad = timing
+                .map(|(mic, system)| {
+                    if file.starts_with("system") {
+                        system
+                    } else {
+                        mic
+                    }
+                })
+                .unwrap_or(0);
+            (dir.join(file), pad)
+        })
+        .collect();
+    let t0 = std::time::Instant::now();
+    let mix = mix_span(&files, start, end)?;
+    log::info!(
+        "Clip {start:.0}-{end:.0} s of {} tracks in {:?}",
+        files.len(),
+        t0.elapsed()
+    );
+    wav_data_url(&mix)
+}
+
+/// `start..end` seconds of every track (file, samples it starts late by),
+/// summed and clipped to [-1, 1]. Tracks that can't be read are skipped.
+fn mix_span(files: &[(std::path::PathBuf, usize)], start: f64, end: f64) -> Result<Vec<f32>> {
+    const RATE: f64 = 16_000.0;
+    let from = (start * RATE) as usize;
+    let len = ((end - start) * RATE) as usize;
+    let mut mix = vec![0.0f32; len];
+    let mut any = false;
+    for (path, pad) in files {
+        // A track that started `pad` samples late holds time t at t - pad;
+        // before it began, the clip has silence (`lead`).
+        let at = from as i64 - *pad as i64;
+        let lead = (-at).max(0) as usize;
+        if lead >= len {
+            continue;
+        }
+        let samples = match crate::audio_toolkit::decode_audio_span(
+            path,
+            at.max(0) as f64 / RATE,
+            (len - lead) as f64 / RATE,
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                log::warn!("Clip: can't read {}: {e:#}", path.display());
+                continue;
+            }
+        };
+        for (i, x) in samples.iter().take(len - lead).enumerate() {
+            mix[lead + i] += x;
+            any = true;
+        }
+    }
+    if !any {
+        bail!("No audio at that point.");
+    }
+    for x in &mut mix {
+        *x = x.clamp(-1.0, 1.0);
+    }
+    Ok(mix)
+}
+
 /// The track a speaker is on: saved since 26.11.2026; before, the user's
 /// voice is the microphone and everyone else the call when there is one.
 fn track_of(saved: &[SavedSpeaker], speaker: &str, r: &MeetingRecord, user: &str) -> &'static str {
@@ -919,6 +1004,100 @@ fn wav_data_url(samples: &[f32]) -> Result<String> {
         "data:audio/wav;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(buf.into_inner())
     ))
+}
+
+#[cfg(test)]
+mod span_tests {
+    use super::mix_span;
+
+    fn wav(dir: &std::path::Path, name: &str, samples: &[f32]) -> std::path::PathBuf {
+        let p = dir.join(name);
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut w = hound::WavWriter::create(&p, spec).unwrap();
+        for s in samples {
+            w.write_sample(*s).unwrap();
+        }
+        w.finalize().unwrap();
+        p
+    }
+
+    #[test]
+    fn mixes_tracks_at_their_own_offsets() {
+        let dir = tempfile::tempdir().unwrap();
+        // Mic: 0.1 from 0 s to 3 s. System started 1 s late: its 0.2 plays
+        // from 1 s on.
+        let mic = wav(dir.path(), "mic.wav", &vec![0.1; 48_000]);
+        let sys = wav(dir.path(), "system.wav", &vec![0.2; 32_000]);
+        let m = mix_span(&[(mic, 0), (sys, 16_000)], 0.5, 2.5).unwrap();
+        assert_eq!(m.len(), 32_000);
+        assert!((m[0] - 0.1).abs() < 1e-6, "0.5 s: mic only");
+        assert!((m[16_000] - 0.3).abs() < 1e-6, "1.5 s: both");
+        let late = mix_span(&[(dir.path().join("mic.wav"), 0)], 2.0, 4.0).unwrap();
+        assert_eq!(late[16_000 + 10], 0.0, "after the track: silence");
+    }
+
+    #[test]
+    fn a_span_is_the_same_samples_as_the_whole_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let ramp: Vec<f32> = (0..160_000).map(|i| (i % 1000) as f32 / 1000.0).collect();
+        let p = wav(dir.path(), "ramp.wav", &ramp);
+        let span = crate::audio_toolkit::decode_audio_span(&p, 3.0, 2.0).unwrap();
+        assert_eq!(span, ramp[48_000..80_000]);
+        let tail = crate::audio_toolkit::decode_audio_span(&p, 9.5, 2.0).unwrap();
+        assert_eq!(tail.len(), 8_000, "the file ends after half a second");
+        assert!(crate::audio_toolkit::decode_audio_span(&p, 20.0, 1.0)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn no_readable_track_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(mix_span(&[(dir.path().join("gone.flac"), 0)], 0.0, 1.0).is_err());
+    }
+
+    /// On a real recording (the test app's sample meeting):
+    /// SOKKI_SPAN_DIR=<meeting audio dir> cargo test span_of_a_real_meeting -- --ignored
+    #[test]
+    #[ignore]
+    fn span_of_a_real_meeting() {
+        let dir = std::path::PathBuf::from(std::env::var("SOKKI_SPAN_DIR").unwrap());
+        let files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "flac" || x == "wav"))
+            .map(|p| (p, 0))
+            .collect();
+        for (p, _) in &files {
+            let t0 = std::time::Instant::now();
+            let whole = crate::audio_toolkit::decode_audio_file(p).unwrap();
+            let t_whole = t0.elapsed();
+            let t0 = std::time::Instant::now();
+            let span = crate::audio_toolkit::decode_audio_span(p, 30.0, 15.0).unwrap();
+            println!(
+                "{}: whole file {t_whole:?}, 15 s span {:?}",
+                p.display(),
+                t0.elapsed()
+            );
+            assert_eq!(span, whole[30 * 16_000..45 * 16_000], "seek is exact");
+        }
+        let t0 = std::time::Instant::now();
+        let m = mix_span(&files, 30.0, 45.0).unwrap();
+        let rms = (m.iter().map(|x| x * x).sum::<f32>() / m.len() as f32).sqrt();
+        println!(
+            "span: {} tracks, {} samples, rms {rms:.4}, {:?}",
+            files.len(),
+            m.len(),
+            t0.elapsed()
+        );
+        assert_eq!(m.len(), 15 * 16_000);
+        assert!(rms > 0.001, "speech in the sample meeting at 30-45 s");
+    }
 }
 
 #[cfg(test)]

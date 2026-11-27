@@ -1126,7 +1126,11 @@
       "copyTranscript": "Copy transcript",
       "copied": "Copied",
       "transcript": "Transcript",
-      "noSummary": "This meeting has no summary."
+      "noSummary": "This meeting has no summary.",
+      "citeListen": "듣기",
+      "citeStop": "중지",
+      "citeShow": "녹취록에서 보기",
+      "citeAt": "{{time}}에 한 말"
     },
     "phone": {
       "title": "Phone",

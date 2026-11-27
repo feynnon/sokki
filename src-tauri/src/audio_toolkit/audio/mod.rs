@@ -5,7 +5,7 @@ mod sink;
 mod utils;
 mod visualizer;
 
-pub use decode::{decode_audio_file, decode_stream, LiveResampler};
+pub use decode::{decode_audio_file, decode_audio_span, decode_stream, LiveResampler};
 pub use device::{list_output_devices, output_device_name, OutputDeviceInfo};
 pub use sink::{
     AudioFrameCallback, CaptureSink, CaptureVad, CapturedAudio, LevelCallback, VadPolicy,

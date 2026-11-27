@@ -200,6 +200,118 @@ pub fn decode_stream(
     Ok(seconds)
 }
 
+/// `len_s` seconds of `path`'s first audio track from `start_s` on, mono at
+/// 16 kHz: [`decode_audio_file`] for a stretch, without decoding what
+/// comes before it (a clip from late in a long meeting plays at once).
+/// Shorter, or empty, where the file ends sooner.
+pub fn decode_audio_span(path: &Path, start_s: f64, len_s: f64) -> Result<Vec<f32>> {
+    use symphonia::core::formats::{SeekMode, SeekTo};
+    use symphonia::core::units::Time;
+    let file = File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let source = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(extension);
+    }
+    let mut format = symphonia::default::get_probe()
+        .format(
+            &hint,
+            source,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|e| anyhow!("Not a supported audio or video file: {}", e))?
+        .format;
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or_else(|| anyhow!("The file has no audio track"))?;
+    let track_id = track.id;
+    let rate = track
+        .codec_params
+        .sample_rate
+        .ok_or_else(|| anyhow!("The file has no sample rate"))?;
+    let time_base = track.codec_params.time_base;
+    let mut decoder = codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|e| anyhow!("The file's audio format is not supported: {}", e))?;
+
+    // Frames (at the file's rate) to drop after the seek: packets start
+    // before the asked time.
+    let mut skip = 0usize;
+    if start_s > 0.0 {
+        match format.seek(
+            SeekMode::Accurate,
+            SeekTo::Time {
+                time: Time::from(start_s),
+                track_id: Some(track_id),
+            },
+        ) {
+            Ok(to) => {
+                decoder.reset();
+                let early = to.required_ts.saturating_sub(to.actual_ts);
+                skip = match time_base {
+                    Some(tb) => {
+                        let t = tb.calc_time(early);
+                        ((t.seconds as f64 + t.frac) * rate as f64).round() as usize
+                    }
+                    None => early as usize,
+                };
+            }
+            // Past the end of the file.
+            Err(_) => return Ok(Vec::new()),
+        }
+    }
+    let want = (len_s.max(0.0) * rate as f64).round() as usize;
+    let mut mono: Vec<f32> = Vec::with_capacity(want);
+    let mut buffer: Option<SampleBuffer<f32>> = None;
+    while mono.len() < want {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(SymphoniaError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                break
+            }
+            Err(e) => return Err(anyhow!("Failed to read the file: {}", e)),
+        };
+        if packet.track_id() != track_id {
+            continue;
+        }
+        let decoded = match decoder.decode(&packet) {
+            Ok(decoded) => decoded,
+            Err(SymphoniaError::DecodeError(e)) => {
+                warn!("Skipping an undecodable packet: {}", e);
+                continue;
+            }
+            Err(e) => return Err(anyhow!("Failed to decode the file: {}", e)),
+        };
+        let spec = *decoded.spec();
+        let channels = spec.channels.count().max(1);
+        if buffer
+            .as_ref()
+            .is_none_or(|b| b.capacity() < decoded.capacity() * channels)
+        {
+            buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
+        }
+        let buffer = buffer.as_mut().expect("buffer was just sized");
+        buffer.copy_interleaved_ref(decoded);
+        for frame in buffer.samples().chunks_exact(channels) {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+            mono.push(frame.iter().sum::<f32>() / channels as f32);
+        }
+    }
+    mono.truncate(want);
+    if rate == WHISPER_SAMPLE_RATE {
+        return Ok(mono);
+    }
+    let mut r = Resampled::new(rate)?;
+    r.push(mono.into_iter())?;
+    r.finish()
+}
+
 /// Mono audio at `rate` in, 16 kHz out, as it arrives: the resampler
 /// [`decode_audio_file`] uses, so audio resampled while it is recorded
 /// matches what decoding its file gives later, sample for sample (all but

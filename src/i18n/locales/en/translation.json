@@ -1030,7 +1030,13 @@
     "meetingStartFailedTitle": "Meeting Recording Didn't Start",
     "meetingStartFailed": "Sokki needs microphone access. Allow it in System Settings > Privacy & Security.",
     "meetingStopFailedTitle": "Meeting Recording Wasn't Saved",
-    "meetingStopFailed": "The recording stopped, but it couldn't be saved for processing."
+    "meetingStopFailed": "The recording stopped, but it couldn't be saved for processing.",
+    "hookFailedTitle": "Hook Failed",
+    "hookFailed": "It failed twice in a row. Its log says why.",
+    "hookNotAllowedTitle": "Hook Needs Your OK",
+    "hookNotAllowed": "It's new or changed since you allowed it. To let it run, type this in Terminal:",
+    "hooksConfigInvalidTitle": "Hooks Paused",
+    "hooksConfigInvalid": "hooks.toml has a mistake. No hook runs until it's fixed."
   },
   "notices": {
     "errorOne": "{{n}} error",

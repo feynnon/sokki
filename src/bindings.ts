@@ -2933,7 +2933,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingStartFailed" | "MeetingStopFailed"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingStartFailed" | "MeetingStopFailed" | "HookFailed" | "HookNotAllowed" | "HooksConfigInvalid"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Sokki can't do its job.
@@ -2948,7 +2948,7 @@ export type NoticeLevel =
  * overlay: a file job finishes while the user is doing something else, and
  * `Model` is a switch the user made in Settings or the tray.
  */
-export type NoticeSource = "dictation" | "file" | "model" | "meeting"
+export type NoticeSource = "dictation" | "file" | "model" | "meeting" | "hooks"
 export type NoticesChanged = { 
 /**
  * Every active notice, newest first.

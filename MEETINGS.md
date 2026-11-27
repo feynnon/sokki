@@ -5,7 +5,8 @@ meeting notes to its dictation: record a meeting, and get a Markdown note
 with speakers, a summary, decisions and action items. Everything runs on
 the Mac, unless you choose a cloud language model (see 7). This file covers
 the meeting pipeline, code layout and tests; the [README](README.md) is the
-user-facing overview.
+user-facing overview. Your own commands after a meeting, a dictation or on a
+schedule: [HOOKS.md](HOOKS.md).
 
 The app has its own bundle identifier (`org.sokki.app`), so it never shares
 settings with an installed upstream app. Data stored under the identifier it
@@ -473,7 +474,7 @@ scripts/test-meeting.sh mic.wav system.wav`.
 
 | Path | What |
 |---|---|
-| `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, the built-in model server, Ollama |
+| `crates/sokki-engine` | One meeting in, one note out (`process::run`, shared by the Mac app and the Linux service); the meeting lifecycle state machine; language-model settings, status, the built-in model server, Ollama; the hooks runner (`hooks/`, [HOOKS.md](HOOKS.md)) |
 | `crates/sokki` | The Linux/Omarchy host: `sokki daemon` (PipeWire recording, call detection, dictation), the CLI and the processing worker. See ARCHITECTURE.md |
 | `crates/meeting-core` | Platform-independent pipeline: types, pipeline, acoustic echo filter, text dedup, LLM summary (Ollama / OpenAI-compatible, map-reduce for long meetings), Markdown notes, speaker rename |
 | `crates/diarize` | Diarization: Sortformer (default) and sherpa-onnx backends, speaker embeddings, voice profiles |
@@ -485,6 +486,8 @@ scripts/test-meeting.sh mic.wav system.wav`.
 | `scripts/correction_eval.py` | Scores speech models' transcripts (and, from the removed correction step, correction outputs) against the real-calls labels |
 | `src-tauri/src/meeting/` | App side: capture (`mic.rs`, `system_tap.rs`, `flac.rs`), `process.rs`, `store.rs` (meeting index), `detect.rs` |
 | `src-tauri/src/commands/meeting.rs` | Tauri commands and the `MeetingChanged` event |
+| `src-tauri/src/hooks.rs` | The app's side of hooks: starts the runner, keeps hooks out of a meeting's way, shows a failed hook as a notice |
+| `examples/hooks/` | Example hooks (Reminders, the week for gstack's `/retro`, the notes in git), tested on a made-up meeting |
 | `src/components/settings/meetings/` | Meetings page |
 
 Data on disk:
@@ -492,6 +495,7 @@ Data on disk:
 - voice profiles: `…/org.sokki.app/voice-profiles.json`
 - diarization models: `…/org.sokki.app/meeting-models/` (downloaded on first use)
 - notes: the folder set on the Meetings page (default `~/Documents/Sokki`)
+- hooks: `~/.config/sokki/hooks.toml`; their queue and logs in `…/org.sokki.app/hooks/`
 
 ## Tests
 

@@ -6,6 +6,8 @@
 #                                    Reads stdin too: `cat notes.md | sokki ask "Summarise"`.
 #   sokki config [KEY [VALUE]]       List every setting, show one, or change one.
 #                                    `sokki config meetings.auto_start_show_after_s 90`
+#   sokki hooks list|allow|run|test|log
+#                                    Your own commands on events (HOOKS.md).
 #
 # All commands: CLI.md. Every setting: CONFIG.md.
 #
@@ -242,10 +244,25 @@ print(f"{key} = {shown(key, value)}  (was {shown(key, old)})")
 PY
 }
 
+# `sokki hooks`: the Rust command from crates/sokki ($SOKKI_BIN, else the
+# repository's build next to this script).
+hooks() {
+  local bin="${SOKKI_BIN:-}" repo
+  if [[ -z "$bin" ]]; then
+    repo="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+    for b in "$repo/crates/sokki/target/release/sokki" "$repo/crates/sokki/target/debug/sokki"; do
+      [[ -x "$b" ]] && { bin="$b"; break; }
+    done
+  fi
+  [[ -n "$bin" ]] || die "sokki hooks needs the sokki binary: cargo build --release --manifest-path crates/sokki/Cargo.toml"
+  exec "$bin" hooks "$@"
+}
+
 case "${1:-}" in
   transcribe) shift; transcribe "$@" ;;
+  hooks) shift; hooks "$@" ;;
   ask) shift; ask "$@" ;;
   config) shift; config "$@" ;;
   ""|-h|--help|help) usage ;;
-  *) die "unknown command $1 (try: sokki transcribe FILE, sokki ask PROMPT, sokki config)" ;;
+  *) die "unknown command $1 (try: sokki transcribe FILE, sokki ask PROMPT, sokki config, sokki hooks)" ;;
 esac

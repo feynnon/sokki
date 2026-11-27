@@ -19,6 +19,7 @@ ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
 | `sokki config` | Lists every setting with its value. |
 | `sokki config KEY` | Shows one setting. |
 | `sokki config KEY VALUE` | Changes one setting. Sokki applies it within a second, no restart. |
+| `sokki hooks list\|allow\|revoke\|run\|test\|log` | Your own commands, run by Sokki on events: [HOOKS.md](HOOKS.md). Runs the Rust `sokki` from `crates/sokki` (`$SOKKI_BIN`, else the repository's build: `cargo build --release --manifest-path crates/sokki/Cargo.toml`). |
 | `sokki help` | The list above. |
 
 `transcribe` and `ask` wait while Sokki records or processes a meeting, so
@@ -90,5 +91,7 @@ permissions.
 
 One binary for the service and its command line: `sokki help` lists
 `meeting`, `dictation`, `status`, `notes`, `open`, `speakers`, `name`,
-`transcribe`, `ask`, `models`, `reload`, `events`, `doctor`. Its settings
+`transcribe`, `ask`, `models`, `reload`, `events`, `hooks`, `doctor`.
+`sokki hooks` works the same on both platforms ([HOOKS.md](HOOKS.md)), and
+`sokki events` also streams every hook event. Its settings
 live in `~/.config/sokki/sokki.toml`; edit the file, then `sokki reload`.

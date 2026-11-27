@@ -7519,12 +7519,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "chrono",
  "ed25519-dalek",
+ "libc",
  "log",
  "meeting-core",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "toml 0.9.12+spec-1.1.0",
  "ureq 3.2.0",
 ]
 

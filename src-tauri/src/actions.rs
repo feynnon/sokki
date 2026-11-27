@@ -951,6 +951,14 @@ impl ShortcutAction for TranscribeAction {
                                     // "Your data": the user's own recordings, kept on
                                     // this Mac, and the words dictated so far.
                                     Ok(entry) => {
+                                        crate::hooks::dictation_done(
+                                            entry.id,
+                                            entry
+                                                .post_processed_text
+                                                .as_deref()
+                                                .unwrap_or(&entry.transcription_text),
+                                            entry.language.as_deref(),
+                                        );
                                         crate::milestones::add_words(
                                             &ah,
                                             &entry.transcription_text,

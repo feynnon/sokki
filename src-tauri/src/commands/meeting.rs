@@ -520,7 +520,8 @@ pub fn set_meeting_title(app: AppHandle, id: String, title: String) -> Result<()
 #[specta::specta]
 pub fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {
     let store = app.state::<Arc<MeetingStore>>();
-    if let Some(r) = store.get(&id) {
+    let record = store.get(&id);
+    if let Some(r) = &record {
         if matches!(
             r.status,
             MeetingStatus::Recording | MeetingStatus::Processing { .. }
@@ -531,6 +532,9 @@ pub fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {
     store.remove(&id).map_err(|e| e.to_string())?;
     crate::video::delete_for_meeting(&id);
     meeting::emit_changed(&app, &id);
+    if let Some(r) = &record {
+        crate::hooks::meeting_event_for(sokki_engine::hooks::event::MEETING_DELETED, r);
+    }
     Ok(())
 }
 
@@ -781,6 +785,11 @@ pub fn rename_meeting_speaker(
         })
         .map_err(|e| e.to_string())?;
     meeting::emit_changed(&app, &id);
+    crate::hooks::meeting_event(
+        &app,
+        sokki_engine::hooks::event::MEETING_SPEAKERS_NAMED,
+        &id,
+    );
     Ok(())
 }
 

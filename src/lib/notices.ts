@@ -66,6 +66,18 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
     title: "errors.filePostProcessFailedTitle",
     explanation: (t) => t("errors.filePostProcessFailed"),
   },
+  HookFailed: {
+    title: "errors.hookFailedTitle",
+    explanation: (t) => t("errors.hookFailed"),
+  },
+  HookNotAllowed: {
+    title: "errors.hookNotAllowedTitle",
+    explanation: (t) => t("errors.hookNotAllowed"),
+  },
+  HooksConfigInvalid: {
+    title: "errors.hooksConfigInvalidTitle",
+    explanation: (t) => t("errors.hooksConfigInvalid"),
+  },
 };
 
 export const noticeDisplay = (code: NoticeCode) => NOTICE_DISPLAY[code];

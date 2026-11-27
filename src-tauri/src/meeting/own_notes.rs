@@ -59,7 +59,11 @@ pub fn save(store: &MeetingStore, record: &MeetingRecord, text: &str) -> Result<
     let md = own_notes::render(&record.id, Some(&record.started_at), &lines);
     let tmp = file.with_extension("md.tmp");
     std::fs::write(&tmp, md).with_context(|| format!("writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, &file).with_context(|| format!("saving {}", file.display()))
+    std::fs::rename(&tmp, &file).with_context(|| format!("saving {}", file.display()))?;
+    // Hooks hear of it once the typing rests (HOOKS.md).
+    #[cfg(target_os = "macos")]
+    crate::hooks::own_notes_saved(record, &file);
+    Ok(())
 }
 
 /// The editor's text from the saved lines.

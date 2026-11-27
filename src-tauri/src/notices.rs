@@ -35,6 +35,8 @@ pub enum NoticeSource {
     File,
     Model,
     Meeting,
+    /// The person's own hooks (HOOKS.md).
+    Hooks,
 }
 
 /// The frontend maps each code to its text in `src/lib/notices.ts`.
@@ -54,6 +56,9 @@ pub enum NoticeCode {
     FilePostProcessFailed,
     MeetingStartFailed,
     MeetingStopFailed,
+    HookFailed,
+    HookNotAllowed,
+    HooksConfigInvalid,
 }
 
 impl NoticeCode {
@@ -71,7 +76,12 @@ impl NoticeCode {
             | Self::FileTranscriptionFailed
             | Self::MeetingStartFailed
             | Self::MeetingStopFailed => NoticeLevel::Error,
-            Self::PostProcessFailed | Self::FilePostProcessFailed => NoticeLevel::Warning,
+            // The note or dictation is there; the hook's step is not.
+            Self::PostProcessFailed
+            | Self::FilePostProcessFailed
+            | Self::HookFailed
+            | Self::HookNotAllowed
+            | Self::HooksConfigInvalid => NoticeLevel::Warning,
         }
     }
 
@@ -92,6 +102,9 @@ impl NoticeCode {
             Self::FilePostProcessFailed => &strings.file_post_process_failed_title,
             Self::MeetingStartFailed => &strings.meeting_start_failed_title,
             Self::MeetingStopFailed => &strings.meeting_stop_failed_title,
+            Self::HookFailed => &strings.hook_failed_title,
+            Self::HookNotAllowed => &strings.hook_not_allowed_title,
+            Self::HooksConfigInvalid => &strings.hooks_config_invalid_title,
         }
     }
 }

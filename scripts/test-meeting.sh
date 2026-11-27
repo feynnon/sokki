@@ -37,6 +37,11 @@
 #                                                      # for Sokki Test. Add OWN_TEST_CALL=1 when
 #                                                      # Robin's Sokki records that test call.
 #   CALENDAR=events.json scripts/test-meeting.sh ...  # a made-up calendar (SOKKI_TEST_CALENDAR)
+#   HOOKS=dir scripts/test-meeting.sh ...             # run the hooks in dir/hooks.toml (HOOKS.md);
+#                                                     # without it the test app runs none. Allow
+#                                                     # them first, for the test app:
+#                                                     # SOKKI_APP_ID=org.sokki.test SOKKI_HOOKS_DIR=dir \
+#                                                     #   sokki hooks allow NAME
 #   OWN_NOTES="12=Budget?|40=Druckerei bis Fr" TITLE_AFTER=600 scripts/test-meeting.sh ...
 #                                                     # type own notes during the call (at 12 s,
 #                                                     # 40 s); logs the note's "Meine Notizen"
@@ -184,11 +189,11 @@ sleep 1
 [[ -n "${KEEP_MEETINGS:-}" ]] || rm -rf "$DATA/meetings"
 # Follow the log across rotation (a long meeting fills it several times).
 EVENTS="$WORK/events.txt"
-PATTERN="own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
+PATTERN="Hook|own note|Own notes|Silence hint|Meeting microphone|Slack|No speech|no speech|notes mailed|notes not mailed|Mail:|System audio|Call track|Meeting levels|Chat notice|meeting-chat|stopped and deleted|Test mode|Live transcript|live transcript|Live speakers|Live microphone|Live system|Meeting step|Aligned tracks|recording .* ms after|Diarized|summary later|Meeting title|dates follow|anguage model|ERROR|WARN"
 # One process, so the trap ends it and nothing outlives the script.
 tail -F -n0 "$LOG" > "$WORK/log.txt" 2>/dev/null &
 TAILPID=$!
-trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null; rm -rf "$WORK"' EXIT
+trap '{ kill $TAILPID; wait $TAILPID; } 2>/dev/null || true; rm -rf "$WORK"' EXIT
 sleep 1
 echo "Recording a ${HOLD}s meeting (live transcript ${NO_LIVE:+off}${NO_LIVE:-on})…"
 open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
@@ -198,6 +203,7 @@ open -g --env SOKKI_TEST_MIC="$MIC" --env SOKKI_TEST_SYSTEM="$SYSTEM" \
   ${SECOND_S:+--env SOKKI_TEST_SECOND_S="$SECOND_S"} ${GAP_S:+--env SOKKI_TEST_GAP_S="$GAP_S"} \
   ${NO_YIELD:+--env SOKKI_TEST_NO_YIELD=1} ${TITLE_AFTER:+--env SOKKI_TEST_TITLE_AFTER_S="$TITLE_AFTER"} \
   ${CHAT:+--env SOKKI_TEST_CALL="$CHAT"} ${SLACK:+--env SOKKI_TEST_CALL=slack --env SOKKI_SLACK_CLIENT_ID="$SLACK_ID"} ${SLACK_THREAD:+--env SOKKI_TEST_SLACK_THREAD="$SLACK_THREAD"} \
+  ${HOOKS:+--env SOKKI_HOOKS_DIR="$(abs "$HOOKS")" --env SOKKI_TEST_OWN_NOTES_QUIET_S=2} \
   ${MAIL_TO:+--env SOKKI_TEST_MAIL_TO="$MAIL_TO"} ${CALENDAR:+--env SOKKI_TEST_CALENDAR="$CALENDAR"} \
   ${CALL_SPEAKERS:+--env SOKKI_TEST_CALL_SPEAKERS="$CALL_SPEAKERS"} ${CALL_SPEAKERS:+${CHAT:---env SOKKI_TEST_CALL=chrome}} \
   ${NAME_SPEAKER:+--env SOKKI_TEST_NAME_SPEAKER="$NAME_SPEAKER"} ${MAIL_DRY:+--env SOKKI_TEST_MAIL_DRY=1} ${CONSENT:+--env SOKKI_TEST_CONSENT=1} ${KEEP_VOICES:+--env SOKKI_TEST_KEEP_VOICES="$KEEP_VOICES"} ${OWN_NOTES:+--env SOKKI_TEST_OWN_NOTES="$OWN_NOTES"} -a "$TESTAPP"
@@ -216,6 +222,9 @@ for _ in $(seq 1 "$LIMIT"); do
     # The notes mail goes out after processing; wait for it (2 min at most).
     [[ -z "${MAIL_TO:-}" ]] || grep -qE "notes mailed|notes not mailed|the meeting failed" "$EVENTS" \
       || (( $(date +%s) - ${MAILWAIT:=$(date +%s)} > 120 )) || continue
+    # Hooks run after the note; wait for their runs (2 min at most).
+    [[ -z "${HOOKS:-}" ]] || grep -qE "Hooks: .* on meeting.note_ready .*: |Hooks: .* skipped|the meeting failed" "$EVENTS" \
+      || (( $(date +%s) - ${HOOKWAIT:=$(date +%s)} > 120 )) || continue
     break
   fi
   PIDS=$(pgrep -f "^$TESTAPP/Contents/MacOS/" | paste -sd, - || true)
@@ -226,6 +235,13 @@ for _ in $(seq 1 "$LIMIT"); do
 done
 sleep 1
 grep -E "$PATTERN" "$WORK/log.txt" | grep -v "Loaded settings" || true
+if [[ -n "${HOOKS:-}" ]]; then
+  # Each run's log: the hook's own output (the test's made-up data only).
+  for f in "$DATA/hooks/logs/"*; do
+    [[ -f "$f" && "$f" -nt "$WORK" ]] || continue
+    echo "--- $f"; cat "$f"
+  done
+fi
 if [[ -s "$SAMPLES" && -n "$STARTED" ]]; then
   awk -v stop="$(echo "$STARTED + $HOLD" | bc)" '{
       if ($1 < stop) { n++; c+=$2; if ($2>cmax) cmax=$2; if ($3>mmax) mmax=$3 }

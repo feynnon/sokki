@@ -39,6 +39,19 @@ use crate::audio_toolkit::audio::decode_stream;
 /// A phone meeting nobody has sent to for this long is dropped.
 const GIVE_UP: Duration = Duration::from_secs(2 * 3600);
 
+// Caps, so a paired phone can't fill the Mac's disk, memory or threads
+// (release manager's security note, 27 Nov 2026). Past one, the Mac refuses
+// and the phone sends the recording whole after the stop instead.
+/// Live meetings open at once (each holds a decoder and a transcript).
+const MAX_OPEN: usize = 4;
+/// One meeting: ~18 h at the phone's 32 kbit/s.
+const MAX_BYTES: u64 = 256 << 20;
+/// One piece: catching up an hour at the browser's default 128 kbit/s.
+const MAX_PIECE: usize = 64 << 20;
+/// Pieces per meeting per minute: the phone sends one per 5 s, a few more
+/// while it catches up.
+const MAX_PIECES_PER_MIN: u32 = 120;
+
 struct Stream {
     started_at: String,
     dir: PathBuf,
@@ -54,6 +67,9 @@ struct Stream {
     parts: u32,
     /// Pieces that didn't continue what was here (sent again, or a gap).
     off: u32,
+    /// Pieces in the current minute, from `minute`.
+    recent: u32,
+    minute: Instant,
 }
 
 static STREAMS: LazyLock<Mutex<HashMap<String, Stream>>> = LazyLock::new(Default::default);
@@ -111,6 +127,13 @@ fn give_up_stale(streams: &mut HashMap<String, Stream>) {
 
 /// Starts a phone meeting: its folder, the decoder and the live transcript.
 pub(super) fn start(app: &AppHandle, started_at: &str, mime: &str) -> Result<String> {
+    {
+        let mut streams = STREAMS.lock().unwrap();
+        give_up_stale(&mut streams);
+        if streams.len() >= MAX_OPEN {
+            anyhow::bail!("Too many live meetings at once.");
+        }
+    }
     let store = app.state::<Arc<MeetingStore>>();
     let id = format!(
         "meeting-{}-phone",
@@ -170,6 +193,8 @@ pub(super) fn start(app: &AppHandle, started_at: &str, mime: &str) -> Result<Str
             last: now,
             parts: 0,
             off: 0,
+            recent: 0,
+            minute: now,
         },
     );
     log::info!(
@@ -189,9 +214,24 @@ pub(super) fn part(id: &str, offset: u64, body: &[u8]) -> Result<u64> {
     let s = streams
         .get_mut(id)
         .ok_or_else(|| anyhow!("No such live meeting."))?;
-    s.last = Instant::now();
+    let now = Instant::now();
+    s.last = now;
     s.parts += 1;
-    let end = offset + body.len() as u64;
+    if now.duration_since(s.minute) >= Duration::from_secs(60) {
+        s.minute = now;
+        s.recent = 0;
+    }
+    s.recent += 1;
+    if s.recent > MAX_PIECES_PER_MIN {
+        anyhow::bail!("Too many pieces; send the rest after the stop.");
+    }
+    if body.len() > MAX_PIECE {
+        anyhow::bail!("The piece is too large.");
+    }
+    let end = offset.saturating_add(body.len() as u64);
+    if end > MAX_BYTES {
+        anyhow::bail!("The recording is too long to send live.");
+    }
     if offset > s.have || end <= s.have {
         // A gap (an earlier piece is missing) or a piece already here.
         s.off += 1;

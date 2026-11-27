@@ -82,9 +82,6 @@ export const livePart = async (id: string, offset: number, audio: Blob) =>
 export const liveEnd = (id: string, total: number) =>
   invoke<{ have: number; id?: string }>("link_live_end", { id, total });
 
-/** The Mac no longer knows this live meeting (it restarted, or gave up). */
-export const liveLost = (e: unknown) => String(e).includes("No such live meeting");
-
 /** The link failed on the way (no answer in time, the Mac not reachable),
  * as opposed to the Mac refusing: worth trying again. */
 export const linkFailed = (e: unknown) =>

@@ -296,9 +296,9 @@ export default function App() {
             try {
               id = await finishLive(r.liveId, audio);
             } catch (e) {
-              // The Mac lost the live meeting (it restarted, or gave up):
-              // the recording goes whole. Anything else waits and retries.
-              if (!link.liveLost(e)) throw e;
+              // The link failed: wait and retry. The Mac refused (lost the
+              // meeting, or a cap): the recording goes whole.
+              if (link.linkFailed(e)) throw e;
               update(r.localId, { liveId: null });
             }
           }

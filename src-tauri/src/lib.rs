@@ -17,6 +17,7 @@ mod config_watch;
 mod dictation_cleanup;
 pub mod engine_supervisor;
 mod helpers;
+mod hooks;
 mod input;
 mod instant_paste;
 mod journal;
@@ -286,6 +287,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     meeting::memguard::start(app_handle);
     usage::init(app_handle);
     voice_data::start_notice_watch(app_handle.clone());
+    // The person's hooks (HOOKS.md), after the meeting store exists.
+    hooks::start(app_handle);
 
     #[cfg(target_os = "macos")]
     {
@@ -1462,6 +1465,7 @@ pub fn run(cli_args: CliArgs) {
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Exit => {
             meeting::finalize_on_exit(app);
+            hooks::flush();
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the
         // worker process, which exits by itself as soon as this process's end

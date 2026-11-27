@@ -11,6 +11,25 @@
 //!
 //! Events carry the whole state (a snapshot), never a diff, so a client
 //! that reconnects or misses a line is correct with the next one.
+//!
+//! ## Hook events
+//!
+//! Subscribers also get one `sokki_engine::hooks::HookEvent` line per event hooks run on
+//! (`meeting.recorded`, `meeting.note_ready`, `meeting.speakers_named`,
+//! `meeting.deleted`, `dictation.done`, `own_notes.saved`, `schedule`; see
+//! `sokki_engine::hooks::event`). Its `event` field is dotted, so it never
+//! clashes with `state`, `note`, `error` or `offline`; parse it as a
+//! `HookEvent` when the value contains a dot. On the socket `content` is
+//! always empty: a hook gets content only within its `scope`, and a client
+//! reads the rest with the CLI.
+//!
+//! ```json
+//! {"v":1,"event":"meeting.note_ready","id":"2026-11-26_14-03-00",
+//!  "at":"2026-11-26T14:40:12+01:00","note_path":"/…/Team sync.md",
+//!  "meta":{"title":"Team sync","started_at":"2026-11-26T14:03:00+01:00",
+//!          "duration_s":2040.0,"app":"Zoom","participants":["Ich","Anna"]},
+//!  "content":{}}
+//! ```
 
 use serde::{Deserialize, Serialize};
 

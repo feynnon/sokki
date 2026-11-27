@@ -684,6 +684,7 @@ fn accept_upload(app: &AppHandle, started_at: &str, audio: &[u8]) -> anyhow::Res
     );
     super::emit_changed(app, &id);
     super::process::spawn(app.clone(), id.clone(), None);
+    crate::hooks::meeting_event(app, sokki_engine::hooks::event::MEETING_RECORDED, &id);
     Ok(id)
 }
 

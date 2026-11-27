@@ -10,6 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -35,8 +36,17 @@ enum Msg {
     SpeechReady(Result<(), String>),
     /// The whole install, language model included, is over.
     ModelsDone(Result<(), String>),
+    /// From the hooks runner's thread.
+    HookReport(sokki_engine::hooks::Report),
+    /// A hook event, for subscribers (without content).
+    HookEvent(Box<sokki_engine::hooks::HookEvent>),
     Shutdown,
 }
+
+/// What the hooks runner reads to keep out of a meeting's way.
+const GATE_FREE: u8 = 0;
+const GATE_RECORDING: u8 = 1;
+const GATE_PROCESSING: u8 = 2;
 
 struct Recording {
     id: String,
@@ -65,6 +75,8 @@ struct Daemon {
     downloading: bool,
     subscribers: Vec<UnixStream>,
     last_state: Option<State>,
+    /// Recording or processing, for the hooks runner.
+    gate: Arc<AtomicU8>,
     _watcher: Option<meeting_detect::Watcher>,
 }
 
@@ -111,8 +123,10 @@ pub fn main() -> Result<()> {
         downloading: false,
         subscribers: Vec::new(),
         last_state: None,
+        gate: Arc::new(AtomicU8::new(GATE_FREE)),
         _watcher: None,
     };
+    start_hooks(&d.tx, d.gate.clone());
     d.recover();
     d.start_detection();
     if !d.models.ready {
@@ -122,6 +136,70 @@ pub fn main() -> Result<()> {
     log::info!("Sokki is running ({})", crate::paths::socket().display());
     d.run(rx);
     Ok(())
+}
+
+/// The person's hooks (HOOKS.md): `~/.config/sokki/hooks.toml`, their
+/// queue and logs in `~/.local/share/sokki/hooks/`.
+fn start_hooks(tx: &Sender<Msg>, gate: Arc<AtomicU8>) {
+    use sokki_engine::hooks::{self, Gate, Host};
+    let report_tx = std::sync::Mutex::new(tx.clone());
+    let event_tx = std::sync::Mutex::new(tx.clone());
+    hooks::subscribe(move |e| {
+        let _ = event_tx
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .send(Msg::HookEvent(Box::new(e.clone())));
+    });
+    let host = Host {
+        paths: crate::hooks::paths(),
+        gate: Arc::new(move || match gate.load(Ordering::Relaxed) {
+            GATE_RECORDING => Gate::Recording,
+            GATE_PROCESSING => Gate::Processing,
+            _ => Gate::Free,
+        }),
+        report: Arc::new(move |r| {
+            let _ = report_tx
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .send(Msg::HookReport(r));
+        }),
+        env: Arc::new(|| {
+            let notes = Config::load(&crate::paths::config_file())
+                .map(|c| c.engine().notes_dir)
+                .unwrap_or_default();
+            vec![
+                (
+                    "SOKKI_NOTES_DIR".to_string(),
+                    notes.to_string_lossy().into_owned(),
+                ),
+                (
+                    "SOKKI_APP_DATA".to_string(),
+                    crate::paths::data_dir().to_string_lossy().into_owned(),
+                ),
+            ]
+        }),
+    };
+    if let Err(e) = hooks::start(host) {
+        log::warn!("Hooks off: {e:#}");
+    }
+}
+
+/// A meeting event from its record.
+fn meeting_event(kind: &str, r: &crate::store::Record) {
+    use sokki_engine::hooks::{HookEvent, Meta};
+    sokki_engine::hooks::emit(HookEvent::meeting(
+        kind,
+        &r.id,
+        r.note_path.as_deref().map(std::path::Path::new),
+        Meta {
+            title: r.title.clone(),
+            started_at: Some(r.started_at.clone()),
+            duration_s: (r.duration_s > 0.0).then_some(r.duration_s),
+            app: r.source_app.clone(),
+            participants: r.speakers.clone(),
+            language: None,
+        },
+    ));
 }
 
 fn block_signals() -> libc::sigset_t {
@@ -259,6 +337,14 @@ impl Daemon {
                         if let Err(e) = crate::output::deliver_text(&text, &self.cfg.dictation.output) {
                             self.error(format!("Dictation: {e:#}"));
                         }
+                        // No dictation history here: the id is the time.
+                        if !text.trim().is_empty() {
+                            sokki_engine::hooks::emit(sokki_engine::hooks::HookEvent::dictation(
+                                now_ms(),
+                                &text,
+                                Default::default(),
+                            ));
+                        }
                     }
                     Err(e) => self.error(format!("Dictation: {e}")),
                 }
@@ -277,6 +363,24 @@ impl Daemon {
                 self.models.downloading = None;
                 if let Err(e) = result {
                     self.error(format!("Language model download failed: {e}"));
+                }
+            }
+            Msg::HookEvent(e) => {
+                self.subscribers.retain(|s| write_line(s, &*e).is_ok());
+            }
+            Msg::HookReport(r) => {
+                use sokki_engine::hooks::Report;
+                match r {
+                    Report::Failed { hook, what, log } => {
+                        self.error(format!("Hook {hook} {what}. Log: {}", log.display()))
+                    }
+                    Report::NotAllowed { hook } => self.error(format!(
+                        "Hook {hook} is new or changed. To let it run: sokki hooks allow {hook}"
+                    )),
+                    Report::ConfigInvalid { error } => {
+                        self.error(format!("Hooks paused, hooks.toml has a mistake: {error}"))
+                    }
+                    Report::Succeeded { .. } => {}
                 }
             }
             Msg::Shutdown => {}
@@ -470,6 +574,9 @@ impl Daemon {
             r.tracks = tracks;
             r.duration_s = duration_s;
         });
+        if let Ok(r) = self.store.get(&rec.id) {
+            meeting_event(sokki_engine::hooks::event::MEETING_RECORDED, &r);
+        }
         self.queue.push_back(rec.id);
         self.next_job();
     }
@@ -520,6 +627,7 @@ impl Daemon {
         self.processing = None;
         match self.store.get(id) {
             Ok(r) if r.status == Status::Done => {
+                meeting_event(sokki_engine::hooks::event::MEETING_NOTE_READY, &r);
                 let info = note_info(&r);
                 let title = r.title.clone().unwrap_or_else(|| "Meeting".into());
                 self.send(&Event::Note(info));
@@ -559,6 +667,9 @@ impl Daemon {
                 }
             }
         })?;
+        if let Ok(r) = self.store.get(id) {
+            meeting_event(sokki_engine::hooks::event::MEETING_SPEAKERS_NAMED, &r);
+        }
         Ok(())
     }
 
@@ -603,6 +714,8 @@ impl Daemon {
         if let Some(c) = self.dictation_capture.take() {
             let _ = c.stop();
         }
+        // Hook events still in memory run at the next start.
+        sokki_engine::hooks::flush();
         let _ = std::fs::remove_file(crate::paths::socket());
     }
 
@@ -779,6 +892,14 @@ impl Daemon {
     }
 
     fn broadcast_state(&mut self) {
+        let gate = if self.recording.is_some() {
+            GATE_RECORDING
+        } else if self.processing.is_some() {
+            GATE_PROCESSING
+        } else {
+            GATE_FREE
+        };
+        self.gate.store(gate, Ordering::Relaxed);
         let state = self.state();
         if self.last_state.as_ref() == Some(&state) {
             return;

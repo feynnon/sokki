@@ -6,6 +6,7 @@ mod audio;
 mod client;
 mod config;
 mod daemon;
+mod hooks;
 mod keep_awake;
 mod local;
 mod models;
@@ -32,7 +33,8 @@ Usage:
   sokki ask [--think] [PROMPT]               Ask the local language model (stdin is appended)
   sokki models install                       Download the speech models
   sokki reload                               Re-read ~/.config/sokki/sokki.toml
-  sokki events                               Stream state as JSON lines (for the shell)
+  sokki events                               Stream state and hook events as JSON lines
+  sokki hooks list|allow|run|test|log        Your own commands on events (HOOKS.md)
   sokki doctor                               Check the setup
   sokki daemon                               Run the service (systemd does this)
 ";
@@ -71,6 +73,7 @@ fn run(words: &[&str]) -> Result<()> {
     };
     match plain.as_slice() {
         ["daemon"] => daemon::main(),
+        ["hooks", ..] => hooks::main(&words[words.iter().position(|w| *w == "hooks").unwrap_or(0) + 1..]),
         ["events"] => client::events(),
         ["meeting", "record" | "start"] => simple(Request::MeetingRecord),
         ["meeting", "stop"] => simple(Request::MeetingStop),

@@ -1,0 +1,36 @@
+# Example hooks for Sokki. HOOKS.md explains every field.
+#
+# Use them: copy this folder to ~/.config/sokki/ (or keep ~/.config/sokki in
+# git), then let each hook you want run once:
+#
+#   sokki hooks allow tasks-to-reminders
+#
+# Try them on a made-up meeting first; nothing leaves the Mac and Reminders
+# stays untouched in a test:
+#
+#   sokki hooks test
+
+# A meeting's action items become reminders in Apple Reminders.
+[[hook]]
+name = "tasks-to-reminders"
+on = "meeting.note_ready"
+run = "osascript -l JavaScript ./tasks-to-reminders.js"
+scope = ["tasks"]
+timeout = "2m"
+
+# Fridays at 17:00: the week's decisions and tasks into
+# ~/.gstack/retro-context.md, which gstack's /retro reads.
+[[hook]]
+name = "weekly-retro"
+on = "schedule"
+cron = "0 17 * * fri"
+run = "./weekly-retro.sh"
+timeout = "2m"
+
+# Every new note becomes a git commit in the notes folder: history and an
+# easy backup. It never pushes.
+[[hook]]
+name = "notes-to-git"
+on = "meeting.note_ready"
+run = "./notes-to-git.sh"
+timeout = "1m"

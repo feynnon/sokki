@@ -56,7 +56,7 @@ A meeting, on any platform:
 | `crates/sokki-slack` | Slack huddle notes: sign-in with OAuth and PKCE, the huddle's message, posting the summary and the transcript into its thread. |
 | `crates/meeting-mail` | Notes to everyone in a meeting: calendar events and which one a recording belongs to, recipients, the objection list, the mail text, and sending through Apple Mail (AppleScript) or Gmail (`gmail.send`). The calendar itself is read by the host (macOS: EventKit, `src-tauri/swift/calendar.swift`). |
 | `crates/meeting-chat` | The chat notice (macOS): find a meeting's chat field through Accessibility, post one line, watch for "stop". |
-| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in models (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. `cleanup`: cleaning up a dictation while it is spoken. |
+| `crates/sokki-engine` | `process::run`: one recorded meeting in, one note out, with the platform's transcriber and diarizer passed in. `lifecycle`: the meeting state machine. `llm`: language-model settings, status, the built-in models (llama.cpp's `llama-server`, started for one summary and stopped after it), Ollama and model download. `cleanup`: cleaning up a dictation while it is spoken. `hooks`: the person's own commands on events, with their queue ([HOOKS.md](HOOKS.md)). |
 | `crates/sokki` | The Linux host. One binary: `sokki daemon` (systemd user service), the CLI (`sokki meeting …`, `sokki dictation …`, `sokki events`), and `sokki process` (the model worker). |
 | `crates/sokki-link` | Phone ↔ computer link over iroh: pairing, sending a recording, getting the note back. |
 | `crates/meeting-e2e` | Headless harness: real speech recognition on synthetic fixtures (`testdata/audio`), with word error rate and speaker metrics. |
@@ -78,7 +78,11 @@ These hold everywhere; a change that breaks one is a bug.
   (summary and transcript text, never audio) posted to Slack after the
   person connected it. Each lives in one named place (`diarize::models`,
   `meeting_core::summary`, `sokki-link`, `crates/sokki/src/models.rs`,
-  `meeting_mail::gmail`, `sokki-slack`).
+  `meeting_mail::gmail`, `sokki-slack`). A hook the person wrote can send
+  anything anywhere; Sokki itself sends nothing for it ([HOOKS.md](HOOKS.md)).
+- **A meeting outranks everything.** No background work (a hook, a
+  transcription from the CLI, the dictation cleanup) starts while a meeting
+  records or is processed; a hook already running is paused until it is over.
 - **The core has no platform code.** No Core Audio, PipeWire or Hyprland
   types in `meeting-core`, `diarize`, `sokki-engine`. Platform code sits in
   files compiled only on that platform.
@@ -114,7 +118,8 @@ object per line in each direction. A client sends a request and reads one
 reply; `{"cmd":"subscribe"}` instead keeps the connection open and streams
 events. The CLI is a thin client of this API, and so is the shell plugin
 (it runs `sokki events`). Requests and events are defined in
-`crates/sokki/src/api.rs`; that file is the specification.
+`crates/sokki/src/api.rs`; that file is the specification. Subscribers also
+get each hook event (`sokki_engine::hooks::HookEvent`, without content).
 
 ## Testing
 
@@ -200,6 +205,15 @@ Short records of choices that are not obvious from the code.
   On by default since 26.11.2026 (turned on once for existing installs,
   settings schema 10); without the model (8 GB Macs, or not downloaded
   yet) it does nothing and the transcript is pasted as before.
+- **Hooks bring the use cases.** Sokki provides facts and events (a note
+  is ready, a dictation is done, a schedule is due); what happens then is
+  the person's own code in `~/.config/sokki/hooks.toml`, run by one runner
+  in `sokki-engine` that both hosts share. The contract is git's and Claude
+  Code's: JSON on stdin, environment variables, an exit code. A new or
+  changed hook runs only after `sokki hooks allow`, which pins its hash
+  (like direnv); `scope` decides what it reads, with transcripts off by
+  default. The queue lives in SQLite so a quit loses nothing. Robin's plan
+  of 26.11.2026: Sokki as a platform, LLM workflows on one's own data.
 - **Echo cancellation, not voice merging.** WebRTC AEC3 on the mic track
   (with the call track as reference) removed the extra "speaker" the call
   audio created on the mic. Merging similar voices exists but is off until a

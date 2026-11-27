@@ -11,6 +11,7 @@
 //!   downloading a model.
 //! - [`cleanup`]: cleaning up a dictation with a local model while it is
 //!   spoken.
+//! - [`hooks`]: the person's own commands, run on events (HOOKS.md).
 //! - [`supporter`]: supporter codes (who may switch off the Sokki line).
 //! - [`tracks`], [`speakers`]: small shared pieces (track alignment, the
 //!   speakers file).
@@ -20,6 +21,7 @@
 #[cfg(feature = "asr")]
 pub mod asr;
 pub mod cleanup;
+pub mod hooks;
 pub mod lifecycle;
 pub mod live;
 pub mod llm;

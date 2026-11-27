@@ -510,6 +510,11 @@ pub fn stop_meeting(app: &AppHandle) -> std::result::Result<String, String> {
     notices::clear(app, NoticeSource::Meeting);
     if !tracks.is_empty() {
         process::spawn(app.clone(), meeting_id.clone(), recording.live);
+        crate::hooks::meeting_event(
+            app,
+            sokki_engine::hooks::event::MEETING_RECORDED,
+            &meeting_id,
+        );
     }
     log::info!(
         "Meeting {meeting_id} stopped in {} ms",

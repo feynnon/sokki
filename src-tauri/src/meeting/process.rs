@@ -324,6 +324,8 @@ fn process(
     #[cfg(target_os = "macos")]
     super::mail::after_note(app, id);
     super::slack::note_ready(app, id);
+    #[cfg(target_os = "macos")]
+    crate::hooks::note_ready(app, id);
     Ok(())
 }
 
@@ -361,6 +363,8 @@ fn no_speech(app: &AppHandle, store: &MeetingStore, record: &MeetingRecord) -> R
     );
     let _ = tauri::Emitter::emit(app, NO_SPEECH_EVENT, id);
     emit_changed(app, id);
+    #[cfg(target_os = "macos")]
+    crate::hooks::meeting_event_for(sokki_engine::hooks::event::MEETING_DELETED, record);
     Ok(())
 }
 
@@ -502,8 +506,18 @@ fn summarize(app: &AppHandle, store: &MeetingStore, id: &str, by_hand: bool) {
             #[cfg(target_os = "macos")]
             super::mail::after_note(app, id);
             super::slack::note_ready(app, id);
+            #[cfg(target_os = "macos")]
+            crate::hooks::note_ready(app, id);
         }
-        Err(e) => log::warn!("Meeting {id}: adding the summary failed: {e:#}"),
+        Err(e) => {
+            log::warn!("Meeting {id}: adding the summary failed: {e:#}");
+            // The note waited for the summary; it is as complete as it
+            // gets for now. (Later retries of a failed one fire nothing.)
+            #[cfg(target_os = "macos")]
+            if record.summary_missing == Some(SummaryMissing::Waiting) {
+                crate::hooks::note_ready(app, id);
+            }
+        }
     }
 }
 

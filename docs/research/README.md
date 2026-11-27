@@ -38,6 +38,7 @@ These are the measurements behind Sokki's choices of language model, prompt, liv
 | `memory-layer-2026-11.md` | Hidden use cases of a queryable memory (work, personal, agents), the field since the LLM Wiki (autoresearch, gbrain), and the query layer: index, metadata tiers, `sokki search/get/tasks` CLI, read-only MCP, privacy gate. Keyword search first, vectors after an eval. Research only. |
 | `memory-index-recall-2026-11.md` | The index's keyword search on a made-up German set: whole words (FTS5 unicode61) vs trigram vs both, recall@1/@5 and MRR per category (compound parts, inflections, no umlauts, English↔German). Why `sokki search` fuses both. |
 | `screen-recording-size-2026-11.md` | "Meeting with screen" file size: resolution (native to 720 lines), frame rate, HEVC vs H.264, constant quality vs bit rate, read back with OCR on made-up 11/12 pt screens. 26.4 → 0.27 MB per minute at 1080 lines, 2 fps, quality 0.5. Why the videos had no sound (FLAC header). |
+| `agent-readability-2026-11.md` | What AI assistants could learn about Sokki from sokki.org and GitHub (27 Nov 2026): five agent-style searches (Sokki named in none), site files before and after (llms.txt, JSON-LD, sitemap, robots.txt), `sokki ask` failing on default installs, and a sourced comparison with Granola, Superwhisper, Otter and Fathom. |
 
 ## Decisions these measurements support (Nov 2026)
 

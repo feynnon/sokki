@@ -25,7 +25,7 @@ ln -s "$PWD/scripts/sokki" ~/.local/bin/sokki
 | Command | What it does |
 |---|---|
 | `sokki transcribe FILE [--json]` | Any audio or video file to text with Sokki's speech model; `--json` for JSON. Needs `ffmpeg`. |
-| `sokki ask [--think] [PROMPT]` | Asks the local language model Sokki uses for summaries. Text piped in is appended: `cat notes.md \| sokki ask "Summarise"`. |
+| `sokki ask [--think] [PROMPT]` | Asks the local language model Sokki uses for summaries: the built-in Gemma 4 E4B (default; started for the answer, stopped after, about 5 s), or the Ollama model set in Sokki. Text piped in is appended: `cat notes.md \| sokki ask "Summarise"`. `--think` is for Ollama models. |
 | `sokki config [KEY [VALUE]]` | Lists every setting, shows one, or changes one (macOS; Linux edits `sokki.toml`). |
 | `sokki status [--json]`, `sokki events` | What Sokki is doing; `events` streams it, and every hook event, as JSON lines. Needs Sokki running. |
 | `sokki meeting record\|stop\|toggle\|dismiss` | Record a meeting, or answer the "record this call?" question. |
@@ -205,13 +205,22 @@ sokki config meetings.detection_enabled false
 | `SOKKI_SOCKET` | `<data folder>/sokki.sock` (Linux: `$XDG_RUNTIME_DIR/sokki/sokki.sock`) | the local API |
 | `SOKKI_INDEX` | `index.sqlite` in the data folder | the search index |
 | `SOKKI_HOOK` | `cli` | who added an item or a section |
-| `SOKKI_MODEL` | `meetings.llm_model`, else `qwen3.5:9b` | `ask` |
+| `SOKKI_MODEL` | none: the built-in model, or `meetings.llm_model` when `meetings.llm_provider` is `local` | `ask`: this Ollama model instead |
 | `SOKKI_APP_BIN` | the installed app's binary | `transcribe` |
 | `SOKKI_MEETINGS_INDEX` | the app's `meetings/index.json` | waiting during meetings (tests) |
 | `SOKKI_WAIT_EVERY_S` | `10` | how often the wait checks |
 
-The Claude Code skill for agents: [docs/skills/sokki/SKILL.md](docs/skills/sokki/SKILL.md)
-(copy it to `~/.claude/skills/sokki/`).
+The Claude Code skill for agents: [docs/skills/sokki/SKILL.md](docs/skills/sokki/SKILL.md).
+Install it:
+
+```bash
+mkdir -p ~/.claude/skills/sokki
+curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/docs/skills/sokki/SKILL.md -o ~/.claude/skills/sokki/SKILL.md
+```
+
+Sokki has no MCP server. An agent uses the `sokki` command, the skill, or
+`index.sqlite` directly. A summary for agents that don't know Sokki:
+[sokki.org/llms.txt](https://sokki.org/llms.txt).
 
 Made-up data to try it without real meetings:
 `cargo run --example make_fixture --features fixtures -- /tmp/sokki-demo` in

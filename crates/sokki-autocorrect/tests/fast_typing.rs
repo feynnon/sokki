@@ -517,7 +517,13 @@ fn backspace_right_after_a_fix_still_brings_the_word_back_while_keys_are_held() 
             (t, c)
         })
         .collect();
-    let sim = Sim::new(App { lag: 10.0, read: 2.0 }, script);
+    let sim = Sim::new(
+        App {
+            lag: 10.0,
+            read: 2.0,
+        },
+        script,
+    );
     let mut ac = Autocorrect::new(typos(), None);
     let (mut seen, mut got) = (0, Vec::new());
     for _ in 0..200 {
@@ -531,5 +537,8 @@ fn backspace_right_after_a_fix_still_brings_the_word_back_while_keys_are_held() 
         }
     }
     assert_eq!(sim.text(), "it wroks");
-    assert!(matches!(got.last(), Some(Outcome::Undone { .. })), "{got:?}");
+    assert!(
+        matches!(got.last(), Some(Outcome::Undone { .. })),
+        "{got:?}"
+    );
 }

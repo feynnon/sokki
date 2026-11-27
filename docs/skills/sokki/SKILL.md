@@ -75,8 +75,9 @@ sokki ask --think "PROMPT"       # with the model's reasoning turned on
 ```
 
 - `ask` reads stdin whenever it is not a terminal and waits for it to close; when not piping text in, add `< /dev/null`.
-- `ask` uses the model Sokki uses for meeting summaries (`SOKKI_MODEL=… sokki ask …` picks another installed Ollama model).
-- The first `ask` after a pause loads the model, about 15 s; later calls take a few seconds.
+- `ask` uses the model Sokki uses for meeting summaries: the built-in Gemma 4 E4B by default, loaded for each
+  call and stopped after (about 5 s), or the Ollama model set in Sokki. `SOKKI_MODEL=… sokki ask …` picks an
+  installed Ollama model. `--think` works with Ollama models.
 - `transcribe` and `ask` wait while Sokki records or processes a meeting.
 - Transcripts of files have no speaker labels.
 

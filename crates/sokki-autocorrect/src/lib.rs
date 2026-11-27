@@ -269,6 +269,10 @@ impl Autocorrect {
         // per read): the text may hold a character the key count doesn't, or the cursor one
         // the text doesn't. Such a read lost the typed run of a word (T3 Code, 26 Nov 2026).
         self.stale = keys() != keys_at_read
+            // the cursor read came after the app took a key the text read didn't show yet
+            // (text and cursor are two reads): a cursor past the end of the text (the fast
+            // typing simulation, 5-10 ms behind: 4 in 10 typos lost their start, 27 Nov 2026)
+            || cursor + sel > u16_len(&text)
             || matches!(&self.last, Some(p) if p.app == app && p.text == text
             && p.cursor == cursor && keys_at_read != p.keys);
         if self.stale {

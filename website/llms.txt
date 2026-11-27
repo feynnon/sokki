@@ -1,0 +1,39 @@
+# Sokki
+
+> Sokki is a free, open-source Mac app for dictation and meeting notes. Speech recognition, speaker detection and summaries run on the Mac, with no account, no cloud and no bot in the call. MIT licence. macOS 14.2 or later, Apple silicon.
+
+Facts as of release 0.2.39 (27 Nov 2026). Everything below describes the current release; planned work is marked as such.
+
+- Price: free. No trial, no limits, no paid tier. Each summary ends with one line naming Sokki.
+- Platforms: macOS 14.2+ on Apple silicon (M1 or later). Not available for Windows, iOS or Android yet; an Android app is in development and not public.
+- Privacy: audio, transcripts, notes and named voices stay on the Mac. No account. Usage reports are off unless turned on. Cloud models (Claude, GPT, OpenRouter) are used only if the user picks one with their own API key.
+- Dictation: hold a shortcut, speak, release; the text is typed at the cursor in any app. 25 languages with NVIDIA Parakeet; Whisper and other models for more.
+- Meetings: when Zoom, Teams, Google Meet, Slack or FaceTime start a call, Sokki asks once, then records the microphone and the call as two tracks, removes echo, detects speakers, and writes a Markdown note with summary, decisions, tasks with owners and the full transcript. A 20-minute call is ready about 3 minutes after it ends on an M-series Mac.
+- Speaker names: name a voice once; Sokki recognises it in later meetings.
+- Summaries: Gemma 4 E4B, built in and run on the Mac (5.1 GB download). Or Ollama, or a cloud model with the user's own key.
+- Command line: `sokki transcribe`, `sokki ask`, `sokki search`, `sokki sql`, `sokki config` and more, with JSON output for agents.
+- For AI agents: a Claude Code skill (SKILL.md) that teaches an agent the `sokki` command. Sokki has no MCP server yet.
+- Open source: MIT (Mac app and shared code). The Android app's code (`mobile/`) is GPL-3.0.
+- Built on Handy, the open-source dictation app by CJ Pais.
+
+## Get Sokki
+
+- [Install](https://sokki.org/get/): `curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh | bash`, or `brew install feynnon/sokki/sokki`, or the [zip](https://github.com/feynnon/sokki/releases/latest/download/Sokki-arm64.zip)
+- [Releases and changelog](https://github.com/feynnon/sokki/releases)
+
+## Docs
+
+- [Full facts for agents](https://sokki.org/llms-full.txt): capabilities, requirements, privacy, comparison, CLI
+- [README](https://github.com/feynnon/sokki/blob/main/README.md): what Sokki does, how it works, every network connection
+- [Command line](https://github.com/feynnon/sokki/blob/main/CLI.md): every `sokki` command and flag
+- [Claude Code skill](https://github.com/feynnon/sokki/blob/main/docs/skills/sokki/SKILL.md): lets an agent search meetings, transcribe files and ask the local model
+- [Settings](https://github.com/feynnon/sokki/blob/main/CONFIG.md): every setting, changeable with `sokki config`
+- [Privacy](https://sokki.org/privacy/): every network request Sokki makes
+- [Known issues](https://github.com/feynnon/sokki/blob/main/KNOWN_ISSUES.md)
+
+## Optional
+
+- [Why Sokki is free](https://sokki.org/why-free/)
+- [Hooks](https://github.com/feynnon/sokki/blob/main/HOOKS.md): run your own commands after a meeting
+- [Meeting pipeline](https://github.com/feynnon/sokki/blob/main/MEETINGS.md)
+- [Source code](https://github.com/feynnon/sokki)

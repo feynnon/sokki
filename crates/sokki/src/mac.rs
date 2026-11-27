@@ -216,21 +216,37 @@ pub fn ask(words: &[&str], think: bool) -> Result<()> {
     let s = settings();
     let base = meeting_setting(&s, "llm_base_url", "http://localhost:11434");
     let base = base.trim_end_matches('/').to_string();
-    let model = std::env::var("SOKKI_MODEL")
-        .ok()
-        .filter(|m| !m.trim().is_empty())
+    let chosen = std::env::var("SOKKI_MODEL").ok().filter(|m| !m.trim().is_empty());
+    let model = chosen
+        .clone()
         .unwrap_or_else(|| meeting_setting(&s, "llm_model", "qwen3.5:9b"));
     wait_for_meeting();
     let messages = serde_json::json!([{ "role": "user", "content": prompt }]);
-    let (url, body) = if base.ends_with("/v1") {
+    // The built-in model (the default since 0.2) runs in llama-server from
+    // the app bundle for this one answer and stops with this process. An
+    // Ollama model named in SOKKI_MODEL still goes to Ollama.
+    let provider = meeting_setting(&s, "llm_provider", sokki_engine::llm::DEFAULT_PROVIDER);
+    let builtin = (provider == sokki_engine::llm::BUILTIN && chosen.is_none())
+        .then(open_builtin)
+        .transpose()?;
+    let (url, body, key) = if let Some(llm) = &builtin {
+        let cfg = llm.config();
+        (
+            format!("{}/chat/completions", cfg.base_url),
+            serde_json::json!({ "model": cfg.model, "messages": messages, "stream": false }),
+            cfg.api_key,
+        )
+    } else if base.ends_with("/v1") {
         (
             format!("{base}/chat/completions"),
             serde_json::json!({ "model": model, "messages": messages, "stream": false }),
+            None,
         )
     } else {
         (
             format!("{base}/api/chat"),
             serde_json::json!({ "model": model, "messages": messages, "stream": false, "think": think }),
+            None,
         )
     };
     let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -238,11 +254,17 @@ pub fn ask(words: &[&str], think: bool) -> Result<()> {
         .http_status_as_error(false)
         .build()
         .into();
-    let mut resp = agent
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .send(body.to_string())
-        .with_context(|| format!("no language model at {base}. Is Ollama running?"))?;
+    let mut req = agent.post(&url).header("Content-Type", "application/json");
+    if let Some(key) = &key {
+        req = req.header("Authorization", format!("Bearer {key}"));
+    }
+    let mut resp = req.send(body.to_string()).with_context(|| {
+        if builtin.is_some() {
+            "the built-in language model stopped".to_string()
+        } else {
+            format!("no language model at {base}. Is Ollama running?")
+        }
+    })?;
     let status = resp.status();
     let text = resp.body_mut().read_to_string()?;
     let data: Value = serde_json::from_str(&text).with_context(|| format!("unreadable answer from {url}"))?;
@@ -260,6 +282,33 @@ pub fn ask(words: &[&str], think: bool) -> Result<()> {
         .unwrap_or_default();
     println!("{}", answer.trim());
     Ok(())
+}
+
+/// Starts the built-in model (Gemma 4 E4B in the app's llama-server, model
+/// files where the app downloaded them). It stops when the returned value
+/// drops, so no model is left holding memory after `ask`.
+fn open_builtin() -> Result<sokki_engine::llm::Llm> {
+    use sokki_engine::llm;
+    let contents = app_bin()
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .context("no Sokki app found")?;
+    llm::set_builtin_paths(llm::BuiltinPaths {
+        server: Some(contents.join("Resources/resources/llm/llama-server")),
+        models_dir: Some(data_dir().join("meeting-models")),
+    });
+    if !llm::model_present(&llm::BUILTIN_MODEL) {
+        bail!(
+            "the built-in language model isn't downloaded yet: Sokki › Models › Language model \
+             (or set SOKKI_MODEL to an Ollama model)"
+        );
+    }
+    let settings = llm::LlmSettings {
+        provider: llm::BUILTIN.into(),
+        ..Default::default()
+    };
+    llm::open(&settings, "")
 }
 
 fn secret(key: &str) -> bool {

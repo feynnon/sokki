@@ -255,6 +255,13 @@ Task: Robin asked for results after 0.2.36 shipped the fix above. From 0.2.36 (1
 - Fix: autocorrect allows the same: up to one character more than keys pressed, only when a key was pressed (a change with no key stays "not typed"). A 3-character paste with one key is still no typing. 25 typing tests pass; the new one fails without the change.
 - Open: why the hook misses about 1 key in 40 (KNOWN_ISSUES M7).
 
+### Text and cursor from two different moments (27 Nov 2026, evening)
+
+Task: the typing-race session's simulation (`tests/fast_typing.rs`: 800 runs, 8 to 20 keys a second, Accessibility 0 to 30 ms behind the app) found about 4 in 10 typos unfixed as "start of the word not seen typed" when Accessibility is 5 to 10 ms behind.
+- Cause: Sokki reads the text, then the cursor. A key counted before the look that the app shows between the two reads gives a cursor one past the end of the text read. The edit doesn't fit, the run starts again mid-word. The read-race fix (0.2.19) only caught keys counted during the read.
+- Fix: a read whose cursor (plus selection) lies past the end of its text counts as stale; Sokki looks again 15 ms later. Simulation: 1344 → 1600 of 1600 typos fixed (5 ms behind 194 → 320 of 320, 10 ms behind 224 → 320), 0 runs wrong before and after. 26 typing tests pass; the new one fails without the fix.
+- Not covered: the same race inside the text (typing in the middle of a line) gives a cursor that still fits; the run is lost there, never a wrong fix.
+
 ## Open questions
 
 - Not yet tested in the installed app by a person (first release with these fixes: 0.2.15).

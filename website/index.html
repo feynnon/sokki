@@ -3,15 +3,64 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sokki: dictation and meeting notes, on your Mac</title>
-<meta name="description" content="Dictation and meeting notes. Local. Free forever. Open source.">
+<title>Sokki: free, local dictation and meeting notes for Mac</title>
+<meta name="description" content="Dictation and meeting notes that run on your Mac. Speaker names, summaries, tasks. No bot, no account, no cloud. Free and open source (MIT).">
+<link rel="canonical" href="https://sokki.org/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
-<meta property="og:title" content="Sokki">
-<meta property="og:description" content="Every word. Yours. Dictation and meeting notes. Local. Free forever. Open source.">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Sokki for AI assistants">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sokki">
+<meta property="og:title" content="Sokki: every word. Yours.">
+<meta property="og:description" content="Dictation and meeting notes that run on your Mac. No bot, no account. Free and open source.">
 <meta property="og:image" content="https://sokki.org/og.png">
+<meta property="og:image:alt" content="Sokki. Every word. Yours.">
 <meta property="og:url" content="https://sokki.org/">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sokki: every word. Yours.">
+<meta name="twitter:description" content="Dictation and meeting notes that run on your Mac. No bot, no account. Free and open source.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://sokki.org/#site",
+      "name": "Sokki",
+      "url": "https://sokki.org/"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://sokki.org/#app",
+      "name": "Sokki",
+      "url": "https://sokki.org/",
+      "description": "Free, open-source dictation and meeting notes for Mac. Speech recognition, speaker detection and summaries run on the Mac, with no account and no bot in the call.",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Meeting notes and dictation",
+      "operatingSystem": "macOS 14.2 or later (Apple silicon)",
+      "license": "https://opensource.org/license/mit",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "downloadUrl": "https://github.com/feynnon/sokki/releases/latest/download/Sokki-arm64.zip",
+      "installUrl": "https://sokki.org/get/",
+      "codeRepository": "https://github.com/feynnon/sokki",
+      "sameAs": ["https://github.com/feynnon/sokki"],
+      "fileSize": "31MB",
+      "image": "https://sokki.org/og.png",
+      "featureList": [
+        "Dictation in any app, 25 languages (NVIDIA Parakeet)",
+        "Meeting notes for Zoom, Microsoft Teams, Google Meet, Slack and FaceTime, without a bot",
+        "Speaker detection on the Mac; name a voice once and it is recognised later",
+        "Summary, decisions and tasks with owners, as Markdown",
+        "Built-in local language model (Gemma 4 E4B), or Ollama, or a cloud model with your own key",
+        "Command line: sokki transcribe, ask, search, sql, config",
+        "Claude Code skill for AI agents",
+        "No account; audio and notes stay on the Mac"
+      ]
+    }
+  ]
+}
+</script>
 <script src="/app.js" defer></script>
 </head>
 <body>
@@ -128,7 +177,7 @@ Sokki</a>
 <footer class="footer">
 <div class="wrap">
 <span>Sokki (速記): Japanese for shorthand. Built on <a href="https://github.com/cjpais/Handy">Handy</a>.</span>
-<nav aria-label="Footer"><a href="/privacy/">Privacy</a><a href="/changelog/">Changelog</a><a href="mailto:hello@sokki.org">hello@sokki.org</a><a href="/impressum/">Impressum</a></nav>
+<nav aria-label="Footer"><a href="/facts/">Facts</a><a href="/privacy/">Privacy</a><a href="/changelog/">Changelog</a><a href="mailto:hello@sokki.org">hello@sokki.org</a><a href="/impressum/">Impressum</a></nav>
 </div>
 </footer>
 </body>

@@ -32,6 +32,9 @@ struct Fake {
     in_value_read: RefCell<Option<char>>,
     /// a key that lands after Sokki read the text, before it reads the cursor
     in_selection_read: RefCell<Option<char>>,
+    /// a key already counted that the app shows only after the text read, before the cursor
+    /// read
+    shown_in_selection_read: RefCell<Option<char>>,
 }
 
 impl Fake {
@@ -47,6 +50,7 @@ impl Fake {
             after_fix: RefCell::new(None),
             in_value_read: RefCell::new(None),
             in_selection_read: RefCell::new(None),
+            shown_in_selection_read: RefCell::new(None),
         }
     }
 
@@ -87,6 +91,9 @@ impl Field for Fake {
     fn selection(&self) -> Option<(usize, usize)> {
         if let Some(c) = self.in_selection_read.borrow_mut().take() {
             self.key(c);
+        }
+        if let Some(c) = self.shown_in_selection_read.borrow_mut().take() {
+            self.put(&c.to_string());
         }
         Some(self.sel.get())
     }
@@ -592,5 +599,29 @@ fn a_short_paste_with_one_key_still_is_no_typing() {
     assert!(
         got.iter().all(|o| !matches!(o, Outcome::Fixed { .. })),
         "{got:?}"
+    );
+}
+
+#[test]
+fn a_key_the_app_shows_between_text_and_cursor_reads_keeps_the_word_typed() {
+    // counted at once, shown by the app a few ms later: after the text read, before the cursor
+    // read, so the cursor stands past the end of the text read
+    let mut ac = Autocorrect::new(typos(), None);
+    let f = Fake::new("com.google.Chrome");
+    type_in(&mut ac, &f, "Ich habe das ");
+    f.keys.set(f.keys.get() + 1);
+    *f.shown_in_selection_read.borrow_mut() = Some('n');
+    ac.on_key(&f, &|| f.keys.get());
+    assert!(ac.stale());
+    // the next look (the thread looks again 15 ms later) sees text and cursor agree
+    ac.on_key(&f, &|| f.keys.get());
+    let got = type_in(&mut ac, &f, "ihct gesehen");
+    assert_eq!(
+        got,
+        vec![Outcome::Fixed {
+            typed: "nihct".into(),
+            fix: "nicht".into(),
+            exact: true
+        }]
     );
 }

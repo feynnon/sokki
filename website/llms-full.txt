@@ -1,0 +1,141 @@
+# Sokki: full facts
+
+> Sokki is a free, open-source Mac app for dictation and meeting notes. Speech recognition, speaker detection and summaries run on the Mac, with no account, no cloud and no bot in the call. MIT licence. macOS 14.2 or later, Apple silicon.
+
+Website: https://sokki.org · Code: https://github.com/feynnon/sokki · Contact: hello@sokki.org
+Facts as of release 0.2.39 (27 Nov 2026). Each fact names where it can be checked. Planned work is marked as planned.
+
+## At a glance
+
+| Question | Answer |
+|---|---|
+| What is it? | A Mac app for dictation (type by voice in any app) and meeting notes (record, transcribe, name speakers, summarise). |
+| Price | Free. No trial, no limits, no paid tier. Each summary ends with one line naming Sokki. Source: https://sokki.org/why-free/ |
+| Licence | MIT for the Mac app and shared code; GPL-3.0 for the Android app's code in `mobile/`. Source: https://github.com/feynnon/sokki/blob/main/LICENSE |
+| Platforms | macOS 14.2 or later, Apple silicon (M1 or later). |
+| Not available (yet) | Windows, iOS. An Android app is in development and not public. Intel Macs are not supported. |
+| Account | None. |
+| Where audio is processed | On the Mac. Models download once, then run offline. |
+| Bot in the call | No. Sokki records the Mac's microphone and the call's audio. |
+| Install | `curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/install.sh \| bash`, `brew install feynnon/sokki/sokki`, or https://github.com/feynnon/sokki/releases/latest/download/Sokki-arm64.zip |
+| Disk | 31 MB app, 0.9 GB speech and speaker models, 5.1 GB more for the built-in summary model (5.6 GB memory while a summary runs). |
+| Updates | Sokki updates itself from GitHub releases. |
+| Origin | A fork of Handy (https://github.com/cjpais/Handy), the open-source dictation app by CJ Pais. Sokki (速記) is Japanese for shorthand. |
+
+## Dictation
+
+- Hold a shortcut, speak, release: the text is typed at the cursor, in any app.
+- 25 languages with NVIDIA Parakeet (default). Whisper, Canary, Qwen-ASR and other models can be picked instead.
+- Vocabulary: add names and product terms so they are spelled right. Sokki can also learn terms from what the user writes on the Mac; that text stays on the Mac.
+- Optional cleanup of the dictated text with a local language model.
+- Autocorrect while typing (macOS, off by default): fixes typos at the space bar in apps where macOS does not, such as Chrome, Slack and Electron apps. Backspace undoes a fix. Never in password fields, terminals or password managers.
+
+## Meetings
+
+- Call detection: when Zoom, Microsoft Teams, Google Meet, Slack or FaceTime start a call, Sokki asks once whether to record. No bot joins.
+- Auto start: once Sokki knows the user's own voice, it can start a note by itself for an in-person conversation (on by default, one switch turns it off).
+- Two tracks: the microphone and the call are recorded apart; echo is removed (WebRTC).
+- Speakers: detected on the Apple GPU (NVIDIA Sortformer). Name a voice once and Sokki recognises it in later meetings. Voices are kept only with the person's consent.
+- The note: title, summary, decisions, tasks with an owner, and the full transcript with timestamps, as a Markdown file in any folder (works with Obsidian).
+- Speed: a 20-minute call is ready about 3 minutes after it ends, on an M-series Mac.
+- Notes by mail: after a meeting, Sokki can email the note (summary, decisions, tasks; never the transcript) to the people in it, from the user's own Mail app account. On by default; one switch turns it off.
+- Audio: deleted after the note is written, or kept for the number of days the user chooses.
+- Consent: recording people needs their consent. Sokki can post a one-line notice in the meeting chat (off by default).
+
+## Summaries
+
+| Option | Where it runs |
+|---|---|
+| Gemma 4 E4B (default, built in, run by llama.cpp) | On the Mac |
+| Any Ollama model, or an OpenAI-compatible local server | On the Mac |
+| Claude, GPT or OpenRouter, with the user's own API key | That provider gets the transcript |
+
+## Privacy
+
+Audio, transcripts, notes and named voices stay on the Mac. Every connection Sokki makes is listed at https://sokki.org/privacy/ and in the README:
+
+- Model downloads (Hugging Face, Handy's mirror), once per model.
+- Update check (GitHub), at start; can be switched off.
+- One message download from Sokki's counter every 6 hours; sends nothing.
+- A cloud language model, only if the user picks one with their own key.
+- Usage reports, sharing recordings, phone link: all off unless the user turns them on.
+
+## For AI agents
+
+Sokki has a command-line tool, `sokki`, that agents can call. `install.sh` links it into `~/.local/bin`. Every command runs on the Mac. Full reference: https://github.com/feynnon/sokki/blob/main/CLI.md
+
+| Command | What it does |
+|---|---|
+| `sokki transcribe FILE [--json]` | Any audio or video file to text with Sokki's speech model (needs `ffmpeg`). |
+| `sokki ask [--think] "PROMPT"` | Answer from the local language model Sokki uses for summaries. Piped text is appended. Add `< /dev/null` when not piping. |
+| `sokki search QUERY [--person P] [--since 14d] [--json]` | Search meetings, summaries, decisions, tasks, own notes and dictations. Works while the app is closed. |
+| `sokki get CITE` | The transcript around a search result, e.g. `m:<meeting>@01:05`. |
+| `sokki meetings`, `sokki tasks`, `sokki decisions`, `sokki people` | Lists, each with `--json`. |
+| `sokki sql "SELECT …"`, `sokki db path`, `sokki db schema` | Read-only SQL on the SQLite index (views: meetings, turns, tasks, decisions, own_notes, dictations, people). |
+| `sokki note append`, `sokki item add` | Write back into a meeting's note (for hooks). |
+| `sokki config [KEY [VALUE]]` | Read or change any setting; the running app applies it. |
+| `sokki status`, `sokki events` | What Sokki is doing; `events` streams JSON lines. |
+| `sokki meeting record\|stop`, `sokki dictation start\|stop` | Control the running app. |
+| `sokki hooks …` | Run your own commands on events: https://github.com/feynnon/sokki/blob/main/HOOKS.md |
+
+JSON output: lists answer `{query, filters_applied, results, next_cursor, truncated, est_tokens}`; each result has `cite`, `speaker`, `person_id` (`me` is the user), `channel` (`mic` or `system`) and `text`.
+
+Claude Code skill: https://github.com/feynnon/sokki/blob/main/docs/skills/sokki/SKILL.md. Install it with:
+
+```bash
+mkdir -p ~/.claude/skills/sokki
+curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/docs/skills/sokki/SKILL.md -o ~/.claude/skills/sokki/SKILL.md
+```
+
+MCP: Sokki has no MCP server yet. Agents use the `sokki` command, the skill, or the SQLite file directly.
+
+## Comparison
+
+Checked on 27 Nov 2026 on each vendor's own pages (sources below). "Cloud" means the vendor's servers.
+
+| | Sokki | Granola | Superwhisper | Otter | Fathom |
+|---|---|---|---|---|---|
+| Free plan | Everything, no limits | Basic: 30 days of history | Dictation; meetings need Pro | 300 min a month, 30 min per conversation | Yes, some features limited |
+| Cheapest paid plan | None | Business, $14 per user a month | Pro, $8.49 a month | Pro, $16.99 a month ($8.33 billed yearly) | Premium, $20 a month |
+| Meeting transcription | On the Mac | Cloud | Cloud by default | Cloud | Cloud |
+| Bot in the call | No | No | No | Optional | Optional |
+| Account | None | Google or Microsoft sign-in | None | Required | Required |
+| Dictation in any app | Yes | Yes (beta) | Yes | Not listed | Not listed |
+| Open source | Yes, MIT | No | No | No | No |
+| Platforms | Mac | Mac, Windows, iOS, Android | Mac, Windows, iOS, Android | Mac, Windows, iOS, Android | Mac, Windows, iOS |
+| MCP server | No (CLI and skill) | Yes | Yes | Yes | Yes |
+
+Sources:
+- Granola: https://www.granola.ai/pricing, https://www.granola.ai/security, https://docs.granola.ai/help-center/voice-typing/intro
+- Superwhisper: https://superwhisper.com/docs/billing/plans, https://superwhisper.com/docs/meetings/overview.md, https://superwhisper.com/docs/get-started/coding-agents.md
+- Otter: https://otter.ai/pricing, https://otter.ai/desktop, https://otter.ai/terms-of-service
+- Fathom: https://www.fathom.ai/pricing, https://www.fathom.ai/features/bot-free-capture, https://help.fathom.video/en/articles/296576, https://developers.fathom.ai/mcp-docs
+
+## How it works
+
+| Step | Default | Options |
+|---|---|---|
+| Echo removal | WebRTC echo cancellation | — |
+| Speakers | NVIDIA Sortformer, on the GPU | Remembered voices |
+| Speech recognition | NVIDIA Parakeet, 25 languages | Whisper, Canary, Qwen-ASR and more |
+| Summary | Gemma 4 E4B, built in | Ollama; Claude, GPT or OpenRouter with your key |
+
+## FAQ
+
+**Is Sokki free?** Yes. No trial, no limits, no paid tier, no account. The code is MIT on GitHub.
+
+**Does Sokki work offline?** Yes. After the models download once, dictation, transcription, speaker detection and summaries run without internet.
+
+**Is Sokki a free alternative to Granola?** It covers the same job, meeting notes without a bot, but transcribes and summarises on the Mac instead of in a cloud, and costs nothing. Granola runs on more platforms and has an MCP server; Sokki has neither yet.
+
+**Is Sokki a free alternative to Superwhisper?** For dictation and meetings on a Mac, yes: Parakeet, system audio and speaker separation are Pro features in Superwhisper ($8.49 a month) and free in Sokki. Superwhisper runs on more devices.
+
+**Does a bot join my call?** No. Sokki records on the Mac.
+
+**Which call apps does it detect?** Zoom, Microsoft Teams, Google Meet, Slack and FaceTime. Any other call can be recorded with the meeting shortcut.
+
+**Which languages?** 25 with Parakeet (the default); more with Whisper.
+
+**Does it run on Windows, Linux, iPhone or Android?** The app is Mac only. Android is in development and not public. There is no Windows or iOS version.
+
+**Can AI agents use my meetings?** Yes, through the `sokki` command and the Claude Code skill. What a cloud agent reads leaves the Mac; Sokki logs each read locally.

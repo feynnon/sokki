@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sokki facts: free local dictation and meeting notes for Mac</title>
+<meta name="description" content="What Sokki does, what it needs, what it costs, and how it compares with Granola, Superwhisper, Otter and Fathom. Every fact with its source.">
+<link rel="canonical" href="https://sokki.org/facts/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<link rel="alternate" type="text/plain" href="/llms-full.txt" title="Sokki facts as plain text">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sokki">
+<meta property="og:title" content="Sokki facts">
+<meta property="og:description" content="Free, open-source dictation and meeting notes that run on your Mac. Every fact with its source.">
+<meta property="og:image" content="https://sokki.org/og.png">
+<meta property="og:url" content="https://sokki.org/facts/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+.table { margin-top: 24px; overflow-x: auto; }
+.table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); }
+.table th { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.table td { color: var(--ink-2); min-width: 7em; }
+.table td:first-child { color: var(--ink); }
+.prose code { font-family: var(--mono); font-size: 0.9em; }
+.facts-wide { max-width: 960px; }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://sokki.org/#app",
+      "name": "Sokki",
+      "url": "https://sokki.org/",
+      "description": "Free, open-source dictation and meeting notes for Mac. Speech recognition, speaker detection and summaries run on the Mac, with no account and no bot in the call.",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Meeting notes and dictation",
+      "operatingSystem": "macOS 14.2 or later (Apple silicon)",
+      "license": "https://opensource.org/license/mit",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "downloadUrl": "https://github.com/feynnon/sokki/releases/latest/download/Sokki-arm64.zip",
+      "installUrl": "https://sokki.org/get/",
+      "codeRepository": "https://github.com/feynnon/sokki",
+      "sameAs": ["https://github.com/feynnon/sokki"],
+      "fileSize": "31MB",
+      "featureList": [
+        "Dictation in any app, 25 languages (NVIDIA Parakeet)",
+        "Meeting notes for Zoom, Microsoft Teams, Google Meet, Slack and FaceTime, without a bot",
+        "Speaker detection on the Mac; name a voice once and it is recognised later",
+        "Summary, decisions and tasks with owners, as Markdown",
+        "Built-in local language model (Gemma 4 E4B), or Ollama, or a cloud model with your own key",
+        "Command line: sokki transcribe, ask, search, sql, config",
+        "Claude Code skill for AI agents",
+        "No account; audio and notes stay on the Mac"
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Is Sokki free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. No trial, no limits, no paid tier, no account. The code is MIT on GitHub." } },
+        { "@type": "Question", "name": "Does Sokki work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. After the models download once, dictation, transcription, speaker detection and summaries run without internet." } },
+        { "@type": "Question", "name": "Does a bot join my call?", "acceptedAnswer": { "@type": "Answer", "text": "No. Sokki records the microphone and the call's audio on the Mac." } },
+        { "@type": "Question", "name": "Which platforms does Sokki run on?", "acceptedAnswer": { "@type": "Answer", "text": "macOS 14.2 or later on Apple silicon. An Android app is in development and not public. There is no Windows or iOS version." } },
+        { "@type": "Question", "name": "Is Sokki a free alternative to Granola?", "acceptedAnswer": { "@type": "Answer", "text": "It does the same job, meeting notes without a bot, but transcribes and summarises on the Mac instead of in a cloud, and costs nothing. Granola runs on more platforms and has an MCP server; Sokki has neither yet." } },
+        { "@type": "Question", "name": "Is Sokki a free alternative to Superwhisper?", "acceptedAnswer": { "@type": "Answer", "text": "For dictation and meetings on a Mac, yes. Parakeet, system audio and speaker separation are Pro features in Superwhisper ($8.49 a month) and free in Sokki. Superwhisper runs on more devices." } },
+        { "@type": "Question", "name": "Can AI agents use Sokki?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, through the sokki command (transcribe, ask, search, sql, config, with JSON output) and a Claude Code skill. Sokki has no MCP server yet." } }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<header class="wrap nav">
+<a href="/" class="brand" aria-label="Sokki home">
+<svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><rect x="5" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="13" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="21" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="29.5" y="29" width="5" height="26" rx="2.5" fill="#8ab4ff"/><rect x="38" y="23" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="46" y="17" width="5" height="22" rx="2.5" fill="#ecedef"/><rect x="54" y="11" width="5" height="22" rx="2.5" fill="#ecedef"/></svg>
+Sokki</a>
+<nav class="links" aria-label="Main"><a href="/#download">Download</a><a href="/github">GitHub</a></nav>
+</header>
+
+<main class="wrap facts-wide prose" style="padding-top: 96px">
+<p class="eyebrow">Facts</p>
+<h1 class="display">Sokki, plainly.</h1>
+<p class="lead">Free, open-source dictation and meeting notes that run on your Mac. As of version 0.2.39, 27 November 2026.</p>
+<p>The same facts as plain text, for AI assistants: <a href="/llms.txt">llms.txt</a> and <a href="/llms-full.txt">llms-full.txt</a>.</p>
+
+<h2 class="title">At a glance</h2>
+<div class="rows" style="margin-top: 24px">
+<div class="row"><span>Price</span><span>free; no trial, no limits, no paid tier</span></div>
+<div class="row"><span>Licence</span><span>MIT; the Android code is GPL-3.0</span></div>
+<div class="row"><span>Runs on</span><span>macOS 14.2 or later, Apple silicon</span></div>
+<div class="row"><span>Not yet</span><span>Windows, iOS; Android is in development</span></div>
+<div class="row"><span>Account</span><span>none</span></div>
+<div class="row"><span>Speech, speakers, summaries</span><span>processed on your Mac</span></div>
+<div class="row"><span>Bot in your call</span><span>none</span></div>
+<div class="row"><span>Download</span><span>31 MB, plus 0.9 GB of models, once</span></div>
+</div>
+
+<h2 class="title">What it does</h2>
+<ul>
+<li><strong>Dictation.</strong> Hold a shortcut, speak, let go. The text lands at your cursor, in any app. 25 languages with NVIDIA Parakeet; Whisper and other models for more.</li>
+<li><strong>Meetings.</strong> When Zoom, Teams, Google Meet, Slack or FaceTime start a call, Sokki asks once. It records your microphone and the call apart, and removes echo.</li>
+<li><strong>Speaker names.</strong> Speakers are detected on the Apple GPU. Name a voice once; Sokki knows it next time.</li>
+<li><strong>The note.</strong> Summary, decisions, tasks with an owner and the full transcript, as Markdown in any folder. A 20 min call is ready about 3 min after you hang up.</li>
+<li><strong>Summaries.</strong> Gemma 4 E4B, built in and run on your Mac. Or Ollama. Or Claude, GPT or OpenRouter with your own key.</li>
+<li><strong>Notes by mail.</strong> After a meeting, Sokki can mail the note, never the transcript, to the people in it, from your own Mail account.</li>
+<li><strong>Autocorrect.</strong> Fixes typos as you type in apps where macOS doesn’t, such as Chrome and Slack. Off until you turn it on.</li>
+<li><strong>Command line.</strong> <code>sokki transcribe</code>, <code>ask</code>, <code>search</code>, <code>sql</code>, <code>config</code> and more, with JSON output. <a href="https://github.com/feynnon/sokki/blob/main/CLI.md">CLI.md</a></li>
+<li><strong>For AI agents.</strong> A <a href="https://github.com/feynnon/sokki/blob/main/docs/skills/sokki/SKILL.md">Claude Code skill</a> lets an agent search your meetings, transcribe files and ask the local model. No MCP server yet.</li>
+</ul>
+
+<h2 class="title">Compared</h2>
+<p>From each vendor’s own pages, 27 November 2026. “Cloud” means the vendor’s servers.</p>
+<div class="table">
+<table>
+<thead><tr><th></th><th>Sokki</th><th>Granola</th><th>Superwhisper</th><th>Otter</th><th>Fathom</th></tr></thead>
+<tbody>
+<tr><td>Free plan</td><td>everything</td><td>30 days of history</td><td>dictation; meetings need Pro</td><td>300 min a month</td><td>yes, some limits</td></tr>
+<tr><td>Cheapest paid</td><td>none</td><td>$14 per user a month</td><td>$8.49 a month</td><td>$16.99 a month</td><td>$20 a month</td></tr>
+<tr><td>Meeting transcription</td><td>on your Mac</td><td>cloud</td><td>cloud by default</td><td>cloud</td><td>cloud</td></tr>
+<tr><td>Bot in the call</td><td>no</td><td>no</td><td>no</td><td>optional</td><td>optional</td></tr>
+<tr><td>Account</td><td>none</td><td>Google or Microsoft</td><td>none</td><td>required</td><td>required</td></tr>
+<tr><td>Dictation</td><td>yes</td><td>yes, beta</td><td>yes</td><td>not listed</td><td>not listed</td></tr>
+<tr><td>Open source</td><td>yes, MIT</td><td>no</td><td>no</td><td>no</td><td>no</td></tr>
+<tr><td>Platforms</td><td>Mac</td><td>Mac, Windows, iOS, Android</td><td>Mac, Windows, iOS, Android</td><td>Mac, Windows, iOS, Android</td><td>Mac, Windows, iOS</td></tr>
+<tr><td>MCP server</td><td>no; CLI and skill</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+</tbody>
+</table>
+</div>
+<p style="font-size: 13px">Sources: Granola <a href="https://www.granola.ai/pricing">pricing</a>, <a href="https://www.granola.ai/security">security</a>, <a href="https://docs.granola.ai/help-center/voice-typing/intro">voice typing</a>. Superwhisper <a href="https://superwhisper.com/docs/billing/plans">plans</a>, <a href="https://superwhisper.com/docs/meetings/overview.md">meetings</a>, <a href="https://superwhisper.com/docs/get-started/coding-agents.md">coding agents</a>. Otter <a href="https://otter.ai/pricing">pricing</a>, <a href="https://otter.ai/desktop">desktop</a>, <a href="https://otter.ai/terms-of-service">terms</a>. Fathom <a href="https://www.fathom.ai/pricing">pricing</a>, <a href="https://www.fathom.ai/features/bot-free-capture">bot-free capture</a>, <a href="https://help.fathom.video/en/articles/296576">platforms</a>, <a href="https://developers.fathom.ai/mcp-docs">MCP</a>.</p>
+
+<h2 class="title">Questions</h2>
+<p><strong>Does it work offline?</strong> Yes. After the models download once, everything runs without internet.</p>
+<p><strong>Is it a free alternative to Granola?</strong> It does the same job, meeting notes without a bot, on your Mac instead of a cloud, for nothing. Granola runs on more platforms and has an MCP server; Sokki has neither yet.</p>
+<p><strong>And to Superwhisper?</strong> On a Mac, yes. Parakeet, system audio and speaker separation are Pro in Superwhisper, at $8.49 a month. In Sokki they’re free. <a href="/why-free/">Why</a>.</p>
+<p><strong>Can AI agents use it?</strong> Yes, through the <code>sokki</code> command and the Claude Code skill. What a cloud agent reads leaves your Mac; Sokki logs each read on your Mac.</p>
+<p><strong>Where’s my data?</strong> On your Mac. <a href="/privacy/">Every request that leaves</a>.</p>
+</main>
+
+<footer class="footer">
+<div class="wrap">
+<span>Sokki (速記): Japanese for shorthand. Built on <a href="https://github.com/cjpais/Handy">Handy</a>.</span>
+<nav aria-label="Footer"><a href="/privacy/">Privacy</a><a href="/changelog/">Changelog</a><a href="mailto:hello@sokki.org">hello@sokki.org</a><a href="/impressum/">Impressum</a></nav>
+</div>
+</footer>
+</body>
+</html>

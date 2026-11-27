@@ -18,6 +18,8 @@
 
 ---
 
+**Sokki at a glance.** Free, no paid tier. MIT. macOS 14.2+ on Apple silicon. No account. Speech, speakers and summaries run on your Mac, with no bot in the call. Dictation in any app, 25 languages. Meeting notes for Zoom, Teams, Meet, Slack and FaceTime: speaker names, summary, decisions, tasks, transcript, as Markdown. A `sokki` command and a Claude Code skill for agents. Not yet: Windows, iOS, Android, an MCP server. All facts, with a comparison: [sokki.org/facts](https://sokki.org/facts/) · [llms.txt](https://sokki.org/llms.txt).
+
 ## How it differs
 
 - **[Handy](https://github.com/cjpais/Handy)** is the dictation app Sokki is built on. Sokki adds meetings.
@@ -84,6 +86,27 @@ brew install feynnon/sokki/sokki
 | Summary | Gemma 4 E4B, built in, on your Mac | Ollama; Claude, GPT or OpenRouter with your key |
 
 Models download once, then run offline. Measurements behind these choices: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+## For agents and scripts
+
+The `sokki` command runs on your Mac. `install.sh` puts it in `~/.local/bin`.
+
+```bash
+sokki transcribe call.m4a                  # any audio or video file to text
+sokki ask "Three bullets:" < notes.md      # the local model, nothing leaves the Mac
+sokki search "budget" --since 30d --json   # meetings, decisions, tasks, dictations
+sokki sql "SELECT title, started_at FROM meetings ORDER BY started_ms DESC LIMIT 5"
+sokki config meetings.keep_audio_days 7    # any setting
+```
+
+Every command: [CLI.md](CLI.md). For Claude Code, add the skill:
+
+```bash
+mkdir -p ~/.claude/skills/sokki
+curl -fsSL https://raw.githubusercontent.com/feynnon/sokki/main/docs/skills/sokki/SKILL.md -o ~/.claude/skills/sokki/SKILL.md
+```
+
+No MCP server yet. Run your own commands after each meeting: [HOOKS.md](HOOKS.md).
 
 ## Stays on your Mac.
 
